@@ -12,3 +12,4 @@ yarn-error.*
 *.pem
 ios/
 android/
+.mcp.json
