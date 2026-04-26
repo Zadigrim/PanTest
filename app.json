@@ -1,0 +1,70 @@
+{
+  "expo": {
+    "name": "Panoply",
+    "slug": "panoply",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0D1B2A"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.panoply.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Panoply uses your camera to scan QR codes at locations.",
+        "NSLocationWhenInUseUsageDescription": "Panoply uses your location only at the moment you stamp a location — never in the background.",
+        "NSMicrophoneUsageDescription": "Panoply uses your microphone for voice journal entries.",
+        "NSPhotoLibraryUsageDescription": "Panoply accesses your photos for journal entries."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0D1B2A"
+      },
+      "package": "com.panoply.app",
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.READ_EXTERNAL_STORAGE"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Panoply uses your camera to scan QR codes at locations."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Panoply uses your location only at the moment you stamp a location — never in the background."
+        }
+      ],
+      [
+        "expo-barcode-scanner",
+        {
+          "cameraPermission": "Allow Panoply to access camera for QR scanning."
+        }
+      ],
+      "@sentry/react-native/expo"
+    ],
+    "scheme": "panoply",
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
