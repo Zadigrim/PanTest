@@ -13,3 +13,7 @@ yarn-error.*
 ios/
 android/
 .mcp.json
+# Supabase
+.branches
+.temp
+.env
