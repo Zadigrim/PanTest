@@ -36,6 +36,14 @@ export default function RootLayout() {
           name="designer/[passportId]"
           options={{ title: 'Edit Passport' }}
         />
+        <Stack.Screen
+          name="designer/page/[pageId]"
+          options={{ title: 'Edit Section' }}
+        />
+        <Stack.Screen
+          name="designer/stop/[stopId]"
+          options={{ title: 'Edit Stop' }}
+        />
         <Stack.Screen name="employee" options={{ headerShown: false }} />
       </Stack>
     </GestureHandlerRootView>

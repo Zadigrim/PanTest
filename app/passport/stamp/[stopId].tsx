@@ -10,6 +10,7 @@ import type { Stop } from '../../../types'
 export default function StampScreen() {
   const { stopId, qrCodeId } = useLocalSearchParams<{ stopId: string; qrCodeId?: string }>()
   const [stop, setStop] = useState<Stop | null>(null)
+  const [collectorPassportId, setCollectorPassportId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [stamped, setStamped] = useState(false)
   const [verifying, setVerifying] = useState(false)
@@ -18,8 +19,38 @@ export default function StampScreen() {
 
   useEffect(() => {
     async function load() {
-      const { data } = await supabase.from('stops').select('*').eq('id', stopId).single()
-      setStop(data)
+      const user = await getCurrentUser()
+      if (!user) { router.replace('/(auth)/login'); return }
+
+      const { data: stopData } = await supabase
+        .from('stops')
+        .select('*, passport_pages(passport_id)')
+        .eq('id', stopId)
+        .single()
+
+      if (!stopData) { setLoading(false); return }
+      setStop(stopData)
+
+      const passportId = (stopData as any).passport_pages?.passport_id
+      if (passportId) {
+        const { data: cp } = await supabase
+          .from('collector_passports')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('passport_id', passportId)
+          .single()
+        setCollectorPassportId(cp?.id ?? null)
+      }
+
+      // Check if already stamped
+      const { data: existing } = await supabase
+        .from('stamps')
+        .select('id')
+        .eq('stop_id', stopId)
+        .eq('user_id', user.id)
+        .single()
+      if (existing) setStamped(true)
+
       setLoading(false)
     }
     load()
@@ -29,6 +60,12 @@ export default function StampScreen() {
     setVerifying(true)
     const user = await getCurrentUser()
     if (!user) { router.push('/(auth)/login'); return }
+
+    if (!collectorPassportId) {
+      Alert.alert('Passport needed', 'You need to acquire this passport before stamping.')
+      setVerifying(false)
+      return
+    }
 
     const location = await checkLocation()
     if (!location) {
@@ -55,6 +92,7 @@ export default function StampScreen() {
     const { error } = await supabase.from('stamps').insert({
       user_id: user.id,
       stop_id: stopId,
+      collector_passport_id: collectorPassportId,
       geohash: result.geohash,
       verification_method: result.verificationMethod,
       stop_opened_at: stopOpenedAt,

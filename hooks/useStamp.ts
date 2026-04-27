@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { saveStamp } from '../lib/stamp'
 import type { Stamp, Stop, StampPlacement, StampSlotState } from '../types'
@@ -87,6 +87,8 @@ export function usePageStamps(pageId: string, userId: string) {
     setStamps(byStop)
     setLoading(false)
   }, [pageId, userId])
+
+  useEffect(() => { load() }, [load])
 
   return { stamps, loading, reload: load }
 }

@@ -102,10 +102,20 @@ export default function PassportEditorScreen() {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Pages</Text>
         {pages.map((page, i) => (
-          <View key={page.id} style={styles.pageRow}>
+          <TouchableOpacity
+            key={page.id}
+            style={styles.pageRow}
+            onPress={() => router.push(`/designer/page/${page.id}`)}
+          >
             <Text style={styles.pageNum}>{i + 1}</Text>
-            <Text style={styles.pageName}>{page.section_name}</Text>
-          </View>
+            <View style={styles.pageRowBody}>
+              <Text style={styles.pageName}>{page.section_name}</Text>
+              {page.section_tagline ? (
+                <Text style={styles.pageTagline}>{page.section_tagline}</Text>
+              ) : null}
+            </View>
+            <Text style={styles.pageArrow}>›</Text>
+          </TouchableOpacity>
         ))}
         <TouchableOpacity style={styles.addBtn} onPress={addPage}>
           <Text style={styles.addBtnText}>+ Add page</Text>
@@ -140,7 +150,10 @@ const styles = StyleSheet.create({
   toggleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 16 },
   pageRow: { flexDirection: 'row', alignItems: 'center', padding: 10, borderBottomWidth: 1, borderBottomColor: '#f0f0f0' },
   pageNum: { width: 24, fontSize: 13, color: '#aaa' },
+  pageRowBody: { flex: 1 },
   pageName: { fontSize: 15, color: '#222' },
+  pageTagline: { fontSize: 11, color: '#999', fontStyle: 'italic', marginTop: 1 },
+  pageArrow: { fontSize: 18, color: '#ccc', paddingLeft: 8 },
   addBtn: { padding: 12, alignItems: 'center' },
   addBtnText: { color: '#1D9E75', fontWeight: '600' },
   saveBtn: {
