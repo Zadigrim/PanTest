@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { usePassportStore } from '@/lib/stores/passport-store'
 
@@ -9,45 +9,45 @@ interface Options {
   onSettings?: () => void
 }
 
-/**
- * Keyboard shortcuts for the workspace:
- * - Cmd/Ctrl+S → trigger save
- * - Escape → deselect stop
- * - Delete / Backspace (when stop selected) → delete stop
- */
 export function useWorkspaceKeyboard({ onSave, onSettings }: Options = {}) {
-  const selectedStopId = usePassportStore((s) => s.selectedStopId)
+  // Use refs so the effect never needs to re-run when callbacks change
+  const onSaveRef = useRef(onSave)
+  const onSettingsRef = useRef(onSettings)
+  useEffect(() => { onSaveRef.current = onSave }, [onSave])
+  useEffect(() => { onSettingsRef.current = onSettings }, [onSettings])
+
   const setSelectedStop = usePassportStore((s) => s.setSelectedStop)
   const removeStop = usePassportStore((s) => s.removeStop)
-  const stops = usePassportStore((s) => s.stops)
 
   useEffect(() => {
     const handler = async (e: KeyboardEvent) => {
       const target = e.target as HTMLElement
-      const isInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable
+      const isInput =
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.isContentEditable
 
-      // Cmd/Ctrl+S — save
       if ((e.metaKey || e.ctrlKey) && e.key === 's') {
         e.preventDefault()
-        onSave?.()
+        onSaveRef.current?.()
         return
       }
 
-      // Cmd/Ctrl+, — settings
       if ((e.metaKey || e.ctrlKey) && e.key === ',') {
         e.preventDefault()
-        onSettings?.()
+        onSettingsRef.current?.()
         return
       }
 
-      // Escape — deselect
       if (e.key === 'Escape') {
         setSelectedStop(null)
         return
       }
 
-      // Delete / Backspace — delete selected stop (not when typing in a field)
-      if ((e.key === 'Delete' || e.key === 'Backspace') && !isInput && selectedStopId) {
+      if ((e.key === 'Delete' || e.key === 'Backspace') && !isInput) {
+        // Access current store state directly — no stale closure
+        const { selectedStopId, stops } = usePassportStore.getState()
+        if (!selectedStopId) return
         const stop = stops.find((s) => s.id === selectedStopId)
         if (!stop) return
         if (!confirm(`Delete stop "${stop.name}"?`)) return
@@ -60,5 +60,5 @@ export function useWorkspaceKeyboard({ onSave, onSettings }: Options = {}) {
 
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [selectedStopId, stops, setSelectedStop, removeStop, onSave, onSettings])
+  }, [setSelectedStop, removeStop]) // stable Zustand actions only
 }
