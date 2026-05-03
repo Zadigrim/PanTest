@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useCallback } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import { createClient } from '@/lib/supabase/client'
 import {
   usePassportStore,
@@ -15,7 +16,7 @@ const ARTBOARD_H = 792
 
 export function Canvas() {
   const activePage = usePassportStore(selectActivePage)
-  const stops = usePassportStore(selectActivePageStops)
+  const stops = usePassportStore(useShallow(selectActivePageStops))
   const selectedStopId = usePassportStore((s) => s.selectedStopId)
   const setSelectedStop = usePassportStore((s) => s.setSelectedStop)
   const updateStop = usePassportStore((s) => s.updateStop)
