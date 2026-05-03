@@ -20,31 +20,37 @@ export function useWorkspaceKeyboard({ onSave, onSettings }: Options = {}) {
   const removeStop = usePassportStore((s) => s.removeStop)
 
   useEffect(() => {
-    const handler = async (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement
-      const isInput =
-        target.tagName === 'INPUT' ||
-        target.tagName === 'TEXTAREA' ||
-        target.isContentEditable
+    const inTextField = (el: Element | null): boolean =>
+      !!el && (
+        (el as HTMLElement).tagName === 'INPUT' ||
+        (el as HTMLElement).tagName === 'TEXTAREA' ||
+        (el as HTMLElement).isContentEditable
+      )
 
+    const handler = async (e: KeyboardEvent) => {
+      // Cmd/Ctrl shortcuts fire regardless of focus context
       if ((e.metaKey || e.ctrlKey) && e.key === 's') {
         e.preventDefault()
         onSaveRef.current?.()
         return
       }
-
       if ((e.metaKey || e.ctrlKey) && e.key === ',') {
         e.preventDefault()
         onSettingsRef.current?.()
         return
       }
 
+      // For everything else, bail out if the user is editing text.
+      // Check both e.target and document.activeElement — they can diverge
+      // during React re-renders in concurrent mode.
+      if (inTextField(e.target as Element) || inTextField(document.activeElement)) return
+
       if (e.key === 'Escape') {
         setSelectedStop(null)
         return
       }
 
-      if ((e.key === 'Delete' || e.key === 'Backspace') && !isInput) {
+      if (e.key === 'Delete' || e.key === 'Backspace') {
         // Access current store state directly — no stale closure
         const { selectedStopId, stops } = usePassportStore.getState()
         if (!selectedStopId) return
