@@ -44,10 +44,14 @@ export function StampArtwork({ stop, size, rotationDeg = 0, ghost = false }: Pro
     }
   }
 
+  // Filter primitives are undefined on the web SVG renderer
+  const filterSupported = !!Filter && !!FeTurbulence && !!FeDisplacementMap
+  const useFilter = filterSupported && scale > 0
+
   return (
     <View style={{ width: size, height: size, transform: [{ rotate: `${rotationDeg}deg` }], opacity }}>
       <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-        {scale > 0 && (
+        {useFilter && (
           <Defs>
             <Filter id={filterId} x="-10%" y="-10%" width="120%" height="120%">
               <FeTurbulence type="turbulence" baseFrequency="0.65" numOctaves="3" seed="2" />
@@ -55,7 +59,7 @@ export function StampArtwork({ stop, size, rotationDeg = 0, ghost = false }: Pro
             </Filter>
           </Defs>
         )}
-        <Svg width={size} height={size} filter={scale > 0 ? `url(#${filterId})` : undefined}>
+        <Svg width={size} height={size} filter={useFilter ? `url(#${filterId})` : undefined}>
           {shapeEl()}
           <SvgText
             x={size / 2}
