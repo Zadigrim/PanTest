@@ -1,0 +1,30 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+@layer base {
+  :root {
+    --background: 247 249 248;
+    --foreground: 13 27 42;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    @apply bg-panoply-gray-1 text-panoply-navy font-sans antialiased;
+  }
+
+  /* Mobile viewport guard — see MobileGuard component */
+  @media (max-width: 1023px) {
+    body { overflow: hidden; }
+  }
+}
+
+@layer utilities {
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: theme('colors.panoply-gray-2') transparent;
+  }
+}
