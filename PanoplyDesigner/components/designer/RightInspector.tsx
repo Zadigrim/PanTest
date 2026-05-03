@@ -1,34 +1,44 @@
 'use client'
 
 import { createClient } from '@/lib/supabase/client'
-import { usePassportStore, selectActivePage, selectSelectedStop } from '@/lib/stores/passport-store'
+import {
+  usePassportStore,
+  selectActivePage,
+  selectSelectedStop,
+  selectSelectedElement,
+} from '@/lib/stores/passport-store'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
-import type { Stop, PassportPage, BackgroundType } from '@/lib/supabase/types'
+import type { Stop, PassportPage, BackgroundType, PageElement } from '@/lib/supabase/types'
 
 export function RightInspector() {
   const activePage = usePassportStore(selectActivePage)
   const selectedStop = usePassportStore(selectSelectedStop)
+  const selectedElement = usePassportStore(selectSelectedElement)
+
+  const label = selectedStop ? 'Stop'
+    : selectedElement ? (selectedElement.type === 'text' ? 'Label' : selectedElement.type === 'hline' ? 'H-Line' : 'V-Line')
+    : activePage ? 'Page'
+    : 'Passport'
+
+  const title = selectedStop ? selectedStop.name
+    : selectedElement ? (selectedElement.content ?? '—')
+    : activePage ? (activePage.section_title ?? activePage.section_name)
+    : 'No selection'
 
   return (
     <aside className="flex w-[280px] shrink-0 flex-col border-l border-panoply-gray-2 bg-white">
       <div className="border-b border-panoply-gray-2 px-4 py-3">
-        <p className="text-xs font-semibold uppercase tracking-wider text-panoply-gray-3">
-          {selectedStop ? 'Stop' : activePage ? 'Page' : 'Passport'}
-        </p>
-        <p className="truncate text-sm font-medium text-panoply-navy">
-          {selectedStop
-            ? selectedStop.name
-            : activePage
-            ? (activePage.section_title ?? activePage.section_name)
-            : 'No selection'}
-        </p>
+        <p className="text-xs font-semibold uppercase tracking-wider text-panoply-gray-3">{label}</p>
+        <p className="truncate text-sm font-medium text-panoply-navy">{title}</p>
       </div>
 
       <div className="flex-1 overflow-y-auto">
         {selectedStop ? (
           <StopInspector stop={selectedStop} />
+        ) : selectedElement && activePage ? (
+          <ElementInspector element={selectedElement} pageId={activePage.id} />
         ) : activePage ? (
           <PageInspector page={activePage} />
         ) : (
@@ -53,6 +63,19 @@ const PRESET_COLORS = [
   '1D9E75', '0D1B2A', 'C9A84C', 'D85A30',
   '7F77DD', '3A7BD5', 'B84C7D', '4CAF50',
   '9E4D1D', '6B6B6B',
+]
+
+const STAMP_ICONS = [
+  // Food & drink
+  '🍺','🍻','🥃','🍷','🍸','🍹','🍵','☕','🧋','🥂',
+  // Places & travel
+  '🏛️','⛪','🏰','🗺️','🧭','🏕️','🏠','🗼','🌉','⚓',
+  // Nature
+  '🌲','🌿','🍀','🌸','🌊','🏔️','🌋','🦋','🐝','🦅',
+  // Activities & objects
+  '🎭','🎨','🎸','🎯','🏆','🎖️','🔑','💎','📜','⭐',
+  // Misc
+  '📍','📌','🏷️','🎁','🎪','🎡','🎢','🚵','🧗','🌟',
 ]
 
 const SMUDGE_OPTIONS = ['none', 'light', 'medium', 'heavy'] as const
@@ -159,6 +182,25 @@ function StopInspector({ stop }: { stop: Stop }) {
             maxLength={4}
           />
         </Field>
+        <div>
+          <Label className="text-xs text-panoply-gray-3">Quick pick</Label>
+          <div className="mt-1.5 flex flex-wrap gap-1">
+            {STAMP_ICONS.map((icon) => (
+              <button
+                key={icon}
+                onClick={() => persist({ stamp_icon: icon })}
+                title={icon}
+                className={`h-7 w-7 rounded-card border text-base leading-none transition-colors hover:border-panoply-teal ${
+                  stop.stamp_icon === icon
+                    ? 'border-panoply-teal bg-panoply-teal-lt'
+                    : 'border-panoply-gray-2'
+                }`}
+              >
+                {icon}
+              </button>
+            ))}
+          </div>
+        </div>
 
         <div>
           <Label className="text-xs text-panoply-gray-3">Color</Label>
@@ -380,8 +422,161 @@ function EmptyInspector() {
     <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
       <span className="text-3xl">👈</span>
       <p className="mt-3 text-sm text-panoply-gray-3">
-        Select a stop or page to edit its properties here.
+        Select a stop, label, or line to edit its properties here.
       </p>
+    </div>
+  )
+}
+
+// ── Element Inspector ─────────────────────────────────────────────────────
+
+const LABEL_COLORS = ['0D1B2A', '1D9E75', 'C9A84C', 'D85A30', '7F77DD', '888888']
+
+function ElementInspector({ element, pageId }: { element: PageElement; pageId: string }) {
+  const updateElement = usePassportStore((s) => s.updateElement)
+  const removeElement = usePassportStore((s) => s.removeElement)
+  const setSelectedElement = usePassportStore((s) => s.setSelectedElement)
+  const updatePage = usePassportStore((s) => s.updatePage)
+
+  const persist = async (patch: Partial<PageElement>) => {
+    const updated = updateElement(pageId, element.id, patch)
+    const supabase = createClient()
+    await supabase.from('passport_pages').update({ elements: updated }).eq('id', pageId)
+  }
+
+  const handleDelete = async () => {
+    const updated = removeElement(pageId, element.id)
+    setSelectedElement(null)
+    const supabase = createClient()
+    await supabase.from('passport_pages').update({ elements: updated }).eq('id', pageId)
+  }
+
+  return (
+    <div className="space-y-5 p-4">
+      {element.type === 'text' && (
+        <>
+          <Section title="Text">
+            <Field label="Content">
+              <Input
+                value={element.content ?? ''}
+                placeholder="Section header…"
+                onChange={(e) => updateElement(pageId, element.id, { content: e.target.value })}
+                onBlur={(e) => persist({ content: e.target.value })}
+                className="h-8 text-sm"
+              />
+            </Field>
+            <div className="grid grid-cols-2 gap-2">
+              <Field label="Size (px)">
+                <Input
+                  type="number"
+                  min={8}
+                  max={72}
+                  value={element.fontSize ?? 14}
+                  onChange={(e) => updateElement(pageId, element.id, { fontSize: Number(e.target.value) })}
+                  onBlur={(e) => persist({ fontSize: Number(e.target.value) })}
+                  className="h-8 text-sm"
+                />
+              </Field>
+              <Field label="Weight">
+                <select
+                  value={element.fontWeight ?? 'normal'}
+                  onChange={(e) => persist({ fontWeight: e.target.value as 'normal' | 'bold' })}
+                  className="h-8 w-full rounded-panel border border-panoply-gray-2 px-2 text-sm focus:outline-none focus:ring-2 focus:ring-panoply-teal"
+                >
+                  <option value="normal">Normal</option>
+                  <option value="bold">Bold</option>
+                </select>
+              </Field>
+            </div>
+            <Field label="Align">
+              <div className="flex gap-1">
+                {(['left','center','right'] as const).map((a) => (
+                  <button
+                    key={a}
+                    onClick={() => persist({ align: a })}
+                    className={`flex-1 rounded-card border py-1 text-xs capitalize transition-colors ${
+                      (element.align ?? 'left') === a
+                        ? 'border-panoply-teal bg-panoply-teal-lt text-panoply-teal-dk font-medium'
+                        : 'border-panoply-gray-2 text-panoply-gray-3 hover:border-panoply-teal/40'
+                    }`}
+                  >
+                    {a}
+                  </button>
+                ))}
+              </div>
+            </Field>
+            <div>
+              <Label className="text-xs text-panoply-gray-3">Color</Label>
+              <div className="mt-1.5 flex flex-wrap gap-1.5">
+                {LABEL_COLORS.map((hex) => (
+                  <button
+                    key={hex}
+                    onClick={() => persist({ color: hex })}
+                    className={`h-6 w-6 rounded-full border-2 transition-transform hover:scale-110 ${
+                      (element.color ?? '0D1B2A') === hex ? 'border-panoply-navy scale-110' : 'border-transparent'
+                    }`}
+                    style={{ backgroundColor: `#${hex}` }}
+                  />
+                ))}
+              </div>
+            </div>
+          </Section>
+        </>
+      )}
+
+      {(element.type === 'hline' || element.type === 'vline') && (
+        <Section title="Line">
+          <Field label="Thickness (px)">
+            <Input
+              type="number"
+              min={1}
+              max={20}
+              value={element.thickness ?? 2}
+              onChange={(e) => updateElement(pageId, element.id, { thickness: Number(e.target.value) })}
+              onBlur={(e) => persist({ thickness: Number(e.target.value) })}
+              className="h-8 text-sm"
+            />
+          </Field>
+          <div>
+            <Label className="text-xs text-panoply-gray-3">Color</Label>
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              {LABEL_COLORS.map((hex) => (
+                <button
+                  key={hex}
+                  onClick={() => persist({ lineColor: hex })}
+                  className={`h-6 w-6 rounded-full border-2 transition-transform hover:scale-110 ${
+                    (element.lineColor ?? '0D1B2A') === hex ? 'border-panoply-navy scale-110' : 'border-transparent'
+                  }`}
+                  style={{ backgroundColor: `#${hex}` }}
+                />
+              ))}
+            </div>
+          </div>
+        </Section>
+      )}
+
+      <Section title="Position">
+        <div className="grid grid-cols-2 gap-2">
+          <Field label="X">
+            <Input type="number" value={Math.round(element.x)} onChange={(e) => updateElement(pageId, element.id, { x: Number(e.target.value) })} onBlur={(e) => persist({ x: Number(e.target.value) })} className="h-8 text-sm" />
+          </Field>
+          <Field label="Y">
+            <Input type="number" value={Math.round(element.y)} onChange={(e) => updateElement(pageId, element.id, { y: Number(e.target.value) })} onBlur={(e) => persist({ y: Number(e.target.value) })} className="h-8 text-sm" />
+          </Field>
+          <Field label="W">
+            <Input type="number" value={Math.round(element.width)} onChange={(e) => updateElement(pageId, element.id, { width: Number(e.target.value) })} onBlur={(e) => persist({ width: Number(e.target.value) })} className="h-8 text-sm" />
+          </Field>
+          <Field label="H">
+            <Input type="number" value={Math.round(element.height)} onChange={(e) => updateElement(pageId, element.id, { height: Number(e.target.value) })} onBlur={(e) => persist({ height: Number(e.target.value) })} className="h-8 text-sm" />
+          </Field>
+        </div>
+      </Section>
+
+      <div className="border-t border-panoply-gray-2 pt-4">
+        <Button variant="danger" size="sm" className="w-full" onClick={handleDelete}>
+          Delete element
+        </Button>
+      </div>
     </div>
   )
 }

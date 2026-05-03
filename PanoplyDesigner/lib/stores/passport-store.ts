@@ -1,31 +1,27 @@
 'use client'
 
 import { create } from 'zustand'
-import type { Passport, PassportPage, Stop } from '@/lib/supabase/types'
+import type { Passport, PassportPage, Stop, PageElement } from '@/lib/supabase/types'
 
 interface PassportStore {
-  // Server-fetched data
   passport: Passport | null
   pages: PassportPage[]
   stops: Stop[]
 
-  // UI selection state
   activePageId: string | null
   selectedStopId: string | null
+  selectedElementId: string | null
 
-  // Dirty / save state
   isDirty: boolean
   isSaving: boolean
   lastSavedAt: Date | null
 
-  // Hydrate from server fetch
   hydrate: (passport: Passport, pages: PassportPage[], stops: Stop[]) => void
 
-  // Selection
   setActivePage: (id: string) => void
   setSelectedStop: (id: string | null) => void
+  setSelectedElement: (id: string | null) => void
 
-  // Optimistic updates (caller is responsible for Supabase sync)
   updatePassport: (patch: Partial<Passport>) => void
   updatePage: (id: string, patch: Partial<PassportPage>) => void
   addPage: (page: PassportPage) => void
@@ -34,7 +30,11 @@ interface PassportStore {
   addStop: (stop: Stop) => void
   removeStop: (id: string) => void
 
-  // Save state helpers
+  // Page elements (stored as JSON on the page row)
+  addElement: (pageId: string, element: PageElement) => PageElement[]
+  updateElement: (pageId: string, elementId: string, patch: Partial<PageElement>) => PageElement[]
+  removeElement: (pageId: string, elementId: string) => PageElement[]
+
   markDirty: () => void
   markSaved: () => void
   setSaving: (v: boolean) => void
@@ -46,24 +46,29 @@ export const usePassportStore = create<PassportStore>((set, get) => ({
   stops: [],
   activePageId: null,
   selectedStopId: null,
+  selectedElementId: null,
   isDirty: false,
   isSaving: false,
   lastSavedAt: null,
 
   hydrate: (passport, pages, stops) => {
-    const sorted = [...pages].sort((a, b) => a.page_order - b.page_order)
+    const sorted = [...pages]
+      .sort((a, b) => a.page_order - b.page_order)
+      .map((p) => ({ ...p, elements: p.elements ?? [] }))
     set({
       passport,
       pages: sorted,
       stops,
       activePageId: sorted[0]?.id ?? null,
       selectedStopId: null,
+      selectedElementId: null,
       isDirty: false,
     })
   },
 
-  setActivePage: (id) => set({ activePageId: id, selectedStopId: null }),
-  setSelectedStop: (id) => set({ selectedStopId: id }),
+  setActivePage: (id) => set({ activePageId: id, selectedStopId: null, selectedElementId: null }),
+  setSelectedStop: (id) => set({ selectedStopId: id, selectedElementId: null }),
+  setSelectedElement: (id) => set({ selectedElementId: id, selectedStopId: null }),
 
   updatePassport: (patch) =>
     set((s) => ({
@@ -79,7 +84,9 @@ export const usePassportStore = create<PassportStore>((set, get) => ({
 
   addPage: (page) =>
     set((s) => ({
-      pages: [...s.pages, page].sort((a, b) => a.page_order - b.page_order),
+      pages: [...s.pages, { ...page, elements: page.elements ?? [] }].sort(
+        (a, b) => a.page_order - b.page_order,
+      ),
       activePageId: page.id,
       isDirty: true,
     })),
@@ -87,14 +94,11 @@ export const usePassportStore = create<PassportStore>((set, get) => ({
   removePage: (id) =>
     set((s) => {
       const remaining = s.pages.filter((p) => p.id !== id)
-      const newActive =
-        s.activePageId === id
-          ? (remaining[0]?.id ?? null)
-          : s.activePageId
       return {
         pages: remaining,
-        activePageId: newActive,
+        activePageId: s.activePageId === id ? (remaining[0]?.id ?? null) : s.activePageId,
         stops: s.stops.filter((st) => st.page_id !== id),
+        selectedElementId: null,
         isDirty: true,
       }
     }),
@@ -115,12 +119,43 @@ export const usePassportStore = create<PassportStore>((set, get) => ({
       isDirty: true,
     })),
 
+  addElement: (pageId, element) => {
+    const pages = get().pages.map((p) => {
+      if (p.id !== pageId) return p
+      return { ...p, elements: [...(p.elements ?? []), element] }
+    })
+    set({ pages, isDirty: true })
+    return pages.find((p) => p.id === pageId)!.elements
+  },
+
+  updateElement: (pageId, elementId, patch) => {
+    const pages = get().pages.map((p) => {
+      if (p.id !== pageId) return p
+      return {
+        ...p,
+        elements: (p.elements ?? []).map((el) =>
+          el.id === elementId ? { ...el, ...patch } : el,
+        ),
+      }
+    })
+    set({ pages, isDirty: true })
+    return pages.find((p) => p.id === pageId)!.elements
+  },
+
+  removeElement: (pageId, elementId) => {
+    const pages = get().pages.map((p) => {
+      if (p.id !== pageId) return p
+      return { ...p, elements: (p.elements ?? []).filter((el) => el.id !== elementId) }
+    })
+    set({ pages, isDirty: true })
+    return pages.find((p) => p.id === pageId)!.elements
+  },
+
   markDirty: () => set({ isDirty: true }),
   markSaved: () => set({ isDirty: false, isSaving: false, lastSavedAt: new Date() }),
   setSaving: (v) => set({ isSaving: v }),
 }))
 
-// Selector helpers
 export const selectActivePageStops = (s: PassportStore) =>
   s.stops.filter((st) => st.page_id === s.activePageId)
 
@@ -129,3 +164,9 @@ export const selectActivePage = (s: PassportStore) =>
 
 export const selectSelectedStop = (s: PassportStore) =>
   s.stops.find((st) => st.id === s.selectedStopId) ?? null
+
+export const selectSelectedElement = (s: PassportStore) => {
+  if (!s.selectedElementId) return null
+  const page = s.pages.find((p) => p.id === s.activePageId)
+  return page?.elements?.find((el) => el.id === s.selectedElementId) ?? null
+}

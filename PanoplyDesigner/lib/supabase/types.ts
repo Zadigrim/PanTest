@@ -1,4 +1,23 @@
 export type SpendTier = 'free' | 'under_15' | '15_50' | '50_150' | '150_500' | '500_plus'
+export type PageElementType = 'text' | 'hline' | 'vline'
+
+export interface PageElement {
+  id: string
+  type: PageElementType
+  x: number
+  y: number
+  width: number
+  height: number
+  // text
+  content?: string
+  fontSize?: number
+  fontWeight?: 'normal' | 'bold'
+  color?: string
+  align?: 'left' | 'center' | 'right'
+  // line
+  thickness?: number
+  lineColor?: string
+}
 export type PassportStatus = 'draft' | 'published' | 'archived'
 export type BackgroundType = 'guilloche' | 'landscape' | 'none' | 'custom'
 export type SmudgeIntensity = 'none' | 'light' | 'medium' | 'heavy'
@@ -64,6 +83,7 @@ export interface PassportPage {
   background_color: string
   background_opacity: number
   paper_color: string
+  elements: PageElement[]
   created_at: string
 }
 

@@ -5,7 +5,7 @@ import { useShallow } from 'zustand/react/shallow'
 import { createClient } from '@/lib/supabase/client'
 import { usePassportStore } from '@/lib/stores/passport-store'
 import { Button } from '@/components/ui/button'
-import type { Stop, PassportPage } from '@/lib/supabase/types'
+import type { Stop, PassportPage, PageElement, PageElementType } from '@/lib/supabase/types'
 
 export function LeftPalette() {
   const passport = usePassportStore((s) => s.passport)
@@ -15,6 +15,8 @@ export function LeftPalette() {
   const addPage = usePassportStore((s) => s.addPage)
   const addStop = usePassportStore((s) => s.addStop)
   const setSelectedStop = usePassportStore((s) => s.setSelectedStop)
+  const addElement = usePassportStore((s) => s.addElement)
+  const setSelectedElement = usePassportStore((s) => s.setSelectedElement)
 
   const [addingStop, setAddingStop] = useState(false)
   const [addingPage, setAddingPage] = useState(false)
@@ -52,6 +54,23 @@ export function LeftPalette() {
       addStop(data as Stop)
       setSelectedStop(data.id)
     }
+  }
+
+  const handleAddElement = async (type: PageElementType) => {
+    if (!activePageId) return
+    const crypto = typeof window !== 'undefined' ? window.crypto : null
+    const id = crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2)
+    const defaults: PageElement =
+      type === 'text'
+        ? { id, type, x: 40, y: 40, width: 200, height: 28, content: 'Section Header', fontSize: 16, fontWeight: 'bold', color: '0D1B2A', align: 'left' }
+        : type === 'hline'
+        ? { id, type, x: 40, y: 100, width: 532, height: 8, thickness: 2, lineColor: '0D1B2A' }
+        : { id, type, x: 300, y: 40, width: 8, height: 400, thickness: 2, lineColor: '0D1B2A' }
+
+    const updated = addElement(activePageId, defaults)
+    setSelectedElement(id)
+    const supabase = createClient()
+    await supabase.from('passport_pages').update({ elements: updated }).eq('id', activePageId)
   }
 
   const handleAddPage = async () => {
@@ -123,7 +142,7 @@ export function LeftPalette() {
       </div>
 
       {/* Stops on active page */}
-      <div className="flex-1 overflow-y-auto px-3 py-2">
+      <div className="border-b border-panoply-gray-2 px-3 py-2">
         <p className="mb-1.5 text-xs font-medium uppercase tracking-wider text-panoply-gray-3">
           Stops
         </p>
@@ -137,6 +156,25 @@ export function LeftPalette() {
         >
           {addingStop ? 'Adding…' : '+ Add stop'}
         </Button>
+      </div>
+
+      {/* Page elements */}
+      <div className="flex-1 overflow-y-auto px-3 py-2">
+        <p className="mb-1.5 text-xs font-medium uppercase tracking-wider text-panoply-gray-3">
+          Elements
+        </p>
+        <div className="space-y-1">
+          <Button variant="ghost" size="sm" className="w-full justify-start text-xs gap-2" onClick={() => handleAddElement('text')} disabled={!activePageId}>
+            <span>T</span> Add label
+          </Button>
+          <Button variant="ghost" size="sm" className="w-full justify-start text-xs gap-2" onClick={() => handleAddElement('hline')} disabled={!activePageId}>
+            <span>—</span> Add H-line
+          </Button>
+          <Button variant="ghost" size="sm" className="w-full justify-start text-xs gap-2" onClick={() => handleAddElement('vline')} disabled={!activePageId}>
+            <span>|</span> Add V-line
+          </Button>
+        </div>
+        <ElementsList pageId={activePageId} />
       </div>
     </aside>
   )
@@ -171,6 +209,43 @@ function StopsList() {
         >
           <span className="text-base leading-none">{stop.stamp_icon ?? '📍'}</span>
           <span className="truncate">{stop.name}</span>
+        </button>
+      ))}
+    </div>
+  )
+}
+
+function ElementsList({ pageId }: { pageId: string | null }) {
+  const elements = usePassportStore(
+    useShallow((s) => {
+      if (!pageId) return []
+      return s.pages.find((p) => p.id === pageId)?.elements ?? []
+    }),
+  )
+  const selectedElementId = usePassportStore((s) => s.selectedElementId)
+  const setSelectedElement = usePassportStore((s) => s.setSelectedElement)
+
+  if (elements.length === 0) return null
+
+  const typeIcon = (type: string) =>
+    type === 'text' ? 'T' : type === 'hline' ? '—' : '|'
+  const typeLabel = (el: PageElement) =>
+    el.type === 'text' ? (el.content || 'Label') : el.type === 'hline' ? 'H-Line' : 'V-Line'
+
+  return (
+    <div className="mt-1 space-y-0.5">
+      {elements.map((el) => (
+        <button
+          key={el.id}
+          onClick={() => setSelectedElement(el.id)}
+          className={`flex w-full items-center gap-2 rounded-card px-3 py-1.5 text-left text-sm transition-colors ${
+            el.id === selectedElementId
+              ? 'bg-panoply-teal-lt font-medium text-panoply-teal-dk'
+              : 'text-panoply-gray-3 hover:bg-panoply-gray-1 hover:text-panoply-navy'
+          }`}
+        >
+          <span className="w-4 text-center text-xs font-bold leading-none">{typeIcon(el.type)}</span>
+          <span className="truncate text-xs">{typeLabel(el)}</span>
         </button>
       ))}
     </div>

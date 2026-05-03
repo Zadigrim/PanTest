@@ -10,6 +10,8 @@ import {
 } from '@/lib/stores/passport-store'
 import { PageBackground } from './PageBackground'
 import { LocationBox } from './LocationBox'
+import { PageElementBox } from './PageElementBox'
+import type { PageElement } from '@/lib/supabase/types'
 
 const ARTBOARD_W = 612
 const ARTBOARD_H = 792
@@ -18,8 +20,11 @@ export function Canvas() {
   const activePage = usePassportStore(selectActivePage)
   const stops = usePassportStore(useShallow(selectActivePageStops))
   const selectedStopId = usePassportStore((s) => s.selectedStopId)
+  const selectedElementId = usePassportStore((s) => s.selectedElementId)
   const setSelectedStop = usePassportStore((s) => s.setSelectedStop)
+  const setSelectedElement = usePassportStore((s) => s.setSelectedElement)
   const updateStop = usePassportStore((s) => s.updateStop)
+  const updateElement = usePassportStore((s) => s.updateElement)
   const markDirty = usePassportStore((s) => s.markDirty)
 
   const [zoom, setZoom] = useState(1)
@@ -34,8 +39,22 @@ export function Canvas() {
     [updateStop, markDirty],
   )
 
+  const handleElementChange = useCallback(
+    async (pageId: string, elementId: string, patch: Partial<PageElement>) => {
+      const updated = updateElement(pageId, elementId, patch)
+      const supabase = createClient()
+      await supabase.from('passport_pages').update({ elements: updated }).eq('id', pageId)
+    },
+    [updateElement],
+  )
+
   const handleZoomIn = () => setZoom((z) => Math.min(2, parseFloat((z + 0.1).toFixed(1))))
   const handleZoomOut = () => setZoom((z) => Math.max(0.25, parseFloat((z - 0.1).toFixed(1))))
+
+  const handleDeselect = useCallback(() => {
+    setSelectedStop(null)
+    setSelectedElement(null)
+  }, [setSelectedStop, setSelectedElement])
 
   if (!activePage) {
     return (
@@ -45,23 +64,33 @@ export function Canvas() {
     )
   }
 
+  const elements = activePage.elements ?? []
+
   return (
     <main className="relative flex flex-1 flex-col overflow-hidden bg-panoply-gray-1">
-      {/* Scrollable canvas area — click background to deselect */}
       <div
         className="flex flex-1 items-center justify-center overflow-auto p-8"
-        onClick={() => setSelectedStop(null)}
+        onClick={handleDeselect}
       >
-        {/* Artboard at current zoom */}
         <div
           className="relative shrink-0 shadow-xl"
-          style={{
-            width: ARTBOARD_W * zoom,
-            height: ARTBOARD_H * zoom,
-          }}
+          style={{ width: ARTBOARD_W * zoom, height: ARTBOARD_H * zoom }}
           onClick={(e) => e.stopPropagation()}
         >
           <PageBackground page={activePage}>
+            {/* Elements layer (below stops) */}
+            {elements.map((el) => (
+              <PageElementBox
+                key={el.id}
+                element={el}
+                isSelected={el.id === selectedElementId}
+                scale={zoom}
+                onSelect={() => setSelectedElement(el.id)}
+                onChange={(patch) => handleElementChange(activePage.id, el.id, patch)}
+              />
+            ))}
+
+            {/* Stops layer */}
             {stops.map((stop) => (
               <LocationBox
                 key={stop.id}
@@ -69,15 +98,15 @@ export function Canvas() {
                 isSelected={stop.id === selectedStopId}
                 scale={zoom}
                 onSelect={() => setSelectedStop(stop.id)}
-                onDeselect={() => setSelectedStop(null)}
+                onDeselect={handleDeselect}
                 onChange={(patch) => handleStopChange(stop.id, patch)}
               />
             ))}
 
-            {stops.length === 0 && (
+            {stops.length === 0 && elements.length === 0 && (
               <div className="flex h-full items-center justify-center pointer-events-none">
                 <p className="rounded-panel border border-dashed border-panoply-gray-2 px-4 py-2 text-xs text-panoply-gray-3/50">
-                  Add a stop from the left panel
+                  Add a stop or label from the left panel
                 </p>
               </div>
             )}
