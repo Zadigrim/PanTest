@@ -26,15 +26,16 @@ export function LocationBox({
   const [boxLayout, setBoxLayout] = React.useState<LayoutRectangle>({
     x: 0, y: 0, width: 0, height: 0,
   })
+  const boxRef = useRef<View>(null)
 
-  const onLayout = useCallback((e: any) => {
-    e.target.measure((_x: number, _y: number, width: number, height: number, pageX: number, pageY: number) => {
+  const onLayout = useCallback(() => {
+    boxRef.current?.measure((_x: number, _y: number, width: number, height: number, pageX: number, pageY: number) => {
       setBoxLayout({ x: pageX, y: pageY, width, height })
     })
   }, [])
 
   return (
-    <View style={styles.container} onLayout={onLayout}>
+    <View ref={boxRef} style={styles.container} onLayout={onLayout}>
       {/* Pre-printed location text */}
       <View style={styles.header}>
         <Text style={styles.stopName} numberOfLines={1}>{stop.name}</Text>
