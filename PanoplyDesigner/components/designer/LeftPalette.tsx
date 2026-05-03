@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import { createClient } from '@/lib/supabase/client'
 import { usePassportStore } from '@/lib/stores/passport-store'
 import { Button } from '@/components/ui/button'
@@ -142,8 +143,8 @@ export function LeftPalette() {
 }
 
 function StopsList() {
-  const stops = usePassportStore((s) =>
-    s.stops.filter((st) => st.page_id === s.activePageId),
+  const stops = usePassportStore(
+    useShallow((s) => s.stops.filter((st) => st.page_id === s.activePageId)),
   )
   const selectedStopId = usePassportStore((s) => s.selectedStopId)
   const setSelectedStop = usePassportStore((s) => s.setSelectedStop)
