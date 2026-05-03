@@ -20,6 +20,7 @@ function PassportCard({ passport }: { passport: Passport }) {
   return (
     <Link
       href={`/passport/${passport.id}`}
+
       className="group block rounded-panel border border-panoply-gray-2 bg-white p-5 transition-shadow hover:shadow-md"
     >
       <div className="flex items-start justify-between gap-3">
@@ -117,6 +118,9 @@ export function DashboardClient({ profile, passports, userId }: Props) {
             </span>
           </div>
           <div className="flex items-center gap-4">
+            <Link href="/certifications" className="text-sm text-panoply-gray-3 hover:text-panoply-navy transition-colors">
+              🎓 Certifications
+            </Link>
             <span className="text-sm text-panoply-gray-3">
               {profile?.display_name ?? 'Creator'}
             </span>

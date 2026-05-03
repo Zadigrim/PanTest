@@ -7,7 +7,10 @@ import { LeftPalette } from './LeftPalette'
 import { Canvas } from './Canvas'
 import { RightInspector } from './RightInspector'
 import { PassportSettingsPanel } from './PassportSettingsPanel'
+import { PublishFlow } from './PublishFlow'
 import { Button } from '@/components/ui/button'
+import { useAutosave } from '@/hooks/useAutosave'
+import { useWorkspaceKeyboard } from '@/hooks/useWorkspaceKeyboard'
 import type { Passport, PassportPage, Stop } from '@/lib/supabase/types'
 
 interface Props {
@@ -27,12 +30,20 @@ export function WorkspaceClient({ passport, pages, stops }: Props) {
   const setActivePage = usePassportStore((s) => s.setActivePage)
 
   const [showSettings, setShowSettings] = useState(false)
+  const [showPublish, setShowPublish] = useState(false)
 
   useEffect(() => {
     hydrate(passport, pages, stops)
   }, [passport.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Phase 6: autosave + keyboard shortcuts
+  useAutosave()
+  useWorkspaceKeyboard({
+    onSettings: () => setShowSettings(true),
+  })
+
   const displayPassport = passportState ?? passport
+  const isPublished = displayPassport.status === 'published'
 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-panoply-gray-1">
@@ -65,6 +76,14 @@ export function WorkspaceClient({ passport, pages, stops }: Props) {
           >
             {displayPassport.status}
           </span>
+          <a
+            href={`/api/generate-pdf/${passport.id}`}
+            target="_blank"
+            rel="noreferrer"
+            className="text-xs text-panoply-gray-3 hover:text-panoply-navy transition-colors px-2 py-1 rounded-card border border-panoply-gray-2 hover:border-panoply-gray-3"
+          >
+            Export PDF
+          </a>
           <Button
             variant="ghost"
             size="sm"
@@ -72,6 +91,14 @@ export function WorkspaceClient({ passport, pages, stops }: Props) {
           >
             Settings
           </Button>
+          {!isPublished && (
+            <Button
+              size="sm"
+              onClick={() => setShowPublish(true)}
+            >
+              Publish
+            </Button>
+          )}
         </div>
       </header>
 
@@ -91,7 +118,7 @@ export function WorkspaceClient({ passport, pages, stops }: Props) {
           </button>
         ))}
         {pageList.length === 0 && (
-          <span className="px-3 py-2 text-sm text-panoply-gray-3/50 italic">
+          <span className="px-3 py-2 text-sm italic text-panoply-gray-3/50">
             Add a page from the left panel
           </span>
         )}
@@ -104,9 +131,11 @@ export function WorkspaceClient({ passport, pages, stops }: Props) {
         <RightInspector />
       </div>
 
-      {/* Passport settings slide-over */}
       {showSettings && (
         <PassportSettingsPanel onClose={() => setShowSettings(false)} />
+      )}
+      {showPublish && (
+        <PublishFlow onClose={() => setShowPublish(false)} />
       )}
     </div>
   )
