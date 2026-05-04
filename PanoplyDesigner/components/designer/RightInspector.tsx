@@ -10,7 +10,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
-import type { Stop, PassportPage, BackgroundType, PageElement } from '@/lib/supabase/types'
+import type { Stop, PassportPage, BackgroundType, PageElement, PassportType } from '@/lib/supabase/types'
 
 export function RightInspector() {
   const activePage = usePassportStore(selectActivePage)
@@ -42,7 +42,7 @@ export function RightInspector() {
         ) : activePage ? (
           <PageInspector page={activePage} />
         ) : (
-          <EmptyInspector />
+          <PassportInspector />
         )}
       </div>
     </aside>
@@ -304,6 +304,29 @@ function StopInspector({ stop }: { stop: Stop }) {
         </div>
       </Section>
 
+      <Section title="Experience">
+        <Field label="Type">
+          <select
+            value={stop.experience_type ?? ''}
+            onChange={(e) => persist({ experience_type: (e.target.value || null) as Stop['experience_type'] })}
+            className="h-8 w-full rounded-panel border border-panoply-gray-2 px-2 text-sm focus:outline-none focus:ring-2 focus:ring-panoply-teal"
+          >
+            <option value="">— None —</option>
+            <option value="location">Location visit</option>
+            <option value="experience">Activity / experience</option>
+          </select>
+        </Field>
+        <Field label="Learning objective">
+          <Input
+            value={stop.learning_objective ?? ''}
+            placeholder="e.g. Identify three bird species"
+            onChange={(e) => updateStop(stop.id, { learning_objective: e.target.value })}
+            onBlur={(e) => persist({ learning_objective: e.target.value || null })}
+            className="h-8 text-sm"
+          />
+        </Field>
+      </Section>
+
       <div className="border-t border-panoply-gray-2 pt-4">
         <Button variant="danger" size="sm" className="w-full" onClick={handleDelete}>
           Delete stop
@@ -448,13 +471,89 @@ function PageInspector({ page }: { page: PassportPage }) {
 
 // ── Shared ────────────────────────────────────────────────────────────────
 
-function EmptyInspector() {
+const PASSPORT_TYPES: { value: PassportType; label: string; hint: string }[] = [
+  { value: 'location',   label: 'Adventure',    hint: 'Visit physical places and landmarks' },
+  { value: 'experience', label: 'Challenge',     hint: 'Complete activities or experiences' },
+  { value: 'learning',   label: 'Educational',   hint: 'Learn and discover along the way' },
+]
+
+function PassportInspector() {
+  const passport = usePassportStore((s) => s.passport)
+  const updatePassport = usePassportStore((s) => s.updatePassport)
+
+  if (!passport) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
+        <p className="text-sm text-panoply-gray-3">Loading…</p>
+      </div>
+    )
+  }
+
+  const persist = async (patch: Parameters<typeof updatePassport>[0]) => {
+    updatePassport(patch)
+    const supabase = createClient()
+    await supabase.from('passports').update(patch).eq('id', passport.id)
+  }
+
   return (
-    <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
-      <span className="text-3xl">👈</span>
-      <p className="mt-3 text-sm text-panoply-gray-3">
-        Select a stop, label, or line to edit its properties here.
-      </p>
+    <div className="space-y-5 p-4">
+      <Section title="Passport">
+        <Field label="Title">
+          <Input
+            value={passport.title}
+            onChange={(e) => updatePassport({ title: e.target.value })}
+            onBlur={(e) => persist({ title: e.target.value })}
+            className="h-8 text-sm"
+          />
+        </Field>
+        <Field label="Description">
+          <textarea
+            value={passport.description ?? ''}
+            placeholder="What is this passport about?"
+            onChange={(e) => updatePassport({ description: e.target.value })}
+            onBlur={(e) => persist({ description: e.target.value || null })}
+            rows={3}
+            className="w-full rounded-panel border border-panoply-gray-2 bg-white px-3 py-2 text-sm text-panoply-navy placeholder:text-panoply-gray-3 focus:outline-none focus:ring-2 focus:ring-panoply-teal resize-none"
+          />
+        </Field>
+      </Section>
+
+      <Section title="Type">
+        <div className="space-y-1.5">
+          {PASSPORT_TYPES.map(({ value, label, hint }) => (
+            <button
+              key={value}
+              onClick={() => persist({ passport_type: value })}
+              className={`w-full rounded-card border px-3 py-2 text-left transition-colors ${
+                (passport as any).passport_type === value
+                  ? 'border-panoply-teal bg-panoply-teal-lt'
+                  : 'border-panoply-gray-2 hover:border-panoply-teal/40'
+              }`}
+            >
+              <p className={`text-sm font-medium ${(passport as any).passport_type === value ? 'text-panoply-teal-dk' : 'text-panoply-navy'}`}>
+                {label}
+              </p>
+              <p className="mt-0.5 text-xs text-panoply-gray-3">{hint}</p>
+            </button>
+          ))}
+        </div>
+      </Section>
+
+      <Section title="Accessibility">
+        {(['transit_accessible', 'wheelchair_accessible'] as const).map((field) => (
+          <label key={field} className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={(passport as any)[field] ?? false}
+              onChange={(e) => persist({ [field]: e.target.checked } as any)}
+              className="accent-panoply-teal"
+            />
+            <span className="text-sm text-panoply-navy capitalize">
+              {field === 'transit_accessible' ? 'Transit accessible' : 'Wheelchair accessible'}
+            </span>
+          </label>
+        ))}
+      </Section>
     </div>
   )
 }

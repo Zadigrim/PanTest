@@ -19,6 +19,7 @@ export interface PageElement {
   lineColor?: string
 }
 export type PassportStatus = 'draft' | 'published' | 'archived'
+export type PassportType = 'location' | 'experience' | 'learning'
 export type BackgroundType = 'guilloche' | 'landscape' | 'none' | 'custom'
 export type SmudgeIntensity = 'none' | 'light' | 'medium' | 'heavy'
 export type ExperienceType = 'location' | 'experience'
@@ -57,6 +58,7 @@ export interface Passport {
   cover_paper_color: string
   cover_bg_color: string
   cover_emblem: string | null
+  passport_type: PassportType
   status: PassportStatus
   price_cents: number
   expected_spend_tier: SpendTier | null
