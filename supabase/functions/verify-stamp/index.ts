@@ -71,31 +71,39 @@ serve(async (req) => {
     let qrVerified = false
     let verificationMethod = 'gps_only'
 
+    // Use verification_tier (set by designer) if present, fall back to evidence_tier
+    const tier = stop.verification_tier ?? stop.evidence_tier ?? 5
+
+    // Honor system — no GPS or QR needed
+    if (tier === 5) {
+      return new Response(
+        JSON.stringify({ verified: true, geohash: encodeGeohash(latitude || 0, longitude || 0, 6), verificationMethod: 'self_reported', stopOpenedAt }),
+        { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
+      )
+    }
+
     // GPS verification via PostGIS
     if (latitude != null && longitude != null && stop.target_location) {
       const { data: gpsResult } = await supabase.rpc('check_gps_within_radius', {
         user_lat: latitude,
         user_lng: longitude,
         stop_id: stopId,
-        radius_m: stop.radius_meters,
+        radius_m: stop.verification_radius_meters ?? stop.radius_meters ?? 150,
       })
       gpsVerified = gpsResult === true
     }
 
     // QR verification
-    if (qrCodeId && stop.qr_code_id) {
-      qrVerified = qrCodeId === stop.qr_code_id
+    if (qrCodeId && (stop.qr_code_token || stop.qr_code_id)) {
+      qrVerified = qrCodeId === (stop.qr_code_token ?? stop.qr_code_id)
     }
 
-    // Evidence tier logic
+    // Tier logic
     let verified = false
-    switch (stop.evidence_tier) {
+    switch (tier) {
       case 1:
-        verified = gpsVerified && qrVerified
-        verificationMethod = 'qr_gps'
-        break
       case 2:
-        verified = qrVerified && gpsVerified
+        verified = gpsVerified && qrVerified
         verificationMethod = 'qr_gps'
         break
       case 3:
@@ -105,10 +113,6 @@ serve(async (req) => {
       case 4:
         // Employee verification — separate flow
         verified = false
-        break
-      case 5:
-        verified = true
-        verificationMethod = 'self_reported'
         break
     }
 

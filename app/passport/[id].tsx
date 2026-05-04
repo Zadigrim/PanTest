@@ -51,12 +51,12 @@ export default function PassportScreen() {
       }
       setStamps(byPage)
 
-      // Initialize slot states — dormant by default; GPS probe to transition to ready
+      // Initialize slot states — ready by default (verification happens at stamp time)
       const initial: Record<string, Record<string, StampSlotState>> = {}
       for (const p of pages ?? []) {
         initial[p.id] = {}
         for (const stop of stops[p.id] ?? []) {
-          initial[p.id][stop.id] = byPage[p.id]?.[stop.id] ? 'stamped' : 'dormant'
+          initial[p.id][stop.id] = byPage[p.id]?.[stop.id] ? 'stamped' : 'ready'
         }
       }
       setSlotStates(initial)
@@ -81,19 +81,14 @@ export default function PassportScreen() {
   const handleStampPlaced = useCallback(async (pageId: string, stopId: string, placement: StampPlacement) => {
     if (!userId || !collectorPassportId) return
 
-    // Get location for verification
+    // Try to get location — honor-tier stops don't require it
     const location = await checkLocation()
-    if (!location) {
-      Alert.alert('Location needed', 'Enable location access to stamp this stop.')
-      handlePressCancel(pageId, stopId)
-      return
-    }
 
     const stopOpenedAt = new Date().toISOString()
     const result = await verify({
       stopId,
-      latitude: location.latitude,
-      longitude: location.longitude,
+      latitude: location?.latitude ?? 0,
+      longitude: location?.longitude ?? 0,
       stopOpenedAt,
     })
 
@@ -164,26 +159,6 @@ export default function PassportScreen() {
     }
   }, [userId, collectorPassportId, checkLocation, verify, handlePressCancel])
 
-  // GPS probe: transition dormant stops to ready
-  useEffect(() => {
-    async function probeGPS() {
-      const location = await checkLocation()
-      if (!location) return
-
-      setSlotStates((prev) => {
-        const updated = { ...prev }
-        for (const pageId of Object.keys(updated)) {
-          for (const stopId of Object.keys(updated[pageId])) {
-            if (updated[pageId][stopId] === 'dormant') {
-              updated[pageId] = { ...updated[pageId], [stopId]: 'ready' }
-            }
-          }
-        }
-        return updated
-      })
-    }
-    if (!loading && passport) probeGPS()
-  }, [loading, passport])
 
   if (loading || !passport) {
     return (

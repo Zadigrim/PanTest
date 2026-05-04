@@ -40,7 +40,7 @@ export function LeftPalette() {
         box_y: 40 + Math.floor(existingCount / 4) * 130,
         box_width: 120,
         box_height: 120,
-        verification_tier: 1,
+        verification_tier: 5,
         verification_radius_meters: 100,
         stamp_rotation_min: -15,
         stamp_rotation_max: 15,
