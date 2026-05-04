@@ -1,22 +1,29 @@
 // Passport store / discovery — browse published passports.
 import React from 'react'
 import {
-  View, Text, FlatList, TouchableOpacity, Image, StyleSheet, ActivityIndicator,
+  View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator,
 } from 'react-native'
 import { router } from 'expo-router'
 import { usePublishedPassports, acquirePassport } from '../../hooks/usePassport'
 import { getCurrentUser } from '../../lib/supabase'
 import type { Passport } from '../../types'
 
-function PassportCard({ passport }: { passport: Passport }) {
-  const handlePress = async () => {
-    router.push(`/passport/${passport.id}`)
-  }
+function PassportCard({
+  passport,
+  owned,
+  onAcquired,
+}: {
+  passport: Passport
+  owned: boolean
+  onAcquired: () => void
+}) {
+  const handlePress = () => router.push(`/passport/${passport.id}`)
 
   const handleAcquire = async () => {
     const user = await getCurrentUser()
     if (!user) { router.push('/(auth)/login'); return }
     await acquirePassport(passport.id, user.id)
+    onAcquired()
     router.push(`/passport/${passport.id}`)
   }
 
@@ -34,9 +41,15 @@ function PassportCard({ passport }: { passport: Passport }) {
           <Text style={styles.cardPrice}>
             {passport.is_free ? 'Free' : `$${(passport.price_cents / 100).toFixed(2)}`}
           </Text>
-          <TouchableOpacity onPress={handleAcquire} style={styles.acquireBtn}>
-            <Text style={styles.acquireBtnText}>Get passport</Text>
-          </TouchableOpacity>
+          {owned ? (
+            <TouchableOpacity onPress={handlePress} style={styles.openBtn}>
+              <Text style={styles.openBtnText}>Open →</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity onPress={handleAcquire} style={styles.acquireBtn}>
+              <Text style={styles.acquireBtnText}>Get passport</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
     </TouchableOpacity>
@@ -44,7 +57,7 @@ function PassportCard({ passport }: { passport: Passport }) {
 }
 
 export default function DiscoverScreen() {
-  const { passports, loading } = usePublishedPassports()
+  const { passports, ownedIds, loading, reload } = usePublishedPassports()
 
   if (loading) {
     return (
@@ -59,7 +72,13 @@ export default function DiscoverScreen() {
       <FlatList
         data={passports}
         keyExtractor={(p) => p.id}
-        renderItem={({ item }) => <PassportCard passport={item} />}
+        renderItem={({ item }) => (
+          <PassportCard
+            passport={item}
+            owned={ownedIds.has(item.id)}
+            onAcquired={reload}
+          />
+        )}
         ListEmptyComponent={
           <View style={styles.empty}>
             <Text style={styles.emptyText}>No passports available yet.</Text>
@@ -102,6 +121,8 @@ const styles = StyleSheet.create({
   cardPrice: { fontSize: 14, color: '#888' },
   acquireBtn: { backgroundColor: '#1D9E75', borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8 },
   acquireBtnText: { color: '#fff', fontWeight: '700', fontSize: 13 },
+  openBtn: { borderWidth: 1.5, borderColor: '#1D9E75', borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8 },
+  openBtnText: { color: '#1D9E75', fontWeight: '700', fontSize: 13 },
   empty: { padding: 40, alignItems: 'center' },
   emptyText: { color: '#aaa', fontStyle: 'italic' },
 })

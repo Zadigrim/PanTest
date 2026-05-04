@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from 'react'
-import { supabase } from '../lib/supabase'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { supabase, getCurrentUser } from '../lib/supabase'
 import type { Passport, PassportPage, Stop, CollectorPassport } from '../types'
 
 export function usePassport(passportId: string) {
@@ -58,42 +58,65 @@ export function usePassport(passportId: string) {
 export function useCollectorPassports() {
   const [passports, setPassports] = useState<(CollectorPassport & { passport: Passport })[]>([])
   const [loading, setLoading] = useState(true)
+  const mountedRef = useRef(true)
 
-  useEffect(() => {
-    async function load() {
-      const { data } = await supabase
-        .from('collector_passports')
-        .select('*, passport:passports(*)')
-        .order('acquired_at', { ascending: false })
+  const load = useCallback(async () => {
+    const user = await getCurrentUser()
+    if (!user) {
+      if (mountedRef.current) { setPassports([]); setLoading(false) }
+      return
+    }
+    const { data } = await supabase
+      .from('collector_passports')
+      .select('*, passport:passports(*)')
+      .eq('user_id', user.id)
+      .order('acquired_at', { ascending: false })
 
+    if (mountedRef.current) {
       setPassports((data as any) ?? [])
       setLoading(false)
     }
-    load()
   }, [])
 
-  return { passports, loading }
+  useEffect(() => {
+    mountedRef.current = true
+    load()
+    return () => { mountedRef.current = false }
+  }, [load])
+
+  return { passports, loading, reload: load }
 }
 
 export function usePublishedPassports() {
   const [passports, setPassports] = useState<Passport[]>([])
+  const [ownedIds, setOwnedIds] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    async function load() {
-      const { data } = await supabase
+  const load = useCallback(async () => {
+    const user = await getCurrentUser()
+
+    const [publishedResult, ownedResult] = await Promise.all([
+      supabase
         .from('passports')
         .select('*')
         .eq('is_published', true)
-        .order('created_at', { ascending: false })
+        .order('created_at', { ascending: false }),
+      user
+        ? supabase
+            .from('collector_passports')
+            .select('passport_id')
+            .eq('user_id', user.id)
+        : Promise.resolve({ data: [] }),
+    ])
 
-      setPassports(data ?? [])
-      setLoading(false)
-    }
-    load()
+    setPassports(publishedResult.data ?? [])
+    setOwnedIds(new Set((ownedResult.data ?? []).map((r: any) => r.passport_id)))
+    setLoading(false)
   }, [])
 
-  return { passports, loading }
+  useEffect(() => { load() }, [load])
+
+  return { passports, ownedIds, loading, reload: load }
 }
 
 export async function acquirePassport(passportId: string, userId: string) {

@@ -1,11 +1,15 @@
 // Collector's passport book — all acquired passports.
-import React from 'react'
+import React, { useEffect } from 'react'
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native'
-import { router } from 'expo-router'
+import { router, useFocusEffect } from 'expo-router'
 import { useCollectorPassports } from '../../hooks/usePassport'
 
 export default function MyPassportsScreen() {
-  const { passports, loading } = useCollectorPassports()
+  const { passports, loading, reload } = useCollectorPassports()
+
+  useFocusEffect(
+    React.useCallback(() => { reload() }, [reload]),
+  )
 
   if (loading) {
     return (
