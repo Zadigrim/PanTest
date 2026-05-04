@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useTransition, useId } from 'react'
+import { useEffect, useState, useTransition, useId, type FormEvent } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { EmployeeAuthorization, Profile } from '@/lib/supabase/types'
 
@@ -78,7 +78,7 @@ function EmployeeTableRow({
     authzId: string,
     field: 'can_verify' | 'can_distribute_prizes' | 'can_add_extras',
     value: boolean,
-  ) => void
+  ) => unknown
   onRemove: (authzId: string) => void
   permError: string | null
 }) {
@@ -208,7 +208,7 @@ function AddEmployeeForm({
     can_add_extras: false,
   })
 
-  function handleSubmit(e: React.FormEvent) {
+  function handleSubmit(e: FormEvent) {
     e.preventDefault()
     setFormError(null)
 
