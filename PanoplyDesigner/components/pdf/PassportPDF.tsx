@@ -224,7 +224,15 @@ export function PassportPDF({ passport, pages, stops }: Props) {
                   {/* Stop details */}
                   <View style={{ flex: 1 }}>
                     <Text style={styles.stopName}>{stop.name}</Text>
-                    {stop.address && <Text style={styles.stopAddress}>{stop.address}</Text>}
+                    {(stop.address_street || stop.address_city) && (
+                      <Text style={styles.stopAddress}>
+                        {[
+                          stop.address_street,
+                          [stop.address_city, stop.address_state].filter(Boolean).join(', '),
+                          stop.address_zip,
+                        ].filter(Boolean).join(' · ')}
+                      </Text>
+                    )}
                     <Text style={styles.stopMeta}>
                       Tier {stop.verification_tier}: {TIER_LABELS[stop.verification_tier] ?? 'Honor'}
                       {stop.verification_tier >= 2 && stop.verification_radius_meters

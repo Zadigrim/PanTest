@@ -93,7 +93,10 @@ export interface Stop {
   stop_order: number
   stop_number: number | null
   name: string
-  address: string | null
+  address_street: string | null
+  address_city: string | null
+  address_state: string | null
+  address_zip: string | null
   lat: number | null
   lng: number | null
   geohash: string | null

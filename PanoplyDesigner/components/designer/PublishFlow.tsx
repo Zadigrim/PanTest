@@ -33,7 +33,7 @@ export function PublishFlow({ onClose }: Props) {
     validationIssues.push('Add at least one page.')
   if (stops.length === 0)
     validationIssues.push('Add at least one stop.')
-  const stopsWithoutLocation = stops.filter((s) => !s.address && !s.lat)
+  const stopsWithoutLocation = stops.filter((s) => !s.address_street && !s.lat)
   if (stopsWithoutLocation.length > 0)
     validationIssues.push(`${stopsWithoutLocation.length} stop(s) have no address or coordinates.`)
   if (!passport.expected_spend_tier)

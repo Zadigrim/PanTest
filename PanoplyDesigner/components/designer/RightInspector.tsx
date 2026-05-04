@@ -240,12 +240,43 @@ function StopInspector({ stop }: { stop: Stop }) {
       </Section>
 
       <Section title="Location">
-        <Field label="Address">
+        <Field label="Street address">
           <Input
-            value={stop.address ?? ''}
+            value={stop.address_street ?? ''}
             placeholder="123 Main St"
-            onChange={(e) => updateStop(stop.id, { address: e.target.value })}
-            onBlur={(e) => persist({ address: e.target.value })}
+            onChange={(e) => updateStop(stop.id, { address_street: e.target.value })}
+            onBlur={(e) => persist({ address_street: e.target.value })}
+            className="h-8 text-sm"
+          />
+        </Field>
+        <div className="grid grid-cols-2 gap-2">
+          <Field label="City">
+            <Input
+              value={stop.address_city ?? ''}
+              placeholder="Springfield"
+              onChange={(e) => updateStop(stop.id, { address_city: e.target.value })}
+              onBlur={(e) => persist({ address_city: e.target.value })}
+              className="h-8 text-sm"
+            />
+          </Field>
+          <Field label="State">
+            <Input
+              value={stop.address_state ?? ''}
+              placeholder="IL"
+              maxLength={2}
+              onChange={(e) => updateStop(stop.id, { address_state: e.target.value.toUpperCase() })}
+              onBlur={(e) => persist({ address_state: e.target.value.toUpperCase() })}
+              className="h-8 text-sm uppercase"
+            />
+          </Field>
+        </div>
+        <Field label="ZIP code">
+          <Input
+            value={stop.address_zip ?? ''}
+            placeholder="62701"
+            maxLength={10}
+            onChange={(e) => updateStop(stop.id, { address_zip: e.target.value })}
+            onBlur={(e) => persist({ address_zip: e.target.value })}
             className="h-8 text-sm"
           />
         </Field>

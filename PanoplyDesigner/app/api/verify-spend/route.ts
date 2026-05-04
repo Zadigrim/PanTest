@@ -51,13 +51,16 @@ export async function POST(req: NextRequest) {
   const { data: stops } = pageIds.length > 0
     ? await supabase
         .from('stops')
-        .select('name, address, verification_tier, experience_type')
+        .select('name, address_street, address_city, address_state, verification_tier, experience_type')
         .in('page_id', pageIds)
     : { data: [] }
 
   // Build prompt for Claude
   const stopList = (stops ?? [])
-    .map((s, i) => `  ${i + 1}. ${s.name}${s.address ? ` — ${s.address}` : ''}${s.experience_type ? ` (${s.experience_type})` : ''}`)
+    .map((s: any, i: number) => {
+      const addr = [s.address_street, s.address_city, s.address_state].filter(Boolean).join(', ')
+      return `  ${i + 1}. ${s.name}${addr ? ` — ${addr}` : ''}${s.experience_type ? ` (${s.experience_type})` : ''}`
+    })
     .join('\n')
 
   const prompt = `You are an expert at estimating tourism and experience costs for passport-style exploration guides.
