@@ -7,7 +7,8 @@ import { Button } from './ui/Button'
 import { Input } from './ui/Input'
 import { Label } from './ui/Label'
 import { SPEND_TIERS, spendTierLabel } from '@/lib/design/spend-tiers'
-import type { SpendTier, CreatorDecision } from '@/lib/design/types'
+import { PrintPassportModal } from './PrintPassportModal'
+import type { SpendTier, CreatorDecision, PrintJournalSetting } from '@/lib/design/types'
 
 interface Props {
   onClose: () => void
@@ -36,6 +37,7 @@ export function PassportSettingsPanel({ onClose }: Props) {
   const [verifyResult, setVerifyResult] = useState<VerifyResult | null>(null)
   const [verifyError, setVerifyError] = useState<string | null>(null)
   const [decision, setDecision] = useState<CreatorDecision | null>(null)
+  const [showPrintModal, setShowPrintModal] = useState(false)
 
   if (!passport) return null
 
@@ -111,6 +113,19 @@ export function PassportSettingsPanel({ onClose }: Props) {
             ✕
           </button>
         </div>
+
+        {/* Print modal */}
+        {showPrintModal && passport.institution_id && (
+          <PrintPassportModal
+            passport={{
+              id: passport.id,
+              title: passport.title,
+              institution_id: passport.institution_id,
+              print_journal_setting: passport.print_journal_setting ?? 'include_all',
+            }}
+            onClose={() => setShowPrintModal(false)}
+          />
+        )}
 
         <div className="flex-1 space-y-6 p-5">
           {/* Basic info */}
@@ -195,6 +210,65 @@ export function PassportSettingsPanel({ onClose }: Props) {
               ))}
             </div>
           </section>
+
+          {/* Print for kids — institutional accounts only */}
+          {passport.institution_id && (
+            <section className="space-y-3">
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-panoply-gray-3">
+                Print for kids
+              </h3>
+
+              <label className="flex cursor-pointer items-center gap-3">
+                <input
+                  type="checkbox"
+                  checked={passport.print_enabled ?? false}
+                  onChange={(e) => persist({ print_enabled: e.target.checked })}
+                  className="h-4 w-4 rounded accent-panoply-teal"
+                />
+                <span className="text-sm text-panoply-navy">
+                  Enable physical passport printing for this passport
+                </span>
+              </label>
+
+              {(passport.print_enabled) && (
+                <>
+                  <div className="space-y-1.5 pl-7">
+                    <p className="text-xs font-medium text-panoply-gray-3 uppercase tracking-wide">
+                      Journal prompts
+                    </p>
+                    {(
+                      [
+                        { value: 'include_all',  label: 'Include journal lines for all stops' },
+                        { value: 'exclude_all',  label: 'Exclude journal lines for all stops' },
+                        { value: 'per_stop',     label: 'Control per stop' },
+                      ] as { value: PrintJournalSetting; label: string }[]
+                    ).map(({ value, label }) => (
+                      <label key={value} className="flex cursor-pointer items-center gap-2">
+                        <input
+                          type="radio"
+                          name="print_journal_setting"
+                          value={value}
+                          checked={(passport.print_journal_setting ?? 'include_all') === value}
+                          onChange={() => persist({ print_journal_setting: value })}
+                          className="accent-panoply-teal"
+                        />
+                        <span className="text-sm text-panoply-navy">{label}</span>
+                      </label>
+                    ))}
+                  </div>
+
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="w-full"
+                    onClick={() => setShowPrintModal(true)}
+                  >
+                    🖨 Print for kids…
+                  </Button>
+                </>
+              )}
+            </section>
+          )}
 
           {/* Spend tier + AI verification */}
           <section className="space-y-3">

@@ -67,6 +67,66 @@ export function RightInspector() {
   )
 }
 
+// ── Classifier / educational constants ────────────────────────────────────────
+
+const CLASSIFIER_OPTIONS = [
+  { value: 'educational',   label: 'Educational' },
+  { value: 'heritage',      label: 'Heritage' },
+  { value: 'nature',        label: 'Nature' },
+  { value: 'arts_culture',  label: 'Arts & culture' },
+  { value: 'family',        label: 'Family' },
+  { value: 'accessible',    label: 'Accessible' },
+  { value: 'challenge',     label: 'Challenge' },
+  { value: 'hidden_gem',    label: 'Hidden gem' },
+  { value: 'food_drink',    label: 'Food & drink' },
+] as const
+
+const GRADE_LEVEL_OPTIONS = [
+  { value: 'K-2',  label: 'K–2'  },
+  { value: '3-5',  label: '3–5'  },
+  { value: '6-8',  label: '6–8'  },
+  { value: '9-12', label: '9–12' },
+] as const
+
+const SUBJECT_AREA_OPTIONS = [
+  { value: 'science',      label: 'Science'      },
+  { value: 'history',      label: 'History'      },
+  { value: 'english',      label: 'English'      },
+  { value: 'math',         label: 'Math'         },
+  { value: 'art',          label: 'Art'          },
+  { value: 'social',       label: 'Social'       },
+  { value: 'stem',         label: 'STEM'         },
+  { value: 'environment',  label: 'Environment'  },
+] as const
+
+// ── PhysicalPassportSection ────────────────────────────────────────────────────
+
+function PhysicalPassportSection({
+  stop,
+  persist,
+}: {
+  stop: DesignerStop
+  persist: (patch: Partial<DesignerStop>) => Promise<void>
+}) {
+  const passport = usePassportStore((s) => s.passport)
+  if (!passport?.institution_id || !passport.print_enabled) return null
+  if (passport.print_journal_setting !== 'per_stop') return null
+
+  return (
+    <Section title="Physical passport">
+      <label className="flex cursor-pointer items-center gap-3">
+        <input
+          type="checkbox"
+          checked={stop.print_include_journal ?? true}
+          onChange={(e) => void persist({ print_include_journal: e.target.checked })}
+          className="h-4 w-4 rounded accent-panoply-teal"
+        />
+        <span className="text-sm text-panoply-navy">Include journal lines for this stop</span>
+      </label>
+    </Section>
+  )
+}
+
 // ── Stop Inspector ─────────────────────────────────────────────────────────────
 
 const EVIDENCE_TIERS = [
@@ -372,6 +432,103 @@ function StopInspector({ stop }: { stop: DesignerStop }) {
           />
         </Field>
       </Section>
+
+      <Section title="Educational">
+        <Field label="Journal prompt">
+          <textarea
+            value={stop.journal_prompt ?? ''}
+            placeholder="What did you observe here? What surprised you?"
+            onChange={(e) => updateStop(stop.id, { journal_prompt: e.target.value })}
+            onBlur={(e) => persist({ journal_prompt: e.target.value || null })}
+            rows={2}
+            className="w-full resize-none rounded-panel border border-panoply-gray-2 px-3 py-2 text-sm text-panoply-navy placeholder:text-panoply-gray-3 focus:outline-none focus:ring-2 focus:ring-panoply-teal"
+          />
+        </Field>
+        <Field label="Classifiers">
+          <div className="flex flex-wrap gap-1.5">
+            {CLASSIFIER_OPTIONS.map(({ value, label }) => {
+              const active = (stop.classifiers ?? []).includes(value)
+              return (
+                <button
+                  key={value}
+                  onClick={() => {
+                    const current = stop.classifiers ?? []
+                    const next = active
+                      ? current.filter((c) => c !== value)
+                      : [...current, value]
+                    void persist({ classifiers: next })
+                  }}
+                  className={`rounded-full border px-2.5 py-0.5 text-xs transition-colors ${
+                    active
+                      ? 'border-panoply-teal bg-panoply-teal-lt text-panoply-teal-dk font-medium'
+                      : 'border-panoply-gray-2 text-panoply-gray-3 hover:border-panoply-teal/40'
+                  }`}
+                >
+                  {label}
+                </button>
+              )
+            })}
+          </div>
+        </Field>
+        {(stop.classifiers ?? []).includes('educational') && (
+          <>
+            <Field label="Grade levels">
+              <div className="flex flex-wrap gap-1.5">
+                {GRADE_LEVEL_OPTIONS.map(({ value, label }) => {
+                  const active = (stop.grade_levels ?? []).includes(value)
+                  return (
+                    <button
+                      key={value}
+                      onClick={() => {
+                        const current = stop.grade_levels ?? []
+                        const next = active
+                          ? current.filter((g) => g !== value)
+                          : [...current, value]
+                        void persist({ grade_levels: next })
+                      }}
+                      className={`rounded-card border px-2.5 py-0.5 text-xs transition-colors ${
+                        active
+                          ? 'border-panoply-teal bg-panoply-teal-lt text-panoply-teal-dk font-medium'
+                          : 'border-panoply-gray-2 text-panoply-gray-3 hover:border-panoply-teal/40'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  )
+                })}
+              </div>
+            </Field>
+            <Field label="Subject areas">
+              <div className="flex flex-wrap gap-1.5">
+                {SUBJECT_AREA_OPTIONS.map(({ value, label }) => {
+                  const active = (stop.subject_areas ?? []).includes(value)
+                  return (
+                    <button
+                      key={value}
+                      onClick={() => {
+                        const current = stop.subject_areas ?? []
+                        const next = active
+                          ? current.filter((s) => s !== value)
+                          : [...current, value]
+                        void persist({ subject_areas: next })
+                      }}
+                      className={`rounded-card border px-2.5 py-0.5 text-xs transition-colors ${
+                        active
+                          ? 'border-panoply-teal bg-panoply-teal-lt text-panoply-teal-dk font-medium'
+                          : 'border-panoply-gray-2 text-panoply-gray-3 hover:border-panoply-teal/40'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  )
+                })}
+              </div>
+            </Field>
+          </>
+        )}
+      </Section>
+
+      <PhysicalPassportSection stop={stop} persist={persist} />
 
       <div className="border-t border-panoply-gray-2 pt-4">
         <Button variant="danger" size="sm" className="w-full" onClick={handleDelete}>

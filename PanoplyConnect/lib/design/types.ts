@@ -30,11 +30,13 @@ export type SmudgeIntensity = 'none' | 'light' | 'medium' | 'heavy'
 export type ExperienceType = 'location' | 'experience'
 export type ExperienceVerification = 'witnessed' | 'documented' | 'presence' | 'honor'
 export type CreatorDecision = 'accepted' | 'adjusted' | 'overridden'
+export type PrintJournalSetting = 'include_all' | 'exclude_all' | 'per_stop'
 
 export interface DesignerPassport {
   id: string
   creator_id: string
   institution_id: string | null
+  proprietor_id: string | null
   title: string
   description: string | null
   cover_template: string
@@ -49,6 +51,8 @@ export interface DesignerPassport {
   transit_accessible: boolean
   wheelchair_accessible: boolean
   is_published: boolean
+  print_enabled: boolean
+  print_journal_setting: PrintJournalSetting
   created_at: string
   updated_at: string
   published_at: string | null
@@ -101,5 +105,12 @@ export interface DesignerStop {
   learning_objective: string | null
   experience_type: ExperienceType | null
   experience_verification_method: ExperienceVerification | null
+  // Educational fields (migration 004)
+  classifiers: string[]
+  grade_levels: string[]
+  subject_areas: string[]
+  journal_prompt: string | null
+  // Print for kids (migration 005)
+  print_include_journal: boolean
   created_at: string
 }

@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { NewPassportButton } from '@/components/design/NewPassportButton'
+import { PrintPassportButton } from '@/components/design/PrintPassportButton'
 import { spendTierLabel } from '@/lib/design/spend-tiers'
 import type { DesignerPassport } from '@/lib/design/types'
 
@@ -14,47 +15,63 @@ const STATUS_STYLES: Record<string, string> = {
 }
 
 function PassportCard({ passport }: { passport: DesignerPassport }) {
+  const isInstitutional = Boolean(passport.institution_id ?? passport.proprietor_id)
   return (
-    <Link
-      href={`/design/${passport.id}`}
-      className="group block rounded-panel border border-panoply-gray-2 bg-white p-5 transition-shadow hover:shadow-md"
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div
-          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-card text-2xl"
-          style={{ backgroundColor: `#${passport.cover_paper_color ?? 'F5F2EC'}` }}
-        >
-          {passport.cover_emblem ?? '🧭'}
+    <div className="rounded-panel border border-panoply-gray-2 bg-white transition-shadow hover:shadow-md">
+      <Link
+        href={`/design/${passport.id}`}
+        className="group block p-5"
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div
+            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-card text-2xl"
+            style={{ backgroundColor: `#${passport.cover_paper_color ?? 'F5F2EC'}` }}
+          >
+            {passport.cover_emblem ?? '🧭'}
+          </div>
+          <span
+            className={`mt-0.5 rounded-full px-2 py-0.5 text-xs font-medium ${
+              STATUS_STYLES[passport.status ?? 'draft']
+            }`}
+          >
+            {passport.status ?? 'draft'}
+          </span>
         </div>
-        <span
-          className={`mt-0.5 rounded-full px-2 py-0.5 text-xs font-medium ${
-            STATUS_STYLES[passport.status ?? 'draft']
-          }`}
-        >
-          {passport.status ?? 'draft'}
-        </span>
-      </div>
 
-      <h3 className="mt-3 font-semibold text-panoply-navy group-hover:text-panoply-teal-dk transition-colors">
-        {passport.title}
-      </h3>
+        <h3 className="mt-3 font-semibold text-panoply-navy group-hover:text-panoply-teal-dk transition-colors">
+          {passport.title}
+        </h3>
 
-      {passport.description && (
-        <p className="mt-1 text-sm text-panoply-gray-3 line-clamp-2">
-          {passport.description}
-        </p>
+        {passport.description && (
+          <p className="mt-1 text-sm text-panoply-gray-3 line-clamp-2">
+            {passport.description}
+          </p>
+        )}
+
+        <div className="mt-3 flex items-center gap-3 text-xs text-panoply-gray-3">
+          <span>{spendTierLabel(passport.expected_spend_tier)}</span>
+          {passport.transit_accessible && <span title="Transit accessible">🚌</span>}
+          {passport.wheelchair_accessible && <span title="Wheelchair accessible">♿</span>}
+        </div>
+
+        <div className="mt-2 text-xs text-panoply-gray-3">
+          Updated {new Date(passport.updated_at).toLocaleDateString()}
+        </div>
+      </Link>
+
+      {isInstitutional && passport.print_enabled && (
+        <div className="border-t border-panoply-gray-2 px-5 pb-4 pt-3">
+          <PrintPassportButton
+            passport={{
+              id: passport.id,
+              title: passport.title,
+              institution_id: passport.institution_id ?? passport.proprietor_id ?? '',
+              print_journal_setting: passport.print_journal_setting ?? 'include_all',
+            }}
+          />
+        </div>
       )}
-
-      <div className="mt-3 flex items-center gap-3 text-xs text-panoply-gray-3">
-        <span>{spendTierLabel(passport.expected_spend_tier)}</span>
-        {passport.transit_accessible && <span title="Transit accessible">🚌</span>}
-        {passport.wheelchair_accessible && <span title="Wheelchair accessible">♿</span>}
-      </div>
-
-      <div className="mt-2 text-xs text-panoply-gray-3">
-        Updated {new Date(passport.updated_at).toLocaleDateString()}
-      </div>
-    </Link>
+    </div>
   )
 }
 
