@@ -1,7 +1,11 @@
 import { Tabs } from 'expo-router'
 import { Text } from 'react-native'
+import { useEmployeeContext } from '../../contexts/EmployeeContext'
 
 export default function TabsLayout() {
+  const { isEmployee, employeeMode } = useEmployeeContext()
+  const showField = isEmployee && employeeMode
+
   return (
     <Tabs
       screenOptions={{
@@ -32,6 +36,14 @@ export default function TabsLayout() {
         options={{
           title: 'Profile',
           tabBarIcon: ({ color }) => <Text style={{ fontSize: 20, color }}>👤</Text>,
+        }}
+      />
+      <Tabs.Screen
+        name="field"
+        options={{
+          title: 'Field',
+          href: showField ? undefined : null,
+          tabBarIcon: ({ color }) => <Text style={{ fontSize: 20, color }}>🏷</Text>,
         }}
       />
     </Tabs>

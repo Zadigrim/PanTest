@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react'
-import { View, Text, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from 'react-native'
+import { View, Text, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, Switch } from 'react-native'
 import { router } from 'expo-router'
 import { supabase, getCurrentUser } from '../../lib/supabase'
+import { useEmployeeContext } from '../../contexts/EmployeeContext'
 import type { Profile } from '../../types'
 
 export default function ProfileScreen() {
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
+  const { isEmployee, employeeMode, setEmployeeMode } = useEmployeeContext()
 
   useEffect(() => {
     async function load() {
@@ -59,6 +61,18 @@ export default function ProfileScreen() {
           <Text style={styles.menuItemText}>🏷 Employee Terminal</Text>
           <Text style={styles.menuArrow}>›</Text>
         </TouchableOpacity>
+      )}
+
+      {isEmployee && (
+        <View style={styles.menuItem}>
+          <Text style={styles.menuItemText}>Employee mode</Text>
+          <Switch
+            value={employeeMode}
+            onValueChange={setEmployeeMode}
+            trackColor={{ false: '#ccc', true: '#C9A84C' }}
+            thumbColor={employeeMode ? '#0D1B2A' : '#f4f3f4'}
+          />
+        </View>
       )}
 
       <TouchableOpacity style={[styles.menuItem, styles.signOutItem]} onPress={handleSignOut}>

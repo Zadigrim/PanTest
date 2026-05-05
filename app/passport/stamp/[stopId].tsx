@@ -1,6 +1,9 @@
 // Standalone stamp screen — used for QR-triggered or deep-linked stamp flow.
 import React, { useEffect, useState } from 'react'
-import { View, Text, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from 'react-native'
+import {
+  View, Text, TouchableOpacity, StyleSheet, Alert, ActivityIndicator,
+  Modal, SafeAreaView,
+} from 'react-native'
 import { useLocalSearchParams, router } from 'expo-router'
 import { supabase, getCurrentUser } from '../../../lib/supabase'
 import { useGPS, useStampVerification } from '../../../hooks/useGPS'
@@ -14,6 +17,8 @@ export default function StampScreen() {
   const [loading, setLoading] = useState(true)
   const [stamped, setStamped] = useState(false)
   const [verifying, setVerifying] = useState(false)
+  const [showCode, setShowCode] = useState(false)
+  const [visitorCode, setVisitorCode] = useState('')
   const { checkLocation } = useGPS()
   const { verify } = useStampVerification()
 
@@ -30,6 +35,9 @@ export default function StampScreen() {
 
       if (!stopData) { setLoading(false); return }
       setStop(stopData)
+
+      // Derive visitor code from userId (first 6 chars, uppercase)
+      setVisitorCode(user.id.replace(/-/g, '').slice(0, 6).toUpperCase())
 
       const passportId = (stopData as any).passport_pages?.passport_id
       if (passportId) {
@@ -126,8 +134,34 @@ export default function StampScreen() {
               <Text style={styles.btnText}>{verifying ? 'Verifying…' : 'Stamp this location'}</Text>
             </TouchableOpacity>
           )}
+
+          {/* Employee code button — always visible */}
+          <TouchableOpacity style={styles.codeBtn} onPress={() => setShowCode(true)}>
+            <Text style={styles.codeBtnText}>Show code for employee</Text>
+          </TouchableOpacity>
         </>
       )}
+
+      {/* Visitor code modal */}
+      <Modal
+        visible={showCode}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowCode(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <SafeAreaView style={styles.modalSheet}>
+            <Text style={styles.modalTitle}>Your visitor code</Text>
+            <Text style={styles.modalCode}>{visitorCode}</Text>
+            <Text style={styles.modalHint}>
+              Show this to the ranger or librarian at this stop
+            </Text>
+            <TouchableOpacity style={styles.modalClose} onPress={() => setShowCode(false)}>
+              <Text style={styles.modalCloseText}>Close</Text>
+            </TouchableOpacity>
+          </SafeAreaView>
+        </View>
+      </Modal>
     </View>
   )
 }
@@ -145,4 +179,31 @@ const styles = StyleSheet.create({
   },
   btnDisabled: { opacity: 0.5 },
   btnText: { color: '#F5F0E8', fontWeight: '700', fontSize: 16 },
+  // Employee code
+  codeBtn: { marginTop: 24, paddingVertical: 10, paddingHorizontal: 20 },
+  codeBtnText: { fontSize: 13, color: '#aaa', textDecorationLine: 'underline' },
+  // Modal
+  modalOverlay: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalSheet: {
+    backgroundColor: '#0D1B2A', borderTopLeftRadius: 20, borderTopRightRadius: 20,
+    padding: 32, alignItems: 'center',
+  },
+  modalTitle: {
+    fontSize: 14, color: '#888', fontStyle: 'italic', marginBottom: 20,
+    textTransform: 'uppercase', letterSpacing: 1,
+  },
+  modalCode: {
+    fontSize: 56, fontFamily: 'monospace', fontWeight: '700',
+    color: '#C9A84C', letterSpacing: 8, marginBottom: 20,
+  },
+  modalHint: {
+    fontSize: 14, color: '#888', textAlign: 'center', lineHeight: 20, marginBottom: 32,
+  },
+  modalClose: {
+    backgroundColor: '#152232', borderRadius: 10, paddingVertical: 14, paddingHorizontal: 40,
+  },
+  modalCloseText: { color: '#F5F0E8', fontWeight: '600', fontSize: 15 },
 })
