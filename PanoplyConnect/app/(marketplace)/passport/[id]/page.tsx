@@ -10,17 +10,15 @@ import type {
   PassportPage,
   Stop,
   Profile,
-  Institution,
-  CreatorQualityScore,
 } from '@/lib/supabase/types'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface PassportFull extends Passport {
   pages: (PassportPage & { stops: Stop[] })[]
-  creator:     Pick<Profile, 'id' | 'display_name' | 'avatar_url' | 'bio'> | null
-  institution: Pick<Institution, 'id' | 'name' | 'slug' | 'logo_url'> | null
-  quality_score: CreatorQualityScore | null
+  creator:      Pick<Profile, 'id' | 'display_name' | 'avatar_url' | 'bio'> | null
+  institution:  { id: string; name: string; slug: string; logo_url: string | null } | null
+  quality_score: { composite_score: number; avg_mood_rating: number; completion_rate: number } | null
 }
 
 // ─── Metadata ─────────────────────────────────────────────────────────────────
@@ -115,12 +113,6 @@ export default async function PassportDetailPage({
     .select(`
       *,
       creator:profiles!creator_id ( id, display_name, avatar_url, bio ),
-      institution:institutions!proprietor_id ( id, name, slug, logo_url ),
-      quality_score:creator_quality_scores (
-        id, passport_id, computed_at,
-        composite_score, avg_mood_rating, completion_rate,
-        return_visit_rate, expert_signoff_rate, pool_share_cents
-      ),
       pages:passport_pages (
         *,
         stops ( * )
@@ -137,20 +129,13 @@ export default async function PassportDetailPage({
   // Normalize nested arrays from PostgREST
   const raw = passportRow as Record<string, unknown>
 
-  const qsRaw = raw['quality_score']
-  const quality_score: CreatorQualityScore | null = Array.isArray(qsRaw)
-    ? ((qsRaw[0] ?? null) as CreatorQualityScore | null)
-    : ((qsRaw as CreatorQualityScore | null) ?? null)
-
   const creatorRaw = raw['creator']
   const creator = Array.isArray(creatorRaw)
     ? (creatorRaw[0] ?? null) as Pick<Profile, 'id' | 'display_name' | 'avatar_url' | 'bio'> | null
     : creatorRaw as Pick<Profile, 'id' | 'display_name' | 'avatar_url' | 'bio'> | null
 
-  const institutionRaw = raw['institution']
-  const institution = Array.isArray(institutionRaw)
-    ? (institutionRaw[0] ?? null) as Pick<Institution, 'id' | 'name' | 'slug' | 'logo_url'> | null
-    : institutionRaw as Pick<Institution, 'id' | 'name' | 'slug' | 'logo_url'> | null
+  const institution = null
+  const quality_score = null
 
   const pagesRaw = (raw['pages'] ?? []) as Array<Record<string, unknown>>
   const pages: PassportFull['pages'] = pagesRaw

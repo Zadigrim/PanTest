@@ -50,7 +50,7 @@ export function AcquireButton({
   if (isOwned) {
     return (
       <a
-        href={`/collect/${passportId}`}
+        href="/library"
         className={cn(
           'inline-flex h-11 items-center justify-center rounded-panel px-6 text-sm font-semibold',
           'border-2 border-panoply-teal bg-white text-panoply-teal hover:bg-panoply-teal-lt transition-colors',
@@ -75,14 +75,11 @@ export function AcquireButton({
       return
     }
 
+    // Write to acquisitions (PanoplyConnect) and collector_passports (Expo app)
     const { error: apiError } = await supabase
       .from('acquisitions')
       .upsert(
-        {
-          user_id:          user.id,
-          passport_id:      passportId,
-          price_paid_cents: 0,
-        },
+        { user_id: user.id, passport_id: passportId, price_paid_cents: 0 },
         { onConflict: 'user_id,passport_id' }
       )
 
@@ -92,7 +89,15 @@ export function AcquireButton({
       return
     }
 
-    router.push(`/collect/${passportId}`)
+    // Also insert into collector_passports so the Expo app sees it immediately
+    await supabase
+      .from('collector_passports')
+      .upsert(
+        { user_id: user.id, passport_id: passportId, status: 'in_progress' },
+        { onConflict: 'user_id,passport_id' }
+      )
+
+    router.push('/library')
   }
 
   // ── Paid: go to checkout ────────────────────────────────────────────────────
