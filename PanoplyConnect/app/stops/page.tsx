@@ -578,9 +578,9 @@ export default function StopsLibraryPage() {
           classifiers,
           learning_objective,
           created_at,
-          profiles:creator_id ( display_name ),
           passport_pages!page_id (
             passports (
+              creator:creator_id ( display_name ),
               institutions:proprietor_id ( name )
             )
           )
@@ -613,10 +613,11 @@ export default function StopsLibraryPage() {
       // Count acknowledgments per stop
       const ackMap = new Map<string, number>()
       if (stopIds.length > 0) {
-        const { data: sessions } = await supabase
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: sessions } = await (supabase as any)
           .from('presence_sessions')
           .select('stop_id')
-          .in('stop_id', stopIds)
+          .in('stop_id', stopIds) as { data: Array<{ stop_id: string }> | null }
 
         for (const session of sessions ?? []) {
           ackMap.set(session.stop_id, (ackMap.get(session.stop_id) ?? 0) + 1)
@@ -627,7 +628,7 @@ export default function StopsLibraryPage() {
       let assembled: StopCard[] = (rawStops ?? []).map((s: any) => {
         const institutionName =
           s.passport_pages?.passports?.institutions?.name ?? null
-        const creatorName = s.profiles?.display_name ?? null
+        const creatorName = s.passport_pages?.passports?.creator?.display_name ?? null
         return {
           id: s.id,
           name: s.name,

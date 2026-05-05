@@ -2,6 +2,7 @@ import { redirect, notFound } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { cn } from '@/lib/cn'
+import { UploadAssetButton } from '@/components/assets/UploadAssetButton'
 
 // ---------------------------------------------------------------------------
 // Config per asset type
@@ -72,31 +73,6 @@ function TabNav({ current }: { current: AssetType }) {
   )
 }
 
-// ---------------------------------------------------------------------------
-// Upload button stub
-// ---------------------------------------------------------------------------
-
-function UploadButton() {
-  return (
-    <div className="relative group">
-      <button
-        type="button"
-        disabled
-        className="inline-flex items-center gap-2 h-9 px-4 rounded-panel text-sm font-medium bg-panoply-teal text-white opacity-60 cursor-not-allowed"
-        aria-describedby="upload-soon-note"
-      >
-        Upload asset
-      </button>
-      <span
-        id="upload-soon-note"
-        className="absolute left-1/2 -translate-x-1/2 top-full mt-1.5 z-10 whitespace-nowrap rounded-card bg-panoply-navy text-white text-xs px-2 py-1 opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity"
-        role="tooltip"
-      >
-        Upload coming soon
-      </span>
-    </div>
-  )
-}
 
 // ---------------------------------------------------------------------------
 // Asset card
@@ -202,17 +178,19 @@ export default async function AssetTypePage({ params }: Props) {
   if (!user) redirect('/login?next=/assets')
 
   // Resolve user's institution (if any)
-  const { data: authz } = await supabase
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: authz } = await (supabase as any)
     .from('employee_authorizations')
     .select('institution_id')
     .eq('user_id', user.id)
     .limit(1)
-    .maybeSingle()
+    .maybeSingle() as { data: { institution_id: string } | null }
 
   const userInstitutionId = authz?.institution_id ?? null
 
   // Query design_assets — table may not exist yet; treat any error as empty
-  const { data: assets } = await supabase
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: assets } = await ((supabase as any)
     .from('design_assets')
     .select('id, name, url, institution_id')
     .eq('asset_type', meta.dbType)
@@ -222,8 +200,7 @@ export default async function AssetTypePage({ params }: Props) {
         ...(userInstitutionId ? [`institution_id.eq.${userInstitutionId}`] : []),
       ].join(','),
     )
-    .order('created_at', { ascending: false })
-    .then((res) => res)
+    .order('created_at', { ascending: false }) as Promise<{ data: AssetRow[] | null }>)
     .catch(() => ({ data: null }))
 
   const assetList: AssetRow[] = (assets ?? []) as AssetRow[]
@@ -258,7 +235,7 @@ export default async function AssetTypePage({ params }: Props) {
                 : `${assetList.length} asset${assetList.length !== 1 ? 's' : ''}`}
             </p>
           </div>
-          <UploadButton />
+          <UploadAssetButton assetType={meta.dbType as 'background' | 'stamp' | 'cover'} />
         </div>
 
         {assetList.length === 0 ? (
