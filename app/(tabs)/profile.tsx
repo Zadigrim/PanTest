@@ -51,16 +51,6 @@ export default function ProfileScreen() {
         {profile?.role === 'employee' ? 'Employee' : 'Adventurer'}
       </Text>
 
-      {profile?.role === 'creator' && (
-        <TouchableOpacity
-          style={styles.menuItem}
-          onPress={() => router.push('/designer')}
-        >
-          <Text style={styles.menuItemText}>🎨 Passport Designer</Text>
-          <Text style={styles.menuArrow}>›</Text>
-        </TouchableOpacity>
-      )}
-
       {profile?.role === 'employee' && (
         <TouchableOpacity
           style={styles.menuItem}
