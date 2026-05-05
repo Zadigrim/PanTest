@@ -67,10 +67,12 @@ export default function DiscoverScreen() {
     )
   }
 
+  const unowned = passports.filter((p) => !ownedIds.has(p.id))
+
   return (
     <View style={styles.container}>
       <FlatList
-        data={passports}
+        data={unowned}
         keyExtractor={(p) => p.id}
         renderItem={({ item }) => (
           <PassportCard
@@ -81,7 +83,7 @@ export default function DiscoverScreen() {
         )}
         ListEmptyComponent={
           <View style={styles.empty}>
-            <Text style={styles.emptyText}>No passports available yet.</Text>
+            <Text style={styles.emptyText}>You have all available passports!</Text>
           </View>
         }
         contentContainerStyle={styles.list}

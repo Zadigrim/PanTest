@@ -47,7 +47,9 @@ export default function ProfileScreen() {
         <Text style={styles.avatarEmoji}>👤</Text>
       </View>
       <Text style={styles.name}>{profile?.display_name ?? 'Traveler'}</Text>
-      <Text style={styles.role}>{profile?.role ?? 'collector'}</Text>
+      <Text style={styles.role}>
+        {profile?.role === 'employee' ? 'Employee' : 'Adventurer'}
+      </Text>
 
       {profile?.role === 'creator' && (
         <TouchableOpacity
