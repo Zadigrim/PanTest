@@ -25,7 +25,7 @@ ALTER TABLE public.stops
 CREATE TABLE IF NOT EXISTS public.print_jobs (
   id              uuid         DEFAULT gen_random_uuid() PRIMARY KEY,
   passport_id     uuid         REFERENCES public.passports(id)    NOT NULL,
-  institution_id  uuid         REFERENCES public.institutions(id) NOT NULL,
+  institution_id  uuid         NOT NULL,
   created_by      uuid         REFERENCES public.profiles(id)     NOT NULL,
   stop_ids        uuid[]       NOT NULL,
   copies          integer      NOT NULL CHECK (copies > 0),
@@ -36,16 +36,9 @@ CREATE TABLE IF NOT EXISTS public.print_jobs (
 
 ALTER TABLE public.print_jobs ENABLE ROW LEVEL SECURITY;
 
--- Accessible only to the creator or any member of the institution
-CREATE POLICY "print_jobs_institution_only" ON public.print_jobs
-  FOR ALL USING (
-    created_by = auth.uid()
-    OR institution_id IN (
-      SELECT institution_id
-      FROM   public.employee_authorizations
-      WHERE  user_id = auth.uid()
-    )
-  );
+-- Only the user who created the print job can read or write it.
+CREATE POLICY "print_jobs_own" ON public.print_jobs
+  FOR ALL USING (created_by = auth.uid());
 
 -- ─────────────────────────────────────────────
 -- INDEXES
