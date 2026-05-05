@@ -125,7 +125,7 @@ interface RawPassportRow {
   updated_at: string
   // joined
   creator: { id: string; display_name: string | null; avatar_url: string | null } | null
-  institution: { id: string; name: string; slug: string; logo_url: string | null } | null
+  institution: { id: string; name: string; slug: string; logo_url: string | null } | null  // populated separately if needed
   pages_count: number
   stops_count: number
   creator_is_certified: boolean
@@ -192,10 +192,8 @@ export default function MarketplacePage() {
       .select(`
         *,
         creator:profiles!creator_id ( id, display_name, avatar_url ),
-        institution:institutions!proprietor_id ( id, name, slug, logo_url ),
         pages_count:passport_pages(count),
         stops_count:stops(count),
-        creator_is_certified:profiles!creator_id ( id ),
         quality_score:creator_quality_scores (
           composite_score,
           avg_mood_rating,

@@ -35,7 +35,8 @@ ALTER TABLE public.passports
   ADD COLUMN IF NOT EXISTS cover_image_url text,
   ADD COLUMN IF NOT EXISTS traveler_types text[],
   ADD COLUMN IF NOT EXISTS award_year integer,
-  ADD COLUMN IF NOT EXISTS shortlisted boolean NOT NULL DEFAULT false;
+  ADD COLUMN IF NOT EXISTS shortlisted boolean NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS proprietor_id uuid REFERENCES public.institutions(id);
 
 -- ─────────────────────────────────────────────
 -- ACQUISITIONS
