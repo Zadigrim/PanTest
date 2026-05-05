@@ -1,7 +1,6 @@
 'use client'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { Button } from './ui/Button'
 
 interface Props {
@@ -9,29 +8,17 @@ interface Props {
 }
 
 /**
- * Client component that POSTs to /api/design/create and redirects to the new
- * passport workspace. Kept separate so the /design list page can remain a
- * server component.
+ * Button that navigates to /design/new where the user can choose how to
+ * start their new passport (blank, from library, or from a template).
+ *
+ * Kept as a client component so the /design list page remains a server
+ * component. The userId prop is accepted for API compatibility but is not
+ * needed here since /design/new handles auth server-side.
  */
-export function NewPassportButton({ userId }: Props) {
-  const router = useRouter()
-  const [creating, setCreating] = useState(false)
-
-  const handleCreate = async () => {
-    setCreating(true)
-    try {
-      const res = await fetch('/api/design/create', { method: 'POST' })
-      if (!res.ok) throw new Error(await res.text())
-      const { id } = (await res.json()) as { id: string }
-      router.push(`/design/${id}`)
-    } catch {
-      setCreating(false)
-    }
-  }
-
+export function NewPassportButton({ userId: _userId }: Props) {
   return (
-    <Button onClick={handleCreate} disabled={creating} size="lg">
-      {creating ? 'Creating…' : '+ New passport'}
+    <Button asChild size="lg">
+      <Link href="/design/new">+ New passport</Link>
     </Button>
   )
 }

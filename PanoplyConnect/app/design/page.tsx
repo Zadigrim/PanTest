@@ -105,7 +105,7 @@ export default async function DesignIndexPage() {
                 : `${list.length} passport${list.length === 1 ? '' : 's'}`}
             </p>
           </div>
-          {/* NewPassportButton is a client component — it calls the API route */}
+          {/* NewPassportButton links to /design/new for the creation flow */}
           <NewPassportButton userId={user.id} />
         </div>
 

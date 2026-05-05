@@ -25,13 +25,28 @@ export async function middleware(request: NextRequest) {
 
   const { pathname } = request.nextUrl
 
-  // Protect library and manage routes
-  if (!user && (pathname.startsWith('/library') || pathname.startsWith('/manage') || pathname.startsWith('/terminal'))) {
+  // PanoplyConnect requires login for all pages except auth routes, public passport
+  // pages (share tokens), and the explore section.
+  const isPublic =
+    pathname.startsWith('/login') ||
+    pathname.startsWith('/signup') ||
+    pathname.startsWith('/share/') ||
+    pathname.startsWith('/explore') ||
+    pathname.startsWith('/passport/') ||
+    pathname.startsWith('/creator/') ||
+    pathname.startsWith('/_next') ||
+    pathname.startsWith('/api/')
+
+  if (!user && !isPublic) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     url.searchParams.set('next', pathname)
     return NextResponse.redirect(url)
   }
+
+  // Forward the current pathname in a header so server components can read it
+  // for active-link highlighting in AppNav.
+  supabaseResponse.headers.set('x-pathname', pathname)
 
   return supabaseResponse
 }

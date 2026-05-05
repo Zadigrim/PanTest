@@ -1,23 +1,23 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { FilterBar, type FilterState } from '@/components/marketplace/FilterBar'
-import { PassportCard } from '@/components/marketplace/PassportCard'
 import type { PassportWithDetails, CreatorQualityScore } from '@/lib/supabase/types'
 
 // ─── Default filter state ─────────────────────────────────────────────────────
 
 const DEFAULT_FILTERS: FilterState = {
-  distanceMiles: null,
-  budgets:       [],
-  types:         [],
+  distanceMiles:  null,
+  budgets:        [],
+  types:          [],
   accessibleOnly: false,
-  travelerType:  null,
-  sortBy:        'quality',
+  travelerType:   null,
+  sortBy:         'quality',
 }
 
-// ─── Spend-tier → budget-option mapping ──────────────────────────────────────
+// ─── Filter helpers ───────────────────────────────────────────────────────────
 
 function matchesBudget(
   isFree: boolean,
@@ -94,48 +94,104 @@ function sortPassports(
     }
     case 'distance':
     default:
-      return 0 // Distance requires geolocation; preserve server order for MVP
+      return 0
   }
 }
 
-// ─── Raw fetch result type ────────────────────────────────────────────────────
+// ─── Explore passport card ────────────────────────────────────────────────────
 
-interface RawPassportRow {
-  id: string
-  creator_id: string
-  proprietor_id: string | null
-  title: string
-  description: string | null
-  passport_type: string
-  cover_bg_color: string | null
-  cover_emblem: string | null
-  cover_image_url: string | null
-  is_published: boolean
-  is_free: boolean
-  price_cents: number | null
-  expected_spend_tier: string | null
-  transit_accessible: boolean | null
-  wheelchair_accessible: boolean | null
-  estimated_hours: number | null
-  traveler_types: string[] | null
-  award_year: number | null
-  shortlisted: boolean | null
-  status: string | null
-  created_at: string
-  updated_at: string
-  // joined
-  creator: { id: string; display_name: string | null; avatar_url: string | null } | null
-  institution: { id: string; name: string; slug: string; logo_url: string | null } | null  // populated separately if needed
-  pages_count: number
-  creator_is_certified: boolean
-  quality_score: CreatorQualityScore | null
+const SPEND_TIER_LABELS: Record<string, string> = {
+  free:       'Free',
+  under_15:   'Under $15',
+  '15_50':    '$15–$50',
+  '50_150':   '$50–$150',
+  '150_500':  '$150–$500',
+  '500_plus': '$500+',
 }
 
-function toPassportWithDetails(row: RawPassportRow): PassportWithDetails {
-  return {
-    ...row,
-    stop_count: row.stops_count,
-  } as PassportWithDetails
+function formatHours(hours: number): string {
+  if (hours < 1) return `${Math.round(hours * 60)} min`
+  if (hours === 1) return '1 hr'
+  return `${hours} hrs`
+}
+
+function ExploreCard({ passport }: { passport: PassportWithDetails }) {
+  const authorName = passport.institution?.name ?? passport.creator?.display_name ?? 'Unknown'
+  const avgRating  = passport.quality_score?.avg_mood_rating ?? null
+  const completion = passport.quality_score?.completion_rate ?? null
+
+  return (
+    <div className="group flex flex-col overflow-hidden rounded-card border border-panoply-gray-2 bg-white shadow-sm transition-shadow hover:shadow-md">
+      {/* Cover */}
+      <div
+        className="flex h-28 items-center justify-center"
+        style={{ backgroundColor: passport.cover_bg_color ?? '#0D1B2A' }}
+        aria-hidden="true"
+      >
+        {passport.cover_emblem ? (
+          <span className="select-none text-5xl leading-none">{passport.cover_emblem}</span>
+        ) : (
+          <span className="select-none text-4xl leading-none opacity-30">🗺</span>
+        )}
+      </div>
+
+      {/* Body */}
+      <div className="flex flex-1 flex-col gap-2 p-3">
+        <h3 className="line-clamp-2 text-sm font-semibold leading-snug text-panoply-navy">
+          {passport.title}
+        </h3>
+
+        <p className="text-xs text-panoply-gray-3">
+          {authorName}
+          {passport.stop_count > 0 && (
+            <>
+              {' · '}
+              <span>{passport.stop_count} {passport.stop_count === 1 ? 'stop' : 'stops'}</span>
+            </>
+          )}
+        </p>
+
+        {(avgRating !== null || completion !== null) && (
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs">
+            {avgRating !== null && (
+              <span className="text-panoply-amber">
+                {'★'.repeat(Math.floor(avgRating))}
+                {'☆'.repeat(5 - Math.ceil(avgRating))}
+                <span className="ml-1 font-medium text-panoply-navy">{avgRating.toFixed(1)}</span>
+              </span>
+            )}
+            {completion !== null && (
+              <span className="text-panoply-gray-3">
+                {Math.round(completion * 100)}% complete
+              </span>
+            )}
+          </div>
+        )}
+
+        <div className="flex-1" />
+
+        {/* Footer */}
+        <div className="flex items-center justify-between gap-2 border-t border-panoply-gray-2 pt-1">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-panoply-gray-3">
+            {passport.estimated_hours != null && (
+              <span>{formatHours(passport.estimated_hours)}</span>
+            )}
+            {passport.expected_spend_tier && SPEND_TIER_LABELS[passport.expected_spend_tier] && (
+              <span>{SPEND_TIER_LABELS[passport.expected_spend_tier]}</span>
+            )}
+          </div>
+
+          <Link
+            href={`/explore/${passport.id}`}
+            className="shrink-0 rounded-card border border-panoply-gray-2 bg-white px-2.5 py-1 text-xs font-medium text-panoply-navy hover:border-panoply-teal hover:text-panoply-teal transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-panoply-teal"
+            tabIndex={0}
+          >
+            View details
+          </Link>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 // ─── Loading spinner ──────────────────────────────────────────────────────────
@@ -171,21 +227,18 @@ function Spinner() {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-export default function MarketplacePage() {
-  const [filters,  setFilters]  = useState<FilterState>(DEFAULT_FILTERS)
+export default function ExplorePage() {
+  const [filters,   setFilters]   = useState<FilterState>(DEFAULT_FILTERS)
   const [passports, setPassports] = useState<PassportWithDetails[]>([])
-  const [ownedIds, setOwnedIds] = useState<Set<string>>(new Set())
-  const [loading,  setLoading]  = useState(true)
+  const [loading,   setLoading]   = useState(true)
   const [fetchError, setFetchError] = useState<string | null>(null)
 
-  // ── Fetch on mount ──────────────────────────────────────────────────────────
   const fetchData = useCallback(async () => {
     setLoading(true)
     setFetchError(null)
 
     const supabase = createClient()
 
-    // Fetch published passports ordered by composite_score DESC
     const { data: rawPassports, error: passportsError } = await supabase
       .from('passports')
       .select(`
@@ -202,7 +255,6 @@ export default function MarketplacePage() {
       return
     }
 
-    // Normalize aggregation count shapes from PostgREST
     const normalized: PassportWithDetails[] = ((rawPassports ?? []) as unknown[]).map((raw) => {
       const r = raw as Record<string, unknown>
       const pagesArr = r['pages_count'] as Array<{ count: number }> | number | null
@@ -211,32 +263,19 @@ export default function MarketplacePage() {
       return {
         ...(r as Omit<PassportWithDetails, 'pages_count' | 'stops_count' | 'stop_count' | 'quality_score' | 'creator_is_certified'>),
         pages_count,
-        stops_count: 0,
-        stop_count: 0,
-        quality_score: null,
-        creator_is_certified: false,
+        stops_count:         0,
+        stop_count:          0,
+        quality_score:       null,
+        creator_is_certified:false,
       } as PassportWithDetails
     })
 
     setPassports(normalized)
-
-    // Fetch the current user's owned passports
-    const { data: { user } } = await supabase.auth.getUser()
-    if (user) {
-      const { data: acquisitions } = await supabase
-        .from('acquisitions')
-        .select('passport_id')
-        .eq('user_id', user.id)
-
-      setOwnedIds(new Set((acquisitions ?? []).map((a) => a.passport_id)))
-    }
-
     setLoading(false)
   }, [])
 
   useEffect(() => { void fetchData() }, [fetchData])
 
-  // ── Client-side filtering ───────────────────────────────────────────────────
   const filtered = passports
     .filter((p) => matchesBudget(p.is_free, p.price_cents, filters.budgets))
     .filter((p) => matchesType(p.passport_type, filters.types))
@@ -244,15 +283,12 @@ export default function MarketplacePage() {
     .filter((p) => matchesTravelerType(p.traveler_types, filters.travelerType))
     .sort((a, b) => sortPassports(a, b, filters.sortBy))
 
-  // ── Render ──────────────────────────────────────────────────────────────────
   return (
     <>
-      {/* Sticky filter bar */}
       <FilterBar filters={filters} onChange={setFilters} />
 
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
 
-        {/* Error state */}
         {fetchError && (
           <div
             role="alert"
@@ -262,23 +298,18 @@ export default function MarketplacePage() {
           </div>
         )}
 
-        {/* Loading spinner */}
         {loading && <Spinner />}
 
-        {/* Empty state — no passports at all */}
         {!loading && !fetchError && passports.length === 0 && (
           <div className="flex flex-col items-center py-24 text-center">
             <span className="text-5xl" aria-hidden="true">🗺️</span>
-            <h2 className="mt-4 text-lg font-semibold text-panoply-navy">
-              No passports yet
-            </h2>
+            <h2 className="mt-4 text-lg font-semibold text-panoply-navy">No passports yet</h2>
             <p className="mt-1 text-sm text-panoply-gray-3">
               Check back soon — creators are building experiences now.
             </p>
           </div>
         )}
 
-        {/* Empty state — filters too narrow */}
         {!loading && !fetchError && passports.length > 0 && filtered.length === 0 && (
           <div className="flex flex-col items-center py-24 text-center">
             <span className="text-5xl" aria-hidden="true">🔍</span>
@@ -291,30 +322,24 @@ export default function MarketplacePage() {
             <button
               type="button"
               onClick={() => setFilters(DEFAULT_FILTERS)}
-              className="mt-4 rounded-panel bg-panoply-teal px-4 py-2 text-sm font-medium text-white hover:bg-[#0F6E56] transition-colors"
+              className="mt-4 rounded-panel bg-panoply-teal px-4 py-2 text-sm font-medium text-white hover:bg-panoply-teal-dk transition-colors"
             >
               Clear filters
             </button>
           </div>
         )}
 
-        {/* Passport grid */}
         {!loading && filtered.length > 0 && (
           <>
             <p className="mb-4 text-xs text-panoply-gray-3">
               {filtered.length} {filtered.length === 1 ? 'passport' : 'passports'}
             </p>
-
             <div
               className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3"
               aria-label="Passport catalogue"
             >
               {filtered.map((passport) => (
-                <PassportCard
-                  key={passport.id}
-                  passport={passport}
-                  isOwned={ownedIds.has(passport.id)}
-                />
+                <ExploreCard key={passport.id} passport={passport} />
               ))}
             </div>
           </>
