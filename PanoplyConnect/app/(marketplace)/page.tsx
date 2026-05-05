@@ -127,7 +127,6 @@ interface RawPassportRow {
   creator: { id: string; display_name: string | null; avatar_url: string | null } | null
   institution: { id: string; name: string; slug: string; logo_url: string | null } | null  // populated separately if needed
   pages_count: number
-  stops_count: number
   creator_is_certified: boolean
   quality_score: CreatorQualityScore | null
 }
@@ -193,7 +192,6 @@ export default function MarketplacePage() {
         *,
         creator:profiles!creator_id ( id, display_name, avatar_url ),
         pages_count:passport_pages(count),
-        stops_count:stops(count),
         quality_score:creator_quality_scores (
           composite_score,
           avg_mood_rating,
@@ -219,20 +217,18 @@ export default function MarketplacePage() {
     const normalized: PassportWithDetails[] = ((rawPassports ?? []) as unknown[]).map((raw) => {
       const r = raw as Record<string, unknown>
       const pagesArr  = r['pages_count']  as Array<{ count: number }> | number | null
-      const stopsArr  = r['stops_count']  as Array<{ count: number }> | number | null
       const qsArr     = r['quality_score'] as unknown
 
       const pages_count  = Array.isArray(pagesArr)  ? (pagesArr[0]?.count  ?? 0) : (typeof pagesArr  === 'number' ? pagesArr  : 0)
-      const stops_count  = Array.isArray(stopsArr)  ? (stopsArr[0]?.count  ?? 0) : (typeof stopsArr  === 'number' ? stopsArr  : 0)
       const quality_score = Array.isArray(qsArr) ? (qsArr[0] ?? null) : ((qsArr as CreatorQualityScore | null) ?? null)
 
       return {
         ...(r as Omit<PassportWithDetails, 'pages_count' | 'stops_count' | 'stop_count' | 'quality_score' | 'creator_is_certified'>),
         pages_count,
-        stops_count,
-        stop_count: stops_count,
+        stops_count: 0,
+        stop_count: 0,
         quality_score,
-        creator_is_certified: false, // computed separately if needed
+        creator_is_certified: false,
       } as PassportWithDetails
     })
 
