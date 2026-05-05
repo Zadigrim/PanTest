@@ -156,3 +156,43 @@ export interface StampPlacement {
   contactSizePx: number
   rotationDeg: number
 }
+
+export interface EmployeeAuthorization {
+  id: string
+  user_id: string
+  institution_id: string
+  can_verify: boolean
+  can_distribute_prizes: boolean
+  can_add_extras: boolean
+  institution_name?: string
+  institution_type?: string
+  catalog_url?: string | null
+}
+
+export interface Accolade {
+  id: string
+  stamp_id: string
+  stop_id: string
+  user_id: string
+  given_by: string
+  giver_role: string
+  giver_institution: string | null
+  title: string
+  note: string | null
+  given_at: string
+  nominated_for_rangers_choice: boolean
+  rangers_choice_year: number | null
+}
+
+export interface ReadingRecommendation {
+  id: string
+  stamp_id: string
+  user_id: string
+  recommended_by: string
+  recommender_role: string
+  title: string
+  author: string | null
+  catalog_url: string | null
+  note: string | null
+  recommended_at: string
+}
