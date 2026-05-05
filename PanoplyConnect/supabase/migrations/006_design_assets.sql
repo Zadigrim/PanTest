@@ -19,15 +19,6 @@ ALTER TABLE public.design_assets ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "design_assets_owner" ON public.design_assets
   FOR ALL USING (owner_id = auth.uid());
 
--- Institution members can read shared institution assets
-CREATE POLICY "design_assets_institution_read" ON public.design_assets
-  FOR SELECT USING (
-    institution_id IS NOT NULL
-    AND institution_id IN (
-      SELECT institution_id FROM public.employee_authorizations WHERE user_id = auth.uid()
-    )
-  );
-
 CREATE INDEX IF NOT EXISTS design_assets_owner_idx        ON public.design_assets(owner_id);
 CREATE INDEX IF NOT EXISTS design_assets_institution_idx  ON public.design_assets(institution_id);
 CREATE INDEX IF NOT EXISTS design_assets_type_idx         ON public.design_assets(asset_type);
