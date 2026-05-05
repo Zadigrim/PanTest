@@ -6,12 +6,15 @@ import { usePassportStore } from '@/lib/design/passport-store'
 import { LeftPalette } from './LeftPalette'
 import { Canvas } from './Canvas'
 import { RightInspector } from './RightInspector'
+import { CoverCanvas } from './CoverCanvas'
+import { CoverInspector } from './CoverInspector'
 import { PassportSettingsPanel } from './PassportSettingsPanel'
 import { PublishFlow } from './PublishFlow'
 import { Button } from './ui/Button'
 import { useAutosave } from '@/hooks/useAutosave'
 import { useWorkspaceKeyboard } from '@/hooks/useWorkspaceKeyboard'
 import type { DesignerPassport, DesignerPassportPage, DesignerStop } from '@/lib/design/types'
+import type { CoverFace, CoverPanel } from './CoverCanvas'
 
 interface Props {
   passport: DesignerPassport
@@ -31,6 +34,9 @@ export function WorkspaceClient({ passport, pages, stops }: Props) {
 
   const [showSettings, setShowSettings] = useState(false)
   const [showPublish, setShowPublish] = useState(false)
+  const [viewMode, setViewMode] = useState<'cover' | 'pages'>('pages')
+  const [coverFace, setCoverFace] = useState<CoverFace>('outside')
+  const [coverPanel, setCoverPanel] = useState<CoverPanel>('front')
 
   useEffect(() => {
     hydrate(passport, pages, stops)
@@ -86,14 +92,30 @@ export function WorkspaceClient({ passport, pages, stops }: Props) {
         </div>
       </header>
 
-      {/* Page tabs */}
+      {/* Tabs: Cover + Pages */}
       <div className="flex shrink-0 items-center gap-0 overflow-x-auto border-b border-panoply-gray-2 bg-white px-4">
+        {/* Cover tab */}
+        <button
+          onClick={() => setViewMode('cover')}
+          className={`shrink-0 whitespace-nowrap border-b-2 px-3 py-2 text-sm transition-colors -mb-px ${
+            viewMode === 'cover'
+              ? 'border-panoply-teal font-medium text-panoply-teal-dk'
+              : 'border-transparent text-panoply-gray-3 hover:text-panoply-navy'
+          }`}
+        >
+          Cover
+        </button>
+
+        {/* Divider */}
+        <span className="mx-1 text-panoply-gray-2 select-none">·</span>
+
+        {/* Page tabs */}
         {pageList.map((page, i) => (
           <button
             key={page.id}
-            onClick={() => setActivePage(page.id)}
+            onClick={() => { setViewMode('pages'); setActivePage(page.id) }}
             className={`shrink-0 whitespace-nowrap border-b-2 px-3 py-2 text-sm transition-colors -mb-px ${
-              page.id === activePageId
+              viewMode === 'pages' && page.id === activePageId
                 ? 'border-panoply-teal font-medium text-panoply-teal-dk'
                 : 'border-transparent text-panoply-gray-3 hover:text-panoply-navy'
             }`}
@@ -101,18 +123,32 @@ export function WorkspaceClient({ passport, pages, stops }: Props) {
             {page.section_title ?? page.section_name ?? `Page ${i + 1}`}
           </button>
         ))}
-        {pageList.length === 0 && (
+        {pageList.length === 0 && viewMode === 'pages' && (
           <span className="px-3 py-2 text-sm italic text-panoply-gray-3/50">
             Add a page from the left panel
           </span>
         )}
       </div>
 
-      {/* Three-column workspace */}
+      {/* Workspace */}
       <div className="flex min-h-0 flex-1">
-        <LeftPalette />
-        <Canvas />
-        <RightInspector />
+        {viewMode === 'cover' ? (
+          <>
+            <CoverCanvas
+              face={coverFace}
+              onFaceChange={setCoverFace}
+              selectedPanel={coverPanel}
+              onPanelChange={setCoverPanel}
+            />
+            <CoverInspector face={coverFace} panel={coverPanel} />
+          </>
+        ) : (
+          <>
+            <LeftPalette />
+            <Canvas />
+            <RightInspector />
+          </>
+        )}
       </div>
 
       {showSettings && <PassportSettingsPanel onClose={() => setShowSettings(false)} />}

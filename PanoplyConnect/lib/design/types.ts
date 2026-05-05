@@ -32,6 +32,17 @@ export type ExperienceVerification = 'witnessed' | 'documented' | 'presence' | '
 export type CreatorDecision = 'accepted' | 'adjusted' | 'overridden'
 export type PrintJournalSetting = 'include_all' | 'exclude_all' | 'per_stop'
 
+export interface CoverHalf {
+  bg_color: string       // hex without #
+  image_url: string | null
+  image_opacity: number  // 10–100
+}
+
+export interface CoverSideData {
+  front: CoverHalf
+  back: CoverHalf
+}
+
 export interface DesignerPassport {
   id: string
   creator_id: string
@@ -53,6 +64,9 @@ export interface DesignerPassport {
   is_published: boolean
   print_enabled: boolean
   print_journal_setting: PrintJournalSetting
+  cover_outside_data: CoverSideData | null
+  cover_inside_data: CoverSideData | null
+  cover_thumbnail: string | null
   created_at: string
   updated_at: string
   published_at: string | null
