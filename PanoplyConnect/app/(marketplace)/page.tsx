@@ -191,18 +191,7 @@ export default function MarketplacePage() {
       .select(`
         *,
         creator:profiles!creator_id ( id, display_name, avatar_url ),
-        pages_count:passport_pages(count),
-        quality_score:creator_quality_scores (
-          composite_score,
-          avg_mood_rating,
-          completion_rate,
-          return_visit_rate,
-          expert_signoff_rate,
-          pool_share_cents,
-          id,
-          passport_id,
-          computed_at
-        )
+        pages_count:passport_pages(count)
       `)
       .eq('is_published', true)
       .order('created_at', { ascending: false })
@@ -216,18 +205,15 @@ export default function MarketplacePage() {
     // Normalize aggregation count shapes from PostgREST
     const normalized: PassportWithDetails[] = ((rawPassports ?? []) as unknown[]).map((raw) => {
       const r = raw as Record<string, unknown>
-      const pagesArr  = r['pages_count']  as Array<{ count: number }> | number | null
-      const qsArr     = r['quality_score'] as unknown
-
-      const pages_count  = Array.isArray(pagesArr)  ? (pagesArr[0]?.count  ?? 0) : (typeof pagesArr  === 'number' ? pagesArr  : 0)
-      const quality_score = Array.isArray(qsArr) ? (qsArr[0] ?? null) : ((qsArr as CreatorQualityScore | null) ?? null)
+      const pagesArr = r['pages_count'] as Array<{ count: number }> | number | null
+      const pages_count = Array.isArray(pagesArr) ? (pagesArr[0]?.count ?? 0) : (typeof pagesArr === 'number' ? pagesArr : 0)
 
       return {
         ...(r as Omit<PassportWithDetails, 'pages_count' | 'stops_count' | 'stop_count' | 'quality_score' | 'creator_is_certified'>),
         pages_count,
         stops_count: 0,
         stop_count: 0,
-        quality_score,
+        quality_score: null,
         creator_is_certified: false,
       } as PassportWithDetails
     })
