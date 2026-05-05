@@ -72,6 +72,16 @@ async function MarketplaceHeader() {
           {user ? (
             <>
               <Link
+                href="/design"
+                className={cn(
+                  'hidden sm:inline-flex items-center rounded-panel px-3 h-9 text-sm font-medium',
+                  'text-panoply-navy hover:bg-panoply-gray-2 transition-colors',
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-panoply-teal'
+                )}
+              >
+                Design
+              </Link>
+              <Link
                 href="/library"
                 className={cn(
                   'hidden sm:inline-flex items-center rounded-panel px-3 h-9 text-sm font-medium',
@@ -80,6 +90,16 @@ async function MarketplaceHeader() {
                 )}
               >
                 My Library
+              </Link>
+              <Link
+                href="/manage"
+                className={cn(
+                  'hidden sm:inline-flex items-center rounded-panel px-3 h-9 text-sm font-medium',
+                  'text-panoply-navy hover:bg-panoply-gray-2 transition-colors',
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-panoply-teal'
+                )}
+              >
+                Manage
               </Link>
 
               {/* Avatar / initials */}
