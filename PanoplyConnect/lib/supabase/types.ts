@@ -169,6 +169,8 @@ export interface Profile {
   date_of_birth: string | null        // ISO date string (YYYY-MM-DD)
   traveler_type: TravelerType | null
   pro_expires_at: string | null       // ISO timestamp
+  is_platform_admin: boolean
+  connect_roles: string[] | null
   created_at: string
   updated_at: string
 }

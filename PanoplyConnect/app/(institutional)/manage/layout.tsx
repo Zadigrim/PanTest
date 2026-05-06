@@ -100,15 +100,10 @@ export default async function ManageLayout({ children }: { children: ReactNode }
     redirect('/login?next=/manage')
   }
 
-  // Check if platform admin — admins bypass the employee_authorizations check
+  // Check if platform admin via SECURITY DEFINER RPC — unaffected by PostgREST schema cache.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: profileRow } = await (supabase as any)
-    .from('profiles')
-    .select('is_platform_admin')
-    .eq('id', user.id)
-    .single()
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const isPlatformAdmin = (profileRow as any)?.is_platform_admin === true
+  const { data: isAdminRpc } = await (supabase as any).rpc('is_platform_admin')
+  const isPlatformAdmin = isAdminRpc === true
 
   let authorization: Pick<EmployeeAuthorization, 'id' | 'institution_id' | 'role_label'> | null = null
 
