@@ -6,6 +6,7 @@ import {
   Bebas_Neue,
   Abril_Fatface,
 } from 'next/font/google'
+import { AdminOverlay } from '@/components/admin/AdminOverlay'
 import './globals.css'
 
 const inter = Inter({
@@ -53,7 +54,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body
         className={`${inter.variable} ${playfair.variable} ${lora.variable} ${bebas.variable} ${abril.variable}`}
       >
-        {children}
+        <AdminOverlay>
+          {children}
+        </AdminOverlay>
       </body>
     </html>
   )

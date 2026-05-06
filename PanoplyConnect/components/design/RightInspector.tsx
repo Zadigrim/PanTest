@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import {
   usePassportStore,
@@ -19,6 +20,7 @@ import type {
   DesignerPageElement,
   PassportType,
 } from '@/lib/design/types'
+import type { StampAsset } from '@/lib/design/stamp-assets'
 
 export function RightInspector({
   creatorInstitutionId,
@@ -154,6 +156,131 @@ const STAMP_ICONS = [
 
 const SMUDGE_OPTIONS = ['none', 'light', 'medium', 'heavy'] as const
 
+// ── StampPicker ────────────────────────────────────────────────────────────────
+
+function StampPicker({
+  stop,
+  persist,
+}: {
+  stop: DesignerStop
+  persist: (patch: Partial<DesignerStop>) => Promise<void>
+}) {
+  const [myAssets, setMyAssets] = useState<StampAsset[]>([])
+  const [instAssets, setInstAssets] = useState<StampAsset[]>([])
+
+  useEffect(() => {
+    const db = createClient() as any // eslint-disable-line @typescript-eslint/no-explicit-any
+    void (async () => {
+      const { data: { user } } = await (db as ReturnType<typeof createClient>).auth.getUser()
+      if (!user) return
+
+      const { data } = await db
+        .from('design_assets')
+        .select('id, name, url, thumbnail_data, file_format, is_monochrome, institution_id, owner_id')
+        .eq('asset_type', 'stamp')
+        .neq('is_built_in', true)
+        .order('created_at', { ascending: false })
+
+      const rows = (data ?? []) as StampAsset[]
+      setMyAssets(rows.filter((r) => r.owner_id === user.id))
+      setInstAssets(rows.filter((r) => r.owner_id !== user.id))
+    })()
+  }, [])
+
+  const isCustom = stop.stamp_type === 'custom_asset'
+
+  function selectEmoji(icon: string) {
+    void persist({ stamp_icon: icon, stamp_type: 'emoji', stamp_asset_id: null })
+  }
+
+  function selectAsset(asset: StampAsset) {
+    void persist({ stamp_asset_id: asset.id, stamp_type: 'custom_asset', stamp_icon: '' })
+  }
+
+  const renderThumb = (asset: StampAsset) => {
+    const src = asset.thumbnail_data ?? asset.url
+    return src ? (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img src={src} alt={asset.name ?? ''} className="h-full w-full object-contain p-0.5" />
+    ) : (
+      <span className="text-xs text-panoply-gray-3">?</span>
+    )
+  }
+
+  return (
+    <div className="space-y-3">
+      {/* My uploads */}
+      {(myAssets.length > 0 || instAssets.length > 0) && (
+        <>
+          {myAssets.length > 0 && (
+            <div>
+              <Label className="text-xs text-panoply-gray-3">My uploads</Label>
+              <div className="mt-1.5 flex flex-wrap gap-1">
+                {myAssets.map((asset) => (
+                  <button
+                    key={asset.id}
+                    onClick={() => selectAsset(asset)}
+                    title={asset.name ?? ''}
+                    className={`flex h-9 w-9 items-center justify-center overflow-hidden rounded-card border transition-colors ${
+                      isCustom && stop.stamp_asset_id === asset.id
+                        ? 'border-panoply-teal bg-panoply-teal-lt'
+                        : 'border-panoply-gray-2 hover:border-panoply-teal'
+                    }`}
+                  >
+                    {renderThumb(asset)}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          {instAssets.length > 0 && (
+            <div>
+              <Label className="text-xs text-panoply-gray-3">Institution stamps</Label>
+              <div className="mt-1.5 flex flex-wrap gap-1">
+                {instAssets.map((asset) => (
+                  <button
+                    key={asset.id}
+                    onClick={() => selectAsset(asset)}
+                    title={asset.name ?? ''}
+                    className={`flex h-9 w-9 items-center justify-center overflow-hidden rounded-card border transition-colors ${
+                      isCustom && stop.stamp_asset_id === asset.id
+                        ? 'border-panoply-teal bg-panoply-teal-lt'
+                        : 'border-panoply-gray-2 hover:border-panoply-teal'
+                    }`}
+                  >
+                    {renderThumb(asset)}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Built-in emoji */}
+      <div>
+        <Label className="text-xs text-panoply-gray-3">Built-in stamps</Label>
+        <div className="mt-1.5 flex flex-wrap gap-1">
+          {STAMP_ICONS.map((icon) => (
+            <button
+              key={icon}
+              onClick={() => selectEmoji(icon)}
+              title={icon}
+              className={`h-7 w-7 rounded-card border text-base leading-none transition-colors hover:border-panoply-teal ${
+                !isCustom && stop.stamp_icon === icon
+                  ? 'border-panoply-teal bg-panoply-teal-lt'
+                  : 'border-panoply-gray-2'
+              }`}
+            >
+              {icon}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function StopInspector({
   stop,
   creatorInstitutionId,
@@ -267,36 +394,9 @@ function StopInspector({
       )}
 
       <Section title="Stamp">
-        <Field label="Icon (emoji)">
-          <Input
-            value={stop.stamp_icon ?? '📍'}
-            onChange={(e) => updateStop(stop.id, { stamp_icon: e.target.value })}
-            onBlur={(e) => persist({ stamp_icon: e.target.value })}
-            className="h-8 text-lg"
-            maxLength={4}
-          />
-        </Field>
-        <div>
-          <Label className="text-xs text-panoply-gray-3">Quick pick</Label>
-          <div className="mt-1.5 flex flex-wrap gap-1">
-            {STAMP_ICONS.map((icon) => (
-              <button
-                key={icon}
-                onClick={() => persist({ stamp_icon: icon })}
-                title={icon}
-                className={`h-7 w-7 rounded-card border text-base leading-none transition-colors hover:border-panoply-teal ${
-                  stop.stamp_icon === icon
-                    ? 'border-panoply-teal bg-panoply-teal-lt'
-                    : 'border-panoply-gray-2'
-                }`}
-              >
-                {icon}
-              </button>
-            ))}
-          </div>
-        </div>
+        <StampPicker stop={stop} persist={persist} />
 
-        <Field label="Color">
+        <Field label="Ink color">
           <div className="flex items-center gap-2">
             <Input
               value={stop.stamp_color ?? '1D9E75'}

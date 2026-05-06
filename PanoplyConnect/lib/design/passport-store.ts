@@ -35,6 +35,7 @@ interface PassportStore {
   updatePage: (id: string, patch: Partial<DesignerPassportPage>) => void
   addPage: (page: DesignerPassportPage) => void
   removePage: (id: string) => void
+  reorderPages: (orderedIds: string[]) => void
   updateStop: (id: string, patch: Partial<DesignerStop>) => void
   addStop: (stop: DesignerStop) => void
   removeStop: (id: string) => void
@@ -117,6 +118,15 @@ export const usePassportStore = create<PassportStore>((set, get) => ({
         isDirty: true,
       }
     }),
+
+  reorderPages: (orderedIds) =>
+    set((s) => ({
+      pages: orderedIds.map((id, idx) => {
+        const p = s.pages.find((pg) => pg.id === id)!
+        return { ...p, page_order: idx }
+      }),
+      isDirty: true,
+    })),
 
   updateStop: (id, patch) =>
     set((s) => ({

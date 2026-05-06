@@ -3,6 +3,14 @@
 import { useRef, useCallback } from 'react'
 import type { DesignerStop } from '@/lib/design/types'
 
+function hexToRgbComponents(hex: string): string {
+  const h = hex.replace('#', '').padEnd(6, '0')
+  const r = parseInt(h.slice(0, 2), 16) || 0
+  const g = parseInt(h.slice(2, 4), 16) || 0
+  const b = parseInt(h.slice(4, 6), 16) || 0
+  return `${r},${g},${b}`
+}
+
 interface Props {
   stop: DesignerStop
   isSelected: boolean
@@ -148,13 +156,17 @@ export function LocationBox({
 
   return (
     <div className="absolute" style={{ left: x, top: y, width: w, height: h }}>
-      {/* Main box — drag target */}
+      {/* Main box — drag target. Border uses ink color at 50% opacity */}
       <div
         className={`absolute inset-0 cursor-move select-none rounded-sm transition-[border-color] ${
-          isSelected
-            ? 'border-2 border-panoply-teal shadow-[0_0_0_1px_rgba(29,158,117,0.3)]'
-            : 'border border-dashed border-panoply-gray-3/40 hover:border-panoply-teal/60'
+          isSelected ? 'border-2 shadow-[0_0_0_1px_rgba(29,158,117,0.3)]' : 'border'
         }`}
+        style={{
+          borderColor: isSelected
+            ? `#${stop.stamp_color ?? '1D9E75'}`
+            : `rgba(${hexToRgbComponents(stop.stamp_color ?? '1D9E75')},0.5)`,
+          borderStyle: isSelected ? 'solid' : 'dashed',
+        }}
         onPointerDown={handleDragStart}
         onPointerMove={handleDragMove}
         onPointerUp={handleDragEnd}
@@ -172,7 +184,10 @@ export function LocationBox({
             {stop.stamp_icon ?? '📍'}
           </span>
           {w >= 80 && (
-            <span className="max-w-full truncate px-1 text-center text-[10px] font-medium text-panoply-navy/70">
+            <span
+              className="max-w-full truncate px-1 text-center text-[10px] font-medium"
+              style={{ color: `#${stop.stamp_color ?? '1D9E75'}` }}
+            >
               {stop.name}
             </span>
           )}

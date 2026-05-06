@@ -1,7 +1,22 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import { useShallow } from 'zustand/react/shallow'
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core'
+import {
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+  arrayMove,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import { createClient } from '@/lib/supabase/client'
 import { usePassportStore } from '@/lib/design/passport-store'
 import { Button } from './ui/Button'
@@ -60,6 +75,65 @@ function PageTypePicker({
   )
 }
 
+// ── SortablePage ───────────────────────────────────────────────────────────────
+
+function SortablePage({
+  page,
+  index,
+  isActive,
+  onSelect,
+}: {
+  page: DesignerPassportPage
+  index: number
+  isActive: boolean
+  onSelect: () => void
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: page.id,
+  })
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  }
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`flex w-full items-center gap-1.5 rounded-card text-sm transition-colors ${
+        isActive
+          ? 'bg-panoply-teal-lt font-medium text-panoply-teal-dk'
+          : 'text-panoply-gray-3 hover:bg-panoply-gray-1 hover:text-panoply-navy'
+      }`}
+    >
+      {/* Drag handle */}
+      <button
+        {...attributes}
+        {...listeners}
+        className="flex-none px-1 py-1.5 cursor-grab active:cursor-grabbing text-panoply-gray-3/50 hover:text-panoply-gray-3 touch-none"
+        tabIndex={-1}
+        aria-label="Drag to reorder"
+      >
+        ⋮⋮
+      </button>
+      {/* Page selector */}
+      <button
+        onClick={onSelect}
+        className="flex min-w-0 flex-1 items-center gap-1 py-1.5 pr-2 text-left"
+      >
+        <span className="text-xs flex-none" aria-hidden="true">
+          {page.page_type === 'information' ? '📄' : '📮'}
+        </span>
+        <span className="truncate">
+          {page.section_title ?? page.section_name ?? `Page ${index + 1}`}
+        </span>
+      </button>
+    </div>
+  )
+}
+
 // ── LeftPalette ────────────────────────────────────────────────────────────────
 
 export function LeftPalette() {
@@ -73,12 +147,33 @@ export function LeftPalette() {
   const addElement = usePassportStore((s) => s.addElement)
   const setSelectedElement = usePassportStore((s) => s.setSelectedElement)
 
+  const reorderPages = usePassportStore((s) => s.reorderPages)
   const [addingStop, setAddingStop] = useState(false)
   const [addingPage, setAddingPage] = useState(false)
   const [showPageTypePicker, setShowPageTypePicker] = useState(false)
 
   const activePage = pages.find((p) => p.id === activePageId)
   const isInfoPage = activePage?.page_type === 'information'
+
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }))
+
+  const handleDragEnd = useCallback(async (event: DragEndEvent) => {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+    const oldIndex = pages.findIndex((p) => p.id === active.id)
+    const newIndex = pages.findIndex((p) => p.id === over.id)
+    if (oldIndex === -1 || newIndex === -1) return
+    const newOrder = arrayMove(pages, oldIndex, newIndex)
+    const orderedIds = newOrder.map((p) => p.id)
+    reorderPages(orderedIds)
+    // Persist new page_order values
+    const db = createClient() as any // eslint-disable-line @typescript-eslint/no-explicit-any
+    await Promise.all(
+      orderedIds.map((id, idx) =>
+        db.from('passport_pages').update({ page_order: idx }).eq('id', id)
+      )
+    )
+  }, [pages, reorderPages])
 
   const handleAddStop = async () => {
     if (!activePageId || !passport || isInfoPage) return
@@ -199,31 +294,33 @@ export function LeftPalette() {
           </p>
         </div>
 
-        {/* Pages list */}
+        {/* Pages list — sortable by drag */}
         <div className="border-b border-panoply-gray-2 px-3 py-2">
           <p className="mb-1.5 text-xs font-medium uppercase tracking-wider text-panoply-gray-3">
             Pages
           </p>
-          <div className="space-y-0.5">
-            {pages.map((page, i) => (
-              <button
-                key={page.id}
-                onClick={() => setActivePage(page.id)}
-                className={`flex w-full items-center gap-1.5 rounded-card px-3 py-1.5 text-left text-sm transition-colors ${
-                  page.id === activePageId
-                    ? 'bg-panoply-teal-lt font-medium text-panoply-teal-dk'
-                    : 'text-panoply-gray-3 hover:bg-panoply-gray-1 hover:text-panoply-navy'
-                }`}
-              >
-                <span className="text-xs" aria-hidden="true">
-                  {page.page_type === 'information' ? '📄' : '📮'}
-                </span>
-                <span className="truncate">
-                  {page.section_title ?? page.section_name ?? `Page ${i + 1}`}
-                </span>
-              </button>
-            ))}
-          </div>
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+          >
+            <SortableContext
+              items={pages.map((p) => p.id)}
+              strategy={verticalListSortingStrategy}
+            >
+              <div className="space-y-0.5">
+                {pages.map((page, i) => (
+                  <SortablePage
+                    key={page.id}
+                    page={page}
+                    index={i}
+                    isActive={page.id === activePageId}
+                    onSelect={() => setActivePage(page.id)}
+                  />
+                ))}
+              </div>
+            </SortableContext>
+          </DndContext>
           <Button
             variant="ghost"
             size="sm"

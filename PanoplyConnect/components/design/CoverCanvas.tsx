@@ -2,7 +2,8 @@
 
 import { useState, useRef, useCallback } from 'react'
 import { usePassportStore } from '@/lib/design/passport-store'
-import type { CoverSideData } from '@/lib/design/types'
+import { PageElementBox } from './PageElementBox'
+import type { CoverSideData, DesignerPageElement } from '@/lib/design/types'
 
 // ── Dimensions ────────────────────────────────────────────────────────────────
 export const COVER_W  = 280   // px per panel
@@ -20,10 +21,11 @@ const DEFAULTS: CoverSideData = {
   image_position_x: 0.5,
   image_position_y: 0.5,
   image_scale:     1,
+  elements:        [],
 }
 
 export function getSideData(data: CoverSideData | null | undefined): CoverSideData {
-  return { ...DEFAULTS, ...(data ?? {}) }
+  return { ...DEFAULTS, elements: [], ...(data ?? {}) }
 }
 
 // ── CoverCanvas ───────────────────────────────────────────────────────────────
@@ -36,8 +38,10 @@ interface Props {
 }
 
 export function CoverCanvas({ face, onFaceChange, selectedPanel, onPanelChange }: Props) {
-  const passport       = usePassportStore((s) => s.passport)
-  const updatePassport = usePassportStore((s) => s.updatePassport)
+  const passport           = usePassportStore((s) => s.passport)
+  const updatePassport     = usePassportStore((s) => s.updatePassport)
+  const selectedElementId  = usePassportStore((s) => s.selectedElementId)
+  const setSelectedElement = usePassportStore((s) => s.setSelectedElement)
   const [zoom, setZoom] = useState(0.85)
 
   // Drag state for image repositioning
@@ -74,7 +78,7 @@ export function CoverCanvas({ face, onFaceChange, selectedPanel, onPanelChange }
   }
 
   function handleCanvasClick(e: React.MouseEvent<HTMLDivElement>) {
-    if (dragRef.current) return // was a drag, not a click
+    if (dragRef.current) return
     const rect = e.currentTarget.getBoundingClientRect()
     const x = (e.clientX - rect.left) / zoom
     onPanelChange(x < COVER_W ? 'back' : 'front')
@@ -119,8 +123,14 @@ export function CoverCanvas({ face, onFaceChange, selectedPanel, onPanelChange }
     persistSide({ image_position_x: newPx, image_position_y: newPy })
   }, [side, persistSide]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Convert fractional position to CSS object-position
-  const objectPosition = `${(side.image_position_x) * 100}% ${(side.image_position_y) * 100}%`
+  const objectPosition = `${side.image_position_x * 100}% ${side.image_position_y * 100}%`
+
+  const elements = side.elements ?? []
+
+  function handleElementChange(elementId: string, patch: Partial<DesignerPageElement>) {
+    const next = elements.map((el) => el.id === elementId ? { ...el, ...patch } : el)
+    persistSide({ elements: next })
+  }
 
   return (
     <main className="relative flex flex-1 flex-col overflow-hidden bg-panoply-gray-1">
@@ -163,13 +173,13 @@ export function CoverCanvas({ face, onFaceChange, selectedPanel, onPanelChange }
             style={{ width: CANVAS_W, height: COVER_H, cursor: side.image_url ? 'default' : 'pointer' }}
             onClick={handleCanvasClick}
           >
-            {/* Back half solid bg */}
+            {/* Back half */}
             <div
               className="absolute inset-y-0 left-0"
               style={{ width: COVER_W, backgroundColor: `#${side.back_bg}` }}
             />
 
-            {/* Front half solid bg */}
+            {/* Front half */}
             <div
               className="absolute inset-y-0 right-0"
               style={{ width: COVER_W, backgroundColor: `#${side.front_bg}` }}
@@ -198,23 +208,19 @@ export function CoverCanvas({ face, onFaceChange, selectedPanel, onPanelChange }
               />
             )}
 
-            {/* Front panel overlays: emblem + title (right half only) */}
-            <div
-              className="absolute inset-y-0 right-0 flex flex-col items-center justify-center gap-3 pointer-events-none select-none"
-              style={{ width: COVER_W }}
-            >
-              <span className="text-5xl drop-shadow" aria-hidden="true">
-                {passport.cover_emblem || '🧭'}
-              </span>
-              <p
-                className="px-6 text-center text-sm font-semibold leading-snug"
-                style={{ color: '#FFFFFF', textShadow: '0 1px 3px rgba(0,0,0,0.6)' }}
-              >
-                {passport.title || 'Untitled Passport'}
-              </p>
-            </div>
+            {/* Freely-positioned elements (text blocks, lines) */}
+            {elements.map((el) => (
+              <PageElementBox
+                key={el.id}
+                element={el}
+                isSelected={el.id === selectedElementId}
+                scale={zoom}
+                onSelect={() => setSelectedElement(el.id)}
+                onChange={(patch) => handleElementChange(el.id, patch)}
+              />
+            ))}
 
-            {/* Spine fold line — 1px dashed, centered, no gutter */}
+            {/* Spine fold line */}
             <div
               className="absolute top-0 bottom-0 pointer-events-none"
               style={{

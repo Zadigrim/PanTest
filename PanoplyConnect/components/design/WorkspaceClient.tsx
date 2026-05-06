@@ -8,6 +8,7 @@ import { Canvas } from './Canvas'
 import { RightInspector } from './RightInspector'
 import { CoverCanvas } from './CoverCanvas'
 import { CoverInspector } from './CoverInspector'
+import { CoverPalette } from './CoverPalette'
 import { PassportSettingsPanel } from './PassportSettingsPanel'
 import { PublishFlow } from './PublishFlow'
 import { Button } from './ui/Button'
@@ -136,6 +137,7 @@ export function WorkspaceClient({ passport, pages, stops, creatorInstitutionId }
       <div className="flex min-h-0 flex-1">
         {viewMode === 'cover' ? (
           <>
+            <CoverPalette face={coverFace} />
             <CoverCanvas
               face={coverFace}
               onFaceChange={setCoverFace}

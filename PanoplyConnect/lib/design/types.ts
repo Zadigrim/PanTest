@@ -42,6 +42,8 @@ export interface CoverSideData {
   image_position_x: number  // default 0.5 (centred)
   image_position_y: number  // default 0.5 (centred)
   image_scale: number        // 1.0 = fit, >1 = zoomed in; default 1
+  // Freely-positioned text/line elements on the cover face
+  elements: DesignerPageElement[]
 }
 
 export interface DesignerPassport {
@@ -133,5 +135,8 @@ export interface DesignerStop {
   // Stop library (migration 011)
   is_shared: boolean
   shared_at: string | null
+  // Stamp asset (migration 012)
+  stamp_asset_id: string | null
+  stamp_type: 'emoji' | 'custom_asset'
   created_at: string
 }
