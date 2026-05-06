@@ -245,7 +245,7 @@ export default async function DashboardPage() {
   monthStart.setHours(0, 0, 0, 0)
   const monthStartIso = monthStart.toISOString()
 
-  if (activeRole === 'individual_creator' || activeRole === 'designer') {
+  if (activeRole === 'individual_creator' || activeRole === 'designer' || activeRole === 'platform_admin') {
     // Passports published
     const { count: publishedCount } = await supabase
       .from('passports')
