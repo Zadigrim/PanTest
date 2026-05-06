@@ -36,7 +36,7 @@ export default async function AppNav() {
   if (user) {
     const { data: profile } = await supabase
       .from('profiles')
-      .select('display_name, avatar_url')
+      .select('display_name, avatar_url, is_platform_admin')
       .eq('id', user.id)
       .single()
 
@@ -44,8 +44,14 @@ export default async function AppNav() {
     avatarUrl   = profile?.avatar_url   ?? null
     roleContext  = await detectRoles(supabase, user.id)
 
+    // is_platform_admin boolean column is the canonical flag; connect_roles
+    // array may not include 'platform_admin' even when the flag is true.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const isPlatformAdmin = (profile as any)?.is_platform_admin === true
+      || roleContext.roles.includes('platform_admin')
+
     canAccessManagement =
-      roleContext.roles.includes('platform_admin') ||
+      isPlatformAdmin ||
       roleContext.roles.includes('institutional_manager') ||
       roleContext.roles.includes('institutional_employee')
 
