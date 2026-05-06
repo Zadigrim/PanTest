@@ -37,14 +37,6 @@ ALTER TABLE public.passports
 ALTER TABLE public.stops
   ADD COLUMN IF NOT EXISTS is_shared      boolean DEFAULT false;
 
--- Columns added by 012 itself to design_assets — moved here so the
--- design_assets_institution_read policy below can reference is_built_in.
-ALTER TABLE public.design_assets
-  ADD COLUMN IF NOT EXISTS is_built_in    boolean   NOT NULL DEFAULT false,
-  ADD COLUMN IF NOT EXISTS file_format    text,
-  ADD COLUMN IF NOT EXISTS thumbnail_data text,
-  ADD COLUMN IF NOT EXISTS is_monochrome  boolean;
-
 -- ── Tables from 002_connect_schema ────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.acquisitions (
   id                        uuid DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -208,7 +200,7 @@ CREATE TABLE IF NOT EXISTS public.print_jobs (
   created_at      timestamptz DEFAULT now()
 );
 
--- ── Tables from 006_design_assets ────────────────────────────────────────────
+-- ── Tables from 006_design_assets (with 012 columns pre-included) ────────────
 CREATE TABLE IF NOT EXISTS public.design_assets (
   id              uuid        DEFAULT gen_random_uuid() PRIMARY KEY,
   owner_id        uuid        REFERENCES public.profiles(id) NOT NULL,
@@ -218,8 +210,18 @@ CREATE TABLE IF NOT EXISTS public.design_assets (
     CHECK (asset_type IN ('background','stamp','cover')),
   url             text,
   storage_path    text,
-  created_at      timestamptz DEFAULT now()
+  created_at      timestamptz DEFAULT now(),
+  is_built_in     boolean     NOT NULL DEFAULT false,
+  file_format     text,
+  thumbnail_data  text,
+  is_monochrome   boolean
 );
+-- For databases where design_assets already existed without these columns:
+ALTER TABLE public.design_assets
+  ADD COLUMN IF NOT EXISTS is_built_in    boolean   NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS file_format    text,
+  ADD COLUMN IF NOT EXISTS thumbnail_data text,
+  ADD COLUMN IF NOT EXISTS is_monochrome  boolean;
 
 -- ── Tables from 009_blockpoint1 ───────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.passport_autosaves (
