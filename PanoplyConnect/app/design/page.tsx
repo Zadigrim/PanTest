@@ -28,6 +28,7 @@ function CoverThumbnail({ passport }: { passport: DesignerPassport }) {
       title={passport.title}
       typeIcon={typeIcon}
       outsideData={passport.cover_outside_data as CoverSideData | null}
+      coverThumbnail={passport.cover_thumbnail ?? null}
       fallbackBg={passport.cover_bg_color ?? '0D1B2A'}
     />
   )

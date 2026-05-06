@@ -8,10 +8,9 @@ import { cn } from '@/lib/cn'
 
 // ─── Nav section definitions ──────────────────────────────────────────────────
 
-const NAV_SECTIONS = [
+const BASE_NAV = [
   { label: 'My Passports', href: '/design' },
   { label: 'Program',      href: '/manage' },
-  { label: 'Access',       href: '/access' },
   { label: 'Assets',       href: '/assets' },
   { label: 'Explore',      href: '/explore' },
   { label: 'Stop Library', href: '/stops' },
@@ -32,6 +31,7 @@ export default async function AppNav() {
   let displayName: string | null = null
   let avatarUrl:   string | null = null
   let roleContext: Awaited<ReturnType<typeof detectRoles>> | null = null
+  let canAccessManagement = false
 
   if (user) {
     const { data: profile } = await supabase
@@ -43,6 +43,11 @@ export default async function AppNav() {
     displayName = profile?.display_name ?? null
     avatarUrl   = profile?.avatar_url   ?? null
     roleContext  = await detectRoles(supabase, user.id)
+
+    canAccessManagement =
+      roleContext.roles.includes('platform_admin') ||
+      roleContext.roles.includes('institutional_manager') ||
+      roleContext.roles.includes('institutional_employee')
 
     // Apply cookie-stored active role if valid
     const cookieRole = await getActiveRoleCookie()
@@ -80,7 +85,7 @@ export default async function AppNav() {
           className="flex flex-1 items-center justify-center gap-0.5 overflow-x-auto scrollbar-none"
           aria-label="Section navigation"
         >
-          {NAV_SECTIONS.map(({ label, href }) => {
+          {BASE_NAV.map(({ label, href }) => {
             const isActive = currentPath === href || currentPath.startsWith(href + '/')
             return (
               <Link
@@ -99,6 +104,25 @@ export default async function AppNav() {
               </Link>
             )
           })}
+          {canAccessManagement && (() => {
+            const href = '/access'
+            const isActive = currentPath === href || currentPath.startsWith(href + '/')
+            return (
+              <Link
+                href={href}
+                className={cn(
+                  'whitespace-nowrap rounded-panel px-3 py-1.5 text-sm font-medium transition-colors',
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-panoply-teal',
+                  isActive
+                    ? 'bg-white/15 text-white'
+                    : 'text-[#A8C0CE] hover:bg-white/10 hover:text-white'
+                )}
+                aria-current={isActive ? 'page' : undefined}
+              >
+                Access
+              </Link>
+            )
+          })()}
         </nav>
 
         {/* ── Right side ──────────────────────────────────────────────────── */}

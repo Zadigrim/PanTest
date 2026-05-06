@@ -15,6 +15,7 @@ import { Button } from './ui/Button'
 import { useAutosave } from '@/hooks/useAutosave'
 import { useWorkspaceKeyboard } from '@/hooks/useWorkspaceKeyboard'
 import { useEffectiveProfile } from '@/hooks/useEffectiveProfile'
+import { useCoverThumbnail } from '@/hooks/useCoverThumbnail'
 import type { DesignerPassport, DesignerPassportPage, DesignerStop } from '@/lib/design/types'
 import type { CoverFace, CoverPanel } from './CoverCanvas'
 
@@ -48,6 +49,7 @@ export function WorkspaceClient({ passport, pages, stops, creatorInstitutionId }
   const { institutionId: effectiveInstitutionId } = useEffectiveProfile({ institutionId: creatorInstitutionId })
 
   const { saveNow } = useAutosave()
+  useCoverThumbnail()
   useWorkspaceKeyboard({
     onSave: saveNow,
     onSettings: () => setShowSettings(true),

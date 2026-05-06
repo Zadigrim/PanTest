@@ -136,6 +136,7 @@ function ExploreCard({ passport }: { passport: PassportWithDetails }) {
           title={passport.title}
           typeIcon={typeIcon}
           outsideData={outsideData}
+          coverThumbnail={(passport as unknown as { cover_thumbnail?: string | null }).cover_thumbnail ?? null}
           fallbackBg={passport.cover_bg_color ?? '0D1B2A'}
         />
       </Link>

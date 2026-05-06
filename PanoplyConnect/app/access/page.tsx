@@ -1,858 +1,836 @@
 'use client'
 
-import { useEffect, useState, useTransition, useId, type FormEvent } from 'react'
-import { createClient } from '@/lib/supabase/client'
+import { useEffect, useState, useTransition, useCallback, useId, type FormEvent } from 'react'
 import Link from 'next/link'
+import { createClient } from '@/lib/supabase/client'
+import * as Dialog from '@radix-ui/react-dialog'
+import {
+  INSTITUTION_TYPE_LABELS,
+  FREE_INSTITUTION_TYPES,
+  ADMISSION_CHARGING_TYPES,
+  ADMISSION_QUESTION_TYPES,
+} from '@/lib/supabase/types'
+import type { Institution, InstitutionType } from '@/lib/supabase/types'
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
-interface EmployeeRow {
-  authzId: string
-  userId: string
-  displayName: string | null
-  email: string | null
-  role_label: string | null
-  can_verify: boolean
-  can_distribute_prizes: boolean
-  can_add_extras: boolean
+function computePricingModel(type: string | null, chargesAdmission: boolean): string {
+  if (!type) return 'community'
+  if (FREE_INSTITUTION_TYPES.has(type)) return 'free'
+  if (ADMISSION_CHARGING_TYPES.has(type) || chargesAdmission) return 'paid_passport'
+  return 'community'
 }
 
-interface AddEmployeeFormState {
-  email: string
-  role_label: string
-  can_verify: boolean
-  can_distribute_prizes: boolean
-  can_add_extras: boolean
+const PRICING_MODEL_LABELS: Record<string, string> = {
+  free:         'Free forever',
+  paid_passport:'Paid passport (70/30)',
+  community:    'Community subscription',
+  regional:     'Regional subscription',
+  enterprise:   'Enterprise subscription',
 }
 
-type AccountMode = 'loading' | 'individual' | 'institutional' | 'admin' | 'unauthorized'
+const TIER_LABELS: Record<string, string> = {
+  community:  'Community',
+  commercial: 'Commercial',
+  enterprise: 'Enterprise',
+}
 
-interface InstitutionOption {
-  id: string
+const TYPE_GROUPS: { label: string; types: string[] }[] = [
+  { label: 'Educational',    types: ['k12_school','public_library','museum','educational_nonprofit','after_school_program','literacy_organization','youth_development','homeschool_cooperative'] },
+  { label: 'Environmental',  types: ['parks_department','nature_conservatory','land_trust','watershed_council','native_plant_society','wildlife_rehabilitation','environmental_education'] },
+  { label: 'Cultural',       types: ['historical_society','heritage_organization','cultural_center','oral_history_project'] },
+  { label: 'Community Arts', types: ['community_theater','public_art_organization','community_arts_center','community_music_program','writing_center'] },
+  { label: 'Social Services',types: ['food_bank','homeless_shelter','refugee_immigrant_services','free_health_clinic','adult_literacy'] },
+  { label: 'Community Access',types: ['community_garden','maker_space','tool_lending_library','seed_library','municipality'] },
+  { label: 'Paid Admission', types: ['zoo','aquarium','botanical_garden','science_museum','childrens_museum','nature_center_paid'] },
+  { label: 'Commercial',     types: ['chamber_of_commerce','tourism_board','proprietor','hotel_chain','expo_organizer'] },
+  { label: 'Other',          types: ['general','library','school','park','historic_site','nonprofit','other'] },
+]
+
+// ─── Add Institution Dialog ───────────────────────────────────────────────────
+
+interface AddInstitutionForm {
   name: string
+  institution_type: string
+  charges_admission: boolean
+  contact_name: string
+  contact_email: string
+  address_line1: string
+  address_city: string
+  address_state: string
+  address_zip: string
+  website: string
+  internal_notes: string
 }
 
-// ---------------------------------------------------------------------------
-// Inline permission toggle
-// ---------------------------------------------------------------------------
-
-function PermissionToggle({
-  label,
-  checked,
-  disabled,
-  onChange,
-}: {
-  label: string
-  checked: boolean
-  disabled: boolean
-  onChange: (val: boolean) => void
-}) {
-  return (
-    <label
-      className={`flex items-center justify-center gap-1.5 ${
-        disabled ? 'opacity-40 pointer-events-none' : 'cursor-pointer'
-      }`}
-      title={disabled ? 'You do not have permission to change this' : undefined}
-    >
-      <input
-        type="checkbox"
-        checked={checked}
-        disabled={disabled}
-        onChange={(e) => onChange(e.target.checked)}
-        className="accent-panoply-teal w-4 h-4"
-        aria-label={label}
-      />
-    </label>
-  )
+const EMPTY_FORM: AddInstitutionForm = {
+  name: '',
+  institution_type: '',
+  charges_admission: false,
+  contact_name: '',
+  contact_email: '',
+  address_line1: '',
+  address_city: '',
+  address_state: '',
+  address_zip: '',
+  website: '',
+  internal_notes: '',
 }
 
-// ---------------------------------------------------------------------------
-// Employee table row
-// ---------------------------------------------------------------------------
-
-function EmployeeTableRow({
-  employee,
-  currentCanAddExtras,
-  onPermissionChange,
-  onRemove,
-  permError,
+function AddInstitutionDialog({
+  open,
+  onOpenChange,
+  onCreated,
 }: {
-  employee: EmployeeRow
-  currentCanAddExtras: boolean
-  onPermissionChange: (
-    authzId: string,
-    field: 'can_verify' | 'can_distribute_prizes' | 'can_add_extras',
-    value: boolean,
-  ) => unknown
-  onRemove: (authzId: string) => void
-  permError: string | null
-}) {
-  const [removing, startRemoveTransition] = useTransition()
-  const [removeError, setRemoveError] = useState<string | null>(null)
-
-  function handleRemove() {
-    setRemoveError(null)
-    startRemoveTransition(async () => {
-      const supabase = createClient()
-      const { error } = await supabase
-        .from('employee_authorizations')
-        .delete()
-        .eq('id', employee.authzId)
-      if (error) {
-        setRemoveError(error.message)
-      } else {
-        onRemove(employee.authzId)
-      }
-    })
-  }
-
-  return (
-    <>
-      <tr className="border-b border-panoply-gray-2 last:border-0 hover:bg-panoply-gray-1/40 transition-colors">
-        <td className="px-4 py-3">
-          <p className="text-sm font-medium text-panoply-navy leading-tight">
-            {employee.displayName ?? (
-              <span className="italic text-panoply-gray-3">No name set</span>
-            )}
-          </p>
-          {employee.email && (
-            <p className="text-xs text-panoply-gray-3 truncate max-w-[200px]">
-              {employee.email}
-            </p>
-          )}
-        </td>
-        <td className="px-4 py-3 text-sm text-panoply-navy">
-          {employee.role_label ?? <span className="text-panoply-gray-3">—</span>}
-        </td>
-        <td className="px-4 py-3 text-center">
-          <PermissionToggle
-            label={`can_verify for ${employee.displayName ?? employee.userId}`}
-            checked={employee.can_verify}
-            disabled={false}
-            onChange={(v) => onPermissionChange(employee.authzId, 'can_verify', v)}
-          />
-        </td>
-        <td className="px-4 py-3 text-center">
-          <PermissionToggle
-            label={`can_distribute_prizes for ${employee.displayName ?? employee.userId}`}
-            checked={employee.can_distribute_prizes}
-            disabled={false}
-            onChange={(v) => onPermissionChange(employee.authzId, 'can_distribute_prizes', v)}
-          />
-        </td>
-        <td className="px-4 py-3 text-center">
-          <PermissionToggle
-            label={`can_add_extras for ${employee.displayName ?? employee.userId}`}
-            checked={employee.can_add_extras}
-            disabled={!currentCanAddExtras}
-            onChange={(v) => onPermissionChange(employee.authzId, 'can_add_extras', v)}
-          />
-        </td>
-        <td className="px-4 py-3 text-right">
-          <button
-            onClick={handleRemove}
-            disabled={removing}
-            className="text-xs text-panoply-coral hover:underline disabled:opacity-50 disabled:pointer-events-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-panoply-coral rounded-sm"
-          >
-            {removing ? 'Removing…' : 'Remove'}
-          </button>
-        </td>
-      </tr>
-      {(removeError ?? permError) && (
-        <tr className="border-b border-panoply-gray-2">
-          <td colSpan={6} className="px-4 pb-2">
-            <span role="alert" className="text-xs text-panoply-coral">
-              {removeError ?? permError}
-            </span>
-          </td>
-        </tr>
-      )}
-    </>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// Add employee form
-// ---------------------------------------------------------------------------
-
-function AddEmployeeForm({
-  institutionId,
-  currentUserId,
-  currentCanAddExtras,
-  onAdded,
-}: {
-  institutionId: string
-  currentUserId: string
-  currentCanAddExtras: boolean
-  onAdded: (employee: EmployeeRow) => void
+  open: boolean
+  onOpenChange: (v: boolean) => void
+  onCreated: (inst: Institution) => void
 }) {
   const formId = useId()
+  const [form, setForm] = useState<AddInstitutionForm>(EMPTY_FORM)
   const [isPending, startTransition] = useTransition()
-  const [formError, setFormError] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
-  const [form, setForm] = useState<AddEmployeeFormState>({
-    email: '',
-    role_label: '',
-    can_verify: false,
-    can_distribute_prizes: false,
-    can_add_extras: false,
-  })
+  const pricingModel = computePricingModel(form.institution_type, form.charges_admission)
+  const showAdmissionQuestion = form.institution_type
+    ? ADMISSION_QUESTION_TYPES.has(form.institution_type)
+    : false
+
+  function set<K extends keyof AddInstitutionForm>(k: K, v: AddInstitutionForm[K]) {
+    setForm((f) => ({ ...f, [k]: v }))
+  }
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
-    setFormError(null)
-
-    const trimmedEmail = form.email.trim()
-    if (!trimmedEmail) {
-      setFormError('Email address is required.')
-      return
-    }
+    if (!form.name.trim()) { setError('Name is required.'); return }
+    if (!form.institution_type) { setError('Type is required.'); return }
+    setError(null)
 
     startTransition(async () => {
       const supabase = createClient()
+      const tier: string =
+        FREE_INSTITUTION_TYPES.has(form.institution_type) ? 'community'
+        : ADMISSION_CHARGING_TYPES.has(form.institution_type) ? 'commercial'
+        : 'community'
 
-      const lookupRes = await fetch('/api/employees/lookup', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: trimmedEmail }),
-      })
-
-      let targetUserId: string
-      if (lookupRes.ok) {
-        const json = (await lookupRes.json()) as { userId?: string; error?: string }
-        if (!json.userId) {
-          setFormError(json.error ?? `No account found for ${trimmedEmail}`)
-          return
-        }
-        targetUserId = json.userId
-      } else {
-        const json = (await lookupRes.json()) as { error?: string }
-        setFormError(json.error ?? `No account found for ${trimmedEmail}`)
-        return
-      }
-
-      if (targetUserId === currentUserId) {
-        setFormError('You cannot add yourself as an employee.')
-        return
-      }
-
-      const { data: existing } = await supabase
-        .from('employee_authorizations')
-        .select('id')
-        .eq('user_id', targetUserId)
-        .eq('institution_id', institutionId)
-        .maybeSingle()
-
-      if (existing) {
-        setFormError('This person already has access to your institution.')
-        return
-      }
-
-      const { data: inserted, error: insertErr } = await supabase
-        .from('employee_authorizations')
+      const { data, error: insertErr } = await supabase
+        .from('institutions')
         .insert({
-          user_id: targetUserId,
-          institution_id: institutionId,
-          role_label: form.role_label.trim() || null,
-          can_verify: form.can_verify,
-          can_distribute_prizes: form.can_distribute_prizes,
-          can_add_extras: currentCanAddExtras ? form.can_add_extras : false,
-          authorized_by: currentUserId,
+          name: form.name.trim(),
+          institution_type: form.institution_type,
+          charges_admission: form.charges_admission,
+          pricing_model: pricingModel,
+          tier,
+          contact_name: form.contact_name.trim() || null,
+          contact_email: form.contact_email.trim() || null,
+          address_line1: form.address_line1.trim() || null,
+          address_city: form.address_city.trim() || null,
+          address_state: form.address_state.trim() || null,
+          address_zip: form.address_zip.trim() || null,
+          website: form.website.trim() || null,
+          internal_notes: form.internal_notes.trim() || null,
         })
-        .select('id')
+        .select('*')
         .single()
 
-      if (insertErr || !inserted) {
-        setFormError(insertErr?.message ?? 'Failed to add employee — please try again.')
+      if (insertErr || !data) {
+        setError(insertErr?.message ?? 'Failed to create institution.')
         return
       }
-
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('id, display_name')
-        .eq('id', targetUserId)
-        .single()
-
-      onAdded({
-        authzId: inserted.id,
-        userId: targetUserId,
-        displayName: profile?.display_name ?? null,
-        email: trimmedEmail,
-        role_label: form.role_label.trim() || null,
-        can_verify: form.can_verify,
-        can_distribute_prizes: form.can_distribute_prizes,
-        can_add_extras: currentCanAddExtras ? form.can_add_extras : false,
-      })
-
-      setForm({
-        email: '',
-        role_label: '',
-        can_verify: false,
-        can_distribute_prizes: false,
-        can_add_extras: false,
-      })
+      onCreated(data as unknown as Institution)
+      setForm(EMPTY_FORM)
+      onOpenChange(false)
     })
   }
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      className="bg-white rounded-panel border border-panoply-gray-2 p-5"
-      aria-label="Add new employee"
-      noValidate
-    >
-      <h3 className="text-base font-semibold text-panoply-navy mb-4">Add employee</h3>
+    <Dialog.Root open={open} onOpenChange={onOpenChange}>
+      <Dialog.Portal>
+        <Dialog.Overlay className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm" />
+        <Dialog.Content className="fixed left-1/2 top-1/2 z-50 max-h-[90vh] w-full max-w-lg -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-modal bg-white p-6 shadow-xl focus:outline-none">
+          <Dialog.Title className="mb-4 text-lg font-bold text-panoply-navy">
+            Add Institution
+          </Dialog.Title>
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="flex flex-col gap-1.5">
-          <label htmlFor={`${formId}-email`} className="text-sm font-medium text-panoply-navy">
-            Email address{' '}
-            <span className="text-panoply-coral" aria-hidden="true">*</span>
-          </label>
-          <input
-            id={`${formId}-email`}
-            type="email"
-            autoComplete="off"
-            required
-            value={form.email}
-            onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))}
-            placeholder="employee@example.com"
-            className="h-9 rounded-panel border border-panoply-gray-2 bg-panoply-gray-1 px-3 text-sm text-panoply-navy placeholder:text-panoply-gray-3 focus:outline-none focus:ring-2 focus:ring-panoply-teal focus:border-panoply-teal transition-colors"
-          />
-        </div>
+          <form id={formId} onSubmit={handleSubmit} className="flex flex-col gap-4">
+            {/* Name */}
+            <Field label="Name *">
+              <input
+                className={INPUT_CLS}
+                value={form.name}
+                onChange={(e) => set('name', e.target.value)}
+                placeholder="Portland Art Museum"
+                autoFocus
+              />
+            </Field>
 
-        <div className="flex flex-col gap-1.5">
-          <label htmlFor={`${formId}-role`} className="text-sm font-medium text-panoply-navy">
-            Role label{' '}
-            <span className="font-normal text-panoply-gray-3">(optional)</span>
-          </label>
-          <input
-            id={`${formId}-role`}
-            type="text"
-            value={form.role_label}
-            onChange={(e) => setForm((p) => ({ ...p, role_label: e.target.value }))}
-            placeholder="e.g. Educator, Librarian"
-            className="h-9 rounded-panel border border-panoply-gray-2 bg-panoply-gray-1 px-3 text-sm text-panoply-navy placeholder:text-panoply-gray-3 focus:outline-none focus:ring-2 focus:ring-panoply-teal focus:border-panoply-teal transition-colors"
-          />
-        </div>
-      </div>
+            {/* Type */}
+            <Field label="Type *">
+              <select
+                className={INPUT_CLS}
+                value={form.institution_type}
+                onChange={(e) => set('institution_type', e.target.value)}
+              >
+                <option value="">Select type…</option>
+                {TYPE_GROUPS.map((g) => (
+                  <optgroup key={g.label} label={g.label}>
+                    {g.types.map((t) => (
+                      <option key={t} value={t}>{INSTITUTION_TYPE_LABELS[t] ?? t}</option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+            </Field>
 
-      <fieldset className="mt-4">
-        <legend className="text-sm font-medium text-panoply-navy mb-2">Permissions</legend>
-        <div className="flex flex-wrap gap-5">
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={form.can_verify}
-              onChange={(e) => setForm((p) => ({ ...p, can_verify: e.target.checked }))}
-              className="accent-panoply-teal w-4 h-4"
-            />
-            <span className="text-sm text-panoply-navy">Can verify stamps</span>
-          </label>
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={form.can_distribute_prizes}
-              onChange={(e) =>
-                setForm((p) => ({ ...p, can_distribute_prizes: e.target.checked }))
-              }
-              className="accent-panoply-teal w-4 h-4"
-            />
-            <span className="text-sm text-panoply-navy">Can distribute prizes</span>
-          </label>
-          <label
-            className={`flex items-center gap-2 ${
-              !currentCanAddExtras ? 'opacity-40 pointer-events-none' : 'cursor-pointer'
-            }`}
-            title={
-              !currentCanAddExtras
-                ? 'You need can_add_extras permission to grant this'
-                : undefined
-            }
-          >
-            <input
-              type="checkbox"
-              checked={form.can_add_extras}
-              disabled={!currentCanAddExtras}
-              onChange={(e) => setForm((p) => ({ ...p, can_add_extras: e.target.checked }))}
-              className="accent-panoply-teal w-4 h-4"
-            />
-            <span className="text-sm text-panoply-navy">Can add extras</span>
-          </label>
-        </div>
-      </fieldset>
+            {/* Charges admission — only for nature/science types */}
+            {showAdmissionQuestion && (
+              <label className="flex items-center gap-2 text-sm text-panoply-navy">
+                <input
+                  type="checkbox"
+                  className="accent-panoply-teal h-4 w-4"
+                  checked={form.charges_admission}
+                  onChange={(e) => set('charges_admission', e.target.checked)}
+                />
+                Charges admission
+              </label>
+            )}
 
-      {formError && (
-        <p role="alert" className="mt-3 text-sm text-panoply-coral">
-          {formError}
-        </p>
-      )}
+            {/* Pricing model — auto-computed */}
+            {form.institution_type && (
+              <div className="rounded-panel bg-panoply-gray-1 px-3 py-2 text-sm text-panoply-gray-3">
+                Pricing model:{' '}
+                <span className="font-medium text-panoply-navy">
+                  {PRICING_MODEL_LABELS[pricingModel] ?? pricingModel}
+                </span>
+              </div>
+            )}
 
-      <div className="mt-5">
-        <button
-          type="submit"
-          disabled={isPending}
-          className="inline-flex items-center gap-2 h-9 px-4 rounded-panel text-sm font-medium bg-panoply-teal text-white hover:bg-[#0F6E56] disabled:opacity-50 disabled:pointer-events-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-panoply-teal"
-        >
-          {isPending ? 'Adding…' : 'Add employee'}
-        </button>
-      </div>
-    </form>
+            {/* Contact info */}
+            <div className="border-t border-panoply-gray-2 pt-3">
+              <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-panoply-gray-3">
+                Contact
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Contact name">
+                  <input className={INPUT_CLS} value={form.contact_name} onChange={(e) => set('contact_name', e.target.value)} placeholder="Jane Smith" />
+                </Field>
+                <Field label="Contact email">
+                  <input className={INPUT_CLS} type="email" value={form.contact_email} onChange={(e) => set('contact_email', e.target.value)} placeholder="jane@example.org" />
+                </Field>
+              </div>
+            </div>
+
+            {/* Address */}
+            <div className="border-t border-panoply-gray-2 pt-3">
+              <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-panoply-gray-3">
+                Address
+              </p>
+              <Field label="Street">
+                <input className={INPUT_CLS} value={form.address_line1} onChange={(e) => set('address_line1', e.target.value)} placeholder="123 Main St" />
+              </Field>
+              <div className="mt-3 grid grid-cols-3 gap-3">
+                <div className="col-span-1">
+                  <Field label="City">
+                    <input className={INPUT_CLS} value={form.address_city} onChange={(e) => set('address_city', e.target.value)} placeholder="Portland" />
+                  </Field>
+                </div>
+                <Field label="State">
+                  <input className={INPUT_CLS} value={form.address_state} onChange={(e) => set('address_state', e.target.value)} placeholder="OR" maxLength={2} />
+                </Field>
+                <Field label="ZIP">
+                  <input className={INPUT_CLS} value={form.address_zip} onChange={(e) => set('address_zip', e.target.value)} placeholder="97201" />
+                </Field>
+              </div>
+              <div className="mt-3">
+                <Field label="Website">
+                  <input className={INPUT_CLS} type="url" value={form.website} onChange={(e) => set('website', e.target.value)} placeholder="https://example.org" />
+                </Field>
+              </div>
+            </div>
+
+            {/* Internal notes */}
+            <div className="border-t border-panoply-gray-2 pt-3">
+              <Field label="Internal notes">
+                <textarea
+                  className={`${INPUT_CLS} min-h-[72px] resize-y`}
+                  value={form.internal_notes}
+                  onChange={(e) => set('internal_notes', e.target.value)}
+                  placeholder="Notes visible only to Panoply admins…"
+                />
+              </Field>
+            </div>
+
+            {error && (
+              <p role="alert" className="text-sm text-red-600">{error}</p>
+            )}
+
+            <div className="flex justify-end gap-3 border-t border-panoply-gray-2 pt-4">
+              <Dialog.Close asChild>
+                <button
+                  type="button"
+                  className="rounded-panel border border-panoply-gray-2 px-4 py-2 text-sm font-medium text-panoply-gray-3 hover:border-panoply-navy hover:text-panoply-navy transition-colors"
+                >
+                  Cancel
+                </button>
+              </Dialog.Close>
+              <button
+                type="submit"
+                disabled={isPending}
+                className="rounded-panel bg-panoply-teal px-4 py-2 text-sm font-medium text-white hover:bg-panoply-teal-dk disabled:opacity-50 transition-colors"
+              >
+                {isPending ? 'Creating…' : 'Create institution'}
+              </button>
+            </div>
+          </form>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
   )
 }
 
-// ---------------------------------------------------------------------------
-// Employees section
-// ---------------------------------------------------------------------------
+// ─── Shared field wrapper ─────────────────────────────────────────────────────
 
-function EmployeesSection({
-  institutionId,
-  currentUserId,
-  currentCanAddExtras,
+const INPUT_CLS = 'w-full rounded-panel border border-panoply-gray-2 px-3 py-1.5 text-sm text-panoply-navy focus:border-panoply-teal focus:outline-none focus:ring-1 focus:ring-panoply-teal'
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <label className="text-xs font-medium text-panoply-gray-3">{label}</label>
+      {children}
+    </div>
+  )
+}
+
+// ─── Institutions tab ─────────────────────────────────────────────────────────
+
+function InstitutionsTab({
+  institutions,
+  loading,
+  fetchError,
+  isAdmin,
+  onRefresh,
 }: {
-  institutionId: string
-  currentUserId: string
-  currentCanAddExtras: boolean
+  institutions: Institution[]
+  loading: boolean
+  fetchError: string | null
+  isAdmin: boolean
+  onRefresh: () => void
 }) {
-  const [employees, setEmployees] = useState<EmployeeRow[]>([])
-  const [loading, setLoading] = useState(true)
-  const [loadError, setLoadError] = useState<string | null>(null)
-  const [permissionErrors, setPermissionErrors] = useState<Map<string, string>>(new Map())
+  const [search, setSearch] = useState('')
+  const [typeFilter, setTypeFilter] = useState('')
+  const [tierFilter, setTierFilter] = useState('')
+  const [showAdd, setShowAdd] = useState(false)
+  const [list, setList] = useState<Institution[]>(institutions)
 
-  useEffect(() => {
-    async function load() {
-      setLoading(true)
-      setLoadError(null)
-      try {
-        const supabase = createClient()
+  // Sync when parent list refreshes
+  useEffect(() => { setList(institutions) }, [institutions])
 
-        const { data: authzRows, error: authzFetchErr } = await supabase
-          .from('employee_authorizations')
-          .select('id, user_id, role_label, can_verify, can_distribute_prizes, can_add_extras')
-          .eq('institution_id', institutionId)
-          .order('authorized_at', { ascending: true })
-        if (authzFetchErr) throw new Error(authzFetchErr.message)
-
-        const rows = authzRows ?? []
-        const userIds = rows.map((r: { user_id: string }) => r.user_id)
-
-        const profileMap = new Map<string, { id: string; display_name: string | null }>()
-        if (userIds.length > 0) {
-          const { data: profiles } = await supabase
-            .from('profiles')
-            .select('id, display_name')
-            .in('id', userIds)
-          for (const p of profiles ?? []) profileMap.set(p.id, p)
-        }
-
-        const assembled: EmployeeRow[] = rows.map(
-          (r: {
-            id: string
-            user_id: string
-            role_label: string | null
-            can_verify: boolean
-            can_distribute_prizes: boolean
-            can_add_extras: boolean
-          }) => ({
-            authzId: r.id,
-            userId: r.user_id,
-            displayName: profileMap.get(r.user_id)?.display_name ?? null,
-            email: null,
-            role_label: r.role_label,
-            can_verify: r.can_verify ?? false,
-            can_distribute_prizes: r.can_distribute_prizes ?? false,
-            can_add_extras: r.can_add_extras ?? false,
-          }),
-        )
-
-        setEmployees(assembled)
-      } catch (err) {
-        setLoadError(err instanceof Error ? err.message : 'Failed to load employees')
-      } finally {
-        setLoading(false)
-      }
-    }
-    load()
-  }, [institutionId])
-
-  async function handlePermissionChange(
-    authzId: string,
-    field: 'can_verify' | 'can_distribute_prizes' | 'can_add_extras',
-    value: boolean,
-  ) {
-    setEmployees((prev) =>
-      prev.map((emp) => (emp.authzId === authzId ? { ...emp, [field]: value } : emp)),
-    )
-    setPermissionErrors((prev) => {
-      const next = new Map(prev)
-      next.delete(authzId)
-      return next
-    })
-
-    const supabase = createClient()
-    const { error } = await supabase
-      .from('employee_authorizations')
-      .update({ [field]: value })
-      .eq('id', authzId)
-
-    if (error) {
-      setEmployees((prev) =>
-        prev.map((emp) => (emp.authzId === authzId ? { ...emp, [field]: !value } : emp)),
-      )
-      setPermissionErrors((prev) => new Map(prev).set(authzId, error.message))
-    }
-  }
-
-  function handleRemove(authzId: string) {
-    setEmployees((prev) => prev.filter((e) => e.authzId !== authzId))
-  }
-
-  function handleAdded(newEmployee: EmployeeRow) {
-    setEmployees((prev) => [...prev, newEmployee])
-  }
+  const filtered = list
+    .filter((i) => !search || i.name.toLowerCase().includes(search.toLowerCase()))
+    .filter((i) => !typeFilter || i.institution_type === typeFilter)
+    .filter((i) => !tierFilter || i.tier === tierFilter)
 
   return (
-    <section>
-      <div className="mb-4">
-        <h2 className="text-lg font-semibold text-panoply-navy">Employees</h2>
-        <p className="text-sm text-panoply-gray-3 mt-0.5">
-          Manage employee access and permissions for your institution.
-        </p>
+    <div>
+      {/* Toolbar */}
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <input
+          className={`${INPUT_CLS} max-w-xs`}
+          placeholder="Search institutions…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+        <select
+          className={`${INPUT_CLS} w-48`}
+          value={typeFilter}
+          onChange={(e) => setTypeFilter(e.target.value)}
+        >
+          <option value="">All types</option>
+          {TYPE_GROUPS.map((g) => (
+            <optgroup key={g.label} label={g.label}>
+              {g.types.map((t) => (
+                <option key={t} value={t}>{INSTITUTION_TYPE_LABELS[t] ?? t}</option>
+              ))}
+            </optgroup>
+          ))}
+        </select>
+        <select
+          className={`${INPUT_CLS} w-36`}
+          value={tierFilter}
+          onChange={(e) => setTierFilter(e.target.value)}
+        >
+          <option value="">All tiers</option>
+          {Object.entries(TIER_LABELS).map(([k, v]) => (
+            <option key={k} value={k}>{v}</option>
+          ))}
+        </select>
+        <div className="flex-1" />
+        {isAdmin && (
+          <button
+            onClick={() => setShowAdd(true)}
+            className="rounded-panel bg-panoply-teal px-4 py-2 text-sm font-medium text-white hover:bg-panoply-teal-dk transition-colors"
+          >
+            + Add institution
+          </button>
+        )}
       </div>
 
-      {loading && (
-        <p className="text-sm text-panoply-gray-3 animate-pulse">Loading…</p>
-      )}
-
-      {loadError && (
-        <div
-          role="alert"
-          className="mb-4 bg-panoply-coral/10 border border-panoply-coral rounded-panel p-4 text-panoply-coral text-sm"
-        >
-          {loadError}
+      {/* Error */}
+      {fetchError && (
+        <div role="alert" className="mb-4 rounded-panel border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {fetchError}
         </div>
       )}
 
-      {!loading && !loadError && (
-        <div className="space-y-6">
-          {employees.length === 0 ? (
-            <p className="text-sm text-panoply-gray-3">
-              No employees yet. Add the first one below.
-            </p>
+      {/* Loading */}
+      {loading && (
+        <div className="flex items-center justify-center py-16">
+          <svg className="h-7 w-7 animate-spin text-panoply-teal" viewBox="0 0 24 24" fill="none">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 00-8 8h4z" />
+          </svg>
+        </div>
+      )}
+
+      {/* Table */}
+      {!loading && (
+        <>
+          <p className="mb-2 text-xs text-panoply-gray-3">
+            {filtered.length} {filtered.length === 1 ? 'institution' : 'institutions'}
+          </p>
+          {filtered.length === 0 ? (
+            <div className="flex flex-col items-center py-20 text-center">
+              <p className="text-lg font-semibold text-panoply-navy">No institutions found</p>
+              <p className="mt-1 text-sm text-panoply-gray-3">Try adjusting the search or filters.</p>
+            </div>
           ) : (
-            <div className="bg-white rounded-panel border border-panoply-gray-2 overflow-x-auto">
-              <table className="w-full text-sm">
+            <div className="overflow-x-auto rounded-panel border border-panoply-gray-2">
+              <table className="w-full min-w-[600px] text-sm">
                 <thead>
-                  <tr className="border-b border-panoply-gray-2 bg-panoply-gray-1">
-                    <th className="px-4 py-3 text-left font-medium text-panoply-gray-3">
-                      Employee
-                    </th>
-                    <th className="px-4 py-3 text-left font-medium text-panoply-gray-3">
-                      Role
-                    </th>
-                    <th className="px-4 py-3 text-center font-medium text-panoply-gray-3">
-                      Verify
-                    </th>
-                    <th className="px-4 py-3 text-center font-medium text-panoply-gray-3">
-                      Distribute
-                    </th>
-                    <th
-                      className={`px-4 py-3 text-center font-medium ${
-                        currentCanAddExtras ? 'text-panoply-gray-3' : 'text-panoply-gray-2'
-                      }`}
-                      title={
-                        !currentCanAddExtras ? 'You cannot manage this permission' : undefined
-                      }
-                    >
-                      Extras
-                    </th>
-                    <th className="px-4 py-3 w-20" />
+                  <tr className="border-b border-panoply-gray-2 bg-panoply-gray-1 text-left">
+                    <th className="px-4 py-3 font-medium text-panoply-gray-3">Name</th>
+                    <th className="px-4 py-3 font-medium text-panoply-gray-3">Type</th>
+                    <th className="px-4 py-3 font-medium text-panoply-gray-3">Tier</th>
+                    <th className="px-4 py-3 font-medium text-panoply-gray-3">Pricing</th>
+                    <th className="px-4 py-3 font-medium text-panoply-gray-3">City</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {employees.map((emp) => (
-                    <EmployeeTableRow
-                      key={emp.authzId}
-                      employee={emp}
-                      currentCanAddExtras={currentCanAddExtras}
-                      onPermissionChange={handlePermissionChange}
-                      onRemove={handleRemove}
-                      permError={permissionErrors.get(emp.authzId) ?? null}
-                    />
+                  {filtered.map((inst) => (
+                    <tr
+                      key={inst.id}
+                      className="border-b border-panoply-gray-2 last:border-0 transition-colors hover:bg-panoply-teal-lt/30"
+                    >
+                      <td className="px-4 py-3">
+                        <Link
+                          href={`/access/institutions/${inst.id}`}
+                          className="font-medium text-panoply-navy hover:text-panoply-teal-dk hover:underline"
+                        >
+                          {inst.name}
+                        </Link>
+                      </td>
+                      <td className="px-4 py-3 text-panoply-gray-3">
+                        {inst.institution_type
+                          ? (INSTITUTION_TYPE_LABELS[inst.institution_type] ?? inst.institution_type)
+                          : <span className="italic">—</span>
+                        }
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                          inst.tier === 'enterprise' ? 'bg-panoply-teal-lt text-panoply-teal-dk'
+                          : inst.tier === 'commercial' ? 'bg-panoply-amber/15 text-panoply-amber'
+                          : 'bg-panoply-gray-2 text-panoply-gray-3'
+                        }`}>
+                          {TIER_LABELS[inst.tier] ?? inst.tier}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-panoply-gray-3">
+                        {PRICING_MODEL_LABELS[inst.pricing_model] ?? inst.pricing_model}
+                      </td>
+                      <td className="px-4 py-3 text-panoply-gray-3">
+                        {inst.address_city ?? <span className="italic">—</span>}
+                      </td>
+                    </tr>
                   ))}
                 </tbody>
               </table>
             </div>
           )}
-
-          <AddEmployeeForm
-            institutionId={institutionId}
-            currentUserId={currentUserId}
-            currentCanAddExtras={currentCanAddExtras}
-            onAdded={handleAdded}
-          />
-        </div>
+        </>
       )}
-    </section>
-  )
-}
 
-// ---------------------------------------------------------------------------
-// Designers section (MVP stub)
-// ---------------------------------------------------------------------------
-
-function DesignersSection() {
-  return (
-    <section>
-      <div className="mb-4">
-        <h2 className="text-lg font-semibold text-panoply-navy">Designers</h2>
-        <p className="text-sm text-panoply-gray-3 mt-0.5">
-          Designer access lets team members create and edit passport layouts.
-        </p>
-      </div>
-      <div className="bg-white rounded-panel border border-panoply-gray-2 p-6">
-        <p className="text-sm text-panoply-gray-3">
-          Designer access coming soon — contact support to add a designer to your account.
-        </p>
-        <a
-          href="mailto:support@panoply.app"
-          className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-panoply-teal hover:underline"
-        >
-          Contact support
-        </a>
-      </div>
-    </section>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// Individual account message
-// ---------------------------------------------------------------------------
-
-function IndividualAccountMessage() {
-  return (
-    <div className="min-h-screen bg-panoply-gray-1 flex items-center justify-center p-6">
-      <div className="max-w-md w-full bg-white rounded-modal border border-panoply-gray-2 p-8 text-center shadow-sm">
-        <div
-          className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-panoply-gray-2 text-2xl"
-          aria-hidden="true"
-        >
-          👤
-        </div>
-        <h1 className="text-xl font-semibold text-panoply-navy mb-2">
-          Access Management is for institutional accounts.
-        </h1>
-        <p className="text-sm text-panoply-gray-3 leading-relaxed">
-          Your account is set up for individual creation. Access management features
-          are available to institutions that manage teams and passports together.
-        </p>
-        <Link
-          href="/manage"
-          className="mt-6 inline-flex items-center justify-center h-9 px-4 rounded-panel bg-panoply-teal text-white text-sm font-medium hover:bg-[#0F6E56] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-panoply-teal"
-        >
-          Go to account settings
-        </Link>
-      </div>
+      {isAdmin && (
+        <AddInstitutionDialog
+          open={showAdd}
+          onOpenChange={setShowAdd}
+          onCreated={(inst) => {
+            setList((prev) => [inst, ...prev])
+            onRefresh()
+          }}
+        />
+      )}
     </div>
   )
 }
 
-// ---------------------------------------------------------------------------
-// Unauthorized / not logged in
-// ---------------------------------------------------------------------------
+// ─── Users tab ────────────────────────────────────────────────────────────────
 
-function UnauthorizedMessage() {
-  return (
-    <div className="min-h-screen bg-panoply-gray-1 flex items-center justify-center p-6">
-      <div className="max-w-md w-full bg-white rounded-modal border border-panoply-gray-2 p-8 text-center shadow-sm">
-        <h1 className="text-xl font-semibold text-panoply-navy mb-2">Sign in required</h1>
-        <p className="text-sm text-panoply-gray-3 leading-relaxed">
-          Please sign in to manage access for your institution.
-        </p>
-        <Link
-          href="/login?next=/access"
-          className="mt-6 inline-flex items-center justify-center h-9 px-4 rounded-panel bg-panoply-teal text-white text-sm font-medium hover:bg-[#0F6E56] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-panoply-teal"
-        >
-          Sign in
-        </Link>
-      </div>
-    </div>
-  )
+interface UserRow {
+  id: string
+  display_name: string | null
+  email: string | null
+  role: string | null
+  created_at: string
+  institutions: { id: string; name: string }[]
 }
 
-// ---------------------------------------------------------------------------
-// Main page
-// ---------------------------------------------------------------------------
-
-export default function AccessPage() {
-  const [mode, setMode] = useState<AccountMode>('loading')
-  const [institutionId, setInstitutionId] = useState<string | null>(null)
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
-  const [currentCanAddExtras, setCurrentCanAddExtras] = useState(false)
-  const [allInstitutions, setAllInstitutions] = useState<InstitutionOption[]>([])
-  const [adminSelectedId, setAdminSelectedId] = useState<string | null>(null)
+function UsersTab({ isAdmin }: { isAdmin: boolean }) {
+  const [users, setUsers] = useState<UserRow[]>([])
+  const [loading, setLoading] = useState(true)
+  const [fetchError, setFetchError] = useState<string | null>(null)
+  const [search, setSearch] = useState('')
+  const [selected, setSelected] = useState<UserRow | null>(null)
 
   useEffect(() => {
-    async function detect() {
+    void (async () => {
+      setLoading(true)
       const supabase = createClient()
 
-      const {
-        data: { user },
-        error: authErr,
-      } = await supabase.auth.getUser()
+      const { data: profiles, error } = await supabase
+        .from('profiles')
+        .select('id, display_name, role, created_at')
+        .order('created_at', { ascending: false })
+        .limit(500)
 
-      if (authErr || !user) {
-        setMode('unauthorized')
+      if (error) {
+        setFetchError(error.message)
+        setLoading(false)
         return
       }
 
-      setCurrentUserId(user.id)
+      // Fetch employee_authorizations to map users → institutions
+      const { data: authzRows } = await supabase
+        .from('employee_authorizations')
+        .select('user_id, institution:institutions(id, name)')
 
-      // Check platform admin first
+      const instMap = new Map<string, { id: string; name: string }[]>()
+      for (const row of (authzRows ?? []) as unknown as { user_id: string; institution: { id: string; name: string } | null }[]) {
+        if (!row.institution) continue
+        if (!instMap.has(row.user_id)) instMap.set(row.user_id, [])
+        instMap.get(row.user_id)!.push(row.institution)
+      }
+
+      const rows: UserRow[] = ((profiles ?? []) as unknown as { id: string; display_name: string | null; role: string | null; created_at: string }[]).map((p) => ({
+        id: p.id,
+        display_name: p.display_name,
+        email: null,
+        role: p.role,
+        created_at: p.created_at,
+        institutions: instMap.get(p.id) ?? [],
+      }))
+
+      setUsers(rows)
+      setLoading(false)
+    })()
+  }, [])
+
+  const filtered = users.filter((u) => {
+    if (!search) return true
+    const q = search.toLowerCase()
+    return (
+      (u.display_name ?? '').toLowerCase().includes(q) ||
+      (u.email ?? '').toLowerCase().includes(q)
+    )
+  })
+
+  return (
+    <div className="flex gap-4">
+      {/* List */}
+      <div className="flex-1 min-w-0">
+        <div className="mb-4">
+          <input
+            className={`${INPUT_CLS} max-w-xs`}
+            placeholder="Search by name…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+
+        {fetchError && (
+          <div role="alert" className="mb-4 rounded-panel border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {fetchError}
+          </div>
+        )}
+
+        {loading ? (
+          <div className="flex items-center justify-center py-16">
+            <svg className="h-7 w-7 animate-spin text-panoply-teal" viewBox="0 0 24 24" fill="none">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 00-8 8h4z" />
+            </svg>
+          </div>
+        ) : (
+          <>
+            <p className="mb-2 text-xs text-panoply-gray-3">
+              {filtered.length} {filtered.length === 1 ? 'user' : 'users'}
+            </p>
+            <div className="overflow-x-auto rounded-panel border border-panoply-gray-2">
+              <table className="w-full min-w-[500px] text-sm">
+                <thead>
+                  <tr className="border-b border-panoply-gray-2 bg-panoply-gray-1 text-left">
+                    <th className="px-4 py-3 font-medium text-panoply-gray-3">Name</th>
+                    <th className="px-4 py-3 font-medium text-panoply-gray-3">Role</th>
+                    <th className="px-4 py-3 font-medium text-panoply-gray-3">Institutions</th>
+                    <th className="px-4 py-3 font-medium text-panoply-gray-3">Joined</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map((u) => (
+                    <tr
+                      key={u.id}
+                      onClick={() => setSelected(u)}
+                      className={`cursor-pointer border-b border-panoply-gray-2 last:border-0 transition-colors hover:bg-panoply-teal-lt/30 ${
+                        selected?.id === u.id ? 'bg-panoply-teal-lt/40' : ''
+                      }`}
+                    >
+                      <td className="px-4 py-3 font-medium text-panoply-navy">
+                        {u.display_name ?? <span className="italic text-panoply-gray-3">No name</span>}
+                      </td>
+                      <td className="px-4 py-3 text-panoply-gray-3 capitalize">{u.role ?? '—'}</td>
+                      <td className="px-4 py-3 text-panoply-gray-3">
+                        {u.institutions.length === 0
+                          ? <span className="italic">—</span>
+                          : u.institutions.map((i) => i.name).join(', ')
+                        }
+                      </td>
+                      <td className="px-4 py-3 text-panoply-gray-3">
+                        {new Date(u.created_at).toLocaleDateString()}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Detail panel */}
+      {selected && (
+        <div className="w-72 shrink-0 rounded-panel border border-panoply-gray-2 bg-white p-4">
+          <div className="mb-3 flex items-center justify-between">
+            <h3 className="font-semibold text-panoply-navy">User detail</h3>
+            <button
+              onClick={() => setSelected(null)}
+              className="text-panoply-gray-3 hover:text-panoply-navy text-lg leading-none"
+              aria-label="Close"
+            >
+              ×
+            </button>
+          </div>
+          <p className="text-lg font-bold text-panoply-navy">
+            {selected.display_name ?? <span className="italic text-panoply-gray-3">No name</span>}
+          </p>
+          <p className="mt-0.5 text-xs text-panoply-gray-3 capitalize">{selected.role ?? '—'}</p>
+          <p className="mt-0.5 text-xs text-panoply-gray-3">
+            Joined {new Date(selected.created_at).toLocaleDateString()}
+          </p>
+
+          <div className="mt-4 border-t border-panoply-gray-2 pt-3">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-panoply-gray-3">
+              Institutions
+            </p>
+            {selected.institutions.length === 0 ? (
+              <p className="text-sm italic text-panoply-gray-3">No institution memberships</p>
+            ) : (
+              <ul className="flex flex-col gap-1">
+                {selected.institutions.map((i) => (
+                  <li key={i.id}>
+                    <Link
+                      href={`/access/institutions/${i.id}`}
+                      className="text-sm text-panoply-teal-dk hover:underline"
+                    >
+                      {i.name}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
+type AccessMode = 'loading' | 'admin' | 'manager' | 'unauthorized'
+
+export default function AccessPage() {
+  const [mode, setMode] = useState<AccessMode>('loading')
+  const [activeTab, setActiveTab] = useState<'institutions' | 'users'>('institutions')
+  const [institutions, setInstitutions] = useState<Institution[]>([])
+  const [instLoading, setInstLoading] = useState(true)
+  const [instError, setInstError] = useState<string | null>(null)
+  const [userId, setUserId] = useState<string | null>(null)
+
+  const fetchInstitutions = useCallback(async () => {
+    setInstLoading(true)
+    setInstError(null)
+    const supabase = createClient()
+    const { data, error } = await supabase
+      .from('institutions')
+      .select('*')
+      .order('name', { ascending: true })
+
+    if (error) {
+      setInstError(error.message)
+    } else {
+      setInstitutions((data ?? []) as unknown as Institution[])
+    }
+    setInstLoading(false)
+  }, [])
+
+  useEffect(() => {
+    void (async () => {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) { setMode('unauthorized'); return }
+      setUserId(user.id)
+
       const { data: profile } = await supabase
         .from('profiles')
-        .select('is_platform_admin')
+        .select('is_platform_admin, connect_roles')
         .eq('id', user.id)
         .single()
 
-      if (profile?.is_platform_admin) {
-        const { data: institutions } = await supabase
-          .from('institutions')
-          .select('id, name')
-          .order('name', { ascending: true })
-        setAllInstitutions(institutions ?? [])
-        if (institutions && institutions.length > 0) {
-          setAdminSelectedId(institutions[0].id)
-        }
-        setCurrentCanAddExtras(true)
+      const isPlatformAdmin =
+        (profile as unknown as { is_platform_admin?: boolean } | null)?.is_platform_admin === true ||
+        ((profile as unknown as { connect_roles?: string[] } | null)?.connect_roles ?? []).includes('platform_admin')
+
+      if (isPlatformAdmin) {
         setMode('admin')
+        await fetchInstitutions()
         return
       }
 
-      // Check if the user has an employee_authorization row
-      const { data: myAuthz } = await supabase
-        .from('employee_authorizations')
-        .select('institution_id, can_add_extras')
-        .eq('user_id', user.id)
-        .limit(1)
-        .maybeSingle()
+      // Check institutional manager (institution where id = user.id)
+      const { data: ownInst } = await supabase
+        .from('institutions')
+        .select('*')
+        .eq('id', user.id)
 
-      if (myAuthz) {
-        setInstitutionId(myAuthz.institution_id)
-        setCurrentCanAddExtras(myAuthz.can_add_extras ?? false)
-        setMode('institutional')
-      } else {
-        setMode('individual')
+      if (ownInst && ownInst.length > 0) {
+        setMode('manager')
+        setInstitutions(ownInst as unknown as Institution[])
+        setInstLoading(false)
+        return
       }
-    }
-    detect()
-  }, [])
+
+      // Check employee
+      const { data: authz } = await supabase
+        .from('employee_authorizations')
+        .select('institution:institutions(*)')
+        .eq('user_id', user.id)
+
+      if (authz && authz.length > 0) {
+        setMode('manager')
+        const insts = (authz as unknown as { institution: Institution | null }[])
+          .map((a) => a.institution)
+          .filter(Boolean) as Institution[]
+        setInstitutions(insts)
+        setInstLoading(false)
+        return
+      }
+
+      setMode('unauthorized')
+      setInstLoading(false)
+    })()
+  }, [fetchInstitutions])
+
+  const isAdmin = mode === 'admin'
 
   if (mode === 'loading') {
     return (
-      <div className="min-h-screen bg-panoply-gray-1 flex items-center justify-center">
-        <p className="text-sm text-panoply-gray-3 animate-pulse">Loading…</p>
+      <div className="flex h-[60vh] items-center justify-center">
+        <svg className="h-8 w-8 animate-spin text-panoply-teal" viewBox="0 0 24 24" fill="none">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 00-8 8h4z" />
+        </svg>
       </div>
     )
   }
 
   if (mode === 'unauthorized') {
-    return <UnauthorizedMessage />
-  }
-
-  if (mode === 'individual') {
-    return <IndividualAccountMessage />
-  }
-
-  if (mode === 'admin') {
-    const effectiveId = adminSelectedId
     return (
-      <div className="min-h-screen bg-panoply-gray-1">
-        <header className="border-b border-panoply-gray-2 bg-white px-8 py-4">
-          <div className="mx-auto flex max-w-5xl items-center justify-between">
-            <div>
-              <h1 className="text-xl font-bold text-panoply-navy">Access Management</h1>
-              <p className="text-xs text-panoply-gray-3 mt-0.5">Platform admin — all institutions</p>
-            </div>
-            <Link href="/manage" className="text-sm text-panoply-gray-3 hover:text-panoply-navy transition-colors">
-              ← Back to manage
-            </Link>
-          </div>
-        </header>
-        <main className="mx-auto max-w-5xl px-8 py-10 space-y-8">
-          {allInstitutions.length === 0 ? (
-            <p className="text-sm text-panoply-gray-3">No institutions yet.</p>
-          ) : (
-            <>
-              <div className="flex items-center gap-3">
-                <label htmlFor="admin-institution-picker" className="text-sm font-medium text-panoply-navy shrink-0">
-                  Institution
-                </label>
-                <select
-                  id="admin-institution-picker"
-                  value={adminSelectedId ?? ''}
-                  onChange={(e) => setAdminSelectedId(e.target.value)}
-                  className="h-9 rounded-panel border border-panoply-gray-2 bg-white px-3 text-sm text-panoply-navy focus:outline-none focus:ring-2 focus:ring-panoply-teal"
-                >
-                  {allInstitutions.map((inst) => (
-                    <option key={inst.id} value={inst.id}>{inst.name}</option>
-                  ))}
-                </select>
-              </div>
-              {effectiveId && currentUserId && (
-                <>
-                  <EmployeesSection
-                    institutionId={effectiveId}
-                    currentUserId={currentUserId}
-                    currentCanAddExtras={true}
-                  />
-                  <hr className="border-panoply-gray-2" />
-                  <DesignersSection />
-                </>
-              )}
-            </>
-          )}
-        </main>
+      <div className="flex flex-col items-center justify-center py-24 text-center">
+        <span className="text-5xl">🔒</span>
+        <h2 className="mt-4 text-lg font-bold text-panoply-navy">Access restricted</h2>
+        <p className="mt-2 text-sm text-panoply-gray-3">
+          Access Management is available to institution managers and Panoply admins.
+        </p>
+        <Link
+          href="/"
+          className="mt-6 rounded-panel bg-panoply-teal px-4 py-2 text-sm font-medium text-white hover:bg-panoply-teal-dk transition-colors"
+        >
+          Back to Panoply
+        </Link>
       </div>
     )
   }
 
-  // Institutional view
   return (
-    <div className="min-h-screen bg-panoply-gray-1">
-      {/* Top bar */}
-      <header className="border-b border-panoply-gray-2 bg-white px-8 py-4">
-        <div className="mx-auto flex max-w-5xl items-center justify-between">
-          <div>
-            <h1 className="text-xl font-bold text-panoply-navy">Access Management</h1>
-            <p className="text-xs text-panoply-gray-3 mt-0.5">
-              Manage who has access to your institution in Panoply.
-            </p>
-          </div>
-          <Link
-            href="/manage"
-            className="text-sm text-panoply-gray-3 hover:text-panoply-navy transition-colors"
-          >
-            ← Back to manage
-          </Link>
-        </div>
-      </header>
+    <div className="mx-auto max-w-6xl px-6 py-8">
+      {/* Page header */}
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-panoply-navy">Access Management</h1>
+        <p className="mt-1 text-sm text-panoply-gray-3">
+          {isAdmin
+            ? 'Manage all institutions and users on the platform.'
+            : 'Manage your institution members and access.'}
+        </p>
+      </div>
 
-      <main className="mx-auto max-w-5xl px-8 py-10 space-y-12">
-        {institutionId && currentUserId && (
-          <>
-            <EmployeesSection
-              institutionId={institutionId}
-              currentUserId={currentUserId}
-              currentCanAddExtras={currentCanAddExtras}
-            />
-            <hr className="border-panoply-gray-2" />
-            <DesignersSection />
-          </>
+      {/* Tabs */}
+      <div className="mb-6 flex items-center gap-0 border-b border-panoply-gray-2">
+        <button
+          onClick={() => setActiveTab('institutions')}
+          className={`-mb-px border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
+            activeTab === 'institutions'
+              ? 'border-panoply-teal text-panoply-teal-dk'
+              : 'border-transparent text-panoply-gray-3 hover:text-panoply-navy'
+          }`}
+        >
+          Institutions
+        </button>
+        {isAdmin && (
+          <button
+            onClick={() => setActiveTab('users')}
+            className={`-mb-px border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
+              activeTab === 'users'
+                ? 'border-panoply-teal text-panoply-teal-dk'
+                : 'border-transparent text-panoply-gray-3 hover:text-panoply-navy'
+            }`}
+          >
+            Users
+          </button>
         )}
-      </main>
+      </div>
+
+      {/* Tab content */}
+      {activeTab === 'institutions' && (
+        <InstitutionsTab
+          institutions={institutions}
+          loading={instLoading}
+          fetchError={instError}
+          isAdmin={isAdmin}
+          onRefresh={fetchInstitutions}
+        />
+      )}
+      {activeTab === 'users' && isAdmin && (
+        <UsersTab isAdmin={isAdmin} />
+      )}
     </div>
   )
 }

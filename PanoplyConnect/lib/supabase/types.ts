@@ -176,9 +176,21 @@ export interface Profile {
 export interface Institution {
   id: string
   name: string
-  slug: string
+  slug: string | null
   logo_url: string | null
   tier: InstitutionTier
+  institution_type: InstitutionType | null
+  charges_admission: boolean
+  pricing_model: 'free' | 'paid_passport' | 'community' | 'regional' | 'enterprise'
+  catalog_url: string | null
+  contact_name: string | null
+  contact_email: string | null
+  address_line1: string | null
+  address_city: string | null
+  address_state: string | null
+  address_zip: string | null
+  website: string | null
+  internal_notes: string | null
   created_at: string
 }
 
@@ -203,6 +215,7 @@ export interface Passport {
   award_year: number | null
   shortlisted: boolean | null
   status: PassportStatus | null
+  cover_thumbnail: string | null
   created_at: string
   updated_at: string
 }

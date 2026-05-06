@@ -4,6 +4,8 @@ interface Props {
   title: string
   typeIcon: string
   outsideData?: CoverSideData | null
+  /** Pre-composited thumbnail from canvas (base64 data-URI) */
+  coverThumbnail?: string | null
   /** Legacy fallback: hex without # */
   fallbackBg?: string | null
 }
@@ -42,7 +44,7 @@ function defaultThumbnailSvg(title: string): string {
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
 }
 
-export function PassportCoverThumbnail({ title, typeIcon, outsideData, fallbackBg }: Props) {
+export function PassportCoverThumbnail({ title, typeIcon, outsideData, coverThumbnail, fallbackBg }: Props) {
   const frontBg = outsideData?.front_bg ?? fallbackBg ?? '0D1B2A'
   const imageUrl = outsideData?.image_url ?? null
   const imageOpacity = outsideData?.image_opacity ?? 80
@@ -57,6 +59,24 @@ export function PassportCoverThumbnail({ title, typeIcon, outsideData, fallbackB
       {typeIcon}
     </span>
   )
+
+  // Prefer pre-composited thumbnail (includes text elements, correct image transforms)
+  if (coverThumbnail) {
+    return (
+      <div
+        className="relative w-full overflow-hidden"
+        style={{ paddingBottom: '150%' }}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={coverThumbnail}
+          alt={`${title} cover`}
+          className="absolute inset-0 h-full w-full object-cover"
+        />
+        {badge}
+      </div>
+    )
+  }
 
   if (hasDesignedCover) {
     return (
