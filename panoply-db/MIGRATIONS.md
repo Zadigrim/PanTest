@@ -182,6 +182,26 @@ collector's progress to a specific page for prize redemption.
 
 ---
 
+## 002_blockpoint5.sql
+
+**Created:** 2026-05-06
+**Status:** Current — applied to production
+**Tables affected:** profiles, employee_authorizations
+**Why:** Two fixes:
+
+1. **RLS recursion fix.** Adds `public.is_platform_admin()` as a canonical `SECURITY DEFINER`
+   function that reads `profiles` as the function owner (postgres), bypassing RLS. This breaks
+   the recursion chain that occurred when the `emp_auth_read` policy evaluated itself indirectly
+   via `public.is_admin()`. The existing `public.is_admin()` alias is kept for backward
+   compatibility. The `emp_auth_read` policy on `employee_authorizations` is replaced with a
+   simpler version that uses only direct column comparisons (`user_id`, `authorized_by`) and the
+   new SECURITY DEFINER function — no self-referential EXISTS subquery.
+
+2. **Admin function alias.** `is_admin()` is updated to delegate to `is_platform_admin()` so all
+   existing policies continue to work without modification.
+
+---
+
 ## 001_blockpoint4.sql
 
 **Created:** 2026-05-06

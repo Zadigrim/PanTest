@@ -965,12 +965,13 @@ function ElementInspector({
       {element.type === 'text' && (
         <Section title="Text">
           <Field label="Content">
-            <Input
+            <textarea
               value={element.content ?? ''}
               placeholder="Section header…"
+              rows={3}
               onChange={(e) => updateElement(pageId, element.id, { content: e.target.value })}
               onBlur={(e) => persist({ content: e.target.value })}
-              className="h-8 text-sm"
+              className="w-full resize-y rounded-panel border border-panoply-gray-2 bg-panoply-gray-1 px-3 py-1.5 text-sm text-panoply-navy placeholder:text-panoply-gray-3 focus:outline-none focus:ring-2 focus:ring-panoply-teal focus:border-panoply-teal transition-colors"
             />
           </Field>
           <div className="grid grid-cols-2 gap-2">

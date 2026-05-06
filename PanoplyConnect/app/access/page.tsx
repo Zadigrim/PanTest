@@ -27,7 +27,12 @@ interface AddEmployeeFormState {
   can_add_extras: boolean
 }
 
-type AccountMode = 'loading' | 'individual' | 'institutional' | 'unauthorized'
+type AccountMode = 'loading' | 'individual' | 'institutional' | 'admin' | 'unauthorized'
+
+interface InstitutionOption {
+  id: string
+  name: string
+}
 
 // ---------------------------------------------------------------------------
 // Inline permission toggle
@@ -686,6 +691,8 @@ export default function AccessPage() {
   const [institutionId, setInstitutionId] = useState<string | null>(null)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [currentCanAddExtras, setCurrentCanAddExtras] = useState(false)
+  const [allInstitutions, setAllInstitutions] = useState<InstitutionOption[]>([])
+  const [adminSelectedId, setAdminSelectedId] = useState<string | null>(null)
 
   useEffect(() => {
     async function detect() {
@@ -702,6 +709,27 @@ export default function AccessPage() {
       }
 
       setCurrentUserId(user.id)
+
+      // Check platform admin first
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('is_platform_admin')
+        .eq('id', user.id)
+        .single()
+
+      if (profile?.is_platform_admin) {
+        const { data: institutions } = await supabase
+          .from('institutions')
+          .select('id, name')
+          .order('name', { ascending: true })
+        setAllInstitutions(institutions ?? [])
+        if (institutions && institutions.length > 0) {
+          setAdminSelectedId(institutions[0].id)
+        }
+        setCurrentCanAddExtras(true)
+        setMode('admin')
+        return
+      }
 
       // Check if the user has an employee_authorization row
       const { data: myAuthz } = await supabase
@@ -736,6 +764,59 @@ export default function AccessPage() {
 
   if (mode === 'individual') {
     return <IndividualAccountMessage />
+  }
+
+  if (mode === 'admin') {
+    const effectiveId = adminSelectedId
+    return (
+      <div className="min-h-screen bg-panoply-gray-1">
+        <header className="border-b border-panoply-gray-2 bg-white px-8 py-4">
+          <div className="mx-auto flex max-w-5xl items-center justify-between">
+            <div>
+              <h1 className="text-xl font-bold text-panoply-navy">Access Management</h1>
+              <p className="text-xs text-panoply-gray-3 mt-0.5">Platform admin — all institutions</p>
+            </div>
+            <Link href="/manage" className="text-sm text-panoply-gray-3 hover:text-panoply-navy transition-colors">
+              ← Back to manage
+            </Link>
+          </div>
+        </header>
+        <main className="mx-auto max-w-5xl px-8 py-10 space-y-8">
+          {allInstitutions.length === 0 ? (
+            <p className="text-sm text-panoply-gray-3">No institutions yet.</p>
+          ) : (
+            <>
+              <div className="flex items-center gap-3">
+                <label htmlFor="admin-institution-picker" className="text-sm font-medium text-panoply-navy shrink-0">
+                  Institution
+                </label>
+                <select
+                  id="admin-institution-picker"
+                  value={adminSelectedId ?? ''}
+                  onChange={(e) => setAdminSelectedId(e.target.value)}
+                  className="h-9 rounded-panel border border-panoply-gray-2 bg-white px-3 text-sm text-panoply-navy focus:outline-none focus:ring-2 focus:ring-panoply-teal"
+                >
+                  {allInstitutions.map((inst) => (
+                    <option key={inst.id} value={inst.id}>{inst.name}</option>
+                  ))}
+                </select>
+              </div>
+              {effectiveId && currentUserId && (
+                <>
+                  <EmployeesSection
+                    institutionId={effectiveId}
+                    currentUserId={currentUserId}
+                    currentCanAddExtras={true}
+                  />
+                  <hr className="border-panoply-gray-2" />
+                  <DesignersSection />
+                </>
+              )}
+            </>
+          )}
+        </main>
+      </div>
+    )
   }
 
   // Institutional view

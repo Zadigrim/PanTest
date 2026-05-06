@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { NewPassportButton } from '@/components/design/NewPassportButton'
 import { PrintPassportButton } from '@/components/design/PrintPassportButton'
+import { PassportCoverThumbnail } from '@/components/design/PassportCoverThumbnail'
 import { spendTierLabel } from '@/lib/design/spend-tiers'
 import { passportTypeIconFromClassifiers } from '@/lib/design/passport-type-icon'
 import type { DesignerPassport, CoverSideData } from '@/lib/design/types'
@@ -15,101 +16,20 @@ const STATUS_STYLES: Record<string, string> = {
   archived:  'bg-panoply-amber/15 text-panoply-amber',
 }
 
-// ── Default SVG thumbnail ─────────────────────────────────────────────────────
-
-function defaultThumbnailSvg(title: string): string {
-  const safe = title
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-  const words = safe.split(' ')
-  const lines: string[] = []
-  let current = ''
-  for (const w of words) {
-    if ((current + ' ' + w).trim().length > 20 && current) {
-      lines.push(current.trim())
-      current = w
-    } else {
-      current = (current + ' ' + w).trim()
-    }
-  }
-  if (current) lines.push(current.trim())
-  const titleLines = lines.slice(0, 2)
-  const titleY1 = 248
-  const titleY2 = 262
-
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="280" height="420" viewBox="0 0 280 420">
-  <rect width="280" height="420" fill="#0D1B2A"/>
-  <circle cx="140" cy="190" r="180" fill="none" stroke="#1D9E75" stroke-width="0.6" opacity="0.12"/>
-  <circle cx="140" cy="190" r="140" fill="none" stroke="#1D9E75" stroke-width="0.6" opacity="0.12"/>
-  <circle cx="140" cy="190" r="100" fill="none" stroke="#1D9E75" stroke-width="0.6" opacity="0.12"/>
-  <circle cx="140" cy="190" r="60"  fill="none" stroke="#1D9E75" stroke-width="0.6" opacity="0.12"/>
-  <text x="140" y="80" text-anchor="middle" font-family="Arial" font-size="11" font-weight="bold" letter-spacing="6" fill="#1D9E75">PANOPLY</text>
-  <text x="140" y="220" text-anchor="middle" font-family="Arial" font-size="20" font-weight="bold" letter-spacing="8" fill="white">PASSPORT</text>
-  ${titleLines[0] ? `<text x="140" y="${titleY1}" text-anchor="middle" font-family="Arial" font-size="10" fill="rgba(255,255,255,0.75)">${titleLines[0]}</text>` : ''}
-  ${titleLines[1] ? `<text x="140" y="${titleY2}" text-anchor="middle" font-family="Arial" font-size="10" fill="rgba(255,255,255,0.75)">${titleLines[1]}</text>` : ''}
-  <line x1="40" y1="370" x2="240" y2="370" stroke="#1D9E75" stroke-width="1" opacity="0.3"/>
-</svg>`
-  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
-}
-
 // ── Cover thumbnail — 2:3 proportions, full card width ───────────────────────
 
 function CoverThumbnail({ passport }: { passport: DesignerPassport }) {
-  const outside = passport.cover_outside_data as CoverSideData | null
-  const hasDesignedCover = outside && (outside.image_url || outside.front_bg !== '0D1B2A')
-  const frontBg = outside?.front_bg ?? passport.cover_bg_color ?? '0D1B2A'
-  const imageUrl = outside?.image_url ?? null
-  const imageOpacity = outside?.image_opacity ?? 80
-
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const classifiers = (passport as any).classifiers as string[] | null | undefined
   const typeIcon = passportTypeIconFromClassifiers(classifiers)
 
-  const badge = (
-    <span
-      className="absolute bottom-2 right-2 flex h-7 w-7 items-center justify-center rounded-full text-base"
-      style={{ backgroundColor: 'rgba(255,255,255,0.9)' }}
-      aria-hidden="true"
-    >
-      {typeIcon}
-    </span>
-  )
-
-  if (hasDesignedCover) {
-    return (
-      <div
-        className="relative w-full overflow-hidden rounded-t-panel"
-        style={{ paddingBottom: '150%', backgroundColor: `#${frontBg}` }}
-      >
-        {imageUrl && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={imageUrl}
-            alt=""
-            className="absolute inset-0 h-full w-full object-cover"
-            style={{ opacity: imageOpacity / 100 }}
-          />
-        )}
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 pointer-events-none">
-          <span className="text-3xl">{passport.cover_emblem ?? '🧭'}</span>
-        </div>
-        {badge}
-      </div>
-    )
-  }
-
   return (
-    <div className="relative w-full overflow-hidden rounded-t-panel" style={{ paddingBottom: '150%' }}>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={defaultThumbnailSvg(passport.title)}
-        alt={`${passport.title} cover`}
-        className="absolute inset-0 h-full w-full object-cover"
-      />
-      {badge}
-    </div>
+    <PassportCoverThumbnail
+      title={passport.title}
+      typeIcon={typeIcon}
+      outsideData={passport.cover_outside_data as CoverSideData | null}
+      fallbackBg={passport.cover_bg_color ?? '0D1B2A'}
+    />
   )
 }
 

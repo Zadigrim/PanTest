@@ -20,6 +20,7 @@ interface Props {
 export function CoverInspector({ face, panel }: Props) {
   const passport = usePassportStore((s) => s.passport)
   const updatePassport = usePassportStore((s) => s.updatePassport)
+  const selectedElementId = usePassportStore((s) => s.selectedElementId)
   const fileRef = useRef<HTMLInputElement>(null)
   const replaceRef = useRef<HTMLInputElement>(null)
   const [uploading, startUpload] = useTransition()
@@ -34,6 +35,10 @@ export function CoverInspector({ face, panel }: Props) {
   const isFront = panel === 'front'
   const bgKey: keyof CoverSideData = isFront ? 'front_bg' : 'back_bg'
 
+  const selectedElement = selectedElementId
+    ? (sideData.elements ?? []).find((el) => el.id === selectedElementId) ?? null
+    : null
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const persist = async (patch: Partial<CoverSideData>) => {
     const next: CoverSideData = { ...sideData, ...patch }
@@ -42,6 +47,21 @@ export function CoverInspector({ face, panel }: Props) {
     const supabase = createClient()
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (supabase as any).from('passports').update({ [sideKey]: next }).eq('id', passport.id)
+  }
+
+  const persistElement = async (elementId: string, patch: Partial<import('@/lib/design/types').DesignerPageElement>) => {
+    const next = (sideData.elements ?? []).map((el) =>
+      el.id === elementId ? { ...el, ...patch } : el
+    )
+    await persist({ elements: next })
+  }
+
+  const updateElementLocal = (elementId: string, patch: Partial<import('@/lib/design/types').DesignerPageElement>) => {
+    const next = (sideData.elements ?? []).map((el) =>
+      el.id === elementId ? { ...el, ...patch } : el
+    )
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    updatePassport({ [sideKey]: { ...sideData, elements: next } } as any)
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -113,6 +133,78 @@ export function CoverInspector({ face, panel }: Props) {
       </div>
 
       <div className="flex-1 space-y-5 p-4">
+        {/* Selected text element controls */}
+        {selectedElement && selectedElement.type === 'text' && (
+          <div className="space-y-3 rounded-card border border-panoply-teal/30 bg-panoply-teal-lt p-3">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-panoply-teal-dk">
+              Text element
+            </p>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-panoply-gray-3">Content</Label>
+              <textarea
+                value={selectedElement.content ?? ''}
+                placeholder="Cover text…"
+                rows={3}
+                onChange={(e) =>
+                  updateElementLocal(selectedElement.id, { content: e.target.value })
+                }
+                onBlur={(e) => void persistElement(selectedElement.id, { content: e.target.value })}
+                className="w-full resize-y rounded-panel border border-panoply-gray-2 bg-white px-3 py-1.5 text-sm text-panoply-navy placeholder:text-panoply-gray-3 focus:outline-none focus:ring-2 focus:ring-panoply-teal focus:border-panoply-teal transition-colors"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1.5">
+                <Label className="text-xs text-panoply-gray-3">Size (px)</Label>
+                <Input
+                  type="number"
+                  min={8}
+                  max={72}
+                  value={selectedElement.fontSize ?? 14}
+                  onChange={(e) =>
+                    updateElementLocal(selectedElement.id, { fontSize: Number(e.target.value) })
+                  }
+                  onBlur={(e) => void persistElement(selectedElement.id, { fontSize: Number(e.target.value) })}
+                  className="h-8 text-sm"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs text-panoply-gray-3">Weight</Label>
+                <select
+                  value={selectedElement.fontWeight ?? 'normal'}
+                  onChange={(e) =>
+                    void persistElement(selectedElement.id, {
+                      fontWeight: e.target.value as 'normal' | 'bold',
+                    })
+                  }
+                  className="h-8 w-full rounded-panel border border-panoply-gray-2 px-2 text-sm focus:outline-none focus:ring-2 focus:ring-panoply-teal"
+                >
+                  <option value="normal">Normal</option>
+                  <option value="bold">Bold</option>
+                </select>
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-panoply-gray-3">Align</Label>
+              <div className="flex gap-1">
+                {(['left', 'center', 'right'] as const).map((a) => (
+                  <button
+                    key={a}
+                    type="button"
+                    onClick={() => void persistElement(selectedElement.id, { align: a })}
+                    className={`flex-1 rounded-card border py-1 text-xs capitalize transition-colors ${
+                      (selectedElement.align ?? 'left') === a
+                        ? 'border-panoply-teal bg-panoply-teal text-white font-medium'
+                        : 'border-panoply-gray-2 text-panoply-gray-3 hover:border-panoply-teal/40'
+                    }`}
+                  >
+                    {a}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Background color for selected panel */}
         <div className="space-y-1.5">
           <Label className="text-xs text-panoply-gray-3">

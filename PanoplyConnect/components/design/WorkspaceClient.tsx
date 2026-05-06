@@ -14,6 +14,7 @@ import { PublishFlow } from './PublishFlow'
 import { Button } from './ui/Button'
 import { useAutosave } from '@/hooks/useAutosave'
 import { useWorkspaceKeyboard } from '@/hooks/useWorkspaceKeyboard'
+import { useEffectiveProfile } from '@/hooks/useEffectiveProfile'
 import type { DesignerPassport, DesignerPassportPage, DesignerStop } from '@/lib/design/types'
 import type { CoverFace, CoverPanel } from './CoverCanvas'
 
@@ -43,6 +44,8 @@ export function WorkspaceClient({ passport, pages, stops, creatorInstitutionId }
   useEffect(() => {
     hydrate(passport, pages, stops)
   }, [passport.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const { institutionId: effectiveInstitutionId } = useEffectiveProfile({ institutionId: creatorInstitutionId })
 
   const { saveNow } = useAutosave()
   useWorkspaceKeyboard({
@@ -150,7 +153,7 @@ export function WorkspaceClient({ passport, pages, stops, creatorInstitutionId }
           <>
             <LeftPalette />
             <Canvas />
-            <RightInspector creatorInstitutionId={creatorInstitutionId} />
+            <RightInspector creatorInstitutionId={effectiveInstitutionId} />
           </>
         )}
       </div>
