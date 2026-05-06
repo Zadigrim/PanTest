@@ -23,9 +23,105 @@ AS $$
   );
 $$;
 
--- ─── Guard: create tables from 002_connect_schema if not yet applied ─────────
--- These CREATE TABLE IF NOT EXISTS statements are no-ops when 002 has already
--- been run, but allow 012 to succeed on databases that skipped 002.
+-- ─── Guard: ensure all tables referenced in RLS policies below exist ─────────
+-- Every CREATE TABLE and ALTER TABLE here uses IF NOT EXISTS / IF NOT EXISTS
+-- so these are no-ops on databases where the earlier migrations already ran.
+
+-- Column added by 002_connect_schema to core stamps table
+ALTER TABLE public.stamps
+  ADD COLUMN IF NOT EXISTS passport_id uuid REFERENCES public.passports(id);
+
+-- ── Tables from 002_connect_schema ────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS public.acquisitions (
+  id                        uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id                   uuid REFERENCES public.profiles(id) NOT NULL,
+  passport_id               uuid REFERENCES public.passports(id) NOT NULL,
+  acquired_at               timestamptz DEFAULT now(),
+  price_paid_cents          integer DEFAULT 0,
+  stripe_payment_intent_id  text,
+  UNIQUE(user_id, passport_id)
+);
+
+CREATE TABLE IF NOT EXISTS public.presence_sessions (
+  id               uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id          uuid REFERENCES public.profiles(id) NOT NULL,
+  stop_id          uuid REFERENCES public.stops(id) NOT NULL,
+  arrived_at       timestamptz NOT NULL,
+  departed_at      timestamptz,
+  duration_seconds integer,
+  session_number   integer DEFAULT 1,
+  local_timezone   text NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS public.journal_entries (
+  id             uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id        uuid REFERENCES public.profiles(id) NOT NULL,
+  stamp_id       uuid REFERENCES public.stamps(id) NOT NULL,
+  stop_id        uuid REFERENCES public.stops(id) NOT NULL,
+  passport_id    uuid REFERENCES public.passports(id) NOT NULL,
+  entry_type     text DEFAULT 'voice'
+    CHECK (entry_type IN ('voice','text','photo','video')),
+  content        text,
+  media_url      text,
+  entry_number   integer DEFAULT 1,
+  context_label  text,
+  recorded_at    timestamptz DEFAULT now(),
+  is_shared      boolean DEFAULT false
+);
+
+CREATE TABLE IF NOT EXISTS public.mood_ratings (
+  id        uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id   uuid REFERENCES public.profiles(id) NOT NULL,
+  stamp_id  uuid REFERENCES public.stamps(id) NOT NULL,
+  rating    integer CHECK (rating BETWEEN 1 AND 5),
+  rated_at  timestamptz DEFAULT now(),
+  UNIQUE(user_id, stamp_id)
+);
+
+CREATE TABLE IF NOT EXISTS public.completion_tokens (
+  id                      uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id                 uuid REFERENCES public.profiles(id) NOT NULL,
+  passport_id             uuid REFERENCES public.passports(id) NOT NULL,
+  page_id                 uuid REFERENCES public.passport_pages(id) NOT NULL,
+  token_code              text UNIQUE NOT NULL,
+  generated_at            timestamptz DEFAULT now(),
+  redeemed_at             timestamptz,
+  redeemed_by             uuid REFERENCES public.profiles(id),
+  prize_distributed       boolean DEFAULT false,
+  distribution_pending    boolean DEFAULT false,
+  distribution_logged_at  timestamptz,
+  distribution_logged_by  uuid REFERENCES public.profiles(id),
+  prize_note              text
+);
+
+CREATE TABLE IF NOT EXISTS public.journeys (
+  id          uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  title       text NOT NULL,
+  passport_id uuid REFERENCES public.passports(id) NOT NULL,
+  created_by  uuid REFERENCES public.profiles(id) NOT NULL,
+  created_at  timestamptz DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS public.journey_members (
+  journey_id  uuid REFERENCES public.journeys(id) ON DELETE CASCADE,
+  user_id     uuid REFERENCES public.profiles(id) NOT NULL,
+  joined_at   timestamptz DEFAULT now(),
+  role        text DEFAULT 'member'
+    CHECK (role IN ('owner','member')),
+  PRIMARY KEY (journey_id, user_id)
+);
+
+CREATE TABLE IF NOT EXISTS public.journal_sharing_terms (
+  id            uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  journey_id    uuid REFERENCES public.journeys(id) NOT NULL,
+  from_user_id  uuid REFERENCES public.profiles(id) NOT NULL,
+  to_user_id    uuid REFERENCES public.profiles(id) NOT NULL,
+  visibility    text DEFAULT 'private'
+    CHECK (visibility IN ('immediate','reveal_date','private')),
+  reveal_date   date,
+  agreed_at     timestamptz,
+  UNIQUE(journey_id, from_user_id, to_user_id)
+);
 
 CREATE TABLE IF NOT EXISTS public.institution_subscriptions (
   id                      uuid DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -62,9 +158,80 @@ CREATE TABLE IF NOT EXISTS public.employee_authorizations (
   UNIQUE(institution_id, user_id)
 );
 
+CREATE TABLE IF NOT EXISTS public.tips (
+  id                        uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  from_user_id              uuid REFERENCES public.profiles(id) NOT NULL,
+  passport_id               uuid REFERENCES public.passports(id) NOT NULL,
+  creator_id                uuid REFERENCES public.profiles(id) NOT NULL,
+  amount_cents              integer NOT NULL CHECK (amount_cents > 0),
+  stripe_payment_intent_id  text,
+  note                      text,
+  tipped_at                 timestamptz DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS public.creator_quality_scores (
+  id                  uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  passport_id         uuid REFERENCES public.passports(id) NOT NULL,
+  computed_at         timestamptz DEFAULT now(),
+  completion_rate     float,
+  avg_mood_rating     float,
+  return_visit_rate   float,
+  expert_signoff_rate float,
+  composite_score     float,
+  pool_share_cents    integer
+);
+
+-- ── Tables from 005_print_for_kids ───────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS public.print_jobs (
+  id              uuid        DEFAULT gen_random_uuid() PRIMARY KEY,
+  passport_id     uuid        REFERENCES public.passports(id) NOT NULL,
+  institution_id  uuid        NOT NULL,
+  created_by      uuid        REFERENCES public.profiles(id) NOT NULL,
+  stop_ids        uuid[]      NOT NULL,
+  copies          integer     NOT NULL CHECK (copies > 0),
+  journal_setting text        NOT NULL
+    CHECK (journal_setting IN ('per_stop','include_all','exclude_all')),
+  created_at      timestamptz DEFAULT now()
+);
+
+-- ── Tables from 006_design_assets ────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS public.design_assets (
+  id              uuid        DEFAULT gen_random_uuid() PRIMARY KEY,
+  owner_id        uuid        REFERENCES public.profiles(id) NOT NULL,
+  institution_id  uuid        REFERENCES public.institutions(id),
+  name            text,
+  asset_type      text        NOT NULL
+    CHECK (asset_type IN ('background','stamp','cover')),
+  url             text,
+  storage_path    text,
+  created_at      timestamptz DEFAULT now()
+);
+
+-- ── Tables from 009_blockpoint1 ───────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS public.passport_autosaves (
+  id           uuid        DEFAULT gen_random_uuid() PRIMARY KEY,
+  passport_id  uuid        REFERENCES public.passports(id) ON DELETE CASCADE NOT NULL,
+  design_state jsonb       NOT NULL,
+  saved_at     timestamptz DEFAULT now()
+);
+
+-- Enable RLS on all potentially-new tables (idempotent)
+ALTER TABLE public.acquisitions              ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.presence_sessions         ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.journal_entries           ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.mood_ratings              ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.completion_tokens         ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.journeys                  ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.journey_members           ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.journal_sharing_terms     ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.institution_subscriptions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.prize_configurations      ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.employee_authorizations   ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.tips                      ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.creator_quality_scores    ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.print_jobs                ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.design_assets             ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.passport_autosaves        ENABLE ROW LEVEL SECURITY;
 
 -- ─── RLS policies: rebuild all with admin bypass ──────────────────────────────
 -- Strategy: DROP each policy and recreate with  OR public.is_admin() = true
