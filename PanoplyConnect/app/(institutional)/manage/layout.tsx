@@ -100,27 +100,57 @@ export default async function ManageLayout({ children }: { children: ReactNode }
     redirect('/login?next=/manage')
   }
 
-  // Check employee_authorizations — any record for this user is sufficient for access
-  const { data: authorization } = await supabase
-    .from('employee_authorizations')
-    .select('id, institution_id, role_label')
-    .eq('user_id', user.id)
-    .limit(1)
-    .single<Pick<EmployeeAuthorization, 'id' | 'institution_id' | 'role_label'>>()
+  // Check if platform admin — admins bypass the employee_authorizations check
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: profileRow } = await (supabase as any)
+    .from('profiles')
+    .select('is_platform_admin')
+    .eq('id', user.id)
+    .single()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const isPlatformAdmin = (profileRow as any)?.is_platform_admin === true
+
+  let authorization: Pick<EmployeeAuthorization, 'id' | 'institution_id' | 'role_label'> | null = null
+
+  if (isPlatformAdmin) {
+    // Admins pick the first institution (or any they manage); use /access for full control
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: firstInst } = await (supabase as any)
+      .from('institutions')
+      .select('id')
+      .limit(1)
+      .single()
+    if (firstInst?.id) {
+      authorization = { id: 'admin', institution_id: firstInst.id, role_label: 'Platform Admin' }
+    }
+  }
+
+  if (!authorization) {
+    // Check employee_authorizations — any record for this user is sufficient for access
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: empAuth } = await (supabase as any)
+      .from('employee_authorizations')
+      .select('id, institution_id, role_label')
+      .eq('user_id', user.id)
+      .limit(1)
+      .single()
+    authorization = empAuth ?? null
+  }
 
   if (!authorization) {
     return <AccessDeniedPage />
   }
 
   // Fetch institution data to display in the sidebar
-  const { data: institution } = await supabase
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: institution } = await (supabase as any)
     .from('institutions')
     .select('id, name, slug, logo_url')
     .eq('id', authorization.institution_id)
-    .single<Pick<Institution, 'id' | 'name' | 'slug' | 'logo_url'>>()
+    .single()
 
-  const institutionName = institution?.name ?? 'Institution'
-  const logoUrl = institution?.logo_url ?? null
+  const institutionName = (institution as Pick<Institution, 'name'> | null)?.name ?? 'Institution'
+  const logoUrl = (institution as Pick<Institution, 'logo_url'> | null)?.logo_url ?? null
 
   return (
     <div className="flex min-h-screen bg-panoply-gray-1">
