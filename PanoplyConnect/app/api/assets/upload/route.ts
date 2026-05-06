@@ -40,9 +40,9 @@ async function detectMonochrome(
     // For raster images attempt canvas-based detection via Jimp if available.
     // If Jimp is not installed, return null (unknown).
     try {
-      // Dynamic import so the build doesn't fail if Jimp is absent
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const Jimp = (await import('jimp').catch(() => null))
+      // webpackIgnore prevents webpack from trying to bundle/resolve jimp at
+      // build time; Node.js resolves it at runtime, catch handles missing pkg.
+      const Jimp = (await import(/* webpackIgnore: true */ 'jimp').catch(() => null))
       if (!Jimp) return null
 
       // Jimp 1.x uses Jimp.fromBuffer; older uses Jimp.read
