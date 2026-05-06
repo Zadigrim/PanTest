@@ -113,10 +113,15 @@ function AddInstitutionDialog({
         : ADMISSION_CHARGING_TYPES.has(form.institution_type) ? 'commercial'
         : 'community'
 
+      const baseName = form.name.trim()
+      const slug = baseName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
+        + '-' + Math.random().toString(36).slice(2, 7)
+
       const { data, error: insertErr } = await supabase
         .from('institutions')
         .insert({
-          name: form.name.trim(),
+          name: baseName,
+          slug,
           institution_type: form.institution_type,
           charges_admission: form.charges_admission,
           pricing_model: pricingModel,
