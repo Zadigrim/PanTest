@@ -165,14 +165,16 @@ function StopInspector({ stop }: { stop: DesignerStop }) {
 
   const persist = async (patch: Partial<DesignerStop>) => {
     updateStop(stop.id, patch)
-    const supabase = createClient()
-    await supabase.from('stops').update(patch).eq('id', stop.id)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = createClient() as any
+    await db.from('stops').update(patch).eq('id', stop.id)
   }
 
   const handleDelete = async () => {
     if (!confirm(`Delete stop "${stop.name}"?`)) return
-    const supabase = createClient()
-    await supabase.from('stops').delete().eq('id', stop.id)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = createClient() as any
+    await db.from('stops').delete().eq('id', stop.id)
     removeStop(stop.id)
     setSelectedStop(null)
   }
@@ -553,8 +555,9 @@ function PageInspector({ page }: { page: DesignerPassportPage }) {
 
   const persist = async (patch: Partial<DesignerPassportPage>) => {
     updatePage(page.id, patch)
-    const supabase = createClient()
-    await supabase.from('passport_pages').update(patch).eq('id', page.id)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = createClient() as any
+    await db.from('passport_pages').update(patch).eq('id', page.id)
   }
 
   return (
@@ -702,8 +705,9 @@ function PassportInspector() {
 
   const persist = async (patch: Parameters<typeof updatePassport>[0]) => {
     updatePassport(patch)
-    const supabase = createClient()
-    await supabase.from('passports').update(patch).eq('id', passport.id)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = createClient() as any
+    await db.from('passports').update(patch).eq('id', passport.id)
   }
 
   return (
@@ -777,6 +781,16 @@ function PassportInspector() {
 
 const LABEL_COLORS = ['0D1B2A', '1D9E75', 'C9A84C', 'D85A30', '7F77DD', '888888']
 
+const FONT_OPTIONS = [
+  { value: 'Arial, sans-serif',                label: 'Arial' },
+  { value: 'var(--font-inter), sans-serif',    label: 'Inter' },
+  { value: 'Georgia, serif',                   label: 'Georgia' },
+  { value: 'var(--font-playfair), serif',      label: 'Playfair Display' },
+  { value: 'var(--font-lora), serif',          label: 'Lora' },
+  { value: 'var(--font-bebas), sans-serif',    label: 'Bebas Neue' },
+  { value: 'var(--font-abril), serif',         label: 'Abril Fatface' },
+] as const
+
 function ElementInspector({
   element,
   pageId,
@@ -790,15 +804,17 @@ function ElementInspector({
 
   const persist = async (patch: Partial<DesignerPageElement>) => {
     const updated = updateElement(pageId, element.id, patch)
-    const supabase = createClient()
-    await supabase.from('passport_pages').update({ elements: updated }).eq('id', pageId)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = createClient() as any
+    await db.from('passport_pages').update({ elements: updated }).eq('id', pageId)
   }
 
   const handleDelete = async () => {
     const updated = removeElement(pageId, element.id)
     setSelectedElement(null)
-    const supabase = createClient()
-    await supabase.from('passport_pages').update({ elements: updated }).eq('id', pageId)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = createClient() as any
+    await db.from('passport_pages').update({ elements: updated }).eq('id', pageId)
   }
 
   return (
@@ -857,6 +873,26 @@ function ElementInspector({
                 </button>
               ))}
             </div>
+          </Field>
+          <Field label="Font">
+            <select
+              value={element.fontFamily ?? 'Arial, sans-serif'}
+              onChange={(e) => persist({ fontFamily: e.target.value })}
+              className="h-8 w-full rounded-panel border border-panoply-gray-2 px-2 text-sm focus:outline-none focus:ring-2 focus:ring-panoply-teal"
+            >
+              {FONT_OPTIONS.map((f) => (
+                <option key={f.value} value={f.value} style={{ fontFamily: f.value }}>
+                  {f.label}
+                </option>
+              ))}
+            </select>
+            {/* Live preview */}
+            <p
+              className="mt-1.5 truncate text-sm text-panoply-navy"
+              style={{ fontFamily: element.fontFamily ?? 'Arial, sans-serif' }}
+            >
+              The quick brown fox
+            </p>
           </Field>
           <div>
             <Label className="text-xs text-panoply-gray-3">Color</Label>

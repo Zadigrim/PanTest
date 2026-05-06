@@ -66,6 +66,7 @@ export function PageElementBox({
           style={{
             fontSize: element.fontSize ?? 14,
             fontWeight: element.fontWeight ?? 'normal',
+            fontFamily: element.fontFamily ?? 'Arial, sans-serif',
             color: `#${element.color ?? '0D1B2A'}`,
             justifyContent:
               element.align === 'center'

@@ -5,33 +5,9 @@ import { createClient } from '@/lib/supabase/client'
 import { usePassportStore } from '@/lib/design/passport-store'
 import { Input } from './ui/Input'
 import { Label } from './ui/Label'
+import { getSideData } from './CoverCanvas'
 import type { CoverFace, CoverPanel } from './CoverCanvas'
-import type { CoverHalf, CoverSideData } from '@/lib/design/types'
-
-const DEFAULTS: CoverHalf = {
-  bg_color: '0D1B2A',
-  image_url: null,
-  image_opacity: 80,
-}
-
-function mergeHalf(data: CoverSideData | null | undefined, panel: CoverPanel): CoverHalf {
-  return { ...DEFAULTS, ...(data?.[panel] ?? {}) }
-}
-
-function buildSideData(
-  existing: CoverSideData | null | undefined,
-  panel: CoverPanel,
-  patch: Partial<CoverHalf>,
-): CoverSideData {
-  const current: CoverSideData = existing ?? {
-    front: { ...DEFAULTS },
-    back: { ...DEFAULTS },
-  }
-  return {
-    ...current,
-    [panel]: { ...mergeHalf(existing, panel), ...patch },
-  }
-}
+import type { CoverSideData } from '@/lib/design/types'
 
 // ── CoverInspector ────────────────────────────────────────────────────────────
 
@@ -44,18 +20,22 @@ export function CoverInspector({ face, panel }: Props) {
   const passport = usePassportStore((s) => s.passport)
   const updatePassport = usePassportStore((s) => s.updatePassport)
   const fileRef = useRef<HTMLInputElement>(null)
+  const replaceRef = useRef<HTMLInputElement>(null)
   const [uploading, startUpload] = useTransition()
   const [uploadError, setUploadError] = useState<string | null>(null)
+  const [confirmRemove, setConfirmRemove] = useState(false)
 
   if (!passport) return null
 
   const sideKey = face === 'outside' ? 'cover_outside_data' : 'cover_inside_data'
-  const sideData = passport[sideKey]
-  const half = mergeHalf(sideData, panel)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sideData = getSideData((passport as any)[sideKey])
   const isFront = panel === 'front'
+  const bgKey: keyof CoverSideData = isFront ? 'front_bg' : 'back_bg'
 
-  const persist = async (patch: Partial<CoverHalf>) => {
-    const next = buildSideData(sideData, panel, patch)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const persist = async (patch: Partial<CoverSideData>) => {
+    const next: CoverSideData = { ...sideData, ...patch }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     updatePassport({ [sideKey]: next } as any)
     const supabase = createClient()
@@ -71,140 +51,209 @@ export function CoverInspector({ face, panel }: Props) {
     await (supabase as any).from('passports').update(patch).eq('id', passport.id)
   }
 
+  async function uploadImage(file: File): Promise<string | null> {
+    const form = new FormData()
+    form.append('file', file)
+    form.append('asset_type', 'cover')
+    form.append('name', file.name.replace(/\.[^.]+$/, ''))
+    const res = await fetch('/api/assets/upload', { method: 'POST', body: form })
+    if (!res.ok) {
+      const json = (await res.json()) as { error?: string }
+      throw new Error(json.error ?? 'Upload failed')
+    }
+    const json = (await res.json()) as { url: string }
+    return json.url
+  }
+
   function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
     setUploadError(null)
-
     startUpload(async () => {
-      const form = new FormData()
-      form.append('file', file)
-      form.append('asset_type', 'cover')
-      form.append('name', file.name.replace(/\.[^.]+$/, ''))
-
       try {
-        const res = await fetch('/api/assets/upload', { method: 'POST', body: form })
-        if (!res.ok) {
-          const json = (await res.json()) as { error?: string }
-          throw new Error(json.error ?? 'Upload failed')
-        }
-        const json = (await res.json()) as { url: string }
-        await persist({ image_url: json.url })
+        const url = await uploadImage(file)
+        if (url) await persist({ image_url: url })
       } catch (err) {
         setUploadError(err instanceof Error ? err.message : 'Upload failed')
       } finally {
-        if (fileRef.current) fileRef.current.value = ''
+        if (e.target) e.target.value = ''
       }
     })
+  }
+
+  function handleReplace(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploadError(null)
+    startUpload(async () => {
+      try {
+        const url = await uploadImage(file)
+        if (url) await persist({ image_url: url })
+      } catch (err) {
+        setUploadError(err instanceof Error ? err.message : 'Upload failed')
+      } finally {
+        if (e.target) e.target.value = ''
+      }
+    })
+  }
+
+  async function handleRemoveConfirmed() {
+    await persist({ image_url: null })
+    setConfirmRemove(false)
   }
 
   return (
     <aside className="flex w-72 shrink-0 flex-col overflow-y-auto border-l border-panoply-gray-2 bg-white">
       <div className="border-b border-panoply-gray-2 px-4 py-3">
         <p className="text-xs font-semibold uppercase tracking-wider text-panoply-gray-3">
-          {face === 'outside' ? 'Outside' : 'Inside'} — {panel === 'front' ? 'Front' : 'Back'}
+          {face === 'outside' ? 'Outside' : 'Inside'} cover —{' '}
+          {panel === 'front' ? 'Front panel' : 'Back panel'}
         </p>
       </div>
 
       <div className="flex-1 space-y-5 p-4">
-        {/* Background color */}
+        {/* Background color for selected panel */}
         <div className="space-y-1.5">
-          <Label className="text-xs text-panoply-gray-3">Background color</Label>
+          <Label className="text-xs text-panoply-gray-3">
+            {isFront ? 'Front' : 'Back'} background color
+          </Label>
           <div className="flex gap-2">
             <Input
-              value={half.bg_color}
+              value={sideData[bgKey]}
               maxLength={6}
               onChange={(e) => {
+                const next = { ...sideData, [bgKey]: e.target.value }
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                updatePassport({ [sideKey]: buildSideData(sideData, panel, { bg_color: e.target.value }) } as any)
+                updatePassport({ [sideKey]: next } as any)
               }}
-              onBlur={(e) => persist({ bg_color: e.target.value })}
+              onBlur={(e) => persist({ [bgKey]: e.target.value })}
               className="h-8 flex-1 font-mono text-sm uppercase"
               placeholder="0D1B2A"
             />
             <div
-              className="h-8 w-8 shrink-0 rounded-card border border-panoply-gray-2 cursor-pointer"
-              style={{ backgroundColor: `#${half.bg_color}` }}
+              className="h-8 w-8 shrink-0 rounded-card border border-panoply-gray-2"
+              style={{ backgroundColor: `#${sideData[bgKey]}` }}
             />
           </div>
         </div>
 
-        {/* Full-bleed image */}
+        {/* Full-bleed image (spans both panels) */}
         <div className="space-y-2">
-          <Label className="text-xs text-panoply-gray-3">Full-bleed image</Label>
+          <Label className="text-xs text-panoply-gray-3">Full-bleed image (both panels)</Label>
 
-          {half.image_url ? (
-            <div className="relative overflow-hidden rounded-card border border-panoply-gray-2">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={half.image_url}
-                alt="Cover image"
-                className="h-28 w-full object-cover"
-                style={{ opacity: half.image_opacity / 100 }}
+          {sideData.image_url ? (
+            <>
+              {/* Preview */}
+              <div className="relative overflow-hidden rounded-card border border-panoply-gray-2">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={sideData.image_url}
+                  alt="Cover image preview"
+                  className="h-24 w-full object-cover"
+                  style={{ opacity: sideData.image_opacity / 100 }}
+                />
+              </div>
+
+              {/* Opacity */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs text-panoply-gray-3">Opacity</Label>
+                  <span className="font-mono text-xs text-panoply-navy">{sideData.image_opacity}%</span>
+                </div>
+                <input
+                  type="range"
+                  min={10}
+                  max={100}
+                  step={5}
+                  value={sideData.image_opacity}
+                  onChange={(e) => {
+                    const v = parseInt(e.target.value, 10)
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    updatePassport({ [sideKey]: { ...sideData, image_opacity: v } } as any)
+                  }}
+                  onMouseUp={(e) => persist({ image_opacity: parseInt((e.target as HTMLInputElement).value, 10) })}
+                  onTouchEnd={(e) => persist({ image_opacity: parseInt((e.target as HTMLInputElement).value, 10) })}
+                  className="h-1.5 w-full cursor-pointer accent-panoply-teal"
+                />
+                <div className="flex justify-between text-[10px] text-panoply-gray-3">
+                  <span>10%</span><span>100%</span>
+                </div>
+              </div>
+
+              {/* Remove / Replace buttons */}
+              {confirmRemove ? (
+                <div className="rounded-card border border-panoply-coral/40 bg-panoply-coral/5 p-3 space-y-2">
+                  <p className="text-xs text-panoply-coral">Remove this cover image? This cannot be undone.</p>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleRemoveConfirmed}
+                      className="flex-1 h-7 rounded-card bg-panoply-coral text-white text-xs font-medium hover:bg-red-700 transition-colors"
+                    >
+                      Remove
+                    </button>
+                    <button
+                      onClick={() => setConfirmRemove(false)}
+                      className="flex-1 h-7 rounded-card border border-panoply-gray-2 text-xs text-panoply-gray-3 hover:text-panoply-navy transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setConfirmRemove(true)}
+                    className="flex-1 h-8 rounded-card border border-panoply-gray-2 text-xs text-panoply-gray-3 hover:border-panoply-coral hover:text-panoply-coral transition-colors"
+                  >
+                    Remove image
+                  </button>
+                  <button
+                    onClick={() => replaceRef.current?.click()}
+                    disabled={uploading}
+                    className="flex-1 h-8 rounded-card border border-panoply-gray-2 text-xs text-panoply-navy hover:border-panoply-teal hover:text-panoply-teal-dk transition-colors disabled:opacity-60"
+                  >
+                    {uploading ? 'Uploading…' : 'Replace image'}
+                  </button>
+                </div>
+              )}
+              <input
+                ref={replaceRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="sr-only"
+                onChange={handleReplace}
+                tabIndex={-1}
+                aria-hidden="true"
               />
-              <button
-                onClick={() => persist({ image_url: null })}
-                className="absolute right-1.5 top-1.5 rounded-card bg-black/60 px-1.5 py-0.5 text-[10px] text-white hover:bg-black/80 transition-colors"
-              >
-                Remove
-              </button>
-            </div>
+            </>
           ) : (
-            <button
-              type="button"
-              onClick={() => fileRef.current?.click()}
-              disabled={uploading}
-              className="flex h-20 w-full items-center justify-center rounded-card border-2 border-dashed border-panoply-gray-2 text-sm text-panoply-gray-3 hover:border-panoply-teal hover:text-panoply-teal-dk transition-colors disabled:opacity-60"
-            >
-              {uploading ? 'Uploading…' : '+ Upload image'}
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={() => fileRef.current?.click()}
+                disabled={uploading}
+                className="flex h-20 w-full items-center justify-center rounded-card border-2 border-dashed border-panoply-gray-2 text-sm text-panoply-gray-3 hover:border-panoply-teal hover:text-panoply-teal-dk transition-colors disabled:opacity-60"
+              >
+                {uploading ? 'Uploading…' : '+ Upload cover image'}
+              </button>
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="sr-only"
+                onChange={handleImageUpload}
+                tabIndex={-1}
+                aria-hidden="true"
+              />
+            </>
           )}
-
-          <input
-            ref={fileRef}
-            type="file"
-            accept="image/jpeg,image/png,image/webp"
-            className="sr-only"
-            onChange={handleImageUpload}
-            tabIndex={-1}
-            aria-hidden="true"
-          />
 
           {uploadError && (
             <p className="text-xs text-panoply-coral">{uploadError}</p>
           )}
-
-          {/* Opacity slider — only shown when image is set */}
-          {half.image_url && (
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <Label className="text-xs text-panoply-gray-3">Opacity</Label>
-                <span className="text-xs font-mono text-panoply-navy">{half.image_opacity}%</span>
-              </div>
-              <input
-                type="range"
-                min={10}
-                max={100}
-                step={5}
-                value={half.image_opacity}
-                onChange={(e) => {
-                  const v = parseInt(e.target.value, 10)
-                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                  updatePassport({ [sideKey]: buildSideData(sideData, panel, { image_opacity: v }) } as any)
-                }}
-                onMouseUp={(e) => persist({ image_opacity: parseInt((e.target as HTMLInputElement).value, 10) })}
-                onTouchEnd={(e) => persist({ image_opacity: parseInt((e.target as HTMLInputElement).value, 10) })}
-                className="h-1.5 w-full cursor-pointer accent-panoply-teal"
-              />
-              <div className="flex justify-between text-[10px] text-panoply-gray-3">
-                <span>10%</span>
-                <span>100%</span>
-              </div>
-            </div>
-          )}
         </div>
 
-        {/* Front-cover only: emblem + title */}
+        {/* Front-only: emblem + title */}
         {isFront && face === 'outside' && (
           <>
             <div className="space-y-1.5">
@@ -225,16 +274,13 @@ export function CoverInspector({ face, panel }: Props) {
                 onBlur={(e) => persistPassport({ title: e.target.value })}
                 className="h-8 text-sm"
               />
-              <p className="text-[10px] text-panoply-gray-3">
-                Title appears on the front cover and in the stop library.
-              </p>
             </div>
           </>
         )}
 
-        {/* Tip */}
         <p className="rounded-card bg-panoply-gray-1 px-3 py-2.5 text-xs text-panoply-gray-3 leading-relaxed">
-          Click the other panel on the canvas to edit {panel === 'front' ? 'the back cover' : 'the front cover'}.
+          The image spans both front and back panels. Click the{' '}
+          {panel === 'front' ? 'back' : 'front'} panel on the canvas to edit its background color.
         </p>
       </div>
     </aside>

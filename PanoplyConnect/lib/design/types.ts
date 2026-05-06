@@ -16,6 +16,7 @@ export interface DesignerPageElement {
   content?: string
   fontSize?: number
   fontWeight?: 'normal' | 'bold'
+  fontFamily?: string
   color?: string
   align?: 'left' | 'center' | 'right'
   // line
@@ -32,15 +33,11 @@ export type ExperienceVerification = 'witnessed' | 'documented' | 'presence' | '
 export type CreatorDecision = 'accepted' | 'adjusted' | 'overridden'
 export type PrintJournalSetting = 'include_all' | 'exclude_all' | 'per_stop'
 
-export interface CoverHalf {
-  bg_color: string       // hex without #
+export interface CoverSideData {
+  front_bg: string       // hex without #, default '0D1B2A'
+  back_bg: string        // hex without #, default '0D1B2A'
   image_url: string | null
   image_opacity: number  // 10–100
-}
-
-export interface CoverSideData {
-  front: CoverHalf
-  back: CoverHalf
 }
 
 export interface DesignerPassport {
