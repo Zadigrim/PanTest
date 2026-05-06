@@ -1,130 +1,91 @@
-// Passport store / discovery — browse published passports.
-import React from 'react'
+// Discover tab — segmented control: Nearby (default) ⇄ Catalogue
+import React, { useState } from 'react'
 import {
-  View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator,
+  View, Text, TouchableOpacity, StyleSheet, SafeAreaView, Platform,
 } from 'react-native'
-import { router } from 'expo-router'
-import { usePublishedPassports, acquirePassport } from '../../hooks/usePassport'
-import { getCurrentUser } from '../../lib/supabase'
-import type { Passport } from '../../types'
+import NearbyMode from '../../components/discover/NearbyMode'
+import CatalogueMode from '../../components/discover/CatalogueMode'
 
-function PassportCard({
-  passport,
-  owned,
-  onAcquired,
-}: {
-  passport: Passport
-  owned: boolean
-  onAcquired: () => void
-}) {
-  const handlePress = () => router.push(`/passport/${passport.id}`)
+const NAVY = '#0D1B2A'
+const GOLD = '#C9A84C'
+const CREAM = '#F5F0E8'
 
-  const handleAcquire = async () => {
-    const user = await getCurrentUser()
-    if (!user) { router.push('/(auth)/login'); return }
-    await acquirePassport(passport.id, user.id)
-    onAcquired()
-    router.push(`/passport/${passport.id}`)
-  }
-
-  return (
-    <TouchableOpacity style={styles.card} onPress={handlePress} activeOpacity={0.85}>
-      <View style={[styles.cardCover, { backgroundColor: passport.cover_bg_color }]}>
-        <Text style={styles.coverEmblem}>{passport.cover_emblem ?? '🧭'}</Text>
-      </View>
-      <View style={styles.cardBody}>
-        <Text style={styles.cardTitle} numberOfLines={2}>{passport.title}</Text>
-        {passport.description && (
-          <Text style={styles.cardDesc} numberOfLines={2}>{passport.description}</Text>
-        )}
-        <View style={styles.cardFooter}>
-          <Text style={styles.cardPrice}>
-            {passport.is_free ? 'Free' : `$${(passport.price_cents / 100).toFixed(2)}`}
-          </Text>
-          {owned ? (
-            <TouchableOpacity onPress={handlePress} style={styles.openBtn}>
-              <Text style={styles.openBtnText}>Open →</Text>
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity onPress={handleAcquire} style={styles.acquireBtn}>
-              <Text style={styles.acquireBtnText}>Get passport</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-      </View>
-    </TouchableOpacity>
-  )
-}
+type Tab = 'nearby' | 'catalogue'
 
 export default function DiscoverScreen() {
-  const { passports, ownedIds, loading, reload } = usePublishedPassports()
-
-  if (loading) {
-    return (
-      <View style={styles.centered}>
-        <ActivityIndicator color="#C9A84C" />
-      </View>
-    )
-  }
-
-  const unowned = passports.filter((p) => !ownedIds.has(p.id))
+  const [activeTab, setActiveTab] = useState<Tab>('nearby')
 
   return (
-    <View style={styles.container}>
-      <FlatList
-        data={unowned}
-        keyExtractor={(p) => p.id}
-        renderItem={({ item }) => (
-          <PassportCard
-            passport={item}
-            owned={ownedIds.has(item.id)}
-            onAcquired={reload}
-          />
-        )}
-        ListEmptyComponent={
-          <View style={styles.empty}>
-            <Text style={styles.emptyText}>You have all available passports!</Text>
-          </View>
-        }
-        contentContainerStyle={styles.list}
-        showsVerticalScrollIndicator={false}
-      />
-    </View>
+    <SafeAreaView style={styles.safeArea}>
+      {/* Segmented control */}
+      <View style={styles.segmentContainer}>
+        <View style={styles.segment}>
+          <TouchableOpacity
+            style={[styles.segBtn, activeTab === 'nearby' && styles.segBtnActive]}
+            onPress={() => setActiveTab('nearby')}
+            activeOpacity={0.75}
+          >
+            <Text style={[styles.segLabel, activeTab === 'nearby' && styles.segLabelActive]}>
+              Nearby
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.segBtn, activeTab === 'catalogue' && styles.segBtnActive]}
+            onPress={() => setActiveTab('catalogue')}
+            activeOpacity={0.75}
+          >
+            <Text style={[styles.segLabel, activeTab === 'catalogue' && styles.segLabelActive]}>
+              Catalogue
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* Content */}
+      <View style={styles.content}>
+        {activeTab === 'nearby' ? <NearbyMode /> : <CatalogueMode />}
+      </View>
+    </SafeAreaView>
   )
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f4f4f4' },
-  centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  list: { padding: 16, gap: 16 },
-  card: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    overflow: 'hidden',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
+  safeArea: {
+    flex: 1,
+    backgroundColor: NAVY,
   },
-  cardCover: {
-    height: 120,
+  segmentContainer: {
+    backgroundColor: NAVY,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    paddingTop: Platform.OS === 'android' ? 10 : 6,
+  },
+  segment: {
+    flexDirection: 'row',
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 8,
+    padding: 3,
+  },
+  segBtn: {
+    flex: 1,
+    paddingVertical: 8,
     alignItems: 'center',
-    justifyContent: 'center',
+    borderRadius: 6,
   },
-  coverEmblem: { fontSize: 42 },
-  cardBody: { padding: 14 },
-  cardTitle: {
-    fontSize: 16, fontWeight: '700', color: '#0D1B2A',
-    fontFamily: 'serif', marginBottom: 4,
+  segBtnActive: {
+    backgroundColor: GOLD,
   },
-  cardDesc: { fontSize: 13, color: '#666', fontStyle: 'italic', marginBottom: 10 },
-  cardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  cardPrice: { fontSize: 14, color: '#888' },
-  acquireBtn: { backgroundColor: '#1D9E75', borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8 },
-  acquireBtnText: { color: '#fff', fontWeight: '700', fontSize: 13 },
-  openBtn: { borderWidth: 1.5, borderColor: '#1D9E75', borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8 },
-  openBtnText: { color: '#1D9E75', fontWeight: '700', fontSize: 13 },
-  empty: { padding: 40, alignItems: 'center' },
-  emptyText: { color: '#aaa', fontStyle: 'italic' },
+  segLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: 'rgba(245,240,232,0.55)',
+    letterSpacing: 0.3,
+  },
+  segLabelActive: {
+    color: NAVY,
+  },
+  content: {
+    flex: 1,
+    backgroundColor: '#f4f4f4',
+  },
 })
