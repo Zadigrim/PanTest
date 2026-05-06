@@ -23,6 +23,49 @@ AS $$
   );
 $$;
 
+-- ─── Guard: create tables from 002_connect_schema if not yet applied ─────────
+-- These CREATE TABLE IF NOT EXISTS statements are no-ops when 002 has already
+-- been run, but allow 012 to succeed on databases that skipped 002.
+
+CREATE TABLE IF NOT EXISTS public.institution_subscriptions (
+  id                      uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  institution_id          uuid REFERENCES public.institutions(id) NOT NULL UNIQUE,
+  tier                    text DEFAULT 'free'
+    CHECK (tier IN ('free','community','regional','enterprise')),
+  monthly_price_cents     integer DEFAULT 0,
+  stripe_subscription_id  text,
+  started_at              timestamptz DEFAULT now(),
+  current_period_end      timestamptz
+);
+
+CREATE TABLE IF NOT EXISTS public.prize_configurations (
+  id                 uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  page_id            uuid REFERENCES public.passport_pages(id) NOT NULL UNIQUE,
+  institution_id     uuid REFERENCES public.institutions(id) NOT NULL,
+  prize_description  text NOT NULL,
+  prize_value_cents  integer,
+  location_whitelist uuid[],
+  configured_by      uuid REFERENCES public.profiles(id) NOT NULL,
+  configured_at      timestamptz DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS public.employee_authorizations (
+  id                     uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  institution_id         uuid REFERENCES public.institutions(id) NOT NULL,
+  user_id                uuid REFERENCES public.profiles(id) NOT NULL,
+  role_label             text,
+  can_verify             boolean DEFAULT true,
+  can_distribute_prizes  boolean DEFAULT true,
+  can_add_extras         boolean DEFAULT false,
+  authorized_by          uuid REFERENCES public.profiles(id),
+  authorized_at          timestamptz DEFAULT now(),
+  UNIQUE(institution_id, user_id)
+);
+
+ALTER TABLE public.institution_subscriptions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.prize_configurations      ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.employee_authorizations   ENABLE ROW LEVEL SECURITY;
+
 -- ─── RLS policies: rebuild all with admin bypass ──────────────────────────────
 -- Strategy: DROP each policy and recreate with  OR public.is_admin() = true
 
