@@ -31,6 +31,33 @@ BEGIN
       ADD CONSTRAINT institutions_pricing_model_check
       CHECK (pricing_model IN ('free', 'paid_passport', 'community', 'regional', 'enterprise'));
   END IF;
+
+-- Replace the old 6-value institution_type check with the full list (idempotent)
+  ALTER TABLE public.institutions
+    DROP CONSTRAINT IF EXISTS institutions_institution_type_check;
+  ALTER TABLE public.institutions
+    ADD CONSTRAINT institutions_institution_type_check
+    CHECK (institution_type IN (
+      'k12_school', 'public_library', 'museum', 'educational_nonprofit',
+      'after_school_program', 'literacy_organization', 'youth_development',
+      'homeschool_cooperative',
+      'parks_department', 'nature_conservatory', 'land_trust',
+      'watershed_council', 'native_plant_society', 'wildlife_rehabilitation',
+      'environmental_education',
+      'historical_society', 'heritage_organization', 'cultural_center',
+      'oral_history_project',
+      'community_theater', 'public_art_organization', 'community_arts_center',
+      'community_music_program', 'writing_center',
+      'food_bank', 'homeless_shelter', 'refugee_immigrant_services',
+      'free_health_clinic', 'adult_literacy',
+      'community_garden', 'maker_space', 'tool_lending_library', 'seed_library',
+      'municipality',
+      'zoo', 'aquarium', 'botanical_garden', 'science_museum',
+      'childrens_museum', 'nature_center_paid',
+      'chamber_of_commerce', 'tourism_board', 'proprietor', 'hotel_chain',
+      'expo_organizer',
+      'general', 'library', 'school', 'park', 'historic_site', 'nonprofit', 'other'
+    ));
 END $$;
 
 -- Ensure baseline passports columns exist
