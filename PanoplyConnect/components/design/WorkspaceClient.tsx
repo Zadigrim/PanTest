@@ -42,8 +42,9 @@ export function WorkspaceClient({ passport, pages, stops }: Props) {
     hydrate(passport, pages, stops)
   }, [passport.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  useAutosave()
+  const { saveNow } = useAutosave()
   useWorkspaceKeyboard({
+    onSave: saveNow,
     onSettings: () => setShowSettings(true),
   })
 

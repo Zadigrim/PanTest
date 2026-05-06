@@ -37,10 +37,17 @@ const SUBJECT_AREAS = [
 ] as const
 
 const INSTITUTION_TYPES = [
-  { value: 'school', label: 'School' },
-  { value: 'library', label: 'Library' },
-  { value: 'park', label: 'Park' },
-  { value: 'museum', label: 'Museum' },
+  { value: 'k12_school',         label: 'K–12 School' },
+  { value: 'school',             label: 'School' },
+  { value: 'public_library',     label: 'Public Library' },
+  { value: 'library',            label: 'Library' },
+  { value: 'museum',             label: 'Museum' },
+  { value: 'parks_department',   label: 'Parks Department' },
+  { value: 'park',               label: 'Park' },
+  { value: 'aquarium',           label: 'Aquarium' },
+  { value: 'zoo',                label: 'Zoo' },
+  { value: 'nature_conservatory', label: 'Nature Conservatory' },
+  { value: 'nonprofit',          label: 'Nonprofit' },
 ] as const
 
 type SortOption = 'acknowledged' | 'newest'
@@ -578,10 +585,11 @@ export default function StopsLibraryPage() {
           classifiers,
           learning_objective,
           created_at,
-          passport_pages!page_id (
-            passports (
-              creator:creator_id ( display_name ),
-              institutions:proprietor_id ( name )
+          passport_pages!inner (
+            passports!inner (
+              creator_id,
+              profiles!creator_id ( display_name ),
+              institutions!institution_id ( name )
             )
           )
         `,
@@ -626,9 +634,9 @@ export default function StopsLibraryPage() {
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let assembled: StopCard[] = (rawStops ?? []).map((s: any) => {
-        const institutionName =
-          s.passport_pages?.passports?.institutions?.name ?? null
-        const creatorName = s.passport_pages?.passports?.creator?.display_name ?? null
+        const passport = s.passport_pages?.passports
+        const institutionName = passport?.institutions?.name ?? null
+        const creatorName = passport?.profiles?.display_name ?? null
         return {
           id: s.id,
           name: s.name,

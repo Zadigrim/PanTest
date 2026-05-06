@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { usePassportStore } from '@/lib/design/passport-store'
 import { Input } from './ui/Input'
 import { Label } from './ui/Label'
-import { getSideData } from './CoverCanvas'
+import { getSideData, CANVAS_W, COVER_H } from './CoverCanvas'
 import type { CoverFace, CoverPanel } from './CoverCanvas'
 import type { CoverSideData } from '@/lib/design/types'
 
@@ -177,6 +177,119 @@ export function CoverInspector({ face, panel }: Props) {
                 />
                 <div className="flex justify-between text-[10px] text-panoply-gray-3">
                   <span>10%</span><span>100%</span>
+                </div>
+              </div>
+
+              {/* Position + scale */}
+              <div className="space-y-2 rounded-card border border-panoply-gray-2 p-3">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-panoply-gray-3">
+                  Position &amp; scale
+                </p>
+
+                {/* X / Y offset */}
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <label className="text-[10px] text-panoply-gray-3">X offset (px)</label>
+                    <input
+                      type="number"
+                      value={Math.round((sideData.image_position_x - 0.5) * CANVAS_W)}
+                      min={-Math.round(CANVAS_W / 2)}
+                      max={Math.round(CANVAS_W / 2)}
+                      step={1}
+                      onChange={(e) => {
+                        const px = 0.5 + parseInt(e.target.value || '0', 10) / CANVAS_W
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        updatePassport({ [sideKey]: { ...sideData, image_position_x: Math.max(0, Math.min(1, px)) } } as any)
+                      }}
+                      onBlur={(e) => {
+                        const px = 0.5 + parseInt(e.target.value || '0', 10) / CANVAS_W
+                        void persist({ image_position_x: Math.max(0, Math.min(1, px)) })
+                      }}
+                      className="h-7 w-full rounded-card border border-panoply-gray-2 px-2 font-mono text-xs text-panoply-navy focus:border-panoply-teal focus:outline-none"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] text-panoply-gray-3">Y offset (px)</label>
+                    <input
+                      type="number"
+                      value={Math.round((sideData.image_position_y - 0.5) * COVER_H)}
+                      min={-Math.round(COVER_H / 2)}
+                      max={Math.round(COVER_H / 2)}
+                      step={1}
+                      onChange={(e) => {
+                        const py = 0.5 + parseInt(e.target.value || '0', 10) / COVER_H
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        updatePassport({ [sideKey]: { ...sideData, image_position_y: Math.max(0, Math.min(1, py)) } } as any)
+                      }}
+                      onBlur={(e) => {
+                        const py = 0.5 + parseInt(e.target.value || '0', 10) / COVER_H
+                        void persist({ image_position_y: Math.max(0, Math.min(1, py)) })
+                      }}
+                      className="h-7 w-full rounded-card border border-panoply-gray-2 px-2 font-mono text-xs text-panoply-navy focus:border-panoply-teal focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                {/* Scale slider */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] text-panoply-gray-3">Scale</label>
+                    <span className="font-mono text-xs text-panoply-navy">
+                      {Math.round(sideData.image_scale * 100)}%
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min={100}
+                    max={300}
+                    step={5}
+                    value={Math.round(sideData.image_scale * 100)}
+                    onChange={(e) => {
+                      const scale = parseInt(e.target.value, 10) / 100
+                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                      updatePassport({ [sideKey]: { ...sideData, image_scale: scale } } as any)
+                    }}
+                    onMouseUp={(e) => {
+                      const scale = parseInt((e.target as HTMLInputElement).value, 10) / 100
+                      void persist({ image_scale: scale })
+                    }}
+                    onTouchEnd={(e) => {
+                      const scale = parseInt((e.target as HTMLInputElement).value, 10) / 100
+                      void persist({ image_scale: scale })
+                    }}
+                    className="h-1.5 w-full cursor-pointer accent-panoply-teal"
+                  />
+                  <div className="flex justify-between text-[10px] text-panoply-gray-3">
+                    <span>100%</span><span>300%</span>
+                  </div>
+                </div>
+
+                {/* Quick-action presets */}
+                <div className="flex gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => void persist({ image_position_x: 0.5, image_position_y: 0.5, image_scale: 1 })}
+                    className="flex-1 h-7 rounded-card border border-panoply-gray-2 text-[10px] text-panoply-gray-3 hover:border-panoply-teal hover:text-panoply-teal-dk transition-colors"
+                  >
+                    Fit width
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const heightScale = CANVAS_W / COVER_H
+                      void persist({ image_position_x: 0.5, image_position_y: 0.5, image_scale: Math.max(1, heightScale) })
+                    }}
+                    className="flex-1 h-7 rounded-card border border-panoply-gray-2 text-[10px] text-panoply-gray-3 hover:border-panoply-teal hover:text-panoply-teal-dk transition-colors"
+                  >
+                    Fit height
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void persist({ image_position_x: 0.5, image_position_y: 0.5, image_scale: 1.5 })}
+                    className="flex-1 h-7 rounded-card border border-panoply-gray-2 text-[10px] text-panoply-gray-3 hover:border-panoply-teal hover:text-panoply-teal-dk transition-colors"
+                  >
+                    Fill canvas
+                  </button>
                 </div>
               </div>
 

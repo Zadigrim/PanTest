@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { NewPassportButton } from '@/components/design/NewPassportButton'
 import { PrintPassportButton } from '@/components/design/PrintPassportButton'
 import { spendTierLabel } from '@/lib/design/spend-tiers'
+import { passportTypeIconFromClassifiers } from '@/lib/design/passport-type-icon'
 import type { DesignerPassport, CoverSideData } from '@/lib/design/types'
 
 export const metadata = { title: 'My Passports — PanoplyDesigner' }
@@ -14,13 +15,14 @@ const STATUS_STYLES: Record<string, string> = {
   archived:  'bg-panoply-amber/15 text-panoply-amber',
 }
 
+// ── Default SVG thumbnail ─────────────────────────────────────────────────────
+
 function defaultThumbnailSvg(title: string): string {
   const safe = title
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
-  // Wrap title at ~20 chars
   const words = safe.split(' ')
   const lines: string[] = []
   let current = ''
@@ -34,37 +36,52 @@ function defaultThumbnailSvg(title: string): string {
   }
   if (current) lines.push(current.trim())
   const titleLines = lines.slice(0, 2)
-
   const titleY1 = 248
   const titleY2 = 262
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="280" height="392" viewBox="0 0 280 392">
-  <rect width="280" height="392" fill="#0D1B2A"/>
-  <circle cx="140" cy="180" r="170" fill="none" stroke="#1D9E75" stroke-width="0.6" opacity="0.12"/>
-  <circle cx="140" cy="180" r="130" fill="none" stroke="#1D9E75" stroke-width="0.6" opacity="0.12"/>
-  <circle cx="140" cy="180" r="90"  fill="none" stroke="#1D9E75" stroke-width="0.6" opacity="0.12"/>
-  <circle cx="140" cy="180" r="50"  fill="none" stroke="#1D9E75" stroke-width="0.6" opacity="0.12"/>
-  <text x="140" y="70" text-anchor="middle" font-family="Arial" font-size="11" font-weight="bold" letter-spacing="6" fill="#1D9E75">PANOPLY</text>
-  <text x="140" y="210" text-anchor="middle" font-family="Arial" font-size="20" font-weight="bold" letter-spacing="8" fill="white">PASSPORT</text>
+
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="280" height="420" viewBox="0 0 280 420">
+  <rect width="280" height="420" fill="#0D1B2A"/>
+  <circle cx="140" cy="190" r="180" fill="none" stroke="#1D9E75" stroke-width="0.6" opacity="0.12"/>
+  <circle cx="140" cy="190" r="140" fill="none" stroke="#1D9E75" stroke-width="0.6" opacity="0.12"/>
+  <circle cx="140" cy="190" r="100" fill="none" stroke="#1D9E75" stroke-width="0.6" opacity="0.12"/>
+  <circle cx="140" cy="190" r="60"  fill="none" stroke="#1D9E75" stroke-width="0.6" opacity="0.12"/>
+  <text x="140" y="80" text-anchor="middle" font-family="Arial" font-size="11" font-weight="bold" letter-spacing="6" fill="#1D9E75">PANOPLY</text>
+  <text x="140" y="220" text-anchor="middle" font-family="Arial" font-size="20" font-weight="bold" letter-spacing="8" fill="white">PASSPORT</text>
   ${titleLines[0] ? `<text x="140" y="${titleY1}" text-anchor="middle" font-family="Arial" font-size="10" fill="rgba(255,255,255,0.75)">${titleLines[0]}</text>` : ''}
   ${titleLines[1] ? `<text x="140" y="${titleY2}" text-anchor="middle" font-family="Arial" font-size="10" fill="rgba(255,255,255,0.75)">${titleLines[1]}</text>` : ''}
-  <line x1="40" y1="350" x2="240" y2="350" stroke="#1D9E75" stroke-width="1" opacity="0.3"/>
+  <line x1="40" y1="370" x2="240" y2="370" stroke="#1D9E75" stroke-width="1" opacity="0.3"/>
 </svg>`
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
 }
 
+// ── Cover thumbnail — 2:3 proportions, full card width ───────────────────────
+
 function CoverThumbnail({ passport }: { passport: DesignerPassport }) {
-  // If cover has been designed, show the front panel bg + image
   const outside = passport.cover_outside_data as CoverSideData | null
   const hasDesignedCover = outside && (outside.image_url || outside.front_bg !== '0D1B2A')
   const frontBg = outside?.front_bg ?? passport.cover_bg_color ?? '0D1B2A'
   const imageUrl = outside?.image_url ?? null
   const imageOpacity = outside?.image_opacity ?? 80
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const classifiers = (passport as any).classifiers as string[] | null | undefined
+  const typeIcon = passportTypeIconFromClassifiers(classifiers)
+
+  const badge = (
+    <span
+      className="absolute bottom-2 left-2 flex h-7 w-7 items-center justify-center rounded-full text-base"
+      style={{ backgroundColor: 'rgba(255,255,255,0.9)' }}
+      aria-hidden="true"
+    >
+      {typeIcon}
+    </span>
+  )
+
   if (hasDesignedCover) {
     return (
       <div
         className="relative w-full overflow-hidden rounded-t-panel"
-        style={{ height: 140, backgroundColor: `#${frontBg}` }}
+        style={{ paddingBottom: '150%', backgroundColor: `#${frontBg}` }}
       >
         {imageUrl && (
           // eslint-disable-next-line @next/next/no-img-element
@@ -78,34 +95,39 @@ function CoverThumbnail({ passport }: { passport: DesignerPassport }) {
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 pointer-events-none">
           <span className="text-3xl">{passport.cover_emblem ?? '🧭'}</span>
         </div>
+        {badge}
       </div>
     )
   }
 
-  // Default SVG thumbnail
   return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
-      src={defaultThumbnailSvg(passport.title)}
-      alt={`${passport.title} cover`}
-      className="w-full rounded-t-panel object-cover"
-      style={{ height: 140 }}
-    />
+    <div className="relative w-full overflow-hidden rounded-t-panel" style={{ paddingBottom: '150%' }}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={defaultThumbnailSvg(passport.title)}
+        alt={`${passport.title} cover`}
+        className="absolute inset-0 h-full w-full object-cover"
+      />
+      {badge}
+    </div>
   )
 }
+
+// ── Passport card ─────────────────────────────────────────────────────────────
 
 function PassportCard({ passport }: { passport: DesignerPassport }) {
   const isInstitutional = Boolean(passport.institution_id ?? passport.proprietor_id)
   return (
-    <div className="rounded-panel border border-panoply-gray-2 bg-white transition-shadow hover:shadow-md overflow-hidden">
-      {/* Cover thumbnail */}
+    <div className="flex flex-col overflow-hidden rounded-panel border border-panoply-gray-2 bg-white transition-shadow hover:shadow-md">
+      {/* Cover thumbnail — full width, no padding, 2:3 ratio */}
       <Link href={`/design/${passport.id}`} className="block">
         <CoverThumbnail passport={passport} />
       </Link>
 
-      <Link href={`/design/${passport.id}`} className="group block px-5 pb-4 pt-3">
-        <div className="flex items-start justify-between gap-3">
-          <h3 className="font-semibold text-panoply-navy group-hover:text-panoply-teal-dk transition-colors truncate">
+      {/* Info section — stretches to fill card height */}
+      <Link href={`/design/${passport.id}`} className="group flex flex-1 flex-col gap-2 px-4 pb-4 pt-3">
+        <div className="flex items-start justify-between gap-2">
+          <h3 className="font-semibold text-panoply-navy group-hover:text-panoply-teal-dk transition-colors line-clamp-2 leading-snug">
             {passport.title}
           </h3>
           <span
@@ -118,24 +140,24 @@ function PassportCard({ passport }: { passport: DesignerPassport }) {
         </div>
 
         {passport.description && (
-          <p className="mt-1 text-sm text-panoply-gray-3 line-clamp-2">
+          <p className="text-sm text-panoply-gray-3 line-clamp-2 leading-snug">
             {passport.description}
           </p>
         )}
 
-        <div className="mt-2 flex items-center gap-3 text-xs text-panoply-gray-3">
+        <div className="mt-auto flex flex-wrap items-center gap-2 text-xs text-panoply-gray-3 pt-1">
           <span>{spendTierLabel(passport.expected_spend_tier)}</span>
           {passport.transit_accessible && <span title="Transit accessible">🚌</span>}
           {passport.wheelchair_accessible && <span title="Wheelchair accessible">♿</span>}
         </div>
 
-        <div className="mt-1 text-xs text-panoply-gray-3">
+        <p className="text-xs text-panoply-gray-3">
           Updated {new Date(passport.updated_at).toLocaleDateString()}
-        </div>
+        </p>
       </Link>
 
       {isInstitutional && passport.print_enabled && (
-        <div className="border-t border-panoply-gray-2 px-5 pb-4 pt-3">
+        <div className="border-t border-panoply-gray-2 px-4 pb-4 pt-3">
           <PrintPassportButton
             passport={{
               id: passport.id,
@@ -149,6 +171,8 @@ function PassportCard({ passport }: { passport: DesignerPassport }) {
     </div>
   )
 }
+
+// ── Page ──────────────────────────────────────────────────────────────────────
 
 export default async function DesignIndexPage() {
   const supabase = await createClient()
@@ -187,7 +211,6 @@ export default async function DesignIndexPage() {
       </header>
 
       <main className="mx-auto max-w-6xl px-8 py-10">
-        {/* Page header */}
         <div className="mb-8 flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-panoply-navy">My Passports</h1>
@@ -197,11 +220,9 @@ export default async function DesignIndexPage() {
                 : `${list.length} passport${list.length === 1 ? '' : 's'}`}
             </p>
           </div>
-          {/* NewPassportButton links to /design/new for the creation flow */}
           <NewPassportButton userId={user.id} />
         </div>
 
-        {/* Empty state */}
         {list.length === 0 && (
           <div className="rounded-modal border-2 border-dashed border-panoply-gray-2 py-20 text-center">
             <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-panoply-teal-lt text-3xl">
@@ -217,9 +238,9 @@ export default async function DesignIndexPage() {
           </div>
         )}
 
-        {/* Passport grid */}
+        {/* 3 columns on desktop (≥1280px), 2 on tablet */}
         {list.length > 0 && (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
             {list.map((p) => (
               <PassportCard key={p.id} passport={p} />
             ))}

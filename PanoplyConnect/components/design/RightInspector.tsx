@@ -532,6 +532,35 @@ function StopInspector({ stop }: { stop: DesignerStop }) {
 
       <PhysicalPassportSection stop={stop} persist={persist} />
 
+      {/* Share to stop library — visible when educational classifier is set */}
+      {(stop.classifiers ?? []).includes('educational') && (
+        <Section title="Stop library">
+          <label className="flex cursor-pointer items-start gap-3">
+            <input
+              type="checkbox"
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              checked={(stop as any).is_shared ?? false}
+              onChange={(e) => {
+                const shared = e.target.checked
+                void persist({
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  is_shared: shared as any,
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  shared_at: (shared ? new Date().toISOString() : null) as any,
+                })
+              }}
+              className="mt-0.5 h-4 w-4 rounded accent-panoply-teal"
+            />
+            <div>
+              <span className="text-sm text-panoply-navy">Share to stop library</span>
+              <p className="mt-0.5 text-xs text-panoply-gray-3 leading-relaxed">
+                Other creators can import this stop into their passports.
+              </p>
+            </div>
+          </label>
+        </Section>
+      )}
+
       <div className="border-t border-panoply-gray-2 pt-4">
         <Button variant="danger" size="sm" className="w-full" onClick={handleDelete}>
           Delete stop

@@ -4,6 +4,46 @@
 
 export type UserRole = 'collector' | 'creator' | 'employee' | 'admin'
 export type InstitutionTier = 'community' | 'commercial' | 'enterprise'
+
+export type InstitutionType =
+  | 'k12_school' | 'public_library' | 'museum' | 'parks_department'
+  | 'aquarium' | 'zoo' | 'nature_conservatory'
+  | 'nonprofit' | 'municipality' | 'chamber_of_commerce'
+  | 'tourism_board' | 'proprietor' | 'hotel_chain' | 'expo_organizer'
+  | 'general' | 'library' | 'school' | 'park' | 'historic_site'
+  | 'other'
+
+export const INSTITUTION_TYPE_LABELS: Record<string, string> = {
+  k12_school:          'K–12 School',
+  public_library:      'Public Library',
+  museum:              'Museum',
+  parks_department:    'Parks Department',
+  aquarium:            'Aquarium',
+  zoo:                 'Zoo',
+  nature_conservatory: 'Nature Conservatory',
+  nonprofit:           'Nonprofit',
+  municipality:        'Municipality',
+  chamber_of_commerce: 'Chamber of Commerce',
+  tourism_board:       'Tourism Board',
+  proprietor:          'Proprietor',
+  hotel_chain:         'Hotel Chain',
+  expo_organizer:      'Expo Organizer',
+  other:               'Other',
+  // legacy
+  general:             'General',
+  library:             'Library',
+  school:              'School',
+  park:                'Park',
+  historic_site:       'Historic Site',
+}
+
+export const FREE_INSTITUTION_TYPES = new Set<string>([
+  'k12_school', 'public_library', 'museum', 'parks_department',
+  'aquarium', 'zoo', 'nature_conservatory',
+  'nonprofit', 'municipality',
+  // legacy
+  'school', 'library', 'park',
+])
 export type PassportType = 'location' | 'experience' | 'learning'
 export type PassportStatus = string // open-ended; tighten if values are known
 export type TravelerType = string   // open-ended; tighten if values are known

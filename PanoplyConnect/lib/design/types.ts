@@ -38,6 +38,10 @@ export interface CoverSideData {
   back_bg: string        // hex without #, default '0D1B2A'
   image_url: string | null
   image_opacity: number  // 10–100
+  // Position as fraction of canvas dimensions (0 = top/left, stored on save)
+  image_position_x: number  // default 0.5 (centred)
+  image_position_y: number  // default 0.5 (centred)
+  image_scale: number        // 1.0 = fit, >1 = zoomed in; default 1
 }
 
 export interface DesignerPassport {

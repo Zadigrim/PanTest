@@ -190,7 +190,8 @@ export default async function AssetTypePage({ params }: Props) {
 
   // Query design_assets — table may not exist yet; treat any error as empty
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: assets } = await ((supabase as any)
+  const db = supabase as any
+  const { data: assets, error: assetsError } = await db
     .from('design_assets')
     .select('id, name, url, institution_id')
     .eq('asset_type', meta.dbType)
@@ -200,8 +201,11 @@ export default async function AssetTypePage({ params }: Props) {
         ...(userInstitutionId ? [`institution_id.eq.${userInstitutionId}`] : []),
       ].join(','),
     )
-    .order('created_at', { ascending: false }) as Promise<{ data: AssetRow[] | null }>)
-    .catch(() => ({ data: null }))
+    .order('created_at', { ascending: false })
+
+  if (assetsError) {
+    console.error('design_assets query error:', assetsError)
+  }
 
   const assetList: AssetRow[] = (assets ?? []) as AssetRow[]
 

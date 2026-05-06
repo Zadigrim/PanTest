@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef, useCallback } from 'react'
 import { usePassportStore } from '@/lib/design/passport-store'
 import type { CoverSideData } from '@/lib/design/types'
 
@@ -13,10 +13,13 @@ export type CoverFace  = 'outside' | 'inside'
 export type CoverPanel = 'front' | 'back'
 
 const DEFAULTS: CoverSideData = {
-  front_bg:      '0D1B2A',
-  back_bg:       '0D1B2A',
-  image_url:     null,
-  image_opacity: 80,
+  front_bg:        '0D1B2A',
+  back_bg:         '0D1B2A',
+  image_url:       null,
+  image_opacity:   80,
+  image_position_x: 0.5,
+  image_position_y: 0.5,
+  image_scale:     1,
 }
 
 export function getSideData(data: CoverSideData | null | undefined): CoverSideData {
@@ -33,8 +36,19 @@ interface Props {
 }
 
 export function CoverCanvas({ face, onFaceChange, selectedPanel, onPanelChange }: Props) {
-  const passport = usePassportStore((s) => s.passport)
+  const passport       = usePassportStore((s) => s.passport)
+  const updatePassport = usePassportStore((s) => s.updatePassport)
   const [zoom, setZoom] = useState(0.85)
+
+  // Drag state for image repositioning
+  const dragRef = useRef<{
+    startX: number
+    startY: number
+    origPx: number
+    origPy: number
+    canvasW: number
+    canvasH: number
+  } | null>(null)
 
   if (!passport) {
     return (
@@ -44,14 +58,69 @@ export function CoverCanvas({ face, onFaceChange, selectedPanel, onPanelChange }
     )
   }
 
-  const raw = face === 'outside' ? passport.cover_outside_data : passport.cover_inside_data
+  const sideKey = face === 'outside' ? 'cover_outside_data' : 'cover_inside_data'
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const raw = (passport as any)[sideKey]
   const side = getSideData(raw)
 
+  const persistSide = (patch: Partial<CoverSideData>) => {
+    const next: CoverSideData = { ...side, ...patch }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    updatePassport({ [sideKey]: next } as any)
+    const { createClient } = require('@/lib/supabase/client')
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = createClient() as any
+    void db.from('passports').update({ [sideKey]: next }).eq('id', passport.id)
+  }
+
   function handleCanvasClick(e: React.MouseEvent<HTMLDivElement>) {
+    if (dragRef.current) return // was a drag, not a click
     const rect = e.currentTarget.getBoundingClientRect()
     const x = (e.clientX - rect.left) / zoom
     onPanelChange(x < COVER_W ? 'back' : 'front')
   }
+
+  // Image drag handlers
+  const handleImagePointerDown = useCallback((e: React.PointerEvent<HTMLImageElement>) => {
+    if (!side.image_url) return
+    e.stopPropagation()
+    ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+    const canvasEl = e.currentTarget.parentElement!
+    const rect = canvasEl.getBoundingClientRect()
+    dragRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      origPx: side.image_position_x,
+      origPy: side.image_position_y,
+      canvasW: rect.width,
+      canvasH: rect.height,
+    }
+  }, [side.image_position_x, side.image_position_y, side.image_url])
+
+  const handleImagePointerMove = useCallback((e: React.PointerEvent<HTMLImageElement>) => {
+    const d = dragRef.current
+    if (!d) return
+    const dx = (e.clientX - d.startX) / d.canvasW
+    const dy = (e.clientY - d.startY) / d.canvasH
+    const newPx = Math.max(0, Math.min(1, d.origPx - dx))
+    const newPy = Math.max(0, Math.min(1, d.origPy - dy))
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    updatePassport({ [sideKey]: { ...side, image_position_x: newPx, image_position_y: newPy } } as any)
+  }, [side, sideKey, updatePassport])
+
+  const handleImagePointerUp = useCallback((e: React.PointerEvent<HTMLImageElement>) => {
+    const d = dragRef.current
+    if (!d) return
+    const dx = (e.clientX - d.startX) / d.canvasW
+    const dy = (e.clientY - d.startY) / d.canvasH
+    const newPx = Math.max(0, Math.min(1, d.origPx - dx))
+    const newPy = Math.max(0, Math.min(1, d.origPy - dy))
+    dragRef.current = null
+    persistSide({ image_position_x: newPx, image_position_y: newPy })
+  }, [side, persistSide]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Convert fractional position to CSS object-position
+  const objectPosition = `${(side.image_position_x) * 100}% ${(side.image_position_y) * 100}%`
 
   return (
     <main className="relative flex flex-1 flex-col overflow-hidden bg-panoply-gray-1">
@@ -71,13 +140,12 @@ export function CoverCanvas({ face, onFaceChange, selectedPanel, onPanelChange }
           </button>
         ))}
         <span className="ml-3 text-xs text-panoply-gray-3">
-          Click a half to select it
+          {side.image_url ? 'Drag image to reposition · Click panel to select' : 'Click a half to select it'}
         </span>
       </div>
 
       {/* Canvas area */}
       <div className="flex flex-1 items-center justify-center overflow-auto p-8">
-        {/* Outer wrapper handles zoom via transform */}
         <div
           style={{
             transform: `scale(${zoom})`,
@@ -91,8 +159,8 @@ export function CoverCanvas({ face, onFaceChange, selectedPanel, onPanelChange }
           <div
             role="img"
             aria-label="Cover canvas"
-            className="relative cursor-pointer overflow-hidden shadow-xl"
-            style={{ width: CANVAS_W, height: COVER_H }}
+            className="relative overflow-hidden shadow-xl"
+            style={{ width: CANVAS_W, height: COVER_H, cursor: side.image_url ? 'default' : 'pointer' }}
             onClick={handleCanvasClick}
           >
             {/* Back half solid bg */}
@@ -107,15 +175,26 @@ export function CoverCanvas({ face, onFaceChange, selectedPanel, onPanelChange }
               style={{ width: COVER_W, backgroundColor: `#${side.front_bg}` }}
             />
 
-            {/* Full-bleed image spanning both panels */}
+            {/* Full-bleed image — draggable to reposition */}
             {side.image_url && (
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={side.image_url}
                 alt=""
-                className="absolute inset-0 h-full w-full object-cover pointer-events-none"
-                style={{ opacity: side.image_opacity / 100 }}
+                className="absolute inset-0 h-full w-full object-cover pointer-events-auto"
+                style={{
+                  opacity: side.image_opacity / 100,
+                  objectPosition,
+                  cursor: 'grab',
+                  userSelect: 'none',
+                  transform: `scale(${side.image_scale})`,
+                  transformOrigin: objectPosition,
+                }}
                 draggable={false}
+                onPointerDown={handleImagePointerDown}
+                onPointerMove={handleImagePointerMove}
+                onPointerUp={handleImagePointerUp}
+                onPointerCancel={handleImagePointerUp}
               />
             )}
 
@@ -157,7 +236,7 @@ export function CoverCanvas({ face, onFaceChange, selectedPanel, onPanelChange }
             {selectedPanel === 'back' && (
               <div
                 className="absolute inset-y-0 left-0 ring-2 ring-inset ring-panoply-teal pointer-events-none"
-                style={{ width: COVER_W }}
+                style={{ width: COVER_W, zIndex: 11 }}
               />
             )}
 
@@ -165,7 +244,7 @@ export function CoverCanvas({ face, onFaceChange, selectedPanel, onPanelChange }
             {selectedPanel === 'front' && (
               <div
                 className="absolute inset-y-0 right-0 ring-2 ring-inset ring-panoply-teal pointer-events-none"
-                style={{ width: COVER_W }}
+                style={{ width: COVER_W, zIndex: 11 }}
               />
             )}
 

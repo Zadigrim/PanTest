@@ -3,22 +3,56 @@ import Link from 'next/link'
 import type { Metadata } from 'next'
 import type { ReactNode } from 'react'
 import { createClient } from '@/lib/supabase/server'
-import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/cn'
-import type {
-  Passport,
-  PassportPage,
-  Stop,
-  Profile,
-} from '@/lib/supabase/types'
+import { passportTypeIcon } from '@/lib/design/passport-type-icon'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-interface PassportFull extends Passport {
-  pages: (PassportPage & { stops: Stop[] })[]
-  creator:      Pick<Profile, 'id' | 'display_name' | 'avatar_url' | 'bio'> | null
-  institution:  { id: string; name: string; slug: string; logo_url: string | null } | null
-  quality_score: { composite_score: number; avg_mood_rating: number; completion_rate: number } | null
+interface StopRow {
+  id: string
+  name: string
+  stop_order: number
+  address_street: string | null
+  address_city: string | null
+  address_state: string | null
+  learning_objective: string | null
+  stamp_icon: string | null
+  classifiers: string[] | null
+  is_shared: boolean | null
+}
+
+interface PageRow {
+  id: string
+  page_order: number
+  section_title: string | null
+  section_name: string
+  prize_description: string | null
+  stops: StopRow[]
+}
+
+interface PassportRow {
+  id: string
+  title: string
+  description: string | null
+  cover_bg_color: string | null
+  cover_emblem: string | null
+  cover_outside_data: { front_bg?: string; image_url?: string; image_opacity?: number } | null
+  passport_type: string | null
+  is_published: boolean
+  is_free: boolean | null
+  price_cents: number | null
+  transit_accessible: boolean | null
+  wheelchair_accessible: boolean | null
+  expected_spend_tier: string | null
+  estimated_hours: number | null
+  creator_id: string
+}
+
+interface CreatorRow {
+  id: string
+  display_name: string | null
+  avatar_url: string | null
+  bio: string | null
 }
 
 // ─── Metadata ─────────────────────────────────────────────────────────────────
@@ -38,30 +72,12 @@ export async function generateMetadata({
 
   if (!data) return { title: 'Passport · PanoplyConnect' }
   return {
-    title:       `${data.title} · Explore · PanoplyConnect`,
-    description: data.description ?? undefined,
+    title: `${(data as { title: string }).title} · Explore · PanoplyConnect`,
+    description: (data as { description: string | null }).description ?? undefined,
   }
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function StarRating({ value }: { value: number }) {
-  const full  = Math.floor(value)
-  const half  = value - full >= 0.5 ? 1 : 0
-  const empty = 5 - full - half
-
-  return (
-    <span
-      className="text-panoply-amber"
-      aria-label={`${value.toFixed(1)} out of 5 stars`}
-    >
-      {'★'.repeat(full)}
-      {half ? '½' : ''}
-      {'☆'.repeat(empty)}
-      <span className="ml-1 font-medium text-panoply-navy">{value.toFixed(1)}</span>
-    </span>
-  )
-}
 
 const SPEND_TIER_LABELS: Record<string, string> = {
   free:       'Free',
@@ -72,24 +88,10 @@ const SPEND_TIER_LABELS: Record<string, string> = {
   '500_plus': '$500+',
 }
 
-function formatHours(hours: number): string {
-  if (hours < 1) return `${Math.round(hours * 60)} min`
-  if (hours === 1) return '1 hr'
-  return `${hours} hrs`
-}
-
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section
-      aria-labelledby={`section-${title.replace(/\s+/g, '-').toLowerCase()}`}
-      className="space-y-3"
-    >
-      <h2
-        id={`section-${title.replace(/\s+/g, '-').toLowerCase()}`}
-        className="text-base font-semibold text-panoply-navy"
-      >
-        {title}
-      </h2>
+    <section className="space-y-3">
+      <h2 className="text-base font-semibold text-panoply-navy">{title}</h2>
       {children}
     </section>
   )
@@ -105,191 +107,203 @@ export default async function ExplorePassportDetailPage({
   const { id } = await params
   const supabase = await createClient()
 
-  // ── Fetch passport + pages + stops ─────────────────────────────────────────
-  const { data: passportRow, error: passportError } = await supabase
+  // ── Fetch passport (simple select, no profile join to avoid RLS issues) ────
+  const { data: passportRaw, error: passportError } = await supabase
     .from('passports')
-    .select(`
-      *,
-      creator:profiles!creator_id ( id, display_name, avatar_url, bio ),
-      pages:passport_pages (
-        *,
-        stops ( * )
-      )
-    `)
+    .select('*')
     .eq('id', id)
     .eq('is_published', true)
     .single()
 
-  if (passportError || !passportRow) {
+  if (passportError || !passportRaw) {
     notFound()
   }
 
-  const raw = passportRow as Record<string, unknown>
+  const passport = passportRaw as unknown as PassportRow
 
-  const creatorRaw = raw['creator']
-  const creator = Array.isArray(creatorRaw)
-    ? (creatorRaw[0] ?? null) as Pick<Profile, 'id' | 'display_name' | 'avatar_url' | 'bio'> | null
-    : creatorRaw as Pick<Profile, 'id' | 'display_name' | 'avatar_url' | 'bio'> | null
+  // ── Fetch pages + stops separately ────────────────────────────────────────
+  const { data: pagesRaw } = await supabase
+    .from('passport_pages')
+    .select('id, page_order, section_title, section_name, prize_description')
+    .eq('passport_id', id)
+    .order('page_order', { ascending: true })
 
-  const institution = null
-  const quality_score = null
+  const pageIds = (pagesRaw ?? []).map((p: { id: string }) => p.id)
 
-  const pagesRaw = (raw['pages'] ?? []) as Array<Record<string, unknown>>
-  const pages: PassportFull['pages'] = pagesRaw
-    .map((p) => ({
-      ...(p as unknown as PassportPage),
-      stops: ((p['stops'] ?? []) as Stop[]).sort((a, b) => a.stop_order - b.stop_order),
-    }))
-    .sort((a, b) => a.page_order - b.page_order)
+  const { data: stopsRaw } =
+    pageIds.length > 0
+      ? await supabase
+          .from('stops')
+          .select(
+            'id, name, stop_order, address_street, address_city, address_state, learning_objective, stamp_icon, classifiers, is_shared, page_id',
+          )
+          .in('page_id', pageIds)
+          .order('stop_order', { ascending: true })
+      : { data: [] }
 
-  const passport: PassportFull = {
-    ...(raw as unknown as Passport),
-    pages,
-    creator,
-    institution,
-    quality_score,
+  // ── Fetch creator separately (graceful fallback if profile not accessible) ─
+  let creator: CreatorRow | null = null
+  try {
+    const { data: profileRaw } = await supabase
+      .from('profiles')
+      .select('id, display_name, avatar_url, bio')
+      .eq('id', passport.creator_id)
+      .maybeSingle()
+    creator = profileRaw as CreatorRow | null
+  } catch {
+    // profile read failed — continue without creator info
   }
 
-  const allStops   = pages.flatMap((p) => p.stops)
-  const totalStops = allStops.length
+  // ── Assemble pages with stops ─────────────────────────────────────────────
+  const pages: PageRow[] = (pagesRaw ?? []).map((p: Record<string, unknown>) => ({
+    id: p['id'] as string,
+    page_order: p['page_order'] as number,
+    section_title: p['section_title'] as string | null,
+    section_name: p['section_name'] as string,
+    prize_description: p['prize_description'] as string | null,
+    stops: ((stopsRaw ?? []) as Array<Record<string, unknown>>)
+      .filter((s) => s['page_id'] === p['id'])
+      .sort((a, b) => (a['stop_order'] as number) - (b['stop_order'] as number))
+      .map((s) => ({
+        id: s['id'] as string,
+        name: s['name'] as string,
+        stop_order: s['stop_order'] as number,
+        address_street: s['address_street'] as string | null,
+        address_city: s['address_city'] as string | null,
+        address_state: s['address_state'] as string | null,
+        learning_objective: s['learning_objective'] as string | null,
+        stamp_icon: s['stamp_icon'] as string | null,
+        classifiers: s['classifiers'] as string[] | null,
+        is_shared: s['is_shared'] as boolean | null,
+      })),
+  }))
+
+  const allStops = pages.flatMap((p) => p.stops)
   const prizePages = pages.filter((p) => p.prize_description)
+  const hasSharedStops = allStops.some((s) => s.is_shared)
 
-  const authorName = institution?.name ?? creator?.display_name ?? null
+  const coverBg = (passport.cover_outside_data as Record<string, string> | null)?.['front_bg']
+    ?? passport.cover_bg_color
+    ?? '0D1B2A'
+  const coverImageUrl = (passport.cover_outside_data as Record<string, string | null> | null)?.['image_url'] ?? null
 
-  const avgRating  = quality_score?.avg_mood_rating ?? null
-  const completion = quality_score?.completion_rate ?? null
-  const composite  = quality_score?.composite_score ?? null
-
-  const coverColor = passport.cover_bg_color ?? '#0D1B2A'
+  const typeIcon = passportTypeIcon(passport.passport_type ?? null)
 
   return (
     <div className="min-h-screen bg-white">
 
-      {/* ── Hero cover ──────────────────────────────────────────────────────── */}
+      {/* ── Hero cover — 2:3 proportions, full width ─────────────────────── */}
       <div
         className="relative w-full"
-        style={{ height: 240, backgroundColor: coverColor }}
-        aria-hidden="true"
+        style={{ paddingBottom: '66.67%', backgroundColor: `#${coverBg}` }}
       >
-        {passport.cover_image_url ? (
+        {coverImageUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={passport.cover_image_url}
+            src={coverImageUrl}
             alt=""
-            className="h-full w-full object-cover"
+            className="absolute inset-0 h-full w-full object-cover"
           />
         ) : passport.cover_emblem ? (
           <span className="absolute inset-0 flex items-center justify-center text-8xl leading-none select-none">
             {passport.cover_emblem}
           </span>
         ) : null}
+
+        {/* Type icon badge */}
+        <span
+          className="absolute bottom-3 left-3 flex h-9 w-9 items-center justify-center rounded-full text-xl"
+          style={{ backgroundColor: 'rgba(255,255,255,0.9)' }}
+          aria-label={`Passport type: ${passport.passport_type ?? 'general'}`}
+        >
+          {typeIcon}
+        </span>
       </div>
 
       {/* ── Main content ────────────────────────────────────────────────────── */}
-      <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
+      <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6">
 
         {/* Back link */}
         <Link
           href="/explore"
-          className="mb-6 inline-flex items-center gap-1 text-sm text-panoply-gray-3 hover:text-panoply-navy transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-panoply-teal rounded-sm"
+          className="mb-6 inline-flex items-center gap-1 text-sm text-panoply-gray-3 hover:text-panoply-navy transition-colors"
         >
-          <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" aria-hidden="true">
-            <path d="M10 3L5 8l5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-          Back to Explore
+          ← Back to Explore
         </Link>
 
-        {/* ── Title + primary action ──────────────────────────────────────── */}
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        {/* Title + author */}
+        <div className="flex items-start gap-3">
+          <span className="text-3xl leading-tight" aria-hidden="true">{typeIcon}</span>
           <div className="flex-1 min-w-0">
             <h1 className="text-2xl font-bold text-panoply-navy leading-tight">
               {passport.title}
             </h1>
-            {authorName && (
+            {creator?.display_name && (
               <p className="mt-1 text-sm text-panoply-gray-3">
                 by{' '}
-                {creator ? (
-                  <a
-                    href={`/creator/${creator.id}`}
-                    className="text-panoply-navy font-medium hover:underline"
-                  >
-                    {creator.display_name ?? 'Unknown creator'}
-                  </a>
-                ) : (
-                  authorName
-                )}
+                <span className="font-medium text-panoply-navy">
+                  {creator.display_name}
+                </span>
               </p>
             )}
           </div>
-
-          {/* Import a stop from this passport */}
-          <div className="shrink-0 sm:pl-4">
-            <Link
-              href={`/stops?passport=${passport.id}`}
-              className={cn(
-                'inline-flex h-10 items-center justify-center gap-2 rounded-panel px-5 text-sm font-medium',
-                'border border-panoply-teal text-panoply-teal bg-white hover:bg-panoply-teal-lt transition-colors',
-                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-panoply-teal'
-              )}
-            >
-              Import a stop
-            </Link>
-          </div>
         </div>
 
-        {/* ── Badge row ─────────────────────────────────────────────────────── */}
-        {(passport.is_free || passport.transit_accessible || passport.wheelchair_accessible || passport.award_year || passport.shortlisted) && (
-          <div className="mt-4 flex flex-wrap gap-2">
-            {passport.is_free && <Badge variant="free">Free</Badge>}
-            {passport.transit_accessible && passport.wheelchair_accessible && (
-              <Badge variant="accessible">Accessible</Badge>
-            )}
-            {passport.award_year && (
-              <Badge variant="award">Award {passport.award_year}</Badge>
-            )}
-            {passport.shortlisted && (
-              <Badge variant="certified">Shortlisted</Badge>
-            )}
-            {passport.passport_type && (
-              <Badge variant="default">
-                {passport.passport_type.charAt(0).toUpperCase() + passport.passport_type.slice(1)}
-              </Badge>
-            )}
-          </div>
-        )}
+        {/* Badge row */}
+        <div className="mt-4 flex flex-wrap gap-2 text-xs">
+          {passport.expected_spend_tier && SPEND_TIER_LABELS[passport.expected_spend_tier] && (
+            <span className="rounded-full border border-panoply-gray-2 px-2.5 py-1 text-panoply-gray-3">
+              {SPEND_TIER_LABELS[passport.expected_spend_tier]} on the ground
+            </span>
+          )}
+          {passport.is_free && (
+            <span className="rounded-full bg-panoply-teal-lt px-2.5 py-1 font-medium text-panoply-teal-dk">
+              Free passport
+            </span>
+          )}
+          {passport.transit_accessible && (
+            <span className="rounded-full border border-panoply-gray-2 px-2.5 py-1 text-panoply-gray-3">
+              🚌 Transit friendly
+            </span>
+          )}
+          {passport.wheelchair_accessible && (
+            <span className="rounded-full border border-panoply-gray-2 px-2.5 py-1 text-panoply-gray-3">
+              ♿ Wheelchair accessible
+            </span>
+          )}
+          {passport.passport_type && (
+            <span className="rounded-full border border-panoply-gray-2 px-2.5 py-1 text-panoply-gray-3 capitalize">
+              {passport.passport_type}
+            </span>
+          )}
+        </div>
 
-        {/* ── Stats ────────────────────────────────────────────────────────── */}
-        {(avgRating !== null || completion !== null || composite !== null || totalStops > 0) && (
-          <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-1 text-sm">
-            {avgRating !== null && <StarRating value={avgRating} />}
-            {completion !== null && (
-              <span className="text-panoply-gray-3">
-                {Math.round(completion * 100)}% completion rate
-              </span>
-            )}
-            {composite !== null && (
-              <span className="text-panoply-gray-3">
-                Quality score: {(composite * 100).toFixed(0)}
-              </span>
-            )}
-            {totalStops > 0 && (
-              <span className="text-panoply-gray-3">
-                {totalStops} {totalStops === 1 ? 'stop' : 'stops'}
-              </span>
+        {/* Stats row */}
+        {(pages.length > 0 || allStops.length > 0) && (
+          <p className="mt-3 text-sm text-panoply-gray-3">
+            {pages.length} {pages.length === 1 ? 'page' : 'pages'}
+            {allStops.length > 0 && (
+              <>
+                {' · '}
+                {allStops.length} {allStops.length === 1 ? 'stop' : 'stops'}
+              </>
             )}
             {passport.estimated_hours != null && (
-              <span className="text-panoply-gray-3">
-                ~{formatHours(passport.estimated_hours)}
-              </span>
+              <>
+                {' · ~'}
+                {passport.estimated_hours < 1
+                  ? `${Math.round(passport.estimated_hours * 60)} min`
+                  : `${passport.estimated_hours} hr`}
+              </>
             )}
-          </div>
+          </p>
         )}
 
-        <hr className="my-8 border-panoply-gray-2" />
+        <hr className="my-6 border-panoply-gray-2" />
 
-        <div className="space-y-10">
+        <div className="space-y-8">
 
-          {/* About */}
+          {/* Description */}
           {passport.description && (
             <Section title="About">
               <p className="text-sm leading-relaxed text-panoply-gray-3 whitespace-pre-line">
@@ -298,30 +312,8 @@ export default async function ExplorePassportDetailPage({
             </Section>
           )}
 
-          {/* Expected spend */}
-          {(passport.expected_spend_tier || !passport.is_free) && (
-            <Section title="Expected spend">
-              <div className="flex flex-wrap items-center gap-4 text-sm text-panoply-navy">
-                <div className="flex items-baseline gap-1.5">
-                  <span className="font-semibold">
-                    {passport.is_free ? 'Free' : passport.price_cents ? `$${(passport.price_cents / 100).toFixed(2)}` : 'Paid'}
-                  </span>
-                  <span className="text-panoply-gray-3 text-xs">passport</span>
-                </div>
-                {passport.expected_spend_tier && SPEND_TIER_LABELS[passport.expected_spend_tier] && (
-                  <div className="flex items-baseline gap-1.5">
-                    <span className="font-semibold">
-                      {SPEND_TIER_LABELS[passport.expected_spend_tier]}
-                    </span>
-                    <span className="text-panoply-gray-3 text-xs">on the ground</span>
-                  </div>
-                )}
-              </div>
-            </Section>
-          )}
-
           {/* Stops */}
-          {totalStops > 0 && (
+          {allStops.length > 0 && (
             <Section title="Stops">
               <ol className="space-y-2">
                 {pages.map((page) =>
@@ -329,8 +321,9 @@ export default async function ExplorePassportDetailPage({
                     const globalIdx =
                       pages
                         .slice(0, pages.indexOf(page))
-                        .reduce((acc, p) => acc + p.stops.length, 0) + idx + 1
-
+                        .reduce((acc, p) => acc + p.stops.length, 0) +
+                      idx +
+                      1
                     return (
                       <li
                         key={stop.id}
@@ -339,7 +332,7 @@ export default async function ExplorePassportDetailPage({
                         <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-panoply-teal text-white text-xs font-semibold">
                           {globalIdx}
                         </span>
-                        <div className="flex-1">
+                        <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-panoply-navy">{stop.name}</p>
                           {(stop.address_street || stop.address_city) && (
                             <p className="mt-0.5 text-xs text-panoply-gray-3">
@@ -349,24 +342,28 @@ export default async function ExplorePassportDetailPage({
                             </p>
                           )}
                           {stop.learning_objective && (
-                            <p className="mt-0.5 text-xs text-panoply-gray-3 italic">
+                            <p className="mt-0.5 text-xs italic text-panoply-gray-3">
                               {stop.learning_objective}
                             </p>
                           )}
-                        </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          {stop.stamp_icon && (
-                            <span className="text-lg leading-none" aria-hidden="true">
-                              {stop.stamp_icon}
-                            </span>
+                          {(stop.classifiers ?? []).length > 0 && (
+                            <div className="mt-1 flex flex-wrap gap-1">
+                              {(stop.classifiers ?? []).slice(0, 3).map((c) => (
+                                <span
+                                  key={c}
+                                  className="rounded-card bg-panoply-teal-lt px-1.5 py-0.5 text-[10px] font-medium text-panoply-teal-dk capitalize"
+                                >
+                                  {c.replace(/_/g, ' ')}
+                                </span>
+                              ))}
+                            </div>
                           )}
-                          <Link
-                            href={`/stops?stop=${stop.id}`}
-                            className="rounded-card border border-panoply-gray-2 px-2.5 py-1 text-xs font-medium text-panoply-navy hover:border-panoply-teal hover:text-panoply-teal transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-panoply-teal"
-                          >
-                            Import stop
-                          </Link>
                         </div>
+                        {stop.stamp_icon && (
+                          <span className="text-lg leading-none shrink-0" aria-hidden="true">
+                            {stop.stamp_icon}
+                          </span>
+                        )}
                       </li>
                     )
                   })
@@ -375,25 +372,23 @@ export default async function ExplorePassportDetailPage({
             </Section>
           )}
 
-          {/* Prize on completion */}
+          {/* Prize pages */}
           {prizePages.length > 0 && (
             <Section title="Prize on completion">
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {prizePages.map((page) => (
                   <div
                     key={page.id}
                     className="flex items-start gap-3 rounded-panel border border-panoply-amber bg-amber-50 px-4 py-3"
                   >
-                    <span className="text-xl leading-none" aria-hidden="true">🏆</span>
+                    <span className="text-xl" aria-hidden="true">🏆</span>
                     <div>
                       {page.section_title && (
                         <p className="text-sm font-semibold text-panoply-navy">
                           {page.section_title}
                         </p>
                       )}
-                      <p className="mt-0.5 text-sm text-panoply-gray-3">
-                        {page.prize_description}
-                      </p>
+                      <p className="text-sm text-panoply-gray-3">{page.prize_description}</p>
                     </div>
                   </div>
                 ))}
@@ -402,54 +397,53 @@ export default async function ExplorePassportDetailPage({
           )}
 
           {/* About the creator */}
-          {(creator?.display_name || creator?.bio) && (
+          {creator && (creator.display_name || creator.bio) && (
             <Section title="About the creator">
               <div className="flex items-start gap-4 rounded-panel border border-panoply-gray-2 bg-panoply-gray-1 p-4">
-                {creator?.avatar_url ? (
+                {creator.avatar_url ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={creator.avatar_url}
-                    alt={creator.display_name ?? 'Creator avatar'}
+                    alt={creator.display_name ?? 'Creator'}
                     className="h-12 w-12 shrink-0 rounded-full object-cover border-2 border-panoply-gray-2"
                   />
                 ) : (
                   <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-panoply-teal text-white text-base font-semibold select-none">
-                    {(creator?.display_name ?? '?')[0].toUpperCase()}
+                    {(creator.display_name ?? '?')[0].toUpperCase()}
                   </div>
                 )}
                 <div className="min-w-0">
                   <p className="text-sm font-semibold text-panoply-navy">
-                    {creator?.display_name ?? 'Unknown creator'}
+                    {creator.display_name ?? 'Unknown creator'}
                   </p>
-                  {creator?.bio && (
+                  {creator.bio && (
                     <p className="mt-1 text-sm text-panoply-gray-3 leading-relaxed line-clamp-4">
                       {creator.bio}
                     </p>
-                  )}
-                  {creator && (
-                    <a
-                      href={`/creator/${creator.id}`}
-                      className="mt-2 inline-block text-xs font-medium text-panoply-teal hover:underline"
-                    >
-                      View all passports
-                    </a>
                   )}
                 </div>
               </div>
             </Section>
           )}
 
-          {/* Bottom CTA — import a stop */}
-          <div className="flex justify-center border-t border-panoply-gray-2 pt-8">
+          {/* Bottom CTAs */}
+          <div
+            className={cn(
+              'flex flex-col gap-3 border-t border-panoply-gray-2 pt-6',
+              'sm:flex-row sm:items-center',
+            )}
+          >
             <Link
               href={`/stops?passport=${passport.id}`}
               className={cn(
-                'inline-flex h-11 items-center justify-center gap-2 rounded-panel px-6 text-sm font-semibold',
-                'bg-panoply-teal text-white hover:bg-panoply-teal-dk transition-colors',
-                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-panoply-teal'
+                'inline-flex h-11 flex-1 items-center justify-center rounded-panel px-6 text-sm font-semibold',
+                'border border-panoply-gray-2 text-panoply-navy hover:border-panoply-teal hover:text-panoply-teal-dk',
+                'transition-colors',
+                !hasSharedStops && 'pointer-events-none opacity-40',
               )}
+              aria-disabled={!hasSharedStops}
             >
-              Import a stop from this passport
+              {hasSharedStops ? 'Import a stop' : 'No shared stops'}
             </Link>
           </div>
         </div>
