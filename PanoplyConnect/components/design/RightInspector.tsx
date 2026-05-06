@@ -7,9 +7,11 @@ import {
   selectSelectedStop,
   selectSelectedElement,
 } from '@/lib/design/passport-store'
+import { CLASSIFIERS } from '@/lib/design/classifiers'
 import { Input } from './ui/Input'
 import { Label } from './ui/Label'
 import { Button } from './ui/Button'
+import { ColorPickerInput } from './ui/ColorPickerInput'
 import type {
   DesignerStop,
   DesignerPassportPage,
@@ -18,7 +20,11 @@ import type {
   PassportType,
 } from '@/lib/design/types'
 
-export function RightInspector() {
+export function RightInspector({
+  creatorInstitutionId,
+}: {
+  creatorInstitutionId: string | null
+}) {
   const activePage = usePassportStore(selectActivePage)
   const selectedStop = usePassportStore(selectSelectedStop)
   const selectedElement = usePassportStore(selectSelectedElement)
@@ -53,8 +59,8 @@ export function RightInspector() {
       </div>
 
       <div className="flex-1 overflow-y-auto">
-        {selectedStop ? (
-          <StopInspector stop={selectedStop} />
+        {selectedStop && activePage?.page_type !== 'information' ? (
+          <StopInspector stop={selectedStop} creatorInstitutionId={creatorInstitutionId} />
         ) : selectedElement && activePage ? (
           <ElementInspector element={selectedElement} pageId={activePage.id} />
         ) : activePage ? (
@@ -69,17 +75,7 @@ export function RightInspector() {
 
 // ── Classifier / educational constants ────────────────────────────────────────
 
-const CLASSIFIER_OPTIONS = [
-  { value: 'educational',   label: 'Educational' },
-  { value: 'heritage',      label: 'Heritage' },
-  { value: 'nature',        label: 'Nature' },
-  { value: 'arts_culture',  label: 'Arts & culture' },
-  { value: 'family',        label: 'Family' },
-  { value: 'accessible',    label: 'Accessible' },
-  { value: 'challenge',     label: 'Challenge' },
-  { value: 'hidden_gem',    label: 'Hidden gem' },
-  { value: 'food_drink',    label: 'Food & drink' },
-] as const
+const CLASSIFIER_OPTIONS = CLASSIFIERS.map((c) => ({ value: c.id, label: c.label }))
 
 const GRADE_LEVEL_OPTIONS = [
   { value: 'K-2',  label: 'K–2'  },
@@ -158,7 +154,13 @@ const STAMP_ICONS = [
 
 const SMUDGE_OPTIONS = ['none', 'light', 'medium', 'heavy'] as const
 
-function StopInspector({ stop }: { stop: DesignerStop }) {
+function StopInspector({
+  stop,
+  creatorInstitutionId,
+}: {
+  stop: DesignerStop
+  creatorInstitutionId: string | null
+}) {
   const updateStop = usePassportStore((s) => s.updateStop)
   const removeStop = usePassportStore((s) => s.removeStop)
   const setSelectedStop = usePassportStore((s) => s.setSelectedStop)
@@ -294,22 +296,22 @@ function StopInspector({ stop }: { stop: DesignerStop }) {
           </div>
         </div>
 
-        <div>
-          <Label className="text-xs text-panoply-gray-3">Color</Label>
-          <div className="mt-1.5 flex flex-wrap gap-1.5">
-            {PRESET_COLORS.map((hex) => (
-              <button
-                key={hex}
-                onClick={() => persist({ stamp_color: hex })}
-                className={`h-6 w-6 rounded-full border-2 transition-transform hover:scale-110 ${
-                  stop.stamp_color === hex ? 'border-panoply-navy scale-110' : 'border-transparent'
-                }`}
-                style={{ backgroundColor: `#${hex}` }}
-                title={`#${hex}`}
-              />
-            ))}
+        <Field label="Color">
+          <div className="flex items-center gap-2">
+            <Input
+              value={stop.stamp_color ?? '1D9E75'}
+              maxLength={6}
+              onChange={(e) => updateStop(stop.id, { stamp_color: e.target.value })}
+              onBlur={(e) => void persist({ stamp_color: e.target.value })}
+              className="h-8 flex-1 font-mono text-sm uppercase"
+            />
+            <ColorPickerInput
+              value={stop.stamp_color ?? '1D9E75'}
+              onChange={(hex) => updateStop(stop.id, { stamp_color: hex })}
+              onCommit={(hex) => void persist({ stamp_color: hex })}
+            />
           </div>
-        </div>
+        </Field>
 
         <div>
           <Label className="text-xs text-panoply-gray-3">Smudge</Label>
@@ -454,8 +456,8 @@ function StopInspector({ stop }: { stop: DesignerStop }) {
                 <button
                   key={value}
                   onClick={() => {
-                    const current = stop.classifiers ?? []
-                    const next = active
+                    const current: string[] = stop.classifiers ?? []
+                    const next: string[] = active
                       ? current.filter((c) => c !== value)
                       : [...current, value]
                     void persist({ classifiers: next })
@@ -532,32 +534,37 @@ function StopInspector({ stop }: { stop: DesignerStop }) {
 
       <PhysicalPassportSection stop={stop} persist={persist} />
 
-      {/* Share to stop library — visible when educational classifier is set */}
+      {/* Share with the community — visible when educational classifier is set */}
       {(stop.classifiers ?? []).includes('educational') && (
-        <Section title="Stop library">
-          <label className="flex cursor-pointer items-start gap-3">
+        <Section title="Share with the community">
+          <p className="text-xs text-panoply-gray-3 leading-relaxed">
+            When shared, other educators can import this stop into their passports.
+            Your name and institution will be credited.
+          </p>
+          <label
+            className={`flex items-start gap-3 ${creatorInstitutionId ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'}`}
+          >
             <input
               type="checkbox"
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              checked={(stop as any).is_shared ?? false}
+              checked={stop.is_shared ?? false}
+              disabled={!creatorInstitutionId}
               onChange={(e) => {
+                if (!creatorInstitutionId) return
                 const shared = e.target.checked
                 void persist({
-                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                  is_shared: shared as any,
-                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                  shared_at: (shared ? new Date().toISOString() : null) as any,
+                  is_shared: shared,
+                  shared_at: shared ? new Date().toISOString() : null,
                 })
               }}
               className="mt-0.5 h-4 w-4 rounded accent-panoply-teal"
             />
-            <div>
-              <span className="text-sm text-panoply-navy">Share to stop library</span>
-              <p className="mt-0.5 text-xs text-panoply-gray-3 leading-relaxed">
-                Other creators can import this stop into their passports.
-              </p>
-            </div>
+            <span className="text-sm text-panoply-navy">Share this stop</span>
           </label>
+          {!creatorInstitutionId && (
+            <p className="text-xs text-panoply-gray-3 leading-relaxed">
+              Educational stops can only be shared by verified institutional accounts.
+            </p>
+          )}
         </Section>
       )}
 
@@ -591,6 +598,11 @@ function PageInspector({ page }: { page: DesignerPassportPage }) {
 
   return (
     <div className="space-y-5 p-4">
+      {page.page_type === 'information' && (
+        <div className="rounded-card bg-panoply-teal-lt px-3 py-2 text-xs text-panoply-teal-dk">
+          📄 Information page — no stamps collected here
+        </div>
+      )}
       <Section title="Section">
         <Field label="Title">
           <Input
@@ -641,9 +653,10 @@ function PageInspector({ page }: { page: DesignerPassportPage }) {
               onBlur={(e) => persist({ paper_color: e.target.value })}
               className="h-8 flex-1 font-mono text-sm uppercase"
             />
-            <div
-              className="h-8 w-8 shrink-0 rounded-card border border-panoply-gray-2"
-              style={{ backgroundColor: `#${page.paper_color ?? 'F5F2EC'}` }}
+            <ColorPickerInput
+              value={page.paper_color ?? 'F5F2EC'}
+              onChange={(hex) => updatePage(page.id, { paper_color: hex })}
+              onCommit={(hex) => void persist({ paper_color: hex })}
             />
           </div>
         </Field>
@@ -659,9 +672,10 @@ function PageInspector({ page }: { page: DesignerPassportPage }) {
                   onBlur={(e) => persist({ background_color: e.target.value })}
                   className="h-8 flex-1 font-mono text-sm uppercase"
                 />
-                <div
-                  className="h-8 w-8 shrink-0 rounded-card border border-panoply-gray-2"
-                  style={{ backgroundColor: `#${page.background_color ?? '0D1B2A'}` }}
+                <ColorPickerInput
+                  value={page.background_color ?? '0D1B2A'}
+                  onChange={(hex) => updatePage(page.id, { background_color: hex })}
+                  onCommit={(hex) => void persist({ background_color: hex })}
                 />
               </div>
             </Field>
@@ -923,23 +937,22 @@ function ElementInspector({
               The quick brown fox
             </p>
           </Field>
-          <div>
-            <Label className="text-xs text-panoply-gray-3">Color</Label>
-            <div className="mt-1.5 flex flex-wrap gap-1.5">
-              {LABEL_COLORS.map((hex) => (
-                <button
-                  key={hex}
-                  onClick={() => persist({ color: hex })}
-                  className={`h-6 w-6 rounded-full border-2 transition-transform hover:scale-110 ${
-                    (element.color ?? '0D1B2A') === hex
-                      ? 'border-panoply-navy scale-110'
-                      : 'border-transparent'
-                  }`}
-                  style={{ backgroundColor: `#${hex}` }}
-                />
-              ))}
+          <Field label="Color">
+            <div className="flex gap-2">
+              <Input
+                value={element.color ?? '0D1B2A'}
+                maxLength={6}
+                onChange={(e) => updateElement(pageId, element.id, { color: e.target.value })}
+                onBlur={(e) => void persist({ color: e.target.value })}
+                className="h-8 flex-1 font-mono text-sm uppercase"
+              />
+              <ColorPickerInput
+                value={element.color ?? '0D1B2A'}
+                onChange={(hex) => updateElement(pageId, element.id, { color: hex })}
+                onCommit={(hex) => void persist({ color: hex })}
+              />
             </div>
-          </div>
+          </Field>
         </Section>
       )}
 
@@ -958,23 +971,22 @@ function ElementInspector({
               className="h-8 text-sm"
             />
           </Field>
-          <div>
-            <Label className="text-xs text-panoply-gray-3">Color</Label>
-            <div className="mt-1.5 flex flex-wrap gap-1.5">
-              {LABEL_COLORS.map((hex) => (
-                <button
-                  key={hex}
-                  onClick={() => persist({ lineColor: hex })}
-                  className={`h-6 w-6 rounded-full border-2 transition-transform hover:scale-110 ${
-                    (element.lineColor ?? '0D1B2A') === hex
-                      ? 'border-panoply-navy scale-110'
-                      : 'border-transparent'
-                  }`}
-                  style={{ backgroundColor: `#${hex}` }}
-                />
-              ))}
+          <Field label="Color">
+            <div className="flex gap-2">
+              <Input
+                value={element.lineColor ?? '0D1B2A'}
+                maxLength={6}
+                onChange={(e) => updateElement(pageId, element.id, { lineColor: e.target.value })}
+                onBlur={(e) => void persist({ lineColor: e.target.value })}
+                className="h-8 flex-1 font-mono text-sm uppercase"
+              />
+              <ColorPickerInput
+                value={element.lineColor ?? '0D1B2A'}
+                onChange={(hex) => updateElement(pageId, element.id, { lineColor: hex })}
+                onCommit={(hex) => void persist({ lineColor: hex })}
+              />
             </div>
-          </div>
+          </Field>
         </Section>
       )}
 

@@ -35,6 +35,15 @@ export default async function DesignWorkspacePage({ params }: Props) {
 
   if (!passport) notFound()
 
+  // Load creator's institution_id to gate the stop-library share toggle
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('institution_id')
+    .eq('id', user.id)
+    .maybeSingle()
+  const creatorInstitutionId: string | null =
+    (profile as { institution_id: string | null } | null)?.institution_id ?? null
+
   // Load pages ordered by page_order
   const { data: pages } = await supabase
     .from('passport_pages')
@@ -59,6 +68,7 @@ export default async function DesignWorkspacePage({ params }: Props) {
       passport={passport as unknown as DesignerPassport}
       pages={(pages ?? []) as unknown as DesignerPassportPage[]}
       stops={(stops ?? []) as unknown as DesignerStop[]}
+      creatorInstitutionId={creatorInstitutionId}
     />
   )
 }

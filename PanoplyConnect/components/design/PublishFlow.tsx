@@ -26,11 +26,15 @@ export function PublishFlow({ onClose }: Props) {
   if (!passport) return null
 
   // ── Validation checks ──────────────────────────────────────────────────────
+  const stampPages = pages.filter((p) => p.page_type !== 'information')
+
   const validationIssues: string[] = []
   if (!passport.title.trim() || passport.title === 'Untitled Passport')
     validationIssues.push('Give your passport a real title.')
   if (pages.length === 0)
     validationIssues.push('Add at least one page.')
+  if (stampPages.length === 0)
+    validationIssues.push('Add at least one stamp page — information-only passports cannot be published.')
   if (stops.length === 0)
     validationIssues.push('Add at least one stop.')
   const stopsWithoutLocation = stops.filter((s) => !s.address_street && !s.lat)

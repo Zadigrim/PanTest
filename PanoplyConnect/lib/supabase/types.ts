@@ -6,43 +6,140 @@ export type UserRole = 'collector' | 'creator' | 'employee' | 'admin'
 export type InstitutionTier = 'community' | 'commercial' | 'enterprise'
 
 export type InstitutionType =
-  | 'k12_school' | 'public_library' | 'museum' | 'parks_department'
-  | 'aquarium' | 'zoo' | 'nature_conservatory'
-  | 'nonprofit' | 'municipality' | 'chamber_of_commerce'
-  | 'tourism_board' | 'proprietor' | 'hotel_chain' | 'expo_organizer'
+  // Educational
+  | 'k12_school' | 'public_library' | 'museum' | 'educational_nonprofit'
+  | 'after_school_program' | 'literacy_organization' | 'youth_development'
+  | 'homeschool_cooperative'
+  // Environmental / conservation
+  | 'parks_department' | 'nature_conservatory' | 'land_trust'
+  | 'watershed_council' | 'native_plant_society' | 'wildlife_rehabilitation'
+  | 'environmental_education'
+  // Cultural preservation
+  | 'historical_society' | 'heritage_organization' | 'cultural_center'
+  | 'oral_history_project'
+  // Community arts
+  | 'community_theater' | 'public_art_organization' | 'community_arts_center'
+  | 'community_music_program' | 'writing_center'
+  // Social services
+  | 'food_bank' | 'homeless_shelter' | 'refugee_immigrant_services'
+  | 'free_health_clinic' | 'adult_literacy'
+  // Community access
+  | 'community_garden' | 'maker_space' | 'tool_lending_library' | 'seed_library'
+  // Municipal
+  | 'municipality'
+  // Admission-charging (paid passport model)
+  | 'zoo' | 'aquarium' | 'botanical_garden' | 'science_museum'
+  | 'childrens_museum' | 'nature_center_paid'
+  // Commercial
+  | 'chamber_of_commerce' | 'tourism_board' | 'proprietor' | 'hotel_chain'
+  | 'expo_organizer'
+  // Legacy
   | 'general' | 'library' | 'school' | 'park' | 'historic_site'
-  | 'other'
+  | 'nonprofit' | 'other'
 
 export const INSTITUTION_TYPE_LABELS: Record<string, string> = {
-  k12_school:          'K–12 School',
-  public_library:      'Public Library',
-  museum:              'Museum',
-  parks_department:    'Parks Department',
-  aquarium:            'Aquarium',
-  zoo:                 'Zoo',
-  nature_conservatory: 'Nature Conservatory',
-  nonprofit:           'Nonprofit',
-  municipality:        'Municipality',
-  chamber_of_commerce: 'Chamber of Commerce',
-  tourism_board:       'Tourism Board',
-  proprietor:          'Proprietor',
-  hotel_chain:         'Hotel Chain',
-  expo_organizer:      'Expo Organizer',
-  other:               'Other',
-  // legacy
-  general:             'General',
-  library:             'Library',
-  school:              'School',
-  park:                'Park',
-  historic_site:       'Historic Site',
+  // Educational
+  k12_school:                'K–12 School',
+  public_library:            'Public Library',
+  museum:                    'Museum',
+  educational_nonprofit:     'Educational Nonprofit',
+  after_school_program:      'After-School Program',
+  literacy_organization:     'Literacy Organization',
+  youth_development:         'Youth Development (Scouts, 4-H, etc.)',
+  homeschool_cooperative:    'Homeschool Cooperative',
+  // Environmental / conservation
+  parks_department:          'Parks Department',
+  nature_conservatory:       'Nature Conservatory (free access)',
+  land_trust:                'Land Trust',
+  watershed_council:         'Watershed Council',
+  native_plant_society:      'Native Plant Society',
+  wildlife_rehabilitation:   'Wildlife Rehabilitation',
+  environmental_education:   'Environmental Education',
+  // Cultural preservation
+  historical_society:        'Historical Society',
+  heritage_organization:     'Heritage Organization',
+  cultural_center:           'Cultural Center',
+  oral_history_project:      'Oral History Project',
+  // Community arts
+  community_theater:         'Community Theater',
+  public_art_organization:   'Public Art Organization',
+  community_arts_center:     'Community Arts Center',
+  community_music_program:   'Community Music Program',
+  writing_center:            'Writing Center',
+  // Social services
+  food_bank:                 'Food Bank',
+  homeless_shelter:          'Homeless Shelter / Housing Nonprofit',
+  refugee_immigrant_services:'Refugee & Immigrant Services',
+  free_health_clinic:        'Free Health Clinic',
+  adult_literacy:            'Adult Literacy / GED Program',
+  // Community access
+  community_garden:          'Community Garden',
+  maker_space:               'Maker Space (free/low-cost)',
+  tool_lending_library:      'Tool Lending Library',
+  seed_library:              'Seed Library',
+  // Municipal
+  municipality:              'Municipality (under 25k population)',
+  // Admission-charging
+  zoo:                       'Zoo',
+  aquarium:                  'Aquarium',
+  botanical_garden:          'Botanical Garden',
+  science_museum:            'Science Museum',
+  childrens_museum:          'Children\'s Museum',
+  nature_center_paid:        'Nature Center (admission-charging)',
+  // Commercial
+  chamber_of_commerce:       'Chamber of Commerce',
+  tourism_board:             'Tourism Board',
+  proprietor:                'Proprietor',
+  hotel_chain:               'Hotel Chain',
+  expo_organizer:            'Expo Organizer',
+  other:                     'Other',
+  // Legacy
+  general:                   'General',
+  library:                   'Library',
+  school:                    'School',
+  park:                      'Park',
+  historic_site:             'Historic Site',
+  nonprofit:                 'Nonprofit',
 }
 
+// Free-forever institution types (no subscription, no cost)
 export const FREE_INSTITUTION_TYPES = new Set<string>([
-  'k12_school', 'public_library', 'museum', 'parks_department',
-  'aquarium', 'zoo', 'nature_conservatory',
-  'nonprofit', 'municipality',
-  // legacy
-  'school', 'library', 'park',
+  // Educational
+  'k12_school', 'public_library', 'museum', 'educational_nonprofit',
+  'after_school_program', 'literacy_organization', 'youth_development',
+  'homeschool_cooperative',
+  // Environmental / conservation (free-access only)
+  'parks_department', 'nature_conservatory', 'land_trust',
+  'watershed_council', 'native_plant_society', 'wildlife_rehabilitation',
+  'environmental_education',
+  // Cultural preservation
+  'historical_society', 'heritage_organization', 'cultural_center',
+  'oral_history_project',
+  // Community arts
+  'community_theater', 'public_art_organization', 'community_arts_center',
+  'community_music_program', 'writing_center',
+  // Social services
+  'food_bank', 'homeless_shelter', 'refugee_immigrant_services',
+  'free_health_clinic', 'adult_literacy',
+  // Community access
+  'community_garden', 'maker_space', 'tool_lending_library', 'seed_library',
+  // Municipal
+  'municipality',
+  // Legacy
+  'school', 'library', 'park', 'nonprofit',
+])
+
+// Admission-charging institutions — paid passport model (70/30 split, no subscription)
+export const ADMISSION_CHARGING_TYPES = new Set<string>([
+  'zoo', 'aquarium', 'botanical_garden', 'science_museum',
+  'childrens_museum', 'nature_center_paid',
+])
+
+// Nature/science types that need the admission question during onboarding
+export const ADMISSION_QUESTION_TYPES = new Set<string>([
+  'zoo', 'aquarium', 'botanical_garden', 'science_museum',
+  'childrens_museum', 'nature_center_paid', 'nature_conservatory',
+  'environmental_education', 'wildlife_rehabilitation',
 ])
 export type PassportType = 'location' | 'experience' | 'learning'
 export type PassportStatus = string // open-ended; tighten if values are known

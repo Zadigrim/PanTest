@@ -7,6 +7,7 @@ import { Input } from './ui/Input'
 import { Label } from './ui/Label'
 import { getSideData, CANVAS_W, COVER_H } from './CoverCanvas'
 import type { CoverFace, CoverPanel } from './CoverCanvas'
+import { ColorPickerInput } from './ui/ColorPickerInput'
 import type { CoverSideData } from '@/lib/design/types'
 
 // ── CoverInspector ────────────────────────────────────────────────────────────
@@ -130,9 +131,14 @@ export function CoverInspector({ face, panel }: Props) {
               className="h-8 flex-1 font-mono text-sm uppercase"
               placeholder="0D1B2A"
             />
-            <div
-              className="h-8 w-8 shrink-0 rounded-card border border-panoply-gray-2"
-              style={{ backgroundColor: `#${sideData[bgKey]}` }}
+            <ColorPickerInput
+              value={sideData[bgKey]}
+              onChange={(hex) => {
+                const next = { ...sideData, [bgKey]: hex }
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                updatePassport({ [sideKey]: next } as any)
+              }}
+              onCommit={(hex) => void persist({ [bgKey]: hex })}
             />
           </div>
         </div>

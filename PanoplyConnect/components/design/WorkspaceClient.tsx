@@ -20,9 +20,10 @@ interface Props {
   passport: DesignerPassport
   pages: DesignerPassportPage[]
   stops: DesignerStop[]
+  creatorInstitutionId: string | null
 }
 
-export function WorkspaceClient({ passport, pages, stops }: Props) {
+export function WorkspaceClient({ passport, pages, stops, creatorInstitutionId }: Props) {
   const hydrate = usePassportStore((s) => s.hydrate)
   const isDirty = usePassportStore((s) => s.isDirty)
   const isSaving = usePassportStore((s) => s.isSaving)
@@ -147,7 +148,7 @@ export function WorkspaceClient({ passport, pages, stops }: Props) {
           <>
             <LeftPalette />
             <Canvas />
-            <RightInspector />
+            <RightInspector creatorInstitutionId={creatorInstitutionId} />
           </>
         )}
       </div>

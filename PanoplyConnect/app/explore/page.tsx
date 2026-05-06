@@ -168,9 +168,9 @@ function ExploreCard({ passport }: { passport: PassportWithDetails }) {
             aria-hidden="true"
           />
         )}
-        {/* Type icon badge — bottom-left, overlapping boundary */}
+        {/* Type icon badge — bottom-right */}
         <span
-          className="absolute bottom-2 left-2 flex h-7 w-7 items-center justify-center rounded-full text-base"
+          className="absolute bottom-2 right-2 flex h-7 w-7 items-center justify-center rounded-full text-base"
           style={{ backgroundColor: 'rgba(255,255,255,0.9)' }}
           aria-hidden="true"
         >
@@ -379,7 +379,7 @@ export default function ExplorePage() {
               {filtered.length} {filtered.length === 1 ? 'passport' : 'passports'}
             </p>
             <div
-              className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3"
+              className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
               aria-label="Passport catalogue"
             >
               {filtered.map((passport) => (

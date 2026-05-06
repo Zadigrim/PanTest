@@ -73,11 +73,14 @@ export interface DesignerPassport {
   published_at: string | null
 }
 
+export type PageType = 'stamp' | 'information'
+
 export interface DesignerPassportPage {
   id: string
   passport_id: string
   page_number: number | null
   page_order: number
+  page_type: PageType
   section_name: string
   section_title: string | null
   section_subtitle: string | null
@@ -127,5 +130,8 @@ export interface DesignerStop {
   journal_prompt: string | null
   // Print for kids (migration 005)
   print_include_journal: boolean
+  // Stop library (migration 011)
+  is_shared: boolean
+  shared_at: string | null
   created_at: string
 }

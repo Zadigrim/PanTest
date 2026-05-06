@@ -22,6 +22,8 @@ async function persistAll() {
       cover_emblem:           passport.cover_emblem,
       cover_paper_color:      passport.cover_paper_color,
       cover_bg_color:         passport.cover_bg_color,
+      cover_outside_data:     passport.cover_outside_data,
+      cover_inside_data:      passport.cover_inside_data,
       expected_spend_tier:    passport.expected_spend_tier,
       expected_spend_note:    passport.expected_spend_note,
       transit_accessible:     passport.transit_accessible,
@@ -39,6 +41,7 @@ async function persistAll() {
           section_subtitle:          page.section_subtitle,
           prize_description:         page.prize_description,
           prize_location_constraint: page.prize_location_constraint,
+          elements:                  page.elements ?? [],
         })
         .eq('id', page.id),
     ),
@@ -52,6 +55,11 @@ async function persistAll() {
           name:               stop.name,
           learning_objective: stop.learning_objective,
           journal_prompt:     stop.journal_prompt,
+          classifiers:        stop.classifiers ?? [],
+          grade_levels:       stop.grade_levels ?? [],
+          subject_areas:      stop.subject_areas ?? [],
+          is_shared:          stop.is_shared ?? false,
+          shared_at:          stop.shared_at ?? null,
         })
         .eq('id', stop.id),
     ),

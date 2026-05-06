@@ -69,7 +69,7 @@ function CoverThumbnail({ passport }: { passport: DesignerPassport }) {
 
   const badge = (
     <span
-      className="absolute bottom-2 left-2 flex h-7 w-7 items-center justify-center rounded-full text-base"
+      className="absolute bottom-2 right-2 flex h-7 w-7 items-center justify-center rounded-full text-base"
       style={{ backgroundColor: 'rgba(255,255,255,0.9)' }}
       aria-hidden="true"
     >
@@ -238,9 +238,9 @@ export default async function DesignIndexPage() {
           </div>
         )}
 
-        {/* 3 columns on desktop (≥1280px), 2 on tablet */}
+        {/* 4 columns on desktop (≥1280px), 2 on tablet */}
         {list.length > 0 && (
-          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
             {list.map((p) => (
               <PassportCard key={p.id} passport={p} />
             ))}

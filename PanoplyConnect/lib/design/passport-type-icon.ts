@@ -1,23 +1,12 @@
-const CLASSIFIER_ICONS: Record<string, string> = {
-  educational:     '🎓',
-  heritage:        '🏛️',
-  nature:          '🌿',
-  food_drink:      '🍽️',
-  arts_culture:    '🎨',
-  family:          '👨‍👩‍👧',
-  accessible:      '♿',
-  challenge:       '🏆',
-  hidden_gem:      '💎',
-  learning:        '📚',
-  tour:            '🗺️',
-}
+import { classifierIcon } from './classifiers'
 
 export function passportTypeIcon(classifier: string | null): string {
-  if (!classifier) return '🧭'
-  return CLASSIFIER_ICONS[classifier] ?? '🧭'
+  return classifierIcon(classifier)
 }
 
-export function passportTypeIconFromClassifiers(classifiers: string[] | null | undefined): string {
+export function passportTypeIconFromClassifiers(
+  classifiers: string[] | null | undefined,
+): string {
   if (!classifiers || classifiers.length === 0) return '🧭'
-  return passportTypeIcon(classifiers[0])
+  return classifierIcon(classifiers[0])
 }
