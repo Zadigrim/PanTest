@@ -119,9 +119,11 @@ function AddInstitutionDialog({
 
       const { data, error: insertErr } = await supabase
         .from('institutions')
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .insert({
           name: baseName,
           slug,
+          type: form.institution_type,   // legacy NOT NULL column in production DB
           institution_type: form.institution_type,
           charges_admission: form.charges_admission,
           pricing_model: pricingModel,
@@ -134,7 +136,7 @@ function AddInstitutionDialog({
           address_zip: form.address_zip.trim() || null,
           website: form.website.trim() || null,
           internal_notes: form.internal_notes.trim() || null,
-        })
+        } as any)
         .select('*')
         .single()
 
