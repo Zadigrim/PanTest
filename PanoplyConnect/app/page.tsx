@@ -245,7 +245,32 @@ export default async function DashboardPage() {
   monthStart.setHours(0, 0, 0, 0)
   const monthStartIso = monthStart.toISOString()
 
-  if (activeRole === 'individual_creator' || activeRole === 'designer' || activeRole === 'platform_admin') {
+  if (activeRole === 'platform_admin') {
+    hasAnyData = true
+
+    const [
+      { count: institutionCount },
+      { count: publishedCount },
+      { count: completionsCount },
+      { count: pendingDist },
+      { data: recentStamps },
+    ] = await Promise.all([
+      supabase.from('institutions').select('id', { count: 'exact', head: true }),
+      supabase.from('passports').select('id', { count: 'exact', head: true }).eq('is_published', true),
+      supabase.from('completion_tokens').select('id', { count: 'exact', head: true }).gte('generated_at', monthStartIso),
+      supabase.from('completion_tokens').select('id', { count: 'exact', head: true }).eq('distribution_pending', true).neq('prize_distributed', true),
+      supabase.from('stamps').select('user_id').gte('verified_at', cutoff),
+    ])
+
+    const activeCollectors = new Set((recentStamps ?? []).map((s: { user_id: string }) => s.user_id)).size
+
+    if (institutionCount !== null) metrics.push({ label: 'Institutions', value: institutionCount, href: '/access' })
+    if (publishedCount !== null)   metrics.push({ label: 'Published passports', value: publishedCount, href: '/explore' })
+    if (activeCollectors > 0)      metrics.push({ label: 'Active collectors', value: activeCollectors, sub: 'Last 30 days' })
+    if (completionsCount)          metrics.push({ label: 'Completions this month', value: completionsCount })
+    if (pendingDist)               metrics.push({ label: 'Pending distributions', value: pendingDist, href: '/manage/prizes' })
+
+  } else if (activeRole === 'individual_creator' || activeRole === 'designer') {
     // Passports published
     const { count: publishedCount } = await supabase
       .from('passports')
