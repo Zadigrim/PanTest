@@ -24,12 +24,26 @@ export async function detectRoles(
   const roles: PanoplyConnectRole[] = []
   const institutions: RoleContext['institutions'] = []
 
-  // ── 1. profiles.role + profiles.connect_roles ──────────────────────────────
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role, connect_roles')
-    .eq('id', userId)
-    .single()
+  // ── 1. profiles.role + profiles.connect_roles + is_platform_admin RPC ───────
+  const [profileResult, adminResult] = await Promise.all([
+    supabase
+      .from('profiles')
+      .select('role, connect_roles')
+      .eq('id', userId)
+      .single(),
+    // Use SECURITY DEFINER RPC — reads is_platform_admin inside PostgreSQL,
+    // unaffected by PostgREST schema cache staleness on the column.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase as any).rpc('is_platform_admin'),
+  ])
+
+  const profile = profileResult.data
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const isAdminRpc = (adminResult as any).data
+
+  if (isAdminRpc === true) {
+    roles.push('platform_admin')
+  }
 
   if (profile) {
     // 'creator' in profiles.role maps to 'individual_creator'

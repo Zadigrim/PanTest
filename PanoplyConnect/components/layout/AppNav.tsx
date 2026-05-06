@@ -44,14 +44,9 @@ export default async function AppNav() {
     avatarUrl   = profile?.avatar_url   ?? null
     roleContext  = await detectRoles(supabase, user.id)
 
-    // Use the is_platform_admin() SECURITY DEFINER RPC — runs inside PostgreSQL
-    // so it's unaffected by PostgREST schema cache staleness on the column.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: isAdminRpc } = await (supabase as any).rpc('is_platform_admin')
-    const isPlatformAdmin = isAdminRpc === true || roleContext.roles.includes('platform_admin')
-
+    // detectRoles() now includes is_platform_admin() RPC check internally
     canAccessManagement =
-      isPlatformAdmin ||
+      roleContext.roles.includes('platform_admin') ||
       roleContext.roles.includes('institutional_manager') ||
       roleContext.roles.includes('institutional_employee')
 
