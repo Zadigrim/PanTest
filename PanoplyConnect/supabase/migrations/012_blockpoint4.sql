@@ -37,6 +37,19 @@ ALTER TABLE public.passports
 ALTER TABLE public.stops
   ADD COLUMN IF NOT EXISTS is_shared      boolean DEFAULT false;
 
+-- journal_entries.is_shared guard: only ALTER if the table already exists
+-- (if it doesn't exist yet, the CREATE TABLE IF NOT EXISTS below will include it).
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'journal_entries'
+  ) THEN
+    ALTER TABLE public.journal_entries
+      ADD COLUMN IF NOT EXISTS is_shared boolean DEFAULT false;
+  END IF;
+END $$;
+
 -- ── Tables from 002_connect_schema ────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.acquisitions (
   id                        uuid DEFAULT gen_random_uuid() PRIMARY KEY,
