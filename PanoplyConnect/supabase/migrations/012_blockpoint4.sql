@@ -27,9 +27,23 @@ $$;
 -- Every CREATE TABLE and ALTER TABLE here uses IF NOT EXISTS / IF NOT EXISTS
 -- so these are no-ops on databases where the earlier migrations already ran.
 
--- Column added by 002_connect_schema to core stamps table
+-- Columns added by 002_connect_schema to core tables
 ALTER TABLE public.stamps
-  ADD COLUMN IF NOT EXISTS passport_id uuid REFERENCES public.passports(id);
+  ADD COLUMN IF NOT EXISTS passport_id    uuid REFERENCES public.passports(id);
+ALTER TABLE public.passports
+  ADD COLUMN IF NOT EXISTS proprietor_id  uuid REFERENCES public.institutions(id);
+
+-- Column added by 004_classifiers_roles to stops
+ALTER TABLE public.stops
+  ADD COLUMN IF NOT EXISTS is_shared      boolean DEFAULT false;
+
+-- Columns added by 012 itself to design_assets — moved here so the
+-- design_assets_institution_read policy below can reference is_built_in.
+ALTER TABLE public.design_assets
+  ADD COLUMN IF NOT EXISTS is_built_in    boolean   NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS file_format    text,
+  ADD COLUMN IF NOT EXISTS thumbnail_data text,
+  ADD COLUMN IF NOT EXISTS is_monochrome  boolean;
 
 -- ── Tables from 002_connect_schema ────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.acquisitions (
@@ -520,13 +534,6 @@ CREATE POLICY "autosaves_own" ON public.passport_autosaves
 DROP POLICY IF EXISTS "print_jobs_own" ON public.print_jobs;
 CREATE POLICY "print_jobs_own" ON public.print_jobs
   FOR ALL USING (created_by = auth.uid() OR public.is_admin() = true);
-
--- ─── design_assets: add built-in flag + additional columns ───────────────────
-ALTER TABLE public.design_assets
-  ADD COLUMN IF NOT EXISTS is_built_in    boolean   NOT NULL DEFAULT false,
-  ADD COLUMN IF NOT EXISTS file_format    text,
-  ADD COLUMN IF NOT EXISTS thumbnail_data text,
-  ADD COLUMN IF NOT EXISTS is_monochrome  boolean;
 
 -- ─── stops: stamp asset reference ────────────────────────────────────────────
 ALTER TABLE public.stops
