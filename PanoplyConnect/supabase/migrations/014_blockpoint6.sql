@@ -1,6 +1,43 @@
 -- Migration 014: Blockpoint 6 — institution detail fields, admin RLS, cover thumbnail
 -- Run after 013.
 
+-- ── 0. Ensure baseline institution columns exist (idempotent catch-up) ────────
+-- These were in the consolidated baseline but may be absent on databases
+-- that were set up from incremental migrations before the consolidation.
+
+ALTER TABLE public.institutions
+  ADD COLUMN IF NOT EXISTS tier             text NOT NULL DEFAULT 'community',
+  ADD COLUMN IF NOT EXISTS institution_type text DEFAULT 'general',
+  ADD COLUMN IF NOT EXISTS catalog_url      text,
+  ADD COLUMN IF NOT EXISTS charges_admission boolean NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS pricing_model    text NOT NULL DEFAULT 'free';
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'institutions_tier_check' AND conrelid = 'public.institutions'::regclass
+  ) THEN
+    ALTER TABLE public.institutions
+      ADD CONSTRAINT institutions_tier_check
+      CHECK (tier IN ('community', 'commercial', 'enterprise'));
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'institutions_pricing_model_check' AND conrelid = 'public.institutions'::regclass
+  ) THEN
+    ALTER TABLE public.institutions
+      ADD CONSTRAINT institutions_pricing_model_check
+      CHECK (pricing_model IN ('free', 'paid_passport', 'community', 'regional', 'enterprise'));
+  END IF;
+END $$;
+
+-- Ensure baseline passports cover columns exist
+ALTER TABLE public.passports
+  ADD COLUMN IF NOT EXISTS cover_outside_data jsonb DEFAULT '{}',
+  ADD COLUMN IF NOT EXISTS cover_inside_data  jsonb DEFAULT '{}';
+
 -- ── 1. Add contact / address fields to institutions ───────────────────────────
 
 ALTER TABLE public.institutions
