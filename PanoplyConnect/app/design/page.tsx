@@ -37,7 +37,6 @@ function CoverThumbnail({ passport }: { passport: DesignerPassport }) {
 // ── Passport card ─────────────────────────────────────────────────────────────
 
 function PassportCard({ passport }: { passport: DesignerPassport }) {
-  const isInstitutional = Boolean(passport.institution_id ?? passport.proprietor_id)
   return (
     <div className="flex flex-col overflow-hidden rounded-panel border border-panoply-gray-2 bg-white transition-shadow hover:shadow-md">
       {/* Cover thumbnail — full width, no padding, 2:3 ratio */}
@@ -77,18 +76,18 @@ function PassportCard({ passport }: { passport: DesignerPassport }) {
         </p>
       </Link>
 
-      {isInstitutional && passport.print_enabled && (
-        <div className="border-t border-panoply-gray-2 px-4 pb-4 pt-3">
-          <PrintPassportButton
-            passport={{
-              id: passport.id,
-              title: passport.title,
-              institution_id: passport.institution_id ?? passport.proprietor_id ?? '',
-              print_journal_setting: passport.print_journal_setting ?? 'include_all',
-            }}
-          />
-        </div>
-      )}
+      {/* Card footer — always visible, print button lower-left */}
+      <div className="border-t border-panoply-gray-2 px-3 py-2 flex items-center">
+        <PrintPassportButton
+          compact
+          passport={{
+            id: passport.id,
+            title: passport.title,
+            institution_id: passport.institution_id ?? passport.proprietor_id ?? null,
+            print_journal_setting: passport.print_journal_setting ?? 'include_all',
+          }}
+        />
+      </div>
     </div>
   )
 }

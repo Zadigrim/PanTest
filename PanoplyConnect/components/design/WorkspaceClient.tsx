@@ -11,6 +11,7 @@ import { CoverInspector } from './CoverInspector'
 import { CoverPalette } from './CoverPalette'
 import { PassportSettingsPanel } from './PassportSettingsPanel'
 import { PublishFlow } from './PublishFlow'
+import { PrintPassportModal } from './PrintPassportModal'
 import { Button } from './ui/Button'
 import { useAutosave } from '@/hooks/useAutosave'
 import { useWorkspaceKeyboard } from '@/hooks/useWorkspaceKeyboard'
@@ -38,6 +39,7 @@ export function WorkspaceClient({ passport, pages, stops, creatorInstitutionId }
 
   const [showSettings, setShowSettings] = useState(false)
   const [showPublish, setShowPublish] = useState(false)
+  const [showPrint, setShowPrint] = useState(false)
   const [viewMode, setViewMode] = useState<'cover' | 'pages'>('pages')
   const [coverFace, setCoverFace] = useState<CoverFace>('outside')
   const [coverPanel, setCoverPanel] = useState<CoverPanel>('front')
@@ -89,6 +91,9 @@ export function WorkspaceClient({ passport, pages, stops, creatorInstitutionId }
           >
             {displayPassport.status}
           </span>
+          <Button variant="ghost" size="sm" onClick={() => setShowPrint(true)}>
+            Print…
+          </Button>
           <Button variant="ghost" size="sm" onClick={() => setShowSettings(true)}>
             Settings
           </Button>
@@ -162,6 +167,17 @@ export function WorkspaceClient({ passport, pages, stops, creatorInstitutionId }
 
       {showSettings && <PassportSettingsPanel onClose={() => setShowSettings(false)} />}
       {showPublish && <PublishFlow onClose={() => setShowPublish(false)} />}
+      {showPrint && (
+        <PrintPassportModal
+          passport={{
+            id: displayPassport.id,
+            title: displayPassport.title,
+            institution_id: displayPassport.institution_id ?? null,
+            print_journal_setting: displayPassport.print_journal_setting ?? 'include_all',
+          }}
+          onClose={() => setShowPrint(false)}
+        />
+      )}
     </div>
   )
 }
