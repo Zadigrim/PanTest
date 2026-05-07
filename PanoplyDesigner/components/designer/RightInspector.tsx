@@ -1,5 +1,6 @@
 'use client'
 
+import React from 'react'
 import { createClient } from '@/lib/supabase/client'
 import {
   usePassportStore,
@@ -84,11 +85,31 @@ function StopInspector({ stop }: { stop: Stop }) {
   const updateStop = usePassportStore((s) => s.updateStop)
   const removeStop = usePassportStore((s) => s.removeStop)
   const setSelectedStop = usePassportStore((s) => s.setSelectedStop)
+  const [uploading, setUploading] = React.useState(false)
 
   const persist = async (patch: Partial<Stop>) => {
     updateStop(stop.id, patch)
     const supabase = createClient()
     await supabase.from('stops').update(patch).eq('id', stop.id)
+  }
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploading(true)
+    try {
+      const supabase = createClient()
+      const ext = file.name.split('.').pop() ?? 'png'
+      const path = `stops/${stop.id}.${ext}`
+      const { error: upErr } = await supabase.storage.from('stamp-images').upload(path, file, { upsert: true })
+      if (!upErr) {
+        const { data: { publicUrl } } = supabase.storage.from('stamp-images').getPublicUrl(path)
+        await persist({ stamp_image_url: publicUrl })
+      }
+    } finally {
+      setUploading(false)
+      e.target.value = ''
+    }
   }
 
   const handleDelete = async () => {
@@ -237,6 +258,36 @@ function StopInspector({ stop }: { stop: Stop }) {
             ))}
           </div>
         </div>
+
+        <Field label="Custom image (overrides emoji)">
+          <div className="space-y-1.5">
+            {stop.stamp_image_url && (
+              <div className="flex items-center gap-2">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={stop.stamp_image_url}
+                  alt="stamp preview"
+                  className="h-12 w-12 rounded-card border border-panoply-gray-2 object-contain bg-panoply-gray-1"
+                />
+                <button
+                  onClick={() => persist({ stamp_image_url: null })}
+                  className="text-xs text-panoply-coral hover:underline"
+                >
+                  Remove
+                </button>
+              </div>
+            )}
+            <label className={`flex items-center gap-2 cursor-pointer rounded-card border px-3 py-2 text-xs transition-colors ${uploading ? 'opacity-50 pointer-events-none' : 'border-panoply-gray-2 text-panoply-gray-3 hover:border-panoply-teal/40'}`}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="17 8 12 3 7 8" />
+                <line x1="12" y1="3" x2="12" y2="15" />
+              </svg>
+              {uploading ? 'Uploading…' : 'Upload image'}
+              <input type="file" accept="image/*" className="sr-only" onChange={handleImageUpload} disabled={uploading} />
+            </label>
+          </div>
+        </Field>
       </Section>
 
       <Section title="Location">

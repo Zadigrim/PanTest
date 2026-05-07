@@ -106,6 +106,7 @@ export interface Stop {
   verification_radius_meters: number
   qr_code_token: string | null
   stamp_icon: string
+  stamp_image_url: string | null
   stamp_color: string
   stamp_rotation_fixed: number | null
   stamp_rotation_min: number

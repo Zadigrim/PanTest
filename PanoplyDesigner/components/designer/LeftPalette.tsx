@@ -207,7 +207,12 @@ function StopsList() {
               : 'text-panoply-gray-3 hover:bg-panoply-gray-1 hover:text-panoply-navy'
           }`}
         >
-          <span className="text-base leading-none">{stop.stamp_icon ?? '📍'}</span>
+          {stop.stamp_image_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={stop.stamp_image_url} alt="" className="h-5 w-5 object-contain shrink-0 rounded-sm" />
+          ) : (
+            <span className="text-base leading-none">{stop.stamp_icon ?? '📍'}</span>
+          )}
           <span className="truncate">{stop.name}</span>
         </button>
       ))}

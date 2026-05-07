@@ -119,16 +119,26 @@ export function LocationBox({ stop, isSelected, scale = 1, onSelect, onChange }:
       >
         {/* Stamp preview — centered inside box */}
         <div className="flex h-full flex-col items-center justify-center gap-1 pointer-events-none">
-          <span
-            className="leading-none"
-            style={{
-              fontSize: Math.min(w, h) * 0.4,
-              filter: `hue-rotate(0deg)`,
-              color: `#${stop.stamp_color ?? '1D9E75'}`,
-            }}
-          >
-            {stop.stamp_icon ?? '📍'}
-          </span>
+          {stop.stamp_image_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={stop.stamp_image_url}
+              alt={stop.name}
+              style={{ width: Math.min(w, h) * 0.65, height: Math.min(w, h) * 0.65, objectFit: 'contain' }}
+              className="rounded-sm"
+            />
+          ) : (
+            <span
+              className="leading-none"
+              style={{
+                fontSize: Math.min(w, h) * 0.4,
+                filter: `hue-rotate(0deg)`,
+                color: `#${stop.stamp_color ?? '1D9E75'}`,
+              }}
+            >
+              {stop.stamp_icon ?? '📍'}
+            </span>
+          )}
           {w >= 80 && (
             <span className="max-w-full truncate px-1 text-center text-[10px] font-medium text-panoply-navy/70">
               {stop.name}

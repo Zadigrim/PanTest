@@ -5,31 +5,6 @@ import { createClient } from '@/lib/supabase/server'
 import type { Institution, EmployeeAuthorization } from '@/lib/supabase/types'
 
 // ---------------------------------------------------------------------------
-// Access-denied page (rendered inline when no authorization row exists)
-// ---------------------------------------------------------------------------
-
-function AccessDeniedPage() {
-  return (
-    <div className="min-h-screen bg-panoply-gray-1 flex items-center justify-center p-6">
-      <div className="max-w-md w-full bg-white rounded-modal shadow-sm border border-panoply-gray-2 p-8 text-center">
-        <div className="text-4xl mb-4" aria-hidden="true">🔒</div>
-        <h1 className="text-xl font-semibold text-panoply-navy mb-2">Access denied</h1>
-        <p className="text-panoply-gray-3 text-sm leading-relaxed">
-          You need institutional access to view this page. Contact your institution
-          administrator to be added as an employee.
-        </p>
-        <Link
-          href="/"
-          className="mt-6 inline-flex items-center justify-center h-9 px-4 rounded-panel bg-panoply-teal text-white text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-panoply-teal"
-        >
-          Back to home
-        </Link>
-      </div>
-    </div>
-  )
-}
-
-// ---------------------------------------------------------------------------
 // Sidebar nav item
 // ---------------------------------------------------------------------------
 
@@ -132,50 +107,83 @@ export default async function ManageLayout({ children }: { children: ReactNode }
     authorization = empAuth ?? null
   }
 
-  if (!authorization) {
-    return <AccessDeniedPage />
+  // Fetch institution data to display in the sidebar (only when authorized)
+  let institutionName = 'Institution'
+  let logoUrl: string | null = null
+
+  if (authorization) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: institution } = await (supabase as any)
+      .from('institutions')
+      .select('id, name, slug, logo_url')
+      .eq('id', authorization.institution_id)
+      .single()
+    institutionName = (institution as Pick<Institution, 'name'> | null)?.name ?? 'Institution'
+    logoUrl = (institution as Pick<Institution, 'logo_url'> | null)?.logo_url ?? null
   }
 
-  // Fetch institution data to display in the sidebar
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: institution } = await (supabase as any)
-    .from('institutions')
-    .select('id, name, slug, logo_url')
-    .eq('id', authorization.institution_id)
-    .single()
+  const sidebarHeader = (
+    <div className="px-4 py-5 border-b border-white/10">
+      <div className="flex items-center gap-3">
+        {logoUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={logoUrl}
+            alt={`${institutionName} logo`}
+            className="h-9 w-9 rounded-card object-cover shrink-0"
+          />
+        ) : (
+          <div className="h-9 w-9 rounded-card bg-panoply-teal flex items-center justify-center shrink-0">
+            <span className="text-white font-bold text-sm select-none">
+              {authorization ? (institutionName[0]?.toUpperCase() ?? 'I') : 'P'}
+            </span>
+          </div>
+        )}
+        <div className="min-w-0">
+          <p className="text-white font-semibold text-sm truncate leading-tight">
+            {authorization ? institutionName : 'Panoply'}
+          </p>
+          <p className="text-panoply-teal-lt/60 text-xs truncate">Manage</p>
+        </div>
+      </div>
+    </div>
+  )
 
-  const institutionName = (institution as Pick<Institution, 'name'> | null)?.name ?? 'Institution'
-  const logoUrl = (institution as Pick<Institution, 'logo_url'> | null)?.logo_url ?? null
+  if (!authorization) {
+    return (
+      <div className="flex min-h-screen bg-panoply-gray-1">
+        <aside className="w-60 shrink-0 bg-panoply-navy flex flex-col">
+          {sidebarHeader}
+          <div className="flex-1" />
+          <div className="px-3 py-4 border-t border-white/10">
+            <LogoutButton />
+          </div>
+        </aside>
+        <main className="flex-1 min-w-0 overflow-auto flex items-center justify-center p-6">
+          <div className="max-w-md w-full bg-white rounded-modal shadow-sm border border-panoply-gray-2 p-8 text-center">
+            <div className="text-4xl mb-4" aria-hidden="true">🔒</div>
+            <h1 className="text-xl font-semibold text-panoply-navy mb-2">Access denied</h1>
+            <p className="text-panoply-gray-3 text-sm leading-relaxed">
+              You need institutional access to view this page. Contact your institution
+              administrator to be added as an employee.
+            </p>
+            <Link
+              href="/"
+              className="mt-6 inline-flex items-center justify-center h-9 px-4 rounded-panel bg-panoply-teal text-white text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-panoply-teal"
+            >
+              Back to home
+            </Link>
+          </div>
+        </main>
+      </div>
+    )
+  }
 
   return (
     <div className="flex min-h-screen bg-panoply-gray-1">
       {/* ── Sidebar ─────────────────────────────────────────── */}
       <aside className="w-60 shrink-0 bg-panoply-navy flex flex-col">
-        {/* Brand / institution header */}
-        <div className="px-4 py-5 border-b border-white/10">
-          <div className="flex items-center gap-3">
-            {logoUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={logoUrl}
-                alt={`${institutionName} logo`}
-                className="h-9 w-9 rounded-card object-cover shrink-0"
-              />
-            ) : (
-              <div className="h-9 w-9 rounded-card bg-panoply-teal flex items-center justify-center shrink-0">
-                <span className="text-white font-bold text-sm select-none">
-                  {institutionName[0]?.toUpperCase() ?? 'I'}
-                </span>
-              </div>
-            )}
-            <div className="min-w-0">
-              <p className="text-white font-semibold text-sm truncate leading-tight">
-                {institutionName}
-              </p>
-              <p className="text-panoply-teal-lt/60 text-xs truncate">Manage</p>
-            </div>
-          </div>
-        </div>
+        {sidebarHeader}
 
         {/* Navigation */}
         <nav className="flex-1 px-3 py-4 space-y-0.5" aria-label="Management navigation">
@@ -254,6 +262,23 @@ export default async function ManageLayout({ children }: { children: ReactNode }
               <path d="M16 3.13a4 4 0 0 1 0 7.75" />
             </svg>
             Employees
+          </NavLink>
+
+          <NavLink href="/terminal">
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+            </svg>
+            Terminal
           </NavLink>
         </nav>
 
