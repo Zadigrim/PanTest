@@ -21,7 +21,11 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  const { data: { user } } = await supabase.auth.getUser()
+  // Use getSession() here (no network call) to decide routing.
+  // getUser() makes an outbound call to the Supabase auth API which can fail
+  // unreliably in the Edge Runtime. The layout runs in Node.js and calls
+  // getUser() there, which is the authoritative security check.
+  const { data: { session } } = await supabase.auth.getSession()
 
   const { pathname } = request.nextUrl
 
@@ -38,7 +42,7 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/_next') ||
     pathname.startsWith('/api/')
 
-  if (!user && !isPublic) {
+  if (!session && !isPublic) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     url.searchParams.set('next', pathname)
