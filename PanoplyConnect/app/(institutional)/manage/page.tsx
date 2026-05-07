@@ -72,17 +72,33 @@ export default async function ManageDashboardPage() {
 
   if (!user) redirect('/login?next=/manage')
 
-  // Get employee authorization to find institution_id
-  const { data: authorization } = await supabase
-    .from('employee_authorizations')
-    .select('institution_id')
-    .eq('user_id', user.id)
-    .limit(1)
-    .single()
+  // Platform admins aren't in employee_authorizations — check that first.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: isAdminRpc } = await (supabase as any).rpc('is_platform_admin')
+  const isPlatformAdmin = isAdminRpc === true
 
-  if (!authorization) redirect('/login?next=/manage')
+  let institutionId: string | null = null
 
-  const institutionId = authorization.institution_id
+  if (isPlatformAdmin) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: firstInst } = await (supabase as any)
+      .from('institutions')
+      .select('id')
+      .limit(1)
+      .single()
+    institutionId = firstInst?.id ?? null
+  } else {
+    const { data: authorization } = await supabase
+      .from('employee_authorizations')
+      .select('institution_id')
+      .eq('user_id', user.id)
+      .limit(1)
+      .single()
+    institutionId = authorization?.institution_id ?? null
+  }
+
+  // No institution access at all — layout already shows access-denied UI.
+  if (!institutionId) return null
 
   // ── Fetch all passports belonging to this institution ──────────────────────
   const { data: passports } = await supabase
