@@ -1,0 +1,470 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Panoply — Wireframes</title>
+<template id="__bundler_thumbnail">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="#1d9e75"/><rect x="30" y="22" width="40" height="56" rx="2" fill="#f5f0e8" stroke="#1f1d1a" stroke-width="2"/><text x="50" y="56" text-anchor="middle" font-family="Georgia,serif" font-size="14" font-weight="700" fill="#1f1d1a">P</text></svg>
+</template>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  /* Remap old playful font-family names used inline across JSX files
+     to the new restrained typography system. */
+  @font-face { font-family: 'Caveat'; src: local('Inter'); font-weight: 400 700; }
+  @font-face { font-family: 'Architects Daughter'; src: local('Inter'); font-weight: 400 700; }
+  @font-face { font-family: 'Kalam'; src: local('Inter'); font-weight: 400 700; }
+  @font-face { font-family: 'Special Elite'; src: local('Inter'); font-weight: 400 700; }
+</style>
+<style>
+  :root {
+    /* sketchy palette */
+    --ink: #1f1d1a;
+    --paper: #f6f1e6;
+    --paper-edge: #ebe2cd;
+    --muted: #6b6356;
+    --hairline: #c8bfa9;
+    --hairline-2: #ddd2b6;
+    --accent: #c9a84c;       /* passport gold */
+    --accent-2: #1d9e75;     /* passport green */
+    --accent-3: #9b2335;     /* passport red */
+    --accent-4: #2d5a8e;     /* passport blue */
+    --navy: #0d1b2a;
+    --cream: #f5f0e8;
+    --hand: 'Inter', system-ui, sans-serif;
+    --note: 'Inter', system-ui, sans-serif;
+    --type: 'Inter', system-ui, sans-serif;
+    --mono: 'Inter', system-ui, sans-serif;
+  }
+  html, body {
+    margin: 0; padding: 0;
+    background: #efe9d9;
+    color: var(--ink);
+    font-family: var(--type);
+    -webkit-font-smoothing: antialiased;
+  }
+  /* subtle paper texture using gradients */
+  body {
+    background-image:
+      radial-gradient(circle at 12% 18%, rgba(0,0,0,0.025), transparent 40%),
+      radial-gradient(circle at 88% 82%, rgba(0,0,0,0.03), transparent 45%),
+      repeating-linear-gradient(0deg, rgba(0,0,0,0.012) 0 1px, transparent 1px 3px);
+    min-height: 100vh;
+  }
+
+  /* App scaffolding */
+  .topbar {
+    display: flex; align-items: baseline; gap: 18px;
+    padding: 22px 28px 10px;
+    border-bottom: 2px dashed var(--hairline);
+  }
+  .topbar h1 {
+    margin: 0;
+    font-family: var(--hand);
+    font-weight: 700;
+    font-size: 36px;
+    letter-spacing: 0.5px;
+  }
+  .topbar h1 .tag {
+    font-family: var(--note);
+    font-size: 13px;
+    background: var(--ink);
+    color: var(--paper);
+    padding: 2px 8px;
+    border-radius: 3px;
+    margin-left: 10px;
+    vertical-align: middle;
+  }
+  .topbar .crumb {
+    font-family: var(--note);
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  /* Tab control */
+  .tabs {
+    display: flex; gap: 0;
+    padding: 16px 28px 0;
+    border-bottom: 2px solid var(--ink);
+    background: transparent;
+    position: sticky; top: 0; z-index: 20;
+    backdrop-filter: blur(4px);
+    background: rgba(239,233,217,0.92);
+  }
+  .tab {
+    font-family: var(--hand);
+    font-size: 22px;
+    padding: 8px 18px 10px;
+    cursor: pointer;
+    border: 2px solid transparent;
+    border-bottom: none;
+    background: transparent;
+    color: var(--muted);
+    transform: rotate(-0.4deg);
+    border-radius: 8px 10px 0 0;
+    margin-right: 4px;
+  }
+  .tab + .tab { transform: rotate(0.5deg); }
+  .tab + .tab + .tab { transform: rotate(-0.3deg); }
+  .tab.active {
+    color: var(--ink);
+    background: var(--paper);
+    border-color: var(--ink);
+    border-bottom: 2px solid var(--paper);
+    margin-bottom: -2px;
+    font-weight: 700;
+  }
+  .tab .count {
+    font-family: var(--note);
+    font-size: 11px;
+    color: var(--muted);
+    margin-left: 6px;
+  }
+
+  /* Variation rows */
+  .surface {
+    padding: 28px;
+    display: none;
+  }
+  .surface.active { display: block; }
+
+  .v-row {
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    gap: 24px;
+    padding: 28px 0;
+    border-bottom: 2px dashed var(--hairline);
+  }
+  .v-row:last-child { border-bottom: none; }
+
+  .v-meta h2 {
+    font-family: var(--hand);
+    font-size: 30px;
+    margin: 0 0 6px;
+    line-height: 1;
+  }
+  .v-meta .v-num {
+    font-family: var(--note);
+    font-size: 11px;
+    letter-spacing: 2px;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+  .v-meta p {
+    font-family: var(--note);
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.45;
+    margin: 8px 0 12px;
+  }
+  .v-meta ul {
+    font-family: var(--note);
+    font-size: 12px;
+    color: var(--muted);
+    padding-left: 16px;
+    line-height: 1.5;
+    margin: 0;
+  }
+  .v-meta ul li::marker { content: "→ "; }
+
+  .v-screens {
+    display: flex;
+    gap: 20px;
+    overflow-x: auto;
+    padding: 8px 4px 16px;
+    scroll-snap-type: x proximity;
+  }
+  .v-screens::-webkit-scrollbar { height: 8px; }
+  .v-screens::-webkit-scrollbar-thumb { background: var(--hairline); border-radius: 4px; }
+
+  .screen {
+    flex: 0 0 auto;
+    scroll-snap-align: start;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .screen .label {
+    font-family: var(--hand);
+    font-size: 18px;
+    color: var(--ink);
+  }
+  .screen .label .id {
+    font-family: var(--note);
+    font-size: 10px;
+    color: var(--muted);
+    margin-left: 6px;
+    letter-spacing: 1px;
+  }
+  .screen .anno {
+    font-family: var(--note);
+    font-size: 11px;
+    color: var(--muted);
+    max-width: 320px;
+    line-height: 1.45;
+    padding: 6px 8px;
+    border-left: 2px solid var(--accent);
+    background: rgba(201,168,76,0.06);
+  }
+
+  /* Sketchy device frame (alternative to ios-frame for compactness) */
+  .sketch-phone {
+    width: 280px;
+    height: 580px;
+    border: 2.5px solid var(--ink);
+    border-radius: 36px;
+    padding: 10px;
+    background: var(--paper);
+    position: relative;
+    box-shadow: 4px 4px 0 rgba(0,0,0,0.08);
+  }
+  .sketch-phone::before {
+    content: '';
+    position: absolute;
+    top: 14px; left: 50%;
+    transform: translateX(-50%);
+    width: 80px; height: 16px;
+    background: var(--ink);
+    border-radius: 12px;
+  }
+  .sketch-phone .scr {
+    width: 100%; height: 100%;
+    background: var(--paper);
+    border-radius: 26px;
+    overflow: hidden;
+    position: relative;
+  }
+
+  /* Sketchy desktop frame */
+  .sketch-desk {
+    width: 760px;
+    height: 480px;
+    border: 2.5px solid var(--ink);
+    border-radius: 10px;
+    background: var(--paper);
+    box-shadow: 6px 6px 0 rgba(0,0,0,0.08);
+    overflow: hidden;
+    display: flex; flex-direction: column;
+  }
+  .sketch-desk .chrome {
+    height: 28px;
+    border-bottom: 2px solid var(--ink);
+    display: flex; align-items: center; padding: 0 10px;
+    gap: 6px;
+    background: #e9e1c9;
+  }
+  .sketch-desk .chrome .dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    border: 1.5px solid var(--ink);
+  }
+  .sketch-desk .chrome .url {
+    flex: 1;
+    margin: 0 10px;
+    border: 1.5px solid var(--ink);
+    border-radius: 12px;
+    height: 18px;
+    background: var(--paper);
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 0 10px;
+    display: flex; align-items: center;
+    color: var(--muted);
+  }
+  .sketch-desk .body {
+    flex: 1;
+    overflow: hidden;
+    position: relative;
+  }
+
+  /* Reusable wireframe primitives */
+  .wf {
+    font-family: var(--type);
+    color: var(--ink);
+    box-sizing: border-box;
+  }
+  .wf * { box-sizing: border-box; }
+  .wf .h { font-family: var(--hand); }
+  .wf .mono { font-family: var(--mono); }
+  .wf .placeholder {
+    background: repeating-linear-gradient(
+      135deg, rgba(0,0,0,0.05) 0 6px, rgba(0,0,0,0.02) 6px 12px
+    );
+    border: 1.5px dashed var(--hairline);
+    border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--note);
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .wf .btn {
+    border: 2px solid var(--ink);
+    border-radius: 999px;
+    padding: 6px 14px;
+    font-family: var(--hand);
+    font-size: 16px;
+    background: var(--paper);
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .wf .btn.primary {
+    background: var(--ink);
+    color: var(--paper);
+  }
+  .wf .btn.gold {
+    background: var(--accent);
+    color: var(--ink);
+    border-color: var(--ink);
+  }
+  .wf .chip {
+    display: inline-block;
+    border: 1.5px solid var(--ink);
+    border-radius: 999px;
+    padding: 2px 8px;
+    font-family: var(--note);
+    font-size: 10px;
+    background: var(--paper);
+  }
+  .wf .row {
+    display: flex; gap: 8px; align-items: center;
+  }
+  .wf .col { display: flex; flex-direction: column; gap: 8px; }
+  .wf .hr { border-top: 1.5px dashed var(--hairline); }
+  .wf .hr-solid { border-top: 1.5px solid var(--ink); }
+
+  /* shake / wobble for sketchy lines */
+  .sketchy { filter: url(#sketchy); }
+
+  /* Annotations toggleable */
+  body.no-anno .anno { display: none; }
+  body.density-compact .v-screens { gap: 12px; }
+  body.density-compact .v-row { padding: 18px 0; }
+
+  /* Tweaks intro hint */
+  .tweaks-hint {
+    position: fixed;
+    bottom: 16px; right: 16px;
+    font-family: var(--hand);
+    font-size: 18px;
+    background: var(--ink);
+    color: var(--paper);
+    padding: 8px 14px;
+    border-radius: 999px;
+    box-shadow: 3px 3px 0 rgba(0,0,0,0.15);
+    z-index: 50;
+    pointer-events: none;
+    opacity: 0.92;
+    transition: opacity 0.4s;
+  }
+  body.tweaks-on .tweaks-hint { opacity: 0; }
+
+  /* Coversheet for the page header */
+  .cover-card {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 22px;
+    align-items: end;
+    padding: 14px 28px 22px;
+  }
+  .cover-card .lede {
+    font-family: var(--note);
+    font-size: 14px;
+    color: var(--muted);
+    line-height: 1.55;
+    max-width: 720px;
+  }
+  .cover-card .lede b { color: var(--ink); }
+  .legend {
+    font-family: var(--note);
+    font-size: 11px;
+    color: var(--muted);
+    display: flex; gap: 14px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .legend .sw {
+    display: inline-block;
+    width: 14px; height: 14px;
+    border: 1.5px solid var(--ink);
+    border-radius: 3px;
+    vertical-align: middle;
+    margin-right: 4px;
+  }
+</style>
+
+<!-- Preserve tweak defaults across reloads -->
+<script>
+  window.PANOPLY_TWEAKS = /*EDITMODE-BEGIN*/{
+    "skeu": 6,
+    "palette": "navy",
+    "density": "roomy",
+    "annotations": true,
+    "surface": "employee"
+  }/*EDITMODE-END*/;
+</script>
+
+<!-- React + Babel pinned -->
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+</head>
+
+<body>
+  <!-- SVG filter for sketchy lines -->
+  <svg width="0" height="0" style="position:absolute">
+    <filter id="sketchy">
+      <feTurbulence type="fractalNoise" baseFrequency="0.04" numOctaves="2" seed="3"></feTurbulence>
+      <feDisplacementMap in="SourceGraphic" scale="1.4"></feDisplacementMap>
+    </filter>
+  </svg>
+
+  <header class="topbar">
+    <h1>Panoply <span class="tag">wireframes v1</span></h1>
+    <span class="crumb">low-fi exploration · 3 directions × ~30 screens · drag screens to scroll</span>
+  </header>
+
+  <div class="cover-card">
+    <div class="lede">
+      <b>What we're exploring.</b> Three structural directions for two surfaces:
+      <b>Panoply</b> (mobile/Expo, collector-facing) and <b>Panoply Connect</b>
+      (desktop/laptop, internal — Designer + Employee Terminal). The mobile app's
+      novelty is the <b>passport-book</b> metaphor and <b>press-and-hold to stamp</b>
+      with GPS verification; Connect's novelty is a <b>required two-step</b>
+      employee redemption (scan → distribute) for audit trail.
+    </div>
+    <div class="legend">
+      <span><span class="sw" style="background:#0d1b2a"></span>navy</span>
+      <span><span class="sw" style="background:#f5f0e8"></span>cream</span>
+      <span><span class="sw" style="background:#c9a84c"></span>gold</span>
+      <span><span class="sw" style="background:#1d9e75"></span>green</span>
+      <span><span class="sw" style="background:#9b2335"></span>red</span>
+    </div>
+  </div>
+
+  <nav class="tabs" id="tabs">
+    <button class="tab active" data-surface="mobile-v2">Panoply v2 ★<span class="count">book + discover</span></button>
+    <button class="tab" data-surface="mobile">Panoply (mobile)<span class="count">~12 screens</span></button>
+    <button class="tab" data-surface="designer-v2">Connect · Designer ★<span class="count">passport editor</span></button>
+    <button class="tab" data-surface="designer">Designer (v1)<span class="count">~6 screens</span></button>
+    <button class="tab" data-surface="employee">Connect · Employee<span class="count">~5 screens</span></button>
+  </nav>
+
+  <main>
+    <section class="surface active" id="surface-mobile-v2" data-screen-label="mobile-v2"></section>
+    <section class="surface" id="surface-designer-v2" data-screen-label="designer-v2"></section>
+    <section class="surface" id="surface-mobile" data-screen-label="mobile"></section>
+    <section class="surface" id="surface-designer" data-screen-label="designer"></section>
+    <section class="surface" id="surface-employee" data-screen-label="employee"></section>
+  </main>
+
+  <div class="tweaks-hint">↑ click "Tweaks" in toolbar to adjust</div>
+
+  <!-- Component scripts -->
+  <script type="text/babel" src="tweaks-panel.jsx"></script>
+  <script type="text/babel" src="wf-primitives.jsx"></script>
+  <script type="text/babel" src="wf-mobile.jsx"></script>
+  <script type="text/babel" src="wf-mobile-v2.jsx"></script>
+  <script type="text/babel" src="wf-designer.jsx"></script>
+  <script type="text/babel" src="wf-designer-v2.jsx"></script>
+  <script type="text/babel" src="wf-employee.jsx"></script>
+  <script type="text/babel" src="wf-app.jsx"></script>
+</body>
+</html>
