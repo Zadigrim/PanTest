@@ -1,6 +1,6 @@
 import { useSimulation } from '@/lib/admin/simulation-context'
 
-const INSTITUTIONAL_ROLES = ['institutional_manager', 'employee'] as const
+const INSTITUTIONAL_ROLES = ['institutional_manager', 'employee', 'educational_user'] as const
 
 export function useEffectiveProfile(real: { institutionId: string | null }) {
   const { simulation } = useSimulation()
