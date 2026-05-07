@@ -459,23 +459,44 @@ export default function EmployeesPage() {
 
         setCurrentUserId(user.id)
 
-        // Current user's authorization
-        const { data: myAuthz, error: myAuthzErr } = await supabase
-          .from('employee_authorizations')
-          .select('institution_id, can_add_extras')
-          .eq('user_id', user.id)
-          .limit(1)
-          .single()
-        if (myAuthzErr || !myAuthz) throw new Error('No institutional authorization found')
+        // Platform admins aren't in employee_authorizations — check first.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: isAdminRpc } = await (supabase as any).rpc('is_platform_admin')
+        const isPlatformAdmin = isAdminRpc === true
 
-        setInstitutionId(myAuthz.institution_id)
-        setCurrentCanAddExtras(myAuthz.can_add_extras ?? false)
+        let instId: string
+        let canAddExtras: boolean
+
+        if (isPlatformAdmin) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { data: firstInst } = await (supabase as any)
+            .from('institutions')
+            .select('id')
+            .limit(1)
+            .single()
+          if (!firstInst?.id) throw new Error('No institutions found')
+          instId = firstInst.id
+          canAddExtras = true
+        } else {
+          const { data: myAuthz, error: myAuthzErr } = await supabase
+            .from('employee_authorizations')
+            .select('institution_id, can_add_extras')
+            .eq('user_id', user.id)
+            .limit(1)
+            .single()
+          if (myAuthzErr || !myAuthz) throw new Error('No institutional authorization found')
+          instId = myAuthz.institution_id
+          canAddExtras = myAuthz.can_add_extras ?? false
+        }
+
+        setInstitutionId(instId)
+        setCurrentCanAddExtras(canAddExtras)
 
         // All employees for this institution
         const { data: authzRows, error: authzFetchErr } = await supabase
           .from('employee_authorizations')
           .select('id, user_id, role_label, can_verify, can_distribute_prizes, can_add_extras')
-          .eq('institution_id', myAuthz.institution_id)
+          .eq('institution_id', instId)
           .order('authorized_at', { ascending: true })
         if (authzFetchErr) throw new Error(authzFetchErr.message)
 
