@@ -35,8 +35,8 @@ export default function RootLayout() {
             options={{ title: 'Passport Designer' }}
           />
           <Stack.Screen
-            name="designer/[passportId]"
-            options={{ title: 'Edit Passport' }}
+            name="designer/[id]"
+            options={{ headerShown: false }}
           />
           <Stack.Screen
             name="designer/page/[pageId]"

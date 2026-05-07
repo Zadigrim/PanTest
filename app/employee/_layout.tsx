@@ -1,24 +1,316 @@
-import { Stack } from 'expo-router'
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'
+import {
+  View, Text, TouchableOpacity, StyleSheet, useWindowDimensions, ScrollView,
+} from 'react-native'
+import { Slot, router, usePathname } from 'expo-router'
+import { useEmployeeContext } from '../../contexts/EmployeeContext'
+import { supabase, getCurrentUser } from '../../lib/supabase'
 
-export default function EmployeeLayout() {
+// ── Counter context — child screens call refresh() after a scan/distribution ──
+interface CounterCtx { refresh: () => void }
+const Ctx = createContext<CounterCtx>({ refresh: () => {} })
+export function useCounterRefresh() { return useContext(Ctx) }
+
+const INK = '#1f1d1a'
+const PAPER = '#f6f1e6'
+const MUTED = '#6b6356'
+const HAIRLINE = '#c8bfa9'
+const ACCENT = '#c9a84c'
+const GREEN = '#1d9e75'
+const NAVY = '#0d1b2a'
+const RAIL_W = 300
+const WIDE_BP = 680
+
+interface Stats { scans: number; given: number; pending: number }
+interface RecentItem {
+  id: string
+  token_code: string
+  prize_given: string | null
+  scanned_at: string | null
+  distribution_pending: boolean
+  prize_distributed_at: string | null
+}
+
+const NAV = [
+  { key: 'scan',   label: 'Scan',   path: '/employee' },
+  { key: 'recent', label: 'Recent', path: '/employee/recent' },
+  { key: 'help',   label: 'Help',   path: '/employee/help' },
+] as const
+
+export default function CounterLayout() {
+  const { width } = useWindowDimensions()
+  const isWide = width >= WIDE_BP
+  const pathname = usePathname()
+  const isRedeem = pathname.includes('/redeem')
+
+  const { employeeAuth } = useEmployeeContext()
+  const [accountId, setAccountId] = useState<string | null>(null)
+  const [venueName, setVenueName] = useState('')
+  const [stats, setStats] = useState<Stats>({ scans: 0, given: 0, pending: 0 })
+  const [recent, setRecent] = useState<RecentItem[]>([])
+
+  useEffect(() => {
+    getCurrentUser().then(u => {
+      if (!u) { router.replace('/(auth)/login'); return }
+      supabase
+        .from('employee_accounts')
+        .select('id, proprietors(name)')
+        .eq('user_id', u.id)
+        .eq('is_active', true)
+        .single()
+        .then(({ data }) => {
+          if (!data) return
+          setAccountId(data.id)
+          setVenueName((data as any).proprietors?.name ?? employeeAuth?.institution_name ?? '')
+        })
+    })
+  }, [employeeAuth?.institution_name])
+
+  const loadStats = useCallback(async () => {
+    if (!accountId) return
+    const today = new Date(); today.setHours(0, 0, 0, 0)
+    const { data } = await supabase
+      .from('redemption_tokens')
+      .select('id, token_code, prize_given, scanned_at, distribution_pending, prize_distributed_at')
+      .eq('scanned_by_employee', accountId)
+      .gte('scanned_at', today.toISOString())
+      .order('scanned_at', { ascending: false })
+      .limit(50)
+    const rows = data ?? []
+    setStats({
+      scans: rows.length,
+      given: rows.filter(r => r.prize_distributed_at && !r.distribution_pending).length,
+      pending: rows.filter(r => r.distribution_pending).length,
+    })
+    setRecent(rows.slice(0, 6) as RecentItem[])
+  }, [accountId])
+
+  useEffect(() => { loadStats() }, [loadStats])
+
+  const activeTab = pathname.endsWith('/recent') ? 'recent'
+    : pathname.endsWith('/help') ? 'help'
+    : 'scan'
+
   return (
-    <Stack
-      screenOptions={{
-        headerStyle: { backgroundColor: '#0D1B2A' },
-        headerTintColor: '#F5F0E8',
-        headerTitleStyle: { fontFamily: 'serif' },
-      }}
-    >
-      <Stack.Screen name="index" options={{ title: 'PanoplyConnect' }} />
-      <Stack.Screen name="verify" options={{ title: 'Verify Experience' }} />
-      <Stack.Screen
-        name="redeem"
-        options={{
-          title: 'Prize Distribution',
-          headerBackVisible: false, // Cannot dismiss without completing step 2
-          gestureEnabled: false,
-        }}
-      />
-    </Stack>
+    <Ctx.Provider value={{ refresh: loadStats }}>
+      <View style={[s.root, isWide && s.rootRow]}>
+
+        {isWide ? (
+          // ── Wide: persistent left rail ──────────────────────────────────
+          <View style={s.rail}>
+            <TouchableOpacity style={s.backBrand} onPress={() => router.back()}>
+              <Text style={s.brandMark}>Connect</Text>
+              {!!venueName && <Text style={s.venueName} numberOfLines={1}>{venueName}</Text>}
+            </TouchableOpacity>
+
+            <View style={s.counters}>
+              {([
+                { label: 'scans',   val: stats.scans },
+                { label: 'given',   val: stats.given },
+                { label: 'pending', val: stats.pending },
+              ] as const).map(({ label, val }) => (
+                <View key={label} style={s.counterCell}>
+                  <Text style={s.counterNum}>{val}</Text>
+                  <Text style={s.counterLabel}>{label}</Text>
+                </View>
+              ))}
+            </View>
+
+            <View style={s.divider} />
+
+            <Text style={s.recentHeading}>RECENT</Text>
+            <ScrollView style={s.recentScroll} showsVerticalScrollIndicator={false}>
+              {recent.length === 0
+                ? <Text style={s.noRecent}>No scans today</Text>
+                : recent.map(item => {
+                    const dot = item.prize_distributed_at && !item.distribution_pending
+                      ? GREEN : item.distribution_pending ? ACCENT : HAIRLINE
+                    return (
+                      <View key={item.id} style={s.recentRow}>
+                        <View style={[s.dot, { backgroundColor: dot }]} />
+                        <View style={{ flex: 1 }}>
+                          <Text style={s.recentToken}>{item.token_code}</Text>
+                          {!!item.prize_given &&
+                            <Text style={s.recentPrize} numberOfLines={1}>{item.prize_given}</Text>}
+                        </View>
+                        {!!item.scanned_at &&
+                          <Text style={s.recentTime}>
+                            {new Date(item.scanned_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </Text>}
+                      </View>
+                    )
+                  })
+              }
+            </ScrollView>
+
+            <View style={s.divider} />
+
+            {!isRedeem && (
+              <View style={s.railNav}>
+                {NAV.map(({ key, label, path }) => (
+                  <TouchableOpacity
+                    key={key}
+                    style={[s.navItem, activeTab === key && s.navItemActive]}
+                    onPress={() => router.push(path as any)}
+                  >
+                    <Text style={[s.navLabel, activeTab === key && s.navLabelActive]}>{label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+
+            <TouchableOpacity style={s.helpPin} onPress={() => router.push('/employee/help' as any)}>
+              <Text style={s.helpPinText}>? Help</Text>
+            </TouchableOpacity>
+          </View>
+
+        ) : (
+          // ── Narrow: compact top strip ────────────────────────────────────
+          <View style={s.topStrip}>
+            <View style={s.stripRow}>
+              <TouchableOpacity onPress={() => router.back()}>
+                <Text style={s.brandMarkNarrow}>Connect</Text>
+                {!!venueName && <Text style={s.venueNarrow}>{venueName}</Text>}
+              </TouchableOpacity>
+              <View style={s.statsRow}>
+                {([
+                  { label: 'scans',   val: stats.scans },
+                  { label: 'given',   val: stats.given },
+                  { label: 'pending', val: stats.pending },
+                ] as const).map(({ label, val }) => (
+                  <View key={label} style={s.statChip}>
+                    <Text style={s.statNum}>{val}</Text>
+                    <Text style={s.statLabel}>{label}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+            {!isRedeem && (
+              <View style={s.topTabs}>
+                {NAV.map(({ key, label, path }) => (
+                  <TouchableOpacity
+                    key={key}
+                    style={[s.topTab, activeTab === key && s.topTabActive]}
+                    onPress={() => router.push(path as any)}
+                  >
+                    <Text style={[s.topTabLabel, activeTab === key && s.topTabLabelActive]}>{label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+          </View>
+        )}
+
+        {/* Workspace — renders current route */}
+        <View style={s.workspace}>
+          <Slot />
+        </View>
+
+      </View>
+    </Ctx.Provider>
   )
 }
+
+const s = StyleSheet.create({
+  root: { flex: 1, flexDirection: 'column', backgroundColor: PAPER },
+  rootRow: { flexDirection: 'row' },
+
+  // ── Left rail ────────────────────────────────────────────────────────────
+  rail: {
+    width: RAIL_W,
+    backgroundColor: PAPER,
+    borderRightWidth: 1,
+    borderRightColor: HAIRLINE,
+    paddingBottom: 16,
+  },
+  backBrand: {
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: HAIRLINE,
+    marginBottom: 4,
+  },
+  brandMark: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 2,
+    color: ACCENT,
+    textTransform: 'uppercase',
+  },
+  venueName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: INK,
+    marginTop: 3,
+  },
+  counters: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    gap: 8,
+  },
+  counterCell: { flex: 1, alignItems: 'center' },
+  counterNum: { fontSize: 28, fontWeight: '700', color: INK, lineHeight: 32 },
+  counterLabel: { fontSize: 10, color: MUTED, textTransform: 'lowercase', marginTop: 2 },
+  divider: { height: 1, backgroundColor: HAIRLINE, marginHorizontal: 16, marginVertical: 4 },
+  recentHeading: {
+    fontSize: 10, fontWeight: '700', letterSpacing: 2, color: MUTED,
+    paddingHorizontal: 20, paddingTop: 12, paddingBottom: 6,
+  },
+  recentScroll: { flex: 1, paddingHorizontal: 16 },
+  noRecent: { fontSize: 12, color: HAIRLINE, fontStyle: 'italic', paddingVertical: 8 },
+  recentRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingVertical: 7,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: HAIRLINE,
+  },
+  dot: { width: 8, height: 8, borderRadius: 4, flexShrink: 0 },
+  recentToken: { fontSize: 11, fontWeight: '600', color: INK, fontFamily: 'monospace', letterSpacing: 1 },
+  recentPrize: { fontSize: 10, color: MUTED, marginTop: 1 },
+  recentTime: { fontSize: 10, color: MUTED },
+  railNav: { paddingHorizontal: 12, paddingTop: 8, gap: 2 },
+  navItem: {
+    paddingVertical: 9,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+    borderLeftWidth: 2,
+    borderLeftColor: 'transparent',
+  },
+  navItemActive: { borderLeftColor: ACCENT, backgroundColor: 'rgba(201,168,76,0.07)' },
+  navLabel: { fontSize: 14, color: MUTED },
+  navLabelActive: { color: INK, fontWeight: '600' },
+  helpPin: { paddingHorizontal: 20, paddingTop: 12 },
+  helpPinText: { fontSize: 12, color: MUTED },
+
+  // ── Narrow top strip ────────────────────────────────────────────────────
+  topStrip: {
+    backgroundColor: NAVY,
+    paddingTop: 12,
+    paddingHorizontal: 16,
+    paddingBottom: 0,
+  },
+  stripRow: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start',
+    paddingBottom: 10,
+  },
+  brandMarkNarrow: { fontSize: 10, fontWeight: '700', letterSpacing: 2, color: ACCENT, textTransform: 'uppercase' },
+  venueNarrow: { fontSize: 13, fontWeight: '600', color: '#f5f0e8', marginTop: 2 },
+  statsRow: { flexDirection: 'row', gap: 10, alignItems: 'center' },
+  statChip: { alignItems: 'center' },
+  statNum: { fontSize: 18, fontWeight: '700', color: '#f5f0e8', lineHeight: 20 },
+  statLabel: { fontSize: 9, color: 'rgba(245,240,232,0.55)', textTransform: 'lowercase' },
+  topTabs: {
+    flexDirection: 'row',
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: 'rgba(255,255,255,0.12)',
+  },
+  topTab: { flex: 1, paddingVertical: 9, alignItems: 'center', borderBottomWidth: 2, borderBottomColor: 'transparent' },
+  topTabActive: { borderBottomColor: ACCENT },
+  topTabLabel: { fontSize: 13, color: 'rgba(245,240,232,0.55)' },
+  topTabLabelActive: { color: '#f5f0e8', fontWeight: '600' },
+
+  // ── Workspace ────────────────────────────────────────────────────────────
+  workspace: { flex: 1, backgroundColor: '#fff' },
+})

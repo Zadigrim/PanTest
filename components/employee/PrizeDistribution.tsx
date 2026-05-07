@@ -143,7 +143,7 @@ const styles = StyleSheet.create({
   prizeText: {
     fontSize: 17,
     color: '#1a1a1a',
-    fontFamily: 'serif',
+    fontWeight: '500',
   },
   actions: {
     gap: 12,

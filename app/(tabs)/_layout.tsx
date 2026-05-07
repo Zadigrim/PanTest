@@ -14,7 +14,7 @@ export default function TabsLayout() {
         tabBarStyle: { backgroundColor: '#0D1B2A', borderTopColor: '#1a2d44' },
         headerStyle: { backgroundColor: '#0D1B2A' },
         headerTintColor: '#F5F0E8',
-        headerTitleStyle: { fontFamily: 'serif', letterSpacing: 1 },
+        headerTitleStyle: { fontWeight: '600', letterSpacing: 0.5 },
       }}
     >
       <Tabs.Screen

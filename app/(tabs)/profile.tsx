@@ -1,9 +1,20 @@
 import React, { useState, useEffect } from 'react'
-import { View, Text, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, Switch } from 'react-native'
+import {
+  View, Text, TouchableOpacity, StyleSheet, Alert, ActivityIndicator,
+  Switch, ScrollView,
+} from 'react-native'
 import { router } from 'expo-router'
 import { supabase, getCurrentUser } from '../../lib/supabase'
 import { useEmployeeContext } from '../../contexts/EmployeeContext'
 import type { Profile } from '../../types'
+
+const INK    = '#1f1d1a'
+const MUTED  = '#6b6356'
+const ACCENT = '#c9a84c'
+const NAVY   = '#0d1b2a'
+const GREEN  = '#1d9e75'
+const HAIRLINE = '#c8bfa9'
+const PAPER  = '#f6f1e6'
 
 export default function ProfileScreen() {
   const [profile, setProfile] = useState<Profile | null>(null)
@@ -25,8 +36,7 @@ export default function ProfileScreen() {
     Alert.alert('Sign out', 'Are you sure?', [
       { text: 'Cancel', style: 'cancel' },
       {
-        text: 'Sign out',
-        style: 'destructive',
+        text: 'Sign out', style: 'destructive',
         onPress: async () => {
           await supabase.auth.signOut()
           router.replace('/(auth)/login')
@@ -36,80 +46,155 @@ export default function ProfileScreen() {
   }
 
   if (loading) {
-    return (
-      <View style={styles.centered}>
-        <ActivityIndicator color="#C9A84C" />
-      </View>
-    )
+    return <View style={s.centered}><ActivityIndicator color={ACCENT} /></View>
   }
 
+  const isCreator = profile?.role === 'creator' || profile?.role === 'admin'
+  const isEmp     = profile?.role === 'employee' || profile?.role === 'admin' || isEmployee
+
   return (
-    <View style={styles.container}>
-      <View style={styles.avatar}>
-        <Text style={styles.avatarEmoji}>👤</Text>
+    <ScrollView style={s.container} contentContainerStyle={s.content}>
+      {/* Identity */}
+      <View style={s.identity}>
+        <View style={s.avatar}>
+          <Text style={s.avatarInitial}>
+            {(profile?.display_name ?? '?')[0].toUpperCase()}
+          </Text>
+        </View>
+        <Text style={s.name}>{profile?.display_name ?? 'Traveler'}</Text>
+        <Text style={s.role}>{profile?.role ?? 'collector'}</Text>
       </View>
-      <Text style={styles.name}>{profile?.display_name ?? 'Traveler'}</Text>
-      <Text style={styles.role}>
-        {profile?.role === 'employee' ? 'Employee' : 'Adventurer'}
-      </Text>
 
-      {profile?.role === 'employee' && (
-        <TouchableOpacity
-          style={styles.menuItem}
-          onPress={() => router.push('/employee')}
-        >
-          <Text style={styles.menuItemText}>🏷 Employee Terminal</Text>
-          <Text style={styles.menuArrow}>›</Text>
-        </TouchableOpacity>
-      )}
+      {/* Workspace cards — shown based on role */}
+      {(isEmp || isCreator) && (
+        <View style={s.workspaces}>
+          <Text style={s.workspacesLabel}>WORKSPACES</Text>
 
-      {isEmployee && (
-        <View style={styles.menuItem}>
-          <Text style={styles.menuItemText}>Employee mode</Text>
-          <Switch
-            value={employeeMode}
-            onValueChange={setEmployeeMode}
-            trackColor={{ false: '#ccc', true: '#C9A84C' }}
-            thumbColor={employeeMode ? '#0D1B2A' : '#f4f3f4'}
-          />
+          {isEmp && (
+            <TouchableOpacity
+              style={s.wsCard}
+              onPress={() => router.push('/employee' as any)}
+              activeOpacity={0.75}
+            >
+              <View style={[s.wsIcon, { backgroundColor: ACCENT }]}>
+                <Text style={s.wsIconGlyph}>🏷</Text>
+              </View>
+              <View style={s.wsText}>
+                <Text style={s.wsTitle}>Employee Terminal</Text>
+                <Text style={s.wsSubtitle}>Scan &amp; redeem stamps</Text>
+              </View>
+              <Text style={s.wsArrow}>›</Text>
+            </TouchableOpacity>
+          )}
+
+          {isCreator && (
+            <TouchableOpacity
+              style={s.wsCard}
+              onPress={() => router.push('/designer' as any)}
+              activeOpacity={0.75}
+            >
+              <View style={[s.wsIcon, { backgroundColor: NAVY }]}>
+                <Text style={s.wsIconGlyph}>✏️</Text>
+              </View>
+              <View style={s.wsText}>
+                <Text style={s.wsTitle}>Passport Designer</Text>
+                <Text style={s.wsSubtitle}>Create &amp; publish passports</Text>
+              </View>
+              <Text style={s.wsArrow}>›</Text>
+            </TouchableOpacity>
+          )}
         </View>
       )}
 
-      <TouchableOpacity style={[styles.menuItem, styles.signOutItem]} onPress={handleSignOut}>
-        <Text style={[styles.menuItemText, styles.signOutText]}>Sign out</Text>
-      </TouchableOpacity>
+      {/* Employee mode toggle */}
+      {isEmployee && (
+        <View style={s.section}>
+          <Text style={s.sectionLabel}>SETTINGS</Text>
+          <View style={s.menuRow}>
+            <Text style={s.menuRowText}>Employee mode</Text>
+            <Switch
+              value={employeeMode}
+              onValueChange={setEmployeeMode}
+              trackColor={{ false: HAIRLINE, true: ACCENT }}
+              thumbColor={employeeMode ? NAVY : '#f4f3f4'}
+            />
+          </View>
+        </View>
+      )}
 
-      <Text style={styles.privacy}>
+      {/* Sign out */}
+      <View style={s.section}>
+        <TouchableOpacity style={s.signOutRow} onPress={handleSignOut}>
+          <Text style={s.signOutText}>Sign out</Text>
+        </TouchableOpacity>
+      </View>
+
+      <Text style={s.privacy}>
         Location is accessed only when stamping — never in the background.
-        Your journal is private to you.
+        Your journal entries are private to you.
       </Text>
-    </View>
+    </ScrollView>
   )
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, padding: 24, backgroundColor: '#fff', alignItems: 'center' },
+const s = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#fff' },
+  content: { paddingBottom: 48 },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+
+  identity: { alignItems: 'center', paddingTop: 36, paddingBottom: 24 },
   avatar: {
-    width: 80, height: 80, borderRadius: 40,
-    backgroundColor: '#0D1B2A', alignItems: 'center', justifyContent: 'center',
-    marginTop: 24, marginBottom: 12,
+    width: 72, height: 72, borderRadius: 36,
+    backgroundColor: NAVY, alignItems: 'center', justifyContent: 'center',
+    marginBottom: 12,
   },
-  avatarEmoji: { fontSize: 36 },
-  name: { fontSize: 22, fontWeight: '700', color: '#0D1B2A', fontFamily: 'serif' },
-  role: { fontSize: 13, color: '#888', fontStyle: 'italic', marginBottom: 32, textTransform: 'capitalize' },
-  menuItem: {
-    width: '100%', flexDirection: 'row', justifyContent: 'space-between',
-    alignItems: 'center', paddingVertical: 16, paddingHorizontal: 4,
-    borderBottomWidth: 1, borderBottomColor: '#f0f0f0',
+  avatarInitial: { fontSize: 30, fontWeight: '700', color: ACCENT },
+  name: { fontSize: 20, fontWeight: '700', color: INK },
+  role: { fontSize: 12, color: MUTED, marginTop: 3, textTransform: 'capitalize' },
+
+  workspaces: { paddingHorizontal: 20, paddingBottom: 12 },
+  workspacesLabel: {
+    fontSize: 10, fontWeight: '700', letterSpacing: 2, color: MUTED,
+    paddingTop: 20, paddingBottom: 10, borderTopWidth: 1, borderTopColor: '#f0ece3',
   },
-  menuItemText: { fontSize: 16, color: '#0D1B2A' },
-  menuArrow: { fontSize: 20, color: '#ccc' },
-  signOutItem: { marginTop: 24, borderBottomWidth: 0 },
-  signOutText: { color: '#C0392B' },
+  wsCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 14,
+    backgroundColor: PAPER,
+    borderRadius: 8,
+    padding: 16,
+    marginBottom: 10,
+    borderWidth: 1, borderColor: '#e8e1d2',
+  },
+  wsIcon: {
+    width: 44, height: 44, borderRadius: 22,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  wsIconGlyph: { fontSize: 20 },
+  wsText: { flex: 1 },
+  wsTitle: { fontSize: 15, fontWeight: '700', color: INK },
+  wsSubtitle: { fontSize: 12, color: MUTED, marginTop: 2 },
+  wsArrow: { fontSize: 22, color: HAIRLINE },
+
+  section: {
+    paddingHorizontal: 20,
+    paddingBottom: 8,
+    borderTopWidth: 1, borderTopColor: '#f0ece3',
+    paddingTop: 16,
+  },
+  sectionLabel: {
+    fontSize: 10, fontWeight: '700', letterSpacing: 2, color: MUTED, marginBottom: 10,
+  },
+  menuRow: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingVertical: 8,
+  },
+  menuRowText: { fontSize: 15, color: INK },
+
+  signOutRow: { paddingVertical: 10 },
+  signOutText: { fontSize: 15, color: '#c0392b', fontWeight: '500' },
+
   privacy: {
-    position: 'absolute', bottom: 32,
-    fontSize: 11, color: '#bbb', textAlign: 'center',
-    paddingHorizontal: 24, fontStyle: 'italic', lineHeight: 16,
+    paddingHorizontal: 24, paddingTop: 32,
+    fontSize: 11, color: HAIRLINE, textAlign: 'center', lineHeight: 16, fontStyle: 'italic',
   },
 })
