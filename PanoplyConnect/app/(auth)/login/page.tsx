@@ -57,7 +57,9 @@ function LoginForm() {
       return
     }
 
-    router.replace(next)
+    // Hard redirect so the browser sends a fresh request with new auth cookies.
+    // router.replace() does a soft RSC navigation that can race with cookie propagation.
+    window.location.href = next
   }
 
   return (

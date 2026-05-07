@@ -30,6 +30,7 @@ export async function middleware(request: NextRequest) {
   const isPublic =
     pathname.startsWith('/login') ||
     pathname.startsWith('/signup') ||
+    pathname.startsWith('/auth/') ||      // OAuth callback — must be reachable before session exists
     pathname.startsWith('/share/') ||
     pathname.startsWith('/explore') ||
     pathname.startsWith('/passport/') ||
