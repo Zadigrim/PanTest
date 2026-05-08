@@ -287,6 +287,37 @@ interface StopForPrint {
   box_height: number
 }
 
+interface BaseElement {
+  id: string
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+interface TextPageElement extends BaseElement {
+  type: 'text'
+  content?: string
+  fontSize?: number
+  fontWeight?: 'normal' | 'bold'
+  color?: string       // hex without #
+  align?: 'left' | 'center' | 'right'
+}
+
+interface HLinePageElement extends BaseElement {
+  type: 'hline'
+  thickness?: number
+  lineColor?: string   // hex without #
+}
+
+interface VLinePageElement extends BaseElement {
+  type: 'vline'
+  thickness?: number
+  lineColor?: string   // hex without #
+}
+
+type PageElement = TextPageElement | HLinePageElement | VLinePageElement
+
 interface PassportPageForPrint {
   id: string
   page_order: number
@@ -294,6 +325,7 @@ interface PassportPageForPrint {
   section_name: string
   section_title: string | null
   stops: StopForPrint[]
+  elements: PageElement[]
 }
 
 type SlotContent =
@@ -388,6 +420,91 @@ function CoverSlotContent({ title, subtitle }: { title: string; subtitle: string
   )
 }
 
+// ── Page element rendering (text, hline, vline) ───────────────────────────────
+
+function TextEl({ el, scale }: { el: TextPageElement; scale: number }) {
+  const color      = `#${el.color ?? '0D1B2A'}`
+  const fontSize   = (el.fontSize ?? 14) * scale
+  const fontFamily = el.fontWeight === 'bold' ? 'Helvetica-Bold' : 'Helvetica'
+  const textAlign  = el.align ?? 'left'
+
+  return (
+    <View
+      style={{
+        position: 'absolute',
+        left:   el.x * scale,
+        top:    el.y * scale,
+        width:  el.width  * scale,
+        height: el.height * scale,
+        overflow: 'hidden',
+      }}
+    >
+      <Text style={{ fontSize, fontFamily, color, textAlign }}>
+        {el.content ?? ''}
+      </Text>
+    </View>
+  )
+}
+
+function HLineEl({ el, scale }: { el: HLinePageElement; scale: number }) {
+  const thickness = el.thickness ?? 2
+  const color     = `#${el.lineColor ?? '0D1B2A'}`
+  // Center the bar within the element's bounding box height
+  const top  = (el.y + el.height / 2 - thickness / 2) * scale
+  const left = el.x * scale
+
+  return (
+    <View
+      style={{
+        position: 'absolute',
+        left,
+        top,
+        width:  el.width    * scale,
+        height: thickness   * scale,
+        backgroundColor: color,
+      }}
+    />
+  )
+}
+
+function VLineEl({ el, scale }: { el: VLinePageElement; scale: number }) {
+  const thickness = el.thickness ?? 2
+  const color     = `#${el.lineColor ?? '0D1B2A'}`
+  // Center the bar within the element's bounding box width
+  const left = (el.x + el.width / 2 - thickness / 2) * scale
+  const top  = el.y * scale
+
+  return (
+    <View
+      style={{
+        position: 'absolute',
+        left,
+        top,
+        width:  thickness   * scale,
+        height: el.height   * scale,
+        backgroundColor: color,
+      }}
+    />
+  )
+}
+
+function PageElementsLayer({ elements, scale }: { elements: PageElement[]; scale: number }) {
+  return (
+    <>
+      {(elements ?? []).map((el) => {
+        try {
+          if (el.type === 'text')  return <TextEl  key={el.id} el={el} scale={scale} />
+          if (el.type === 'hline') return <HLineEl key={el.id} el={el} scale={scale} />
+          if (el.type === 'vline') return <VLineEl key={el.id} el={el} scale={scale} />
+        } catch {
+          // Skip malformed elements rather than crashing the PDF
+        }
+        return null
+      })}
+    </>
+  )
+}
+
 function PassportPageSlotContent({ page }: { page: PassportPageForPrint }) {
   const label = page.section_title || page.section_name || `Page ${page.page_order}`
 
@@ -401,6 +518,9 @@ function PassportPageSlotContent({ page }: { page: PassportPageForPrint }) {
           { width: CANVAS_W, height: CANVAS_H, marginLeft: CANVAS_OFFSET_X },
         ]}
       >
+        {/* Elements rendered before (below) LocationBoxes */}
+        <PageElementsLayer elements={page.elements} scale={CANVAS_SCALE} />
+
         {page.stops.map((stop) => {
           const x = stop.box_x * CANVAS_SCALE
           const y = stop.box_y * CANVAS_SCALE
@@ -658,7 +778,7 @@ async function handlePrintRequest(request: Request, passportId: string) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: pagesRaw, error: pagesErr } = await (supabase as any)
     .from('passport_pages')
-    .select('id, page_order, page_type, section_name, section_title')
+    .select('id, page_order, page_type, section_name, section_title, elements')
     .eq('passport_id', passportId)
     .order('page_order', { ascending: true }) as {
       data: {
@@ -667,6 +787,7 @@ async function handlePrintRequest(request: Request, passportId: string) {
         page_type: string
         section_name: string
         section_title: string | null
+        elements: PageElement[] | null
       }[] | null
       error: unknown
     }
@@ -734,6 +855,7 @@ async function handlePrintRequest(request: Request, passportId: string) {
         section_name:  page.section_name ?? '',
         section_title: page.section_title,
         stops:         pageStops,
+        elements:      (page.elements ?? []) as PageElement[],
       }
     })
     .filter((page) => {
