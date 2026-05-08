@@ -403,7 +403,8 @@ function PageInspector({ page }: { page: PassportPage }) {
   const persist = async (patch: Partial<PassportPage>) => {
     updatePage(page.id, patch)
     const supabase = createClient()
-    await supabase.from('passport_pages').update(patch).eq('id', page.id)
+    const { error } = await supabase.from('passport_pages').update(patch).eq('id', page.id)
+    if (error) console.error('[persist page]', error)
   }
 
   return (

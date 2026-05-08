@@ -527,7 +527,8 @@ function GuillocheOverlay({ color, opacity }: { color: string; opacity: number }
   const tileSize = 32
   const cols = Math.ceil(ARTBOARD_W / tileSize) + 1
   const rows = Math.ceil(ARTBOARD_H / tileSize) + 1
-  const alpha = Math.max(8, Math.min(20, opacity)) / 100
+  // Use strokeOpacity attribute on each element — @react-pdf ignores CSS opacity on Svg containers
+  const strokeOpacity = Math.max(8, Math.min(20, opacity)) / 100
 
   const tiles: React.ReactNode[] = []
   for (let r = 0; r < rows; r++) {
@@ -539,11 +540,11 @@ function GuillocheOverlay({ color, opacity }: { color: string; opacity: number }
       const ts = tileSize
       tiles.push(
         <React.Fragment key={`${r}-${c}`}>
-          <Ellipse cx={cx} cy={cy} rx={14} ry={7}  strokeWidth={0.6} stroke={color} fill="none" />
-          <Ellipse cx={cx} cy={cy} rx={7}  ry={14} strokeWidth={0.6} stroke={color} fill="none" />
+          <Ellipse cx={cx} cy={cy} rx={14} ry={7}  strokeWidth={0.6} stroke={color} fill="none" strokeOpacity={strokeOpacity} />
+          <Ellipse cx={cx} cy={cy} rx={7}  ry={14} strokeWidth={0.6} stroke={color} fill="none" strokeOpacity={strokeOpacity} />
           <Path
             d={`M${cx},${y+2} L${x+ts-2},${cy} L${cx},${y+ts-2} L${x+2},${cy} Z`}
-            strokeWidth={0.4} stroke={color} fill="none"
+            strokeWidth={0.4} stroke={color} fill="none" strokeOpacity={strokeOpacity}
           />
         </React.Fragment>,
       )
@@ -553,7 +554,7 @@ function GuillocheOverlay({ color, opacity }: { color: string; opacity: number }
   return (
     <Svg
       viewBox={`0 0 ${ARTBOARD_W} ${ARTBOARD_H}`}
-      style={{ position: 'absolute', top: 0, left: 0, width: CANVAS_W, height: CANVAS_H, opacity: alpha }}
+      style={{ position: 'absolute', top: 0, left: 0, width: CANVAS_W, height: CANVAS_H }}
     >
       {tiles}
     </Svg>
@@ -563,25 +564,28 @@ function GuillocheOverlay({ color, opacity }: { color: string; opacity: number }
 function GridOverlay({ color, opacity }: { color: string; opacity: number }) {
   const minor  = 12   // artboard units between minor lines
   const major  = 60   // artboard units between major lines
-  const minorA = Math.max(8, Math.min(20, opacity)) / 100
-  const majorA = Math.min(1, minorA * 2.5)
-  const minorC = hexToRgba(color.replace('#', ''), Math.round(minorA * 100))
-  const majorC = hexToRgba(color.replace('#', ''), Math.round(majorA * 100))
+  // Use strokeOpacity on each Line — @react-pdf ignores CSS opacity on Svg containers
+  const minorOpacity = Math.max(8, Math.min(20, opacity)) / 100
+  const majorOpacity = Math.min(1, minorOpacity * 2.5)
 
   const lines: React.ReactNode[] = []
   for (let x = 0; x <= ARTBOARD_W; x += minor) {
+    const isMajor = x % major === 0
     lines.push(
       <Line key={`v${x}`} x1={x} y1={0} x2={x} y2={ARTBOARD_H}
-        stroke={x % major === 0 ? majorC : minorC}
-        strokeWidth={x % major === 0 ? 0.8 : 0.35}
+        stroke={color}
+        strokeWidth={isMajor ? 0.8 : 0.35}
+        strokeOpacity={isMajor ? majorOpacity : minorOpacity}
       />,
     )
   }
   for (let y = 0; y <= ARTBOARD_H; y += minor) {
+    const isMajor = y % major === 0
     lines.push(
       <Line key={`h${y}`} x1={0} y1={y} x2={ARTBOARD_W} y2={y}
-        stroke={y % major === 0 ? majorC : minorC}
-        strokeWidth={y % major === 0 ? 0.8 : 0.35}
+        stroke={color}
+        strokeWidth={isMajor ? 0.8 : 0.35}
+        strokeOpacity={isMajor ? majorOpacity : minorOpacity}
       />,
     )
   }
