@@ -775,24 +775,46 @@ async function handlePrintRequest(request: Request, passportId: string) {
   }
 
   // ── 6. Fetch passport pages ordered by page_order ────────────────────────
+  // Try with the elements column first; fall back without it if the column
+  // doesn't exist yet in this environment (Designer migration 003 not applied).
+  type RawPage = {
+    id: string
+    page_order: number
+    page_type: string
+    section_name: string
+    section_title: string | null
+    elements: PageElement[] | null
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: pagesRaw, error: pagesErr } = await (supabase as any)
+  const { data: pagesWithEl, error: elErr } = await (supabase as any)
     .from('passport_pages')
     .select('id, page_order, page_type, section_name, section_title, elements')
     .eq('passport_id', passportId)
-    .order('page_order', { ascending: true }) as {
-      data: {
-        id: string
-        page_order: number
-        page_type: string
-        section_name: string
-        section_title: string | null
-        elements: PageElement[] | null
-      }[] | null
-      error: unknown
-    }
+    .order('page_order', { ascending: true }) as { data: RawPage[] | null; error: unknown }
 
-  if (pagesErr || !pagesRaw || pagesRaw.length === 0) {
+  let pagesRaw: RawPage[] | null = pagesWithEl
+
+  if (elErr) {
+    // elements column absent — retry without it
+    console.warn('[print-pdf] elements column unavailable, retrying without it:', elErr)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: pagesNoEl, error: pagesErr } = await (supabase as any)
+      .from('passport_pages')
+      .select('id, page_order, page_type, section_name, section_title')
+      .eq('passport_id', passportId)
+      .order('page_order', { ascending: true }) as { data: Omit<RawPage, 'elements'>[] | null; error: unknown }
+
+    if (pagesErr) {
+      return new Response(JSON.stringify({ error: 'Failed to fetch pages' }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    }
+    pagesRaw = (pagesNoEl ?? []).map((p) => ({ ...p, elements: null }))
+  }
+
+  if (!pagesRaw || pagesRaw.length === 0) {
     return new Response(JSON.stringify({ error: 'No pages found for this passport' }), {
       status: 404,
       headers: { 'Content-Type': 'application/json' },
