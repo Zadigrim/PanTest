@@ -679,6 +679,18 @@ export async function POST(
   request: Request,
   { params }: { params: { id: string } },
 ) {
+  try {
+    return await handlePrintRequest(request, params.id)
+  } catch (err) {
+    console.error('[print-pdf] unhandled error:', err)
+    return new Response(
+      JSON.stringify({ error: err instanceof Error ? err.message : 'Internal server error' }),
+      { status: 500, headers: { 'Content-Type': 'application/json' } },
+    )
+  }
+}
+
+async function handlePrintRequest(request: Request, passportId: string) {
   const supabase = await createClient()
 
   // ── 1. Auth ──────────────────────────────────────────────────────────────
@@ -718,8 +730,6 @@ export async function POST(
       headers: { 'Content-Type': 'application/json' },
     })
   }
-
-  const passportId = params.id
 
   // ── 3. Fetch passport ─────────────────────────────────────────────────────
   const { data: passport, error: passportError } = await supabase
