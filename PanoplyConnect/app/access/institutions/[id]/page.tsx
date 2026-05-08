@@ -4,13 +4,17 @@ import { useEffect, useState, useTransition, useId, type FormEvent } from 'react
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
-import {
-  INSTITUTION_TYPE_LABELS,
-  FREE_INSTITUTION_TYPES,
-  ADMISSION_CHARGING_TYPES,
-  ADMISSION_QUESTION_TYPES,
-} from '@/lib/supabase/types'
+import { INSTITUTION_TYPE_LABELS } from '@/lib/supabase/types'
 import type { Institution } from '@/lib/supabase/types'
+import {
+  computePricingModel,
+  isAdmissionDependent,
+  PRICING_MODEL_LABELS,
+  PRICING_MODEL_DESCRIPTIONS,
+  PRICING_BADGE_COLORS,
+  INSTITUTION_TYPE_GROUPS,
+  type PricingModel,
+} from '@/lib/pricing'
 
 // ─── Shared helpers ───────────────────────────────────────────────────────────
 
@@ -25,40 +29,63 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   )
 }
 
-const PRICING_MODEL_LABELS: Record<string, string> = {
-  free:         'Free forever',
-  paid_passport:'Paid passport (70/30)',
-  community:    'Community subscription',
-  regional:     'Regional subscription',
-  enterprise:   'Enterprise subscription',
+function PricingBadge({ model, locked }: { model: string; locked?: boolean }) {
+  const colorCls = PRICING_BADGE_COLORS[model as PricingModel] ?? 'bg-panoply-gray-2 text-panoply-gray-3'
+  const label = PRICING_MODEL_LABELS[model as PricingModel] ?? model
+  return (
+    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${colorCls}`}>
+      {label}
+      {locked && <span title="Admin override" className="opacity-70">🔒</span>}
+    </span>
+  )
 }
 
-const TIER_LABELS: Record<string, string> = {
-  community:  'Community',
-  commercial: 'Commercial',
-  enterprise: 'Enterprise',
-}
-
-const TYPE_GROUPS: { label: string; types: string[] }[] = [
-  { label: 'Educational',    types: ['k12_school','public_library','museum','educational_nonprofit','after_school_program','literacy_organization','youth_development','homeschool_cooperative'] },
-  { label: 'Environmental',  types: ['parks_department','nature_conservatory','land_trust','watershed_council','native_plant_society','wildlife_rehabilitation','environmental_education'] },
-  { label: 'Cultural',       types: ['historical_society','heritage_organization','cultural_center','oral_history_project'] },
-  { label: 'Community Arts', types: ['community_theater','public_art_organization','community_arts_center','community_music_program','writing_center'] },
-  { label: 'Social Services',types: ['food_bank','homeless_shelter','refugee_immigrant_services','free_health_clinic','adult_literacy'] },
-  { label: 'Community Access',types: ['community_garden','maker_space','tool_lending_library','seed_library','municipality'] },
-  { label: 'Paid Admission', types: ['zoo','aquarium','botanical_garden','science_museum','childrens_museum','nature_center_paid'] },
-  { label: 'Commercial',     types: ['chamber_of_commerce','tourism_board','proprietor','hotel_chain','expo_organizer'] },
-  { label: 'Other',          types: ['general','library','school','park','historic_site','nonprofit','other'] },
-]
-
-function computePricingModel(type: string | null, chargesAdmission: boolean): string {
-  if (!type) return 'community'
-  if (FREE_INSTITUTION_TYPES.has(type)) return 'free'
-  if (ADMISSION_CHARGING_TYPES.has(type) || chargesAdmission) return 'paid_passport'
-  return 'community'
-}
+const PRICING_MODELS = ['free', 'paid_passport', 'community', 'regional', 'enterprise', 'patron'] as const
 
 // ─── Properties section ───────────────────────────────────────────────────────
+
+interface PropertiesForm {
+  name: string
+  institution_type: string
+  charges_admission: boolean
+  municipality_population: string
+  pricing_model_override: string
+  pricing_model_locked: boolean
+  catalog_url: string
+  website: string
+  contact_name: string
+  contact_email: string
+  address_line1: string
+  address_city: string
+  address_state: string
+  address_zip: string
+  internal_notes: string
+}
+
+function formFromInstitution(inst: Institution): PropertiesForm {
+  const raw = inst as unknown as {
+    municipality_population?: number | null
+    pricing_model_locked?: boolean
+    pricing_model_override_by?: string | null
+  }
+  return {
+    name: inst.name,
+    institution_type: inst.institution_type ?? '',
+    charges_admission: inst.charges_admission,
+    municipality_population: raw.municipality_population != null ? String(raw.municipality_population) : '',
+    pricing_model_override: raw.pricing_model_locked ? inst.pricing_model : '',
+    pricing_model_locked: raw.pricing_model_locked ?? false,
+    catalog_url: inst.catalog_url ?? '',
+    website: inst.website ?? '',
+    contact_name: inst.contact_name ?? '',
+    contact_email: inst.contact_email ?? '',
+    address_line1: inst.address_line1 ?? '',
+    address_city: inst.address_city ?? '',
+    address_state: inst.address_state ?? '',
+    address_zip: inst.address_zip ?? '',
+    internal_notes: inst.internal_notes ?? '',
+  }
+}
 
 function PropertiesSection({
   institution,
@@ -69,60 +96,76 @@ function PropertiesSection({
   isAdmin: boolean
   onSaved: (updated: Institution) => void
 }) {
+  const formId = useId()
   const [editing, setEditing] = useState(false)
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
-  const [form, setForm] = useState({ ...institution })
+  const [form, setForm] = useState<PropertiesForm>(() => formFromInstitution(institution))
 
-  const showAdmissionQuestion = form.institution_type
-    ? ADMISSION_QUESTION_TYPES.has(form.institution_type)
-    : false
-  const pricingModel = computePricingModel(form.institution_type, form.charges_admission)
+  const pop = form.municipality_population ? parseInt(form.municipality_population, 10) : undefined
+  const computedModel = computePricingModel(
+    form.institution_type || '',
+    form.charges_admission,
+    Number.isFinite(pop) ? pop : undefined,
+  )
+  const effectiveModel = (form.pricing_model_locked && form.pricing_model_override)
+    ? form.pricing_model_override as PricingModel
+    : computedModel
 
-  function set<K extends keyof Institution>(k: K, v: Institution[K]) {
+  const showAdmission = isAdmissionDependent(form.institution_type)
+  const showPopulation = form.institution_type === 'municipality'
+  const instLocked = (institution as unknown as { pricing_model_locked?: boolean }).pricing_model_locked
+
+  function set<K extends keyof PropertiesForm>(k: K, v: PropertiesForm[K]) {
     setForm((f) => ({ ...f, [k]: v }))
   }
 
   function handleSave() {
     setError(null)
     startTransition(async () => {
-      const supabase = createClient()
-      const { data, error: updateErr } = await supabase
-        .from('institutions')
-        .update({
-          name: form.name,
-          institution_type: form.institution_type,
+      const res = await fetch(`/api/institutions/${institution.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: form.name.trim() || institution.name,
+          institution_type: form.institution_type || null,
           charges_admission: form.charges_admission,
-          pricing_model: pricingModel,
-          tier: form.tier,
-          catalog_url: form.catalog_url,
-          contact_name: form.contact_name,
-          contact_email: form.contact_email,
-          address_line1: form.address_line1,
-          address_city: form.address_city,
-          address_state: form.address_state,
-          address_zip: form.address_zip,
-          website: form.website,
-          internal_notes: form.internal_notes,
-        })
-        .eq('id', institution.id)
-        .select('*')
-        .single()
+          municipality_population: showPopulation && form.municipality_population
+            ? parseInt(form.municipality_population, 10)
+            : null,
+          pricing_model_override: form.pricing_model_locked ? form.pricing_model_override || null : null,
+          pricing_model_locked: form.pricing_model_locked,
+          catalog_url: form.catalog_url.trim() || null,
+          website: form.website.trim() || null,
+          contact_name: form.contact_name.trim() || null,
+          contact_email: form.contact_email.trim() || null,
+          address_line1: form.address_line1.trim() || null,
+          address_city: form.address_city.trim() || null,
+          address_state: form.address_state.trim() || null,
+          address_zip: form.address_zip.trim() || null,
+          internal_notes: form.internal_notes.trim() || null,
+        }),
+      })
 
-      if (updateErr || !data) {
-        setError(updateErr?.message ?? 'Failed to save.')
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        setError(body.error ?? 'Failed to save.')
         return
       }
-      onSaved(data as unknown as Institution)
+
+      const { institution: updated } = await res.json()
+      onSaved(updated as Institution)
       setEditing(false)
     })
   }
 
   function handleCancel() {
-    setForm({ ...institution })
+    setForm(formFromInstitution(institution))
     setEditing(false)
     setError(null)
   }
+
+  const currentModel = editing ? effectiveModel : institution.pricing_model
 
   return (
     <section className="rounded-panel border border-panoply-gray-2 bg-white p-5">
@@ -152,11 +195,14 @@ function PropertiesSection({
           {editing ? (
             <select
               className={INPUT_CLS}
-              value={form.institution_type ?? ''}
-              onChange={(e) => set('institution_type', e.target.value as Institution['institution_type'])}
+              value={form.institution_type}
+              onChange={(e) => {
+                set('institution_type', e.target.value)
+                set('charges_admission', false)
+              }}
             >
               <option value="">Select type…</option>
-              {TYPE_GROUPS.map((g) => (
+              {INSTITUTION_TYPE_GROUPS.map((g) => (
                 <optgroup key={g.label} label={g.label}>
                   {g.types.map((t) => (
                     <option key={t} value={t}>{INSTITUTION_TYPE_LABELS[t] ?? t}</option>
@@ -173,46 +219,121 @@ function PropertiesSection({
           )}
         </Field>
 
-        {(editing && showAdmissionQuestion) && (
+        {/* Admission radio (nature/science types) */}
+        {(editing && showAdmission) && (
           <div className="sm:col-span-2">
-            <label className="flex items-center gap-2 text-sm text-panoply-navy">
-              <input
-                type="checkbox"
-                className="accent-panoply-teal h-4 w-4"
-                checked={form.charges_admission}
-                onChange={(e) => set('charges_admission', e.target.checked)}
-              />
-              Charges admission
-            </label>
+            <fieldset className="rounded-panel border border-panoply-gray-2 p-3">
+              <legend className="px-1 text-xs font-medium text-panoply-gray-3">Admission</legend>
+              <p className="mb-2 text-xs text-panoply-gray-3">Does this institution charge admission?</p>
+              <div className="flex gap-4">
+                <label className="flex items-center gap-2 text-sm text-panoply-navy">
+                  <input
+                    type="radio"
+                    name={`${formId}-admission`}
+                    checked={form.charges_admission}
+                    onChange={() => set('charges_admission', true)}
+                    className="accent-panoply-teal"
+                  />
+                  Yes — paid admission
+                </label>
+                <label className="flex items-center gap-2 text-sm text-panoply-navy">
+                  <input
+                    type="radio"
+                    name={`${formId}-admission`}
+                    checked={!form.charges_admission}
+                    onChange={() => set('charges_admission', false)}
+                    className="accent-panoply-teal"
+                  />
+                  No — free admission
+                </label>
+              </div>
+            </fieldset>
           </div>
         )}
 
-        <Field label="Pricing model">
-          <input className={INPUT_CLS} value={PRICING_MODEL_LABELS[editing ? pricingModel : (institution.pricing_model ?? '')] ?? institution.pricing_model ?? '—'} disabled />
-        </Field>
+        {/* Municipality population */}
+        {showPopulation && (
+          <div className="sm:col-span-2">
+            <Field label="Approximate population">
+              <input
+                className={INPUT_CLS}
+                type="number"
+                min={0}
+                value={form.municipality_population}
+                onChange={(e) => set('municipality_population', e.target.value)}
+                disabled={!editing}
+                placeholder="e.g. 12000"
+              />
+              {editing && (
+                <p className="text-xs text-panoply-gray-3">Under 25,000 → free. Over 25,000 → Community tier.</p>
+              )}
+            </Field>
+          </div>
+        )}
 
-        <Field label="Tier">
-          {editing && isAdmin ? (
-            <select
-              className={INPUT_CLS}
-              value={form.tier}
-              onChange={(e) => set('tier', e.target.value as Institution['tier'])}
-            >
-              {Object.entries(TIER_LABELS).map(([k, v]) => (
-                <option key={k} value={k}>{v}</option>
-              ))}
-            </select>
-          ) : (
-            <input className={INPUT_CLS} value={TIER_LABELS[form.tier] ?? form.tier} disabled />
-          )}
-        </Field>
+        {/* Pricing model */}
+        <div className="sm:col-span-2">
+          <p className="mb-1 text-xs font-medium text-panoply-gray-3">Pricing model</p>
+          <div className={`rounded-panel border px-3 py-3 ${
+            instLocked ? 'border-panoply-amber bg-panoply-amber/10' : 'border-panoply-gray-2 bg-panoply-gray-1'
+          }`}>
+            <div className="flex items-center gap-2">
+              <PricingBadge model={currentModel} locked={instLocked} />
+              {editing && computedModel !== effectiveModel && (
+                <span className="text-xs text-panoply-amber">
+                  (auto: {PRICING_MODEL_LABELS[computedModel as PricingModel] ?? computedModel})
+                </span>
+              )}
+            </div>
+            <p className="mt-1 text-xs text-panoply-gray-3">
+              {PRICING_MODEL_DESCRIPTIONS[currentModel as PricingModel] ?? ''}
+            </p>
+          </div>
+        </div>
+
+        {/* Admin override */}
+        {isAdmin && editing && (
+          <div className="sm:col-span-2">
+            <div className="rounded-panel border border-panoply-gray-2 p-3">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-panoply-gray-3">
+                Admin override
+              </p>
+              <div className="flex gap-3 items-end">
+                <div className="flex-1">
+                  <Field label="Override pricing model">
+                    <select
+                      className={INPUT_CLS}
+                      value={form.pricing_model_override}
+                      onChange={(e) => set('pricing_model_override', e.target.value)}
+                    >
+                      <option value="">— use auto-computed —</option>
+                      {PRICING_MODELS.map((m) => (
+                        <option key={m} value={m}>{PRICING_MODEL_LABELS[m]}</option>
+                      ))}
+                    </select>
+                  </Field>
+                </div>
+                <label className="flex items-center gap-2 text-xs text-panoply-navy pb-1.5 whitespace-nowrap">
+                  <input
+                    type="checkbox"
+                    className="accent-panoply-teal h-3.5 w-3.5"
+                    checked={form.pricing_model_locked}
+                    onChange={(e) => set('pricing_model_locked', e.target.checked)}
+                    disabled={!form.pricing_model_override}
+                  />
+                  Lock override
+                </label>
+              </div>
+            </div>
+          </div>
+        )}
 
         <Field label="Catalog URL">
           <input
             className={INPUT_CLS}
             type="url"
-            value={form.catalog_url ?? ''}
-            onChange={(e) => set('catalog_url', e.target.value || null)}
+            value={form.catalog_url}
+            onChange={(e) => set('catalog_url', e.target.value)}
             disabled={!editing}
           />
         </Field>
@@ -221,8 +342,8 @@ function PropertiesSection({
           <input
             className={INPUT_CLS}
             type="url"
-            value={form.website ?? ''}
-            onChange={(e) => set('website', e.target.value || null)}
+            value={form.website}
+            onChange={(e) => set('website', e.target.value)}
             disabled={!editing}
           />
         </Field>
@@ -231,12 +352,11 @@ function PropertiesSection({
         <div className="sm:col-span-2 border-t border-panoply-gray-2 pt-4">
           <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-panoply-gray-3">Contact</p>
         </div>
-
         <Field label="Contact name">
           <input
             className={INPUT_CLS}
-            value={form.contact_name ?? ''}
-            onChange={(e) => set('contact_name', e.target.value || null)}
+            value={form.contact_name}
+            onChange={(e) => set('contact_name', e.target.value)}
             disabled={!editing}
           />
         </Field>
@@ -244,8 +364,8 @@ function PropertiesSection({
           <input
             className={INPUT_CLS}
             type="email"
-            value={form.contact_email ?? ''}
-            onChange={(e) => set('contact_email', e.target.value || null)}
+            value={form.contact_email}
+            onChange={(e) => set('contact_email', e.target.value)}
             disabled={!editing}
           />
         </Field>
@@ -254,13 +374,12 @@ function PropertiesSection({
         <div className="sm:col-span-2 border-t border-panoply-gray-2 pt-4">
           <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-panoply-gray-3">Address</p>
         </div>
-
         <div className="sm:col-span-2">
           <Field label="Street">
             <input
               className={INPUT_CLS}
-              value={form.address_line1 ?? ''}
-              onChange={(e) => set('address_line1', e.target.value || null)}
+              value={form.address_line1}
+              onChange={(e) => set('address_line1', e.target.value)}
               disabled={!editing}
             />
           </Field>
@@ -268,8 +387,8 @@ function PropertiesSection({
         <Field label="City">
           <input
             className={INPUT_CLS}
-            value={form.address_city ?? ''}
-            onChange={(e) => set('address_city', e.target.value || null)}
+            value={form.address_city}
+            onChange={(e) => set('address_city', e.target.value)}
             disabled={!editing}
           />
         </Field>
@@ -277,8 +396,8 @@ function PropertiesSection({
           <Field label="State">
             <input
               className={INPUT_CLS}
-              value={form.address_state ?? ''}
-              onChange={(e) => set('address_state', e.target.value || null)}
+              value={form.address_state}
+              onChange={(e) => set('address_state', e.target.value)}
               disabled={!editing}
               maxLength={2}
             />
@@ -286,8 +405,8 @@ function PropertiesSection({
           <Field label="ZIP">
             <input
               className={INPUT_CLS}
-              value={form.address_zip ?? ''}
-              onChange={(e) => set('address_zip', e.target.value || null)}
+              value={form.address_zip}
+              onChange={(e) => set('address_zip', e.target.value)}
               disabled={!editing}
             />
           </Field>
@@ -302,8 +421,8 @@ function PropertiesSection({
             <div className="sm:col-span-2">
               <textarea
                 className={`${INPUT_CLS} min-h-[80px] resize-y`}
-                value={form.internal_notes ?? ''}
-                onChange={(e) => set('internal_notes', e.target.value || null)}
+                value={form.internal_notes}
+                onChange={(e) => set('internal_notes', e.target.value)}
                 disabled={!editing}
                 placeholder={editing ? 'Notes visible only to Panoply admins…' : ''}
               />

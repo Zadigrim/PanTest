@@ -4,48 +4,43 @@ import { useEffect, useState, useTransition, useCallback, useId, type FormEvent 
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import * as Dialog from '@radix-ui/react-dialog'
+import { INSTITUTION_TYPE_LABELS } from '@/lib/supabase/types'
+import type { Institution } from '@/lib/supabase/types'
 import {
-  INSTITUTION_TYPE_LABELS,
-  FREE_INSTITUTION_TYPES,
-  ADMISSION_CHARGING_TYPES,
-  ADMISSION_QUESTION_TYPES,
-} from '@/lib/supabase/types'
-import type { Institution, InstitutionType } from '@/lib/supabase/types'
+  computePricingModel,
+  isAdmissionDependent,
+  PRICING_MODEL_LABELS,
+  PRICING_MODEL_DESCRIPTIONS,
+  PRICING_BADGE_COLORS,
+  INSTITUTION_TYPE_GROUPS,
+  type PricingModel,
+} from '@/lib/pricing'
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// ─── Pricing badge ────────────────────────────────────────────────────────────
 
-function computePricingModel(type: string | null, chargesAdmission: boolean): string {
-  if (!type) return 'community'
-  if (FREE_INSTITUTION_TYPES.has(type)) return 'free'
-  if (ADMISSION_CHARGING_TYPES.has(type) || chargesAdmission) return 'paid_passport'
-  return 'community'
+function PricingBadge({ model, locked }: { model: string; locked?: boolean }) {
+  const colorCls = PRICING_BADGE_COLORS[model as PricingModel] ?? 'bg-panoply-gray-2 text-panoply-gray-3'
+  const label = PRICING_MODEL_LABELS[model as PricingModel] ?? model
+  return (
+    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${colorCls}`}>
+      {label}
+      {locked && <span title="Admin override" className="opacity-70">🔒</span>}
+    </span>
+  )
 }
 
-const PRICING_MODEL_LABELS: Record<string, string> = {
-  free:         'Free forever',
-  paid_passport:'Paid passport (70/30)',
-  community:    'Community subscription',
-  regional:     'Regional subscription',
-  enterprise:   'Enterprise subscription',
-}
+// ─── Shared field wrapper ─────────────────────────────────────────────────────
 
-const TIER_LABELS: Record<string, string> = {
-  community:  'Community',
-  commercial: 'Commercial',
-  enterprise: 'Enterprise',
-}
+const INPUT_CLS = 'w-full rounded-panel border border-panoply-gray-2 px-3 py-1.5 text-sm text-panoply-navy focus:border-panoply-teal focus:outline-none focus:ring-1 focus:ring-panoply-teal'
 
-const TYPE_GROUPS: { label: string; types: string[] }[] = [
-  { label: 'Educational',    types: ['k12_school','public_library','museum','educational_nonprofit','after_school_program','literacy_organization','youth_development','homeschool_cooperative'] },
-  { label: 'Environmental',  types: ['parks_department','nature_conservatory','land_trust','watershed_council','native_plant_society','wildlife_rehabilitation','environmental_education'] },
-  { label: 'Cultural',       types: ['historical_society','heritage_organization','cultural_center','oral_history_project'] },
-  { label: 'Community Arts', types: ['community_theater','public_art_organization','community_arts_center','community_music_program','writing_center'] },
-  { label: 'Social Services',types: ['food_bank','homeless_shelter','refugee_immigrant_services','free_health_clinic','adult_literacy'] },
-  { label: 'Community Access',types: ['community_garden','maker_space','tool_lending_library','seed_library','municipality'] },
-  { label: 'Paid Admission', types: ['zoo','aquarium','botanical_garden','science_museum','childrens_museum','nature_center_paid'] },
-  { label: 'Commercial',     types: ['chamber_of_commerce','tourism_board','proprietor','hotel_chain','expo_organizer'] },
-  { label: 'Other',          types: ['general','library','school','park','historic_site','nonprofit','other'] },
-]
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <label className="text-xs font-medium text-panoply-gray-3">{label}</label>
+      {children}
+    </div>
+  )
+}
 
 // ─── Add Institution Dialog ───────────────────────────────────────────────────
 
@@ -53,6 +48,9 @@ interface AddInstitutionForm {
   name: string
   institution_type: string
   charges_admission: boolean
+  municipality_population: string
+  pricing_model_override: string
+  pricing_model_locked: boolean
   contact_name: string
   contact_email: string
   address_line1: string
@@ -67,6 +65,9 @@ const EMPTY_FORM: AddInstitutionForm = {
   name: '',
   institution_type: '',
   charges_admission: false,
+  municipality_population: '',
+  pricing_model_override: '',
+  pricing_model_locked: false,
   contact_name: '',
   contact_email: '',
   address_line1: '',
@@ -77,24 +78,36 @@ const EMPTY_FORM: AddInstitutionForm = {
   internal_notes: '',
 }
 
+const PRICING_MODELS = ['free', 'paid_passport', 'community', 'regional', 'enterprise', 'patron'] as const
+
 function AddInstitutionDialog({
   open,
   onOpenChange,
   onCreated,
+  isAdmin,
 }: {
   open: boolean
   onOpenChange: (v: boolean) => void
   onCreated: (inst: Institution) => void
+  isAdmin: boolean
 }) {
   const formId = useId()
   const [form, setForm] = useState<AddInstitutionForm>(EMPTY_FORM)
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
 
-  const pricingModel = computePricingModel(form.institution_type, form.charges_admission)
-  const showAdmissionQuestion = form.institution_type
-    ? ADMISSION_QUESTION_TYPES.has(form.institution_type)
-    : false
+  const pop = form.municipality_population ? parseInt(form.municipality_population, 10) : undefined
+  const computedModel = computePricingModel(
+    form.institution_type,
+    form.charges_admission,
+    Number.isFinite(pop) ? pop : undefined,
+  )
+  const effectiveModel = (form.pricing_model_locked && form.pricing_model_override)
+    ? form.pricing_model_override as PricingModel
+    : computedModel
+
+  const showAdmission = isAdmissionDependent(form.institution_type)
+  const showPopulation = form.institution_type === 'municipality'
 
   function set<K extends keyof AddInstitutionForm>(k: K, v: AddInstitutionForm[K]) {
     setForm((f) => ({ ...f, [k]: v }))
@@ -107,27 +120,18 @@ function AddInstitutionDialog({
     setError(null)
 
     startTransition(async () => {
-      const supabase = createClient()
-      const tier: string =
-        FREE_INSTITUTION_TYPES.has(form.institution_type) ? 'community'
-        : ADMISSION_CHARGING_TYPES.has(form.institution_type) ? 'commercial'
-        : 'community'
-
-      const baseName = form.name.trim()
-      const slug = baseName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
-        + '-' + Math.random().toString(36).slice(2, 7)
-
-      const { data, error: insertErr } = await supabase
-        .from('institutions')
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .insert({
-          name: baseName,
-          slug,
-          type: form.institution_type,   // legacy NOT NULL column in production DB
-          institution_type: form.institution_type,
+      const res = await fetch('/api/institutions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: form.name.trim(),
+          institution_type: form.institution_type || null,
           charges_admission: form.charges_admission,
-          pricing_model: pricingModel,
-          tier,
+          municipality_population: showPopulation && form.municipality_population
+            ? parseInt(form.municipality_population, 10)
+            : null,
+          pricing_model_override: form.pricing_model_locked ? form.pricing_model_override || null : null,
+          pricing_model_locked: form.pricing_model_locked,
           contact_name: form.contact_name.trim() || null,
           contact_email: form.contact_email.trim() || null,
           address_line1: form.address_line1.trim() || null,
@@ -136,15 +140,17 @@ function AddInstitutionDialog({
           address_zip: form.address_zip.trim() || null,
           website: form.website.trim() || null,
           internal_notes: form.internal_notes.trim() || null,
-        } as any)
-        .select('*')
-        .single()
+        }),
+      })
 
-      if (insertErr || !data) {
-        setError(insertErr?.message ?? 'Failed to create institution.')
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        setError(body.error ?? 'Failed to create institution.')
         return
       }
-      onCreated(data as unknown as Institution)
+
+      const { institution } = await res.json()
+      onCreated(institution as Institution)
       setForm(EMPTY_FORM)
       onOpenChange(false)
     })
@@ -176,10 +182,13 @@ function AddInstitutionDialog({
               <select
                 className={INPUT_CLS}
                 value={form.institution_type}
-                onChange={(e) => set('institution_type', e.target.value)}
+                onChange={(e) => {
+                  set('institution_type', e.target.value)
+                  set('charges_admission', false)
+                }}
               >
                 <option value="">Select type…</option>
-                {TYPE_GROUPS.map((g) => (
+                {INSTITUTION_TYPE_GROUPS.map((g) => (
                   <optgroup key={g.label} label={g.label}>
                     {g.types.map((t) => (
                       <option key={t} value={t}>{INSTITUTION_TYPE_LABELS[t] ?? t}</option>
@@ -189,34 +198,109 @@ function AddInstitutionDialog({
               </select>
             </Field>
 
-            {/* Charges admission — only for nature/science types */}
-            {showAdmissionQuestion && (
-              <label className="flex items-center gap-2 text-sm text-panoply-navy">
-                <input
-                  type="checkbox"
-                  className="accent-panoply-teal h-4 w-4"
-                  checked={form.charges_admission}
-                  onChange={(e) => set('charges_admission', e.target.checked)}
-                />
-                Charges admission
-              </label>
+            {/* Admission question for nature/science types */}
+            {showAdmission && (
+              <fieldset className="rounded-panel border border-panoply-gray-2 p-3">
+                <legend className="px-1 text-xs font-medium text-panoply-gray-3">Admission</legend>
+                <p className="mb-2 text-xs text-panoply-gray-3">Does this institution charge admission?</p>
+                <div className="flex gap-4">
+                  <label className="flex items-center gap-2 text-sm text-panoply-navy">
+                    <input
+                      type="radio"
+                      name={`${formId}-admission`}
+                      checked={form.charges_admission}
+                      onChange={() => set('charges_admission', true)}
+                      className="accent-panoply-teal"
+                    />
+                    Yes — paid admission
+                  </label>
+                  <label className="flex items-center gap-2 text-sm text-panoply-navy">
+                    <input
+                      type="radio"
+                      name={`${formId}-admission`}
+                      checked={!form.charges_admission}
+                      onChange={() => set('charges_admission', false)}
+                      className="accent-panoply-teal"
+                    />
+                    No — free admission
+                  </label>
+                </div>
+              </fieldset>
             )}
 
-            {/* Pricing model — auto-computed */}
+            {/* Municipality population */}
+            {showPopulation && (
+              <Field label="Approximate population">
+                <input
+                  className={INPUT_CLS}
+                  type="number"
+                  min={0}
+                  value={form.municipality_population}
+                  onChange={(e) => set('municipality_population', e.target.value)}
+                  placeholder="e.g. 12000"
+                />
+                <p className="text-xs text-panoply-gray-3">Under 25,000 → free. Over 25,000 → Community tier.</p>
+              </Field>
+            )}
+
+            {/* Pricing model card */}
             {form.institution_type && (
-              <div className="rounded-panel bg-panoply-gray-1 px-3 py-2 text-sm text-panoply-gray-3">
-                Pricing model:{' '}
-                <span className="font-medium text-panoply-navy">
-                  {PRICING_MODEL_LABELS[pricingModel] ?? pricingModel}
-                </span>
+              <div className={`rounded-panel px-3 py-3 border ${
+                form.pricing_model_locked ? 'border-panoply-amber bg-panoply-amber/10' : 'border-panoply-gray-2 bg-panoply-gray-1'
+              }`}>
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-medium text-panoply-gray-3">Pricing model</p>
+                  <PricingBadge model={effectiveModel} locked={form.pricing_model_locked} />
+                </div>
+                <p className="mt-1 text-xs text-panoply-gray-3">
+                  {PRICING_MODEL_DESCRIPTIONS[effectiveModel as PricingModel] ?? ''}
+                </p>
+                {form.pricing_model_locked && computedModel !== effectiveModel && (
+                  <p className="mt-1 text-xs text-panoply-amber font-medium">
+                    Auto-computed would be: {PRICING_MODEL_LABELS[computedModel]}
+                  </p>
+                )}
               </div>
             )}
 
-            {/* Contact info */}
+            {/* Admin override */}
+            {isAdmin && form.institution_type && (
+              <div className="rounded-panel border border-panoply-gray-2 p-3">
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-panoply-gray-3">
+                  Admin override
+                </p>
+                <div className="flex gap-3 items-end">
+                  <div className="flex-1">
+                    <Field label="Override pricing model">
+                      <select
+                        className={INPUT_CLS}
+                        value={form.pricing_model_override}
+                        onChange={(e) => set('pricing_model_override', e.target.value)}
+                      >
+                        <option value="">— use auto-computed —</option>
+                        {PRICING_MODELS.map((m) => (
+                          <option key={m} value={m}>{PRICING_MODEL_LABELS[m]}</option>
+                        ))}
+                      </select>
+                    </Field>
+                  </div>
+                  <label className="flex items-center gap-2 text-xs text-panoply-navy pb-1.5 whitespace-nowrap">
+                    <input
+                      type="checkbox"
+                      className="accent-panoply-teal h-3.5 w-3.5"
+                      checked={form.pricing_model_locked}
+                      onChange={(e) => set('pricing_model_locked', e.target.checked)}
+                      disabled={!form.pricing_model_override}
+                    />
+                    Lock override
+                  </label>
+                </div>
+              </div>
+            )}
+
+            {/* Contact */}
             <div className="border-t border-panoply-gray-2 pt-3">
-              <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-panoply-gray-3">
-                Contact
-              </p>
+              <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-panoply-gray-3">Contact</p>
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Contact name">
                   <input className={INPUT_CLS} value={form.contact_name} onChange={(e) => set('contact_name', e.target.value)} placeholder="Jane Smith" />
@@ -229,9 +313,7 @@ function AddInstitutionDialog({
 
             {/* Address */}
             <div className="border-t border-panoply-gray-2 pt-3">
-              <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-panoply-gray-3">
-                Address
-              </p>
+              <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-panoply-gray-3">Address</p>
               <Field label="Street">
                 <input className={INPUT_CLS} value={form.address_line1} onChange={(e) => set('address_line1', e.target.value)} placeholder="123 Main St" />
               </Field>
@@ -267,9 +349,7 @@ function AddInstitutionDialog({
               </Field>
             </div>
 
-            {error && (
-              <p role="alert" className="text-sm text-red-600">{error}</p>
-            )}
+            {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
 
             <div className="flex justify-end gap-3 border-t border-panoply-gray-2 pt-4">
               <Dialog.Close asChild>
@@ -295,19 +375,6 @@ function AddInstitutionDialog({
   )
 }
 
-// ─── Shared field wrapper ─────────────────────────────────────────────────────
-
-const INPUT_CLS = 'w-full rounded-panel border border-panoply-gray-2 px-3 py-1.5 text-sm text-panoply-navy focus:border-panoply-teal focus:outline-none focus:ring-1 focus:ring-panoply-teal'
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="flex flex-col gap-1">
-      <label className="text-xs font-medium text-panoply-gray-3">{label}</label>
-      {children}
-    </div>
-  )
-}
-
 // ─── Institutions tab ─────────────────────────────────────────────────────────
 
 function InstitutionsTab({
@@ -325,17 +392,16 @@ function InstitutionsTab({
 }) {
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState('')
-  const [tierFilter, setTierFilter] = useState('')
+  const [modelFilter, setModelFilter] = useState('')
   const [showAdd, setShowAdd] = useState(false)
   const [list, setList] = useState<Institution[]>(institutions)
 
-  // Sync when parent list refreshes
   useEffect(() => { setList(institutions) }, [institutions])
 
   const filtered = list
     .filter((i) => !search || i.name.toLowerCase().includes(search.toLowerCase()))
     .filter((i) => !typeFilter || i.institution_type === typeFilter)
-    .filter((i) => !tierFilter || i.tier === tierFilter)
+    .filter((i) => !modelFilter || i.pricing_model === modelFilter)
 
   return (
     <div>
@@ -353,7 +419,7 @@ function InstitutionsTab({
           onChange={(e) => setTypeFilter(e.target.value)}
         >
           <option value="">All types</option>
-          {TYPE_GROUPS.map((g) => (
+          {INSTITUTION_TYPE_GROUPS.map((g) => (
             <optgroup key={g.label} label={g.label}>
               {g.types.map((t) => (
                 <option key={t} value={t}>{INSTITUTION_TYPE_LABELS[t] ?? t}</option>
@@ -362,13 +428,13 @@ function InstitutionsTab({
           ))}
         </select>
         <select
-          className={`${INPUT_CLS} w-36`}
-          value={tierFilter}
-          onChange={(e) => setTierFilter(e.target.value)}
+          className={`${INPUT_CLS} w-44`}
+          value={modelFilter}
+          onChange={(e) => setModelFilter(e.target.value)}
         >
-          <option value="">All tiers</option>
-          {Object.entries(TIER_LABELS).map(([k, v]) => (
-            <option key={k} value={k}>{v}</option>
+          <option value="">All pricing models</option>
+          {(['free','paid_passport','community','regional','enterprise','patron'] as const).map((m) => (
+            <option key={m} value={m}>{PRICING_MODEL_LABELS[m]}</option>
           ))}
         </select>
         <div className="flex-1" />
@@ -382,25 +448,20 @@ function InstitutionsTab({
         )}
       </div>
 
-      {/* Error */}
       {fetchError && (
         <div role="alert" className="mb-4 rounded-panel border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {fetchError}
         </div>
       )}
 
-      {/* Loading */}
-      {loading && (
+      {loading ? (
         <div className="flex items-center justify-center py-16">
           <svg className="h-7 w-7 animate-spin text-panoply-teal" viewBox="0 0 24 24" fill="none">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 00-8 8h4z" />
           </svg>
         </div>
-      )}
-
-      {/* Table */}
-      {!loading && (
+      ) : (
         <>
           <p className="mb-2 text-xs text-panoply-gray-3">
             {filtered.length} {filtered.length === 1 ? 'institution' : 'institutions'}
@@ -412,12 +473,11 @@ function InstitutionsTab({
             </div>
           ) : (
             <div className="overflow-x-auto rounded-panel border border-panoply-gray-2">
-              <table className="w-full min-w-[600px] text-sm">
+              <table className="w-full min-w-[640px] text-sm">
                 <thead>
                   <tr className="border-b border-panoply-gray-2 bg-panoply-gray-1 text-left">
                     <th className="px-4 py-3 font-medium text-panoply-gray-3">Name</th>
                     <th className="px-4 py-3 font-medium text-panoply-gray-3">Type</th>
-                    <th className="px-4 py-3 font-medium text-panoply-gray-3">Tier</th>
                     <th className="px-4 py-3 font-medium text-panoply-gray-3">Pricing</th>
                     <th className="px-4 py-3 font-medium text-panoply-gray-3">City</th>
                   </tr>
@@ -439,20 +499,13 @@ function InstitutionsTab({
                       <td className="px-4 py-3 text-panoply-gray-3">
                         {inst.institution_type
                           ? (INSTITUTION_TYPE_LABELS[inst.institution_type] ?? inst.institution_type)
-                          : <span className="italic">—</span>
-                        }
+                          : <span className="italic">—</span>}
                       </td>
                       <td className="px-4 py-3">
-                        <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                          inst.tier === 'enterprise' ? 'bg-panoply-teal-lt text-panoply-teal-dk'
-                          : inst.tier === 'commercial' ? 'bg-panoply-amber/15 text-panoply-amber'
-                          : 'bg-panoply-gray-2 text-panoply-gray-3'
-                        }`}>
-                          {TIER_LABELS[inst.tier] ?? inst.tier}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-panoply-gray-3">
-                        {PRICING_MODEL_LABELS[inst.pricing_model] ?? inst.pricing_model}
+                        <PricingBadge
+                          model={inst.pricing_model}
+                          locked={(inst as unknown as { pricing_model_locked?: boolean }).pricing_model_locked}
+                        />
                       </td>
                       <td className="px-4 py-3 text-panoply-gray-3">
                         {inst.address_city ?? <span className="italic">—</span>}
@@ -470,6 +523,7 @@ function InstitutionsTab({
         <AddInstitutionDialog
           open={showAdd}
           onOpenChange={setShowAdd}
+          isAdmin={isAdmin}
           onCreated={(inst) => {
             setList((prev) => [inst, ...prev])
             onRefresh()
@@ -515,7 +569,6 @@ function UsersTab({ isAdmin }: { isAdmin: boolean }) {
         return
       }
 
-      // Fetch employee_authorizations to map users → institutions
       const { data: authzRows } = await supabase
         .from('employee_authorizations')
         .select('user_id, institution:institutions(id, name)')
@@ -552,7 +605,6 @@ function UsersTab({ isAdmin }: { isAdmin: boolean }) {
 
   return (
     <div className="flex gap-4">
-      {/* List */}
       <div className="flex-1 min-w-0">
         <div className="mb-4">
           <input
@@ -607,8 +659,7 @@ function UsersTab({ isAdmin }: { isAdmin: boolean }) {
                       <td className="px-4 py-3 text-panoply-gray-3">
                         {u.institutions.length === 0
                           ? <span className="italic">—</span>
-                          : u.institutions.map((i) => i.name).join(', ')
-                        }
+                          : u.institutions.map((i) => i.name).join(', ')}
                       </td>
                       <td className="px-4 py-3 text-panoply-gray-3">
                         {new Date(u.created_at).toLocaleDateString()}
@@ -622,7 +673,6 @@ function UsersTab({ isAdmin }: { isAdmin: boolean }) {
         )}
       </div>
 
-      {/* Detail panel */}
       {selected && (
         <div className="w-72 shrink-0 rounded-panel border border-panoply-gray-2 bg-white p-4">
           <div className="mb-3 flex items-center justify-between">
@@ -680,7 +730,6 @@ export default function AccessPage() {
   const [institutions, setInstitutions] = useState<Institution[]>([])
   const [instLoading, setInstLoading] = useState(true)
   const [instError, setInstError] = useState<string | null>(null)
-  const [userId, setUserId] = useState<string | null>(null)
 
   const fetchInstitutions = useCallback(async () => {
     setInstLoading(true)
@@ -704,7 +753,6 @@ export default function AccessPage() {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { setMode('unauthorized'); return }
-      setUserId(user.id)
 
       const { data: profile } = await supabase
         .from('profiles')
@@ -722,7 +770,6 @@ export default function AccessPage() {
         return
       }
 
-      // Check institutional manager (institution where id = user.id)
       const { data: ownInst } = await supabase
         .from('institutions')
         .select('*')
@@ -735,7 +782,6 @@ export default function AccessPage() {
         return
       }
 
-      // Check employee
       const { data: authz } = await supabase
         .from('employee_authorizations')
         .select('institution:institutions(*)')
@@ -789,7 +835,6 @@ export default function AccessPage() {
 
   return (
     <div className="mx-auto max-w-6xl px-6 py-8">
-      {/* Page header */}
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-panoply-navy">Access Management</h1>
         <p className="mt-1 text-sm text-panoply-gray-3">
@@ -799,7 +844,6 @@ export default function AccessPage() {
         </p>
       </div>
 
-      {/* Tabs */}
       <div className="mb-6 flex items-center gap-0 border-b border-panoply-gray-2">
         <button
           onClick={() => setActiveTab('institutions')}
@@ -825,7 +869,6 @@ export default function AccessPage() {
         )}
       </div>
 
-      {/* Tab content */}
       {activeTab === 'institutions' && (
         <InstitutionsTab
           institutions={institutions}

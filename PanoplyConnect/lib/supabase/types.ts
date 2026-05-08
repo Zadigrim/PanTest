@@ -10,10 +10,6 @@ export type InstitutionType =
   | 'k12_school' | 'public_library' | 'museum' | 'educational_nonprofit'
   | 'after_school_program' | 'literacy_organization' | 'youth_development'
   | 'homeschool_cooperative'
-  // Environmental / conservation
-  | 'parks_department' | 'nature_conservatory' | 'land_trust'
-  | 'watershed_council' | 'native_plant_society' | 'wildlife_rehabilitation'
-  | 'environmental_education'
   // Cultural preservation
   | 'historical_society' | 'heritage_organization' | 'cultural_center'
   | 'oral_history_project'
@@ -23,17 +19,28 @@ export type InstitutionType =
   // Social services
   | 'food_bank' | 'homeless_shelter' | 'refugee_immigrant_services'
   | 'free_health_clinic' | 'adult_literacy'
+  // Environmental / conservation
+  | 'parks_department' | 'nature_conservatory' | 'land_trust'
+  | 'watershed_council' | 'native_plant_society' | 'wildlife_rehabilitation'
+  | 'environmental_education'
+  // Nature & science (admission determines pricing)
+  | 'zoo' | 'aquarium' | 'botanical_garden' | 'science_museum'
+  | 'childrens_museum' | 'nature_center'
   // Community access
   | 'community_garden' | 'maker_space' | 'tool_lending_library' | 'seed_library'
   // Municipal
   | 'municipality'
-  // Admission-charging (paid passport model)
-  | 'zoo' | 'aquarium' | 'botanical_garden' | 'science_museum'
-  | 'childrens_museum' | 'nature_center_paid'
-  // Commercial
-  | 'chamber_of_commerce' | 'tourism_board' | 'proprietor' | 'hotel_chain'
-  | 'expo_organizer'
-  // Legacy
+  // Commercial — community tier
+  | 'chamber_of_commerce' | 'local_tourism_board' | 'proprietor' | 'hotel_group_small'
+  // Commercial — regional tier
+  | 'state_tourism_board' | 'convention_bureau'
+  // Commercial — enterprise tier
+  | 'hotel_chain' | 'airline' | 'expo_organizer' | 'national_tourism_org'
+  | 'theme_park' | 'cruise_line'
+  // Patron
+  | 'corporate_sponsor' | 'foundation'
+  // Legacy (kept for backward compat with existing DB rows)
+  | 'nature_center_paid' | 'tourism_board'
   | 'general' | 'library' | 'school' | 'park' | 'historic_site'
   | 'nonprofit' | 'other'
 
@@ -79,21 +86,35 @@ export const INSTITUTION_TYPE_LABELS: Record<string, string> = {
   seed_library:              'Seed Library',
   // Municipal
   municipality:              'Municipality (under 25k population)',
-  // Admission-charging
+  // Nature & science (admission determines pricing)
   zoo:                       'Zoo',
   aquarium:                  'Aquarium',
   botanical_garden:          'Botanical Garden',
   science_museum:            'Science Museum',
   childrens_museum:          'Children\'s Museum',
-  nature_center_paid:        'Nature Center (admission-charging)',
-  // Commercial
+  nature_center:             'Nature Center',
+  // Commercial — community tier
   chamber_of_commerce:       'Chamber of Commerce',
-  tourism_board:             'Tourism Board',
-  proprietor:                'Proprietor',
+  local_tourism_board:       'Local Tourism Board',
+  proprietor:                'Proprietor / McMenamins-type',
+  hotel_group_small:         'Hotel Group (small / independent)',
+  // Commercial — regional tier
+  state_tourism_board:       'State Tourism Board',
+  convention_bureau:         'Convention & Visitors Bureau',
+  // Commercial — enterprise tier
   hotel_chain:               'Hotel Chain',
-  expo_organizer:            'Expo Organizer',
+  airline:                   'Airline',
+  expo_organizer:            'Expo / Conference Organizer',
+  national_tourism_org:      'National Tourism Organization',
+  theme_park:                'Theme Park',
+  cruise_line:               'Cruise Line',
+  // Patron
+  corporate_sponsor:         'Corporate Sponsor',
+  foundation:                'Foundation',
   other:                     'Other',
   // Legacy
+  nature_center_paid:        'Nature Center (admission-charging)',
+  tourism_board:             'Tourism Board',
   general:                   'General',
   library:                   'Library',
   school:                    'School',
@@ -102,45 +123,7 @@ export const INSTITUTION_TYPE_LABELS: Record<string, string> = {
   nonprofit:                 'Nonprofit',
 }
 
-// Free-forever institution types (no subscription, no cost)
-export const FREE_INSTITUTION_TYPES = new Set<string>([
-  // Educational
-  'k12_school', 'public_library', 'museum', 'educational_nonprofit',
-  'after_school_program', 'literacy_organization', 'youth_development',
-  'homeschool_cooperative',
-  // Environmental / conservation (free-access only)
-  'parks_department', 'nature_conservatory', 'land_trust',
-  'watershed_council', 'native_plant_society', 'wildlife_rehabilitation',
-  'environmental_education',
-  // Cultural preservation
-  'historical_society', 'heritage_organization', 'cultural_center',
-  'oral_history_project',
-  // Community arts
-  'community_theater', 'public_art_organization', 'community_arts_center',
-  'community_music_program', 'writing_center',
-  // Social services
-  'food_bank', 'homeless_shelter', 'refugee_immigrant_services',
-  'free_health_clinic', 'adult_literacy',
-  // Community access
-  'community_garden', 'maker_space', 'tool_lending_library', 'seed_library',
-  // Municipal
-  'municipality',
-  // Legacy
-  'school', 'library', 'park', 'nonprofit',
-])
-
-// Admission-charging institutions — paid passport model (70/30 split, no subscription)
-export const ADMISSION_CHARGING_TYPES = new Set<string>([
-  'zoo', 'aquarium', 'botanical_garden', 'science_museum',
-  'childrens_museum', 'nature_center_paid',
-])
-
-// Nature/science types that need the admission question during onboarding
-export const ADMISSION_QUESTION_TYPES = new Set<string>([
-  'zoo', 'aquarium', 'botanical_garden', 'science_museum',
-  'childrens_museum', 'nature_center_paid', 'nature_conservatory',
-  'environmental_education', 'wildlife_rehabilitation',
-])
+// Pricing logic has moved to lib/pricing.ts — import from there.
 export type PassportType = 'location' | 'experience' | 'learning'
 export type PassportStatus = string // open-ended; tighten if values are known
 export type TravelerType = string   // open-ended; tighten if values are known
@@ -183,7 +166,12 @@ export interface Institution {
   tier: InstitutionTier
   institution_type: InstitutionType | null
   charges_admission: boolean
-  pricing_model: 'free' | 'paid_passport' | 'community' | 'regional' | 'enterprise'
+  pricing_model: 'free' | 'paid_passport' | 'community' | 'regional' | 'enterprise' | 'patron'
+  municipality_population: number | null
+  pricing_model_locked: boolean
+  pricing_model_override_by: string | null
+  pricing_model_override_at: string | null
+  pricing_model_computed: string | null
   catalog_url: string | null
   contact_name: string | null
   contact_email: string | null
