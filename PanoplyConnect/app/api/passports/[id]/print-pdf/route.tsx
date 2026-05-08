@@ -902,8 +902,8 @@ async function handlePrintRequest(request: Request, passportId: string) {
 
   // ── 10. Return PDF ────────────────────────────────────────────────────────
   const dateStr = new Date().toISOString().slice(0, 10)
-  const safeTitle = passport.title.replace(/[^\w\s\-]/g, '').trim()
-  const filename = `${safeTitle} — Print Passport — ${dateStr}.pdf`
+  const safeTitle = passport.title.replace(/[^\w\s-]/g, '').trim()
+  const filename = `${safeTitle} - Print Passport - ${dateStr}.pdf`
 
   return new Response(pdfBuffer, {
     status: 200,
