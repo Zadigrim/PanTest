@@ -735,18 +735,17 @@ export async function POST(
     })
   }
 
-  // Must be institutional (has proprietor_id)
-  if (!passport.proprietor_id) {
-    return new Response(
-      JSON.stringify({ error: 'Print passports are only available for institutional passports' }),
-      { status: 422, headers: { 'Content-Type': 'application/json' } },
-    )
-  }
-
   // ── 4. Authorization: must be creator or employee of the institution ───────
   const isCreator = passport.creator_id === user.id
 
   if (!isCreator) {
+    if (!passport.proprietor_id) {
+      return new Response(
+        JSON.stringify({ error: 'Not authorized to print this passport' }),
+        { status: 403, headers: { 'Content-Type': 'application/json' } },
+      )
+    }
+
     const { data: authz, error: authzError } = await supabase
       .from('employee_authorizations')
       .select('id')
@@ -762,18 +761,15 @@ export async function POST(
     }
   }
 
-  // ── 5. Fetch institution ──────────────────────────────────────────────────
-  const { data: institution, error: institutionError } = await supabase
-    .from('institutions')
-    .select('id, name')
-    .eq('id', passport.proprietor_id)
-    .single()
-
-  if (institutionError || !institution) {
-    return new Response(JSON.stringify({ error: 'Institution not found' }), {
-      status: 404,
-      headers: { 'Content-Type': 'application/json' },
-    })
+  // ── 5. Fetch institution (optional — personal passports have no proprietor) ─
+  let institutionName = ''
+  if (passport.proprietor_id) {
+    const { data: institution } = await supabase
+      .from('institutions')
+      .select('id, name')
+      .eq('id', passport.proprietor_id)
+      .single()
+    institutionName = institution?.name ?? ''
   }
 
   // ── 6. Fetch stops belonging to this passport, in the requested order ──────
@@ -829,7 +825,7 @@ export async function POST(
   quarters.push({
     type: 'cover',
     passportTitle: passport.title,
-    institutionName: institution.name,
+    institutionName,
     coverEmblem: passport.cover_emblem,
   })
 
@@ -857,7 +853,7 @@ export async function POST(
   quarters.push({
     type: 'cert',
     passportTitle: passport.title,
-    institutionName: institution.name,
+    institutionName,
   })
 
   // Pad to nearest multiple of 4
@@ -883,7 +879,7 @@ export async function POST(
   try {
     await supabase.from('print_jobs').insert({
       passport_id: passportId,
-      institution_id: passport.proprietor_id,
+      institution_id: passport.proprietor_id ?? null,
       created_by: user.id,
       stop_ids,
       copies,
