@@ -2,357 +2,318 @@ import React from 'react'
 import { renderToBuffer, Document, Page, View, Text, StyleSheet } from '@react-pdf/renderer'
 import { createClient } from '@/lib/supabase/server'
 
-// ---------------------------------------------------------------------------
-// Dimension constants (1pt = 1/72 inch)
-// ---------------------------------------------------------------------------
-const PAGE_W = 612   // 8.5 inches
-const PAGE_H = 792   // 11 inches
-const QP_W = 306     // 4.25 inches
-const QP_H = 396     // 5.5 inches
+// ── Layout constants (points: 72pt = 1 inch) ─────────────────────────────────
+const SHEET_W = 612   // 8.5 in
+const SHEET_H = 792   // 11 in
+const SLOT_W  = 612   // full sheet width
+const SLOT_H  = 396   // 5.5 in — half of sheet height
+const FOLD_X  = 306   // 4.25 in — vertical fold center
+const CUT_Y   = 396   // 5.5 in — horizontal cut line / slot boundary
+const PAD     = 14    // slot interior padding (~0.2 in)
 
-// ---------------------------------------------------------------------------
-// Styles
-// ---------------------------------------------------------------------------
+// ── Styles ────────────────────────────────────────────────────────────────────
 
-const styles = StyleSheet.create({
-  // Full page
-  fullPage: {
-    width: PAGE_W,
-    height: PAGE_H,
-    backgroundColor: '#FFFFFF',
-  },
+const S = StyleSheet.create({
 
-  // ── Instruction page ──────────────────────────────────────────────────────
-  instructionPage: {
-    width: PAGE_W,
-    height: PAGE_H,
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 72,
-    paddingVertical: 60,
-    flexDirection: 'column',
-    alignItems: 'center',
-  },
-  instrTitle: {
-    fontSize: 20,
-    fontFamily: 'Helvetica-Bold',
-    color: '#0D1B2A',
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  instrSubtitle: {
-    fontSize: 11,
-    color: '#64748B',
-    textAlign: 'center',
-    marginBottom: 32,
-  },
-  stepContainer: {
-    width: '100%',
-    marginBottom: 28,
-    alignItems: 'center',
-  },
-  stepLabel: {
-    fontSize: 10,
-    fontFamily: 'Helvetica-Bold',
-    color: '#1D9E75',
-    letterSpacing: 1.5,
-    marginBottom: 6,
-    textAlign: 'center',
-  },
-  stepText: {
-    fontSize: 12,
-    color: '#0D1B2A',
-    textAlign: 'center',
-    marginBottom: 12,
-  },
-  diagramBox: {
-    border: '1 solid #E8EEF0',
-    backgroundColor: '#F7F9F8',
-    borderRadius: 4,
-    padding: 12,
-    width: 220,
-    alignItems: 'center',
-  },
-  diagramLabel: {
-    fontSize: 9,
-    color: '#64748B',
-    textAlign: 'center',
-  },
-  diagramRect: {
-    width: 80,
-    height: 56,
-    border: '1.5 solid #0D1B2A',
-    borderRadius: 2,
-    marginBottom: 6,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  diagramRectLabel: {
-    fontSize: 9,
-    fontFamily: 'Helvetica-Bold',
-    color: '#0D1B2A',
-    textAlign: 'center',
-  },
-  diagramRow: {
-    flexDirection: 'row',
-    gap: 6,
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  crossLine: {
-    width: 80,
-    height: 56,
-    border: '1.5 solid #0D1B2A',
-    borderRadius: 2,
-    marginBottom: 6,
-    position: 'relative',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  instrFooter: {
-    marginTop: 'auto',
-    borderTop: '0.5 solid #E8EEF0',
-    paddingTop: 12,
-    width: '100%',
-  },
-  instrFooterText: {
-    fontSize: 8,
-    color: '#64748B',
-    textAlign: 'center',
-    lineHeight: 1.4,
-  },
-  stepDivider: {
-    width: '100%',
-    height: 0.5,
-    backgroundColor: '#E8EEF0',
-    marginBottom: 28,
-  },
-
-  // ── Imposition / content page ─────────────────────────────────────────────
-  contentPage: {
-    width: PAGE_W,
-    height: PAGE_H,
+  // Full sheet (PDF page)
+  sheet: {
+    width: SHEET_W,
+    height: SHEET_H,
     backgroundColor: '#FFFFFF',
     position: 'relative',
   },
-  quarterCell: {
+
+  // Registration mark pieces — positioned absolutely on the sheet
+  regH: { position: 'absolute', height: 0.5, backgroundColor: '#CCCCCC' },
+  regV: { position: 'absolute', width: 0.5,  backgroundColor: '#CCCCCC' },
+
+  // Slot divider at cut line
+  slotDivider: {
     position: 'absolute',
-    width: QP_W,
-    height: QP_H,
+    left: 0,
+    top: CUT_Y,
+    width: SHEET_W,
+    height: 0.5,
+    backgroundColor: '#CCCCCC',
+  },
+
+  // Slot: half-sheet container, absolutely positioned on the sheet
+  slot: {
+    position: 'absolute',
+    width: SLOT_W,
+    height: SLOT_H,
+    overflow: 'hidden',
+    flexDirection: 'column',
+  },
+
+  // Fold guide — thin vertical line at FOLD_X, spans full slot height
+  foldGuide: {
+    position: 'absolute',
+    left: FOLD_X,
+    top: 0,
+    width: 0.5,
+    height: SLOT_H,
+    backgroundColor: '#DDDDDD',
+  },
+
+  // Content area inside slot (handles padding)
+  slotContent: {
+    flex: 1,
+    padding: PAD,
+    flexDirection: 'column',
     overflow: 'hidden',
   },
 
-  // ── Registration mark lines ───────────────────────────────────────────────
-  regH: {
+  // Page number in bottom-right of each slot
+  pgNum: {
     position: 'absolute',
-    height: 0.5,
-    backgroundColor: '#CCCCCC',
-    opacity: 0.3,
-  },
-  regV: {
-    position: 'absolute',
-    width: 0.5,
-    backgroundColor: '#CCCCCC',
-    opacity: 0.3,
+    bottom: PAD,
+    right: PAD,
+    fontSize: 8,
+    color: '#888888',
+    fontFamily: 'Helvetica',
   },
 
-  // ── Cover quarter-page ────────────────────────────────────────────────────
-  coverRoot: {
-    width: QP_W,
-    height: QP_H,
-    backgroundColor: '#FFFFFF',
-    padding: 16,
-    flexDirection: 'column',
-  },
-  coverTitle: {
-    fontSize: 14,
-    fontFamily: 'Helvetica-Bold',
-    color: '#0D1B2A',
-    textAlign: 'center',
-    marginBottom: 4,
-  },
-  coverInstitution: {
-    fontSize: 12,
-    color: '#64748B',
-    textAlign: 'center',
-    marginBottom: 12,
-  },
-  coverImageArea: {
-    backgroundColor: '#E8E8E8',
-    borderRadius: 4,
-    flex: 1,
-    marginBottom: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  coverEmblem: {
-    fontSize: 48,
-    textAlign: 'center',
-  },
-  coverFieldRow: {
-    marginBottom: 6,
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-  },
-  coverFieldLabel: {
-    fontSize: 12,
-    color: '#0D1B2A',
-    marginRight: 4,
-    width: 44,
-  },
-  coverFieldLine: {
-    flex: 1,
-    height: 0.75,
-    backgroundColor: '#0D1B2A',
-    marginBottom: 2,
-  },
-
-  // ── Stop quarter-page ─────────────────────────────────────────────────────
-  stopRoot: {
-    width: QP_W,
-    height: QP_H,
-    backgroundColor: '#FFFFFF',
-    padding: 12,
-    flexDirection: 'column',
-  },
+  // ── Stop slot ─────────────────────────────────────────────────────────────
   stopHeader: {
-    fontSize: 14,
+    fontSize: 13,
     fontFamily: 'Helvetica-Bold',
-    color: '#0D1B2A',
-    marginBottom: 6,
-  },
-  stopRule: {
-    width: '100%',
-    height: 0.5,
-    backgroundColor: '#0D1B2A',
+    color: '#1A1A1A',
     marginBottom: 8,
   },
-  stampBoxOuter: {
-    alignSelf: 'center',
-    borderRadius: 8,
-    borderWidth: 0.5,
-    borderColor: '#AAAAAA',
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
-  },
-  stampBoxInner: {
-    position: 'absolute',
-    top: 4,
-    left: 4,
+
+  stampBox: {
+    width: 180,
+    height: 180,
+    borderWidth: 1.5,
+    borderColor: '#999999',
+    borderStyle: 'solid',
     borderRadius: 4,
-    borderWidth: 0.5,
-    borderColor: '#AAAAAA',
-  },
-  stampBoxName: {
-    fontSize: 9,
-    color: '#AAAAAA',
-    textAlign: 'center',
-    position: 'absolute',
-    bottom: 6,
-    left: 0,
-    right: 0,
-  },
-  journalPrompt: {
-    fontSize: 12,
-    color: '#0D1B2A',
-    marginTop: 8,
-    marginBottom: 6,
-    lineHeight: 1.3,
-  },
-  writingLine: {
-    width: '100%',
-    height: 0.75,
-    backgroundColor: '#AAAAAA',
-    marginBottom: 14,
+    backgroundColor: '#FFFFFF',
+    alignSelf: 'center',
+    position: 'relative',
+    marginVertical: 10,
   },
 
-  // ── Certificate quarter-page ──────────────────────────────────────────────
-  certRoot: {
-    width: QP_W,
-    height: QP_H,
-    backgroundColor: '#FFFFFF',
-    padding: 24,
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  certHeading: {
-    fontSize: 10,
-    fontFamily: 'Helvetica-Bold',
-    color: '#64748B',
+  stopNameInBox: {
+    position: 'absolute',
+    bottom: 5,
+    left: 0,
+    right: 0,
     textAlign: 'center',
-    letterSpacing: 1.5,
-    marginBottom: 10,
+    fontSize: 7,
+    color: '#BBBBBB',
+    fontFamily: 'Helvetica',
   },
-  certTitle: {
-    fontSize: 14,
-    fontFamily: 'Helvetica-Bold',
-    color: '#0D1B2A',
-    textAlign: 'center',
-    marginBottom: 24,
-  },
-  certLabel: {
-    fontSize: 11,
-    color: '#64748B',
-    textAlign: 'center',
+
+  journalPrompt: {
+    fontSize: 9,
+    fontFamily: 'Helvetica',
+    color: '#444444',
     marginBottom: 4,
-  },
-  certLine: {
-    width: 180,
-    height: 0.75,
-    backgroundColor: '#0D1B2A',
-    marginBottom: 20,
-  },
-  certInstName: {
-    fontSize: 10,
-    color: '#64748B',
-    textAlign: 'center',
     marginTop: 4,
   },
 
-  // ── Blank quarter-page ────────────────────────────────────────────────────
-  blankRoot: {
-    width: QP_W,
-    height: QP_H,
+  writingLine: {
+    height: 0.5,
+    backgroundColor: '#CCCCCC',
+    marginVertical: 5,
+    width: '90%',
+    alignSelf: 'center',
+  },
+
+  // ── Cover slot ─────────────────────────────────────────────────────────────
+  coverInner: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'column',
+  },
+
+  coverTitle: {
+    fontSize: 18,
+    fontFamily: 'Helvetica-Bold',
+    color: '#1A1A1A',
+    textAlign: 'center',
+    marginBottom: 6,
+  },
+
+  coverSubtitle: {
+    fontSize: 11,
+    color: '#555555',
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+
+  coverField: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    marginBottom: 10,
+    width: '85%',
+  },
+
+  coverFieldLabel: {
+    fontSize: 11,
+    color: '#333333',
+    marginRight: 6,
+    width: 44,
+  },
+
+  coverFieldLine: {
+    flex: 1,
+    height: 0.5,
+    backgroundColor: '#CCCCCC',
+  },
+
+  // ── Certificate slot ───────────────────────────────────────────────────────
+  certInner: {
+    flex: 1,
+    flexDirection: 'column',
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+  },
+
+  certHeading: {
+    fontSize: 11,
+    fontFamily: 'Helvetica-Bold',
+    color: '#333333',
+    alignSelf: 'center',
+    marginBottom: 6,
+  },
+
+  certTitle: {
+    fontSize: 13,
+    fontFamily: 'Helvetica-Bold',
+    color: '#1A1A1A',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+
+  certLabel: {
+    fontSize: 11,
+    color: '#333333',
+    marginBottom: 2,
+  },
+
+  certLine: {
+    height: 0.5,
+    backgroundColor: '#CCCCCC',
+    marginBottom: 14,
+    width: '100%',
+  },
+
+  certLineShort: {
+    height: 0.5,
+    backgroundColor: '#CCCCCC',
+    marginBottom: 14,
+    width: '55%',
+  },
+
+  certMeta: {
+    fontSize: 9,
+    color: '#666666',
+    marginTop: 8,
+    alignSelf: 'center',
+    textAlign: 'center',
+  },
+
+  // ── Assembly instruction page ──────────────────────────────────────────────
+  instrPage: {
+    width: SHEET_W,
+    height: SHEET_H,
     backgroundColor: '#FFFFFF',
+    paddingHorizontal: 72,
+    paddingTop: 60,
+    paddingBottom: 48,
+    flexDirection: 'column',
+  },
+
+  instrBrand: {
+    fontSize: 11,
+    fontFamily: 'Helvetica-Bold',
+    color: '#222222',
+    letterSpacing: 2,
+    marginBottom: 16,
+  },
+
+  instrDocLabel: {
+    fontSize: 11,
+    color: '#666666',
+    marginBottom: 2,
+  },
+
+  instrPassportTitle: {
+    fontSize: 16,
+    fontFamily: 'Helvetica-Bold',
+    color: '#1A1A1A',
+    marginBottom: 4,
+  },
+
+  instrInstName: {
+    fontSize: 11,
+    color: '#555555',
+    marginBottom: 4,
+  },
+
+  instrMeta: {
+    fontSize: 11,
+    color: '#888888',
+    marginBottom: 24,
+  },
+
+  instrRule: {
+    height: 0.5,
+    backgroundColor: '#CCCCCC',
+    marginBottom: 24,
+  },
+
+  instrStepRow: {
+    flexDirection: 'row',
+    marginBottom: 20,
+  },
+
+  instrStepNum: {
+    fontSize: 11,
+    fontFamily: 'Helvetica-Bold',
+    color: '#1A1A1A',
+    width: 52,
+  },
+
+  instrStepBody: {
+    flex: 1,
+  },
+
+  instrStepTitle: {
+    fontSize: 11,
+    fontFamily: 'Helvetica-Bold',
+    color: '#1A1A1A',
+    marginBottom: 2,
+  },
+
+  instrStepText: {
+    fontSize: 11,
+    color: '#555555',
+    lineHeight: 1.4,
+  },
+
+  instrFooter: {
+    marginTop: 'auto',
+  },
+
+  instrFooterRule: {
+    height: 0.5,
+    backgroundColor: '#CCCCCC',
+    marginBottom: 12,
+  },
+
+  instrFooterText: {
+    fontSize: 11,
+    color: '#777777',
+    textAlign: 'center',
   },
 })
 
-// ---------------------------------------------------------------------------
-// Quarter-page components
-// ---------------------------------------------------------------------------
-
-interface CoverProps {
-  passportTitle: string
-  institutionName: string
-  coverEmblem?: string | null
-}
-
-function CoverQuarter({ passportTitle, institutionName, coverEmblem }: CoverProps) {
-  return (
-    <View style={styles.coverRoot}>
-      <Text style={styles.coverTitle}>{passportTitle}</Text>
-      <Text style={styles.coverInstitution}>{institutionName}</Text>
-      <View style={styles.coverImageArea}>
-        {coverEmblem ? (
-          <Text style={styles.coverEmblem}>{coverEmblem}</Text>
-        ) : null}
-      </View>
-      <View style={styles.coverFieldRow}>
-        <Text style={styles.coverFieldLabel}>Name:</Text>
-        <View style={styles.coverFieldLine} />
-      </View>
-      <View style={styles.coverFieldRow}>
-        <Text style={styles.coverFieldLabel}>Date:</Text>
-        <View style={styles.coverFieldLine} />
-      </View>
-      <View style={styles.coverFieldRow}>
-        <Text style={styles.coverFieldLabel}>Class:</Text>
-        <View style={styles.coverFieldLine} />
-      </View>
-    </View>
-  )
-}
+// ── Types ─────────────────────────────────────────────────────────────────────
 
 interface PrintStop {
   id: string
@@ -362,316 +323,344 @@ interface PrintStop {
   print_include_journal: boolean
 }
 
-interface StopProps {
+type SlotContent =
+  | { type: 'cover'; title: string; subtitle: string }
+  | { type: 'stop'; stop: PrintStop; index: number; showJournal: boolean }
+  | { type: 'cert'; title: string; institutionName: string }
+  | { type: 'blank' }
+
+// ── Registration marks: crosshairs at left/right edges of cut line ────────────
+
+function RegistrationMarks() {
+  const len  = 16
+  const half = len / 2
+  const y    = CUT_Y
+
+  return (
+    <>
+      {/* Left edge crosshair */}
+      <View style={[S.regH, { left: 0,            top: y - 0.25,    width: len  }]} />
+      <View style={[S.regV, { left: half - 0.25,  top: y - half,    height: len }]} />
+
+      {/* Right edge crosshair */}
+      <View style={[S.regH, { left: SHEET_W - len, top: y - 0.25,   width: len  }]} />
+      <View style={[S.regV, { left: SHEET_W - half - 0.25, top: y - half, height: len }]} />
+    </>
+  )
+}
+
+// ── Slot content components ───────────────────────────────────────────────────
+
+function CoverSlotContent({ title, subtitle }: { title: string; subtitle: string }) {
+  return (
+    <View style={S.coverInner}>
+      <Text style={S.coverTitle}>{title}</Text>
+      {subtitle ? <Text style={S.coverSubtitle}>{subtitle}</Text> : null}
+      <View style={S.coverField}>
+        <Text style={S.coverFieldLabel}>Name:</Text>
+        <View style={S.coverFieldLine} />
+      </View>
+      <View style={S.coverField}>
+        <Text style={S.coverFieldLabel}>Date:</Text>
+        <View style={S.coverFieldLine} />
+      </View>
+      <View style={S.coverField}>
+        <Text style={S.coverFieldLabel}>Class:</Text>
+        <View style={S.coverFieldLine} />
+      </View>
+    </View>
+  )
+}
+
+function StopSlotContent({
+  stop,
+  index,
+  showJournal,
+}: {
   stop: PrintStop
   index: number
   showJournal: boolean
-}
-
-function StopQuarter({ stop, index, showJournal }: StopProps) {
-  // Stamp box: 202×202 normally; expand to 202×250 if no journal
-  const boxW = 202
-  const boxH = showJournal ? 202 : 250
-
+}) {
   return (
-    <View style={styles.stopRoot}>
-      <Text style={styles.stopHeader}>{index}  {stop.name}</Text>
-      <View style={styles.stopRule} />
+    <>
+      <Text style={S.stopHeader}>
+        <Text style={{ color: '#888888', fontFamily: 'Helvetica', fontSize: 13 }}>
+          {'Stop ' + index + '  '}
+        </Text>
+        {stop.name}
+      </Text>
 
-      {/* Stamp box — outer border */}
-      <View
-        style={[
-          styles.stampBoxOuter,
-          { width: boxW, height: boxH },
-        ]}
-      >
-        {/* Inner border (4pt inset on each side) */}
-        <View
-          style={[
-            styles.stampBoxInner,
-            { width: boxW - 8, height: boxH - 8 },
-          ]}
-        />
-        {/* Stop name at bottom */}
-        <Text style={styles.stampBoxName}>{stop.name}</Text>
+      {/* Stamp box — blank white interior, stop name at bottom only */}
+      <View style={S.stampBox}>
+        <Text style={S.stopNameInBox}>{stop.name}</Text>
       </View>
 
       {showJournal && (
         <>
           {stop.journal_prompt ? (
-            <Text style={styles.journalPrompt}>{stop.journal_prompt}</Text>
+            <Text style={S.journalPrompt}>{stop.journal_prompt}</Text>
           ) : null}
-          <View style={{ marginTop: stop.journal_prompt ? 0 : 8, flex: 1, justifyContent: 'flex-end', paddingBottom: 4 }}>
-            <View style={styles.writingLine} />
-            <View style={styles.writingLine} />
-            <View style={styles.writingLine} />
-            <View style={styles.writingLine} />
-          </View>
+          <View style={S.writingLine} />
+          <View style={S.writingLine} />
+          <View style={S.writingLine} />
+          <View style={S.writingLine} />
+          <View style={S.writingLine} />
         </>
+      )}
+    </>
+  )
+}
+
+function CertSlotContent({
+  title,
+  institutionName,
+}: {
+  title: string
+  institutionName: string
+}) {
+  return (
+    <View style={S.certInner}>
+      <Text style={S.certHeading}>Certificate of Completion</Text>
+      <Text style={S.certTitle}>{title}</Text>
+      <Text style={S.certLabel}>Awarded to:</Text>
+      <View style={S.certLine} />
+      <Text style={S.certLabel}>Date:</Text>
+      <View style={S.certLineShort} />
+      <Text style={S.certLabel}>Signed:</Text>
+      <View style={S.certLineShort} />
+      {institutionName ? <Text style={S.certMeta}>{institutionName}</Text> : null}
+    </View>
+  )
+}
+
+// ── Slot wrapper: fold guide + content + page number ─────────────────────────
+
+function Slot({
+  content,
+  slotTop,
+  pageNum,
+}: {
+  content: SlotContent
+  slotTop: number
+  pageNum: number
+}) {
+  return (
+    <View style={[S.slot, { top: slotTop }]}>
+      {/* Fold guide — dashed vertical at FOLD_X */}
+      <View style={S.foldGuide} />
+
+      {/* Padded content area */}
+      <View style={S.slotContent}>
+        {content.type === 'cover' && (
+          <CoverSlotContent title={content.title} subtitle={content.subtitle} />
+        )}
+        {content.type === 'stop' && (
+          <StopSlotContent
+            stop={content.stop}
+            index={content.index}
+            showJournal={content.showJournal}
+          />
+        )}
+        {content.type === 'cert' && (
+          <CertSlotContent
+            title={content.title}
+            institutionName={content.institutionName}
+          />
+        )}
+        {/* blank: empty — no content */}
+      </View>
+
+      {/* Page number — bottom-right of slot */}
+      {content.type !== 'blank' && (
+        <Text style={S.pgNum}>{pageNum}</Text>
       )}
     </View>
   )
 }
 
-interface CertProps {
+// ── Content page: two slots + sheet guides ────────────────────────────────────
+
+function ContentPage({
+  topSlot,
+  bottomSlot,
+  topPageNum,
+  bottomPageNum,
+}: {
+  topSlot: SlotContent
+  bottomSlot: SlotContent
+  topPageNum: number
+  bottomPageNum: number
+}) {
+  return (
+    <Page size={[SHEET_W, SHEET_H]} style={S.sheet}>
+      {/* Registration marks at left/right edges of cut line */}
+      <RegistrationMarks />
+
+      {/* Slot divider at cut line */}
+      <View style={S.slotDivider} />
+
+      {/* Top slot (passport pages 1–2 of this sheet) */}
+      <Slot content={topSlot} slotTop={0} pageNum={topPageNum} />
+
+      {/* Bottom slot */}
+      <Slot content={bottomSlot} slotTop={CUT_Y} pageNum={bottomPageNum} />
+    </Page>
+  )
+}
+
+// ── Assembly instruction page (PDF page 1) ────────────────────────────────────
+
+function InstructionPage({
+  passportTitle,
+  institutionName,
+  stopCount,
+  totalPageCount,
+}: {
   passportTitle: string
   institutionName: string
-}
+  stopCount: number
+  totalPageCount: number
+}) {
+  const meta =
+    stopCount + ' stop' + (stopCount !== 1 ? 's' : '') +
+    ' · ' + totalPageCount + ' pages' +
+    ' · print as many copies as you need'
 
-function CertQuarter({ passportTitle, institutionName }: CertProps) {
   return (
-    <View style={styles.certRoot}>
-      <Text style={styles.certHeading}>CERTIFICATE OF COMPLETION</Text>
-      <Text style={styles.certTitle}>{passportTitle}</Text>
-      <Text style={styles.certLabel}>Awarded to:</Text>
-      <View style={styles.certLine} />
-      <Text style={styles.certLabel}>Date:</Text>
-      <View style={[styles.certLine, { width: 120 }]} />
-      <Text style={styles.certLabel}>Signed:</Text>
-      <View style={[styles.certLine, { width: 120 }]} />
-      <Text style={styles.certInstName}>{institutionName}</Text>
-    </View>
-  )
-}
+    <Page size={[SHEET_W, SHEET_H]} style={S.instrPage}>
+      <Text style={S.instrBrand}>PANOPLY</Text>
 
-function BlankQuarter() {
-  return <View style={styles.blankRoot} />
-}
+      <Text style={S.instrDocLabel}>Print-ready passport booklet</Text>
+      <Text style={S.instrPassportTitle}>{passportTitle}</Text>
+      {institutionName ? (
+        <Text style={S.instrInstName}>{institutionName}</Text>
+      ) : null}
+      <Text style={S.instrMeta}>{meta}</Text>
 
-// ---------------------------------------------------------------------------
-// Assembly instruction page
-// ---------------------------------------------------------------------------
+      <View style={S.instrRule} />
 
-function InstructionPage() {
-  return (
-    <View style={styles.instructionPage}>
-      <Text style={styles.instrTitle}>Teacher Assembly Guide</Text>
-      <Text style={styles.instrSubtitle}>
-        This page is not part of the student booklet. Do not cut or include it.
-      </Text>
-
-      {/* Step 1 */}
-      <View style={styles.stepContainer}>
-        <Text style={styles.stepLabel}>STEP 1 — PRINT</Text>
-        <Text style={styles.stepText}>
-          Print this PDF double-sided on standard 8.5×11 paper.
-        </Text>
-        <View style={styles.diagramBox}>
-          <View style={styles.diagramRow}>
-            <View style={styles.diagramRect}>
-              <Text style={styles.diagramRectLabel}>FRONT</Text>
-            </View>
-            <Text style={[styles.diagramLabel, { fontSize: 10 }]}>↔</Text>
-            <View style={styles.diagramRect}>
-              <Text style={styles.diagramRectLabel}>BACK</Text>
-            </View>
-          </View>
-          <Text style={styles.diagramLabel}>Each sheet prints front and back</Text>
+      <View style={S.instrStepRow}>
+        <Text style={S.instrStepNum}>Step 1</Text>
+        <View style={S.instrStepBody}>
+          <Text style={S.instrStepTitle}>Print double-sided</Text>
+          <Text style={S.instrStepText}>
+            Set your printer to double-sided, flip on short edge.
+          </Text>
         </View>
       </View>
 
-      <View style={styles.stepDivider} />
-
-      {/* Step 2 */}
-      <View style={styles.stepContainer}>
-        <Text style={styles.stepLabel}>STEP 2 — CUT</Text>
-        <Text style={styles.stepText}>
-          Cut each sheet along both center lines to get 4 quarter-pages.
-        </Text>
-        <View style={styles.diagramBox}>
-          <View style={[styles.diagramRect, { width: 80, height: 56, position: 'relative', marginBottom: 6 }]}>
-            {/* Horizontal cut line */}
-            <View style={{ position: 'absolute', left: 0, top: 26, width: 80, height: 0.75, backgroundColor: '#64748B' }} />
-            {/* Vertical cut line */}
-            <View style={{ position: 'absolute', left: 38, top: 0, width: 0.75, height: 56, backgroundColor: '#64748B' }} />
-            <Text style={[styles.diagramRectLabel, { position: 'absolute', top: 8, left: 0, right: 0 }]}>+</Text>
-          </View>
-          <Text style={styles.diagramLabel}>Cut on the center cross to get 4 pieces</Text>
+      <View style={S.instrStepRow}>
+        <Text style={S.instrStepNum}>Step 2</Text>
+        <View style={S.instrStepBody}>
+          <Text style={S.instrStepTitle}>Cut</Text>
+          <Text style={S.instrStepText}>
+            Cut each sheet in half horizontally at the center. The marks on
+            the left and right edges show you where.
+          </Text>
         </View>
       </View>
 
-      <View style={styles.stepDivider} />
-
-      {/* Step 3 */}
-      <View style={styles.stepContainer}>
-        <Text style={styles.stepLabel}>STEP 3 — STACK &amp; STAPLE</Text>
-        <Text style={styles.stepText}>
-          Stack all quarter-pages in order. Staple twice along the left edge.
-        </Text>
-        <View style={styles.diagramBox}>
-          <View style={styles.diagramRow}>
-            {/* Side-view stack */}
-            <View style={{ alignItems: 'flex-start' }}>
-              {[0, 2, 4, 6].map((offset) => (
-                <View
-                  key={offset}
-                  style={{
-                    width: 70,
-                    height: 5,
-                    backgroundColor: offset % 4 === 0 ? '#0D1B2A' : '#E8EEF0',
-                    marginBottom: 1,
-                    borderRadius: 1,
-                    marginLeft: offset * 0.3,
-                  }}
-                />
-              ))}
-            </View>
-            <Text style={[styles.diagramLabel, { marginLeft: 8, fontSize: 11 }]}>← staple</Text>
-          </View>
-          <Text style={styles.diagramLabel}>Staple twice on the left edge</Text>
+      <View style={S.instrStepRow}>
+        <Text style={S.instrStepNum}>Step 3</Text>
+        <View style={S.instrStepBody}>
+          <Text style={S.instrStepTitle}>Stack</Text>
+          <Text style={S.instrStepText}>
+            Stack all half-sheets in order. Page numbers are in the bottom corner.
+          </Text>
         </View>
       </View>
 
-      <View style={styles.instrFooter}>
-        <Text style={styles.instrFooterText}>
-          Each child gets one copy of this stack. This assembly guide sheet is not part of the
-          booklet — do not include it in student copies.
+      <View style={S.instrStepRow}>
+        <Text style={S.instrStepNum}>Step 4</Text>
+        <View style={S.instrStepBody}>
+          <Text style={S.instrStepTitle}>Fold and staple</Text>
+          <Text style={S.instrStepText}>
+            Fold each half-sheet in half vertically. Staple twice along the
+            left folded edge.
+          </Text>
+        </View>
+      </View>
+
+      <View style={S.instrRule} />
+
+      <View style={S.instrFooter}>
+        <Text style={S.instrFooterText}>
+          Students use rubber stamps or stickers in the stamp boxes.
         </Text>
       </View>
-    </View>
+    </Page>
   )
 }
 
-// ---------------------------------------------------------------------------
-// Registration marks (crosshairs at cut lines)
-// ---------------------------------------------------------------------------
-
-const MARK_HALF = 4   // half-length of each crosshair arm (total 8pt)
-
-function RegistrationMarks() {
-  // Cut points: (306,0), (0,396), (306,396), (612,396), (306,792)
-  const points: [number, number][] = [
-    [QP_W, 0],
-    [0, QP_H],
-    [QP_W, QP_H],
-    [PAGE_W, QP_H],
-    [QP_W, PAGE_H],
-  ]
-
-  return (
-    <>
-      {points.map(([cx, cy]) => {
-        const hLeft = cx - MARK_HALF
-        const hTop = cy - 0.25
-        const vLeft = cx - 0.25
-        const vTop = cy - MARK_HALF
-
-        return (
-          <View key={`${cx}-${cy}`}>
-            {/* Horizontal arm */}
-            <View
-              style={{
-                position: 'absolute',
-                left: hLeft,
-                top: hTop,
-                width: MARK_HALF * 2,
-                height: 0.5,
-                backgroundColor: '#CCCCCC',
-                opacity: 0.3,
-              }}
-            />
-            {/* Vertical arm */}
-            <View
-              style={{
-                position: 'absolute',
-                left: vLeft,
-                top: vTop,
-                width: 0.5,
-                height: MARK_HALF * 2,
-                backgroundColor: '#CCCCCC',
-                opacity: 0.3,
-              }}
-            />
-          </View>
-        )
-      })}
-    </>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// Quarter-page grid positions
-// ---------------------------------------------------------------------------
-
-const GRID_POSITIONS: [number, number][] = [
-  [0, 0],         // top-left
-  [QP_W, 0],      // top-right
-  [0, QP_H],      // bottom-left
-  [QP_W, QP_H],   // bottom-right
-]
-
-// ---------------------------------------------------------------------------
-// Full PDF document
-// ---------------------------------------------------------------------------
-
-type QuarterNode =
-  | { type: 'cover'; passportTitle: string; institutionName: string; coverEmblem?: string | null }
-  | { type: 'stop'; stop: PrintStop; index: number; showJournal: boolean }
-  | { type: 'cert'; passportTitle: string; institutionName: string }
-  | { type: 'blank' }
+// ── Main PDF document ─────────────────────────────────────────────────────────
 
 interface PrintPassportDocProps {
-  quarters: QuarterNode[]
+  passportTitle: string
+  institutionName: string
+  stops: PrintStop[]
+  journalOverride: 'include_all' | 'exclude_all' | null
 }
 
-function PrintPassportDoc({ quarters }: PrintPassportDocProps) {
-  // Group into sets of 4
-  const sheets: QuarterNode[][] = []
-  for (let i = 0; i < quarters.length; i += 4) {
-    sheets.push(quarters.slice(i, i + 4))
+function PrintPassportDoc({
+  passportTitle,
+  institutionName,
+  stops,
+  journalOverride,
+}: PrintPassportDocProps) {
+  // Build sequential slot list: Cover → Stops → Certificate
+  const slots: SlotContent[] = []
+
+  slots.push({ type: 'cover', title: passportTitle, subtitle: institutionName })
+
+  stops.forEach((stop, idx) => {
+    const showJournal =
+      journalOverride === 'include_all' ? true
+      : journalOverride === 'exclude_all' ? false
+      : stop.print_include_journal
+
+    slots.push({ type: 'stop', stop, index: idx + 1, showJournal })
+  })
+
+  slots.push({ type: 'cert', title: passportTitle, institutionName })
+
+  // Pad to even count so every slot has a partner
+  if (slots.length % 2 !== 0) {
+    slots.push({ type: 'blank' })
   }
+
+  // Group into content PDF pages (pairs of slots)
+  const pages: [SlotContent, SlotContent][] = []
+  for (let i = 0; i < slots.length; i += 2) {
+    pages.push([slots[i], slots[i + 1]])
+  }
+
+  const totalPageCount = 1 + stops.length + 1  // cover + stops + cert
 
   return (
     <Document>
-      {/* Page 1: assembly instructions */}
-      <Page size={[PAGE_W, PAGE_H]} style={styles.fullPage}>
-        <InstructionPage />
-      </Page>
+      {/* Page 1: assembly instructions — not cut or folded */}
+      <InstructionPage
+        passportTitle={passportTitle}
+        institutionName={institutionName}
+        stopCount={stops.length}
+        totalPageCount={totalPageCount}
+      />
 
-      {/* Content pages */}
-      {sheets.map((sheet, sheetIdx) => (
-        <Page key={sheetIdx} size={[PAGE_W, PAGE_H]} style={styles.contentPage}>
-          {sheet.map((qp, qpIdx) => {
-            const [x, y] = GRID_POSITIONS[qpIdx]
-            return (
-              <View
-                key={qpIdx}
-                style={[styles.quarterCell, { left: x, top: y }]}
-              >
-                {qp.type === 'cover' && (
-                  <CoverQuarter
-                    passportTitle={qp.passportTitle}
-                    institutionName={qp.institutionName}
-                    coverEmblem={qp.coverEmblem}
-                  />
-                )}
-                {qp.type === 'stop' && (
-                  <StopQuarter
-                    stop={qp.stop}
-                    index={qp.index}
-                    showJournal={qp.showJournal}
-                  />
-                )}
-                {qp.type === 'cert' && (
-                  <CertQuarter
-                    passportTitle={qp.passportTitle}
-                    institutionName={qp.institutionName}
-                  />
-                )}
-                {qp.type === 'blank' && <BlankQuarter />}
-              </View>
-            )
-          })}
-          <RegistrationMarks />
-        </Page>
+      {/* Content pages: sequential imposition, two slots per sheet */}
+      {pages.map((pair, pIdx) => (
+        <ContentPage
+          key={pIdx}
+          topSlot={pair[0]}
+          bottomSlot={pair[1]}
+          topPageNum={pIdx * 2 + 1}
+          bottomPageNum={pIdx * 2 + 2}
+        />
       ))}
     </Document>
   )
 }
 
-// ---------------------------------------------------------------------------
-// Route
-// ---------------------------------------------------------------------------
+// ── Route ─────────────────────────────────────────────────────────────────────
 
 export const dynamic = 'force-dynamic'
 
@@ -694,11 +683,7 @@ async function handlePrintRequest(request: Request, passportId: string) {
   const supabase = await createClient()
 
   // ── 1. Auth ──────────────────────────────────────────────────────────────
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser()
-
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
   if (authError || !user) {
     return new Response(JSON.stringify({ error: 'Unauthorized' }), {
       status: 401,
@@ -706,13 +691,12 @@ async function handlePrintRequest(request: Request, passportId: string) {
     })
   }
 
-  // ── 2. Parse body ─────────────────────────────────────────────────────────
+  // ── 2. Parse body ────────────────────────────────────────────────────────
   let body: {
     stop_ids: string[]
     copies: number
     journal_override: 'include_all' | 'exclude_all' | null
   }
-
   try {
     body = await request.json()
   } catch {
@@ -723,7 +707,6 @@ async function handlePrintRequest(request: Request, passportId: string) {
   }
 
   const { stop_ids, copies, journal_override } = body
-
   if (!Array.isArray(stop_ids) || typeof copies !== 'number') {
     return new Response(JSON.stringify({ error: 'Missing required fields' }), {
       status: 400,
@@ -731,12 +714,13 @@ async function handlePrintRequest(request: Request, passportId: string) {
     })
   }
 
-  // ── 3. Fetch passport ─────────────────────────────────────────────────────
-  const { data: passport, error: passportError } = await supabase
+  // ── 3. Fetch passport ────────────────────────────────────────────────────
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: passport, error: passportError } = await (supabase as any)
     .from('passports')
-    .select('id, title, creator_id, proprietor_id, cover_emblem')
+    .select('id, title, creator_id, proprietor_id')
     .eq('id', passportId)
-    .single()
+    .single() as { data: { id: string; title: string; creator_id: string; proprietor_id: string | null } | null; error: unknown }
 
   if (passportError || !passport) {
     return new Response(JSON.stringify({ error: 'Passport not found' }), {
@@ -745,9 +729,8 @@ async function handlePrintRequest(request: Request, passportId: string) {
     })
   }
 
-  // ── 4. Authorization: must be creator or employee of the institution ───────
+  // ── 4. Authorize: creator or employee of the owning institution ──────────
   const isCreator = passport.creator_id === user.id
-
   if (!isCreator) {
     if (!passport.proprietor_id) {
       return new Response(
@@ -755,15 +738,15 @@ async function handlePrintRequest(request: Request, passportId: string) {
         { status: 403, headers: { 'Content-Type': 'application/json' } },
       )
     }
-
-    const { data: authz, error: authzError } = await supabase
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: authz } = await (supabase as any)
       .from('employee_authorizations')
       .select('id')
       .eq('user_id', user.id)
       .eq('institution_id', passport.proprietor_id)
       .maybeSingle()
 
-    if (authzError || !authz) {
+    if (!authz) {
       return new Response(
         JSON.stringify({ error: 'Not authorized to print this passport' }),
         { status: 403, headers: { 'Content-Type': 'application/json' } },
@@ -771,25 +754,26 @@ async function handlePrintRequest(request: Request, passportId: string) {
     }
   }
 
-  // ── 5. Fetch institution (optional — personal passports have no proprietor) ─
+  // ── 5. Institution name (optional — personal passports have no proprietor) ─
   let institutionName = ''
   if (passport.proprietor_id) {
-    const { data: institution } = await supabase
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: inst } = await (supabase as any)
       .from('institutions')
-      .select('id, name')
+      .select('name')
       .eq('id', passport.proprietor_id)
-      .single()
-    institutionName = institution?.name ?? ''
+      .single() as { data: { name: string } | null }
+    institutionName = inst?.name ?? ''
   }
 
-  // ── 6. Fetch stops belonging to this passport, in the requested order ──────
-  // First, get all page IDs for this passport
-  const { data: pages, error: pagesError } = await supabase
+  // ── 6. Fetch stops in the requested order ────────────────────────────────
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: pages, error: pagesErr } = await (supabase as any)
     .from('passport_pages')
     .select('id')
-    .eq('passport_id', passportId)
+    .eq('passport_id', passportId) as { data: { id: string }[] | null; error: unknown }
 
-  if (pagesError) {
+  if (pagesErr) {
     return new Response(JSON.stringify({ error: 'Failed to fetch passport pages' }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' },
@@ -798,29 +782,28 @@ async function handlePrintRequest(request: Request, passportId: string) {
 
   const pageIds = (pages ?? []).map((p: { id: string }) => p.id)
 
-  // Fetch only stops that belong to this passport AND are in stop_ids
-  const { data: stopsRaw, error: stopsError } = await supabase
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: stopsRaw, error: stopsErr } = await (supabase as any)
     .from('stops')
     .select('id, name, stop_order, page_id, journal_prompt, print_include_journal')
     .in('id', stop_ids.length > 0 ? stop_ids : ['__none__'])
     .in('page_id', pageIds.length > 0 ? pageIds : ['__none__'])
 
-  if (stopsError) {
+  if (stopsErr) {
     return new Response(JSON.stringify({ error: 'Failed to fetch stops' }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' },
     })
   }
 
-  // Build a map and reorder according to stop_ids order
   const stopMap = new Map<string, PrintStop>()
-  for (const s of stopsRaw ?? []) {
-    stopMap.set(s.id, {
-      id: s.id,
-      name: s.name,
-      stop_order: s.stop_order,
-      journal_prompt: (s as Record<string, unknown>).journal_prompt as string | null ?? null,
-      print_include_journal: Boolean((s as Record<string, unknown>).print_include_journal ?? false),
+  for (const s of (stopsRaw ?? []) as Record<string, unknown>[]) {
+    stopMap.set(s.id as string, {
+      id:                    s.id as string,
+      name:                  s.name as string,
+      stop_order:            (s.stop_order as number) ?? 0,
+      journal_prompt:        (s.journal_prompt as string | null) ?? null,
+      print_include_journal: Boolean(s.print_include_journal ?? false),
     })
   }
 
@@ -828,53 +811,17 @@ async function handlePrintRequest(request: Request, passportId: string) {
     .map((sid) => stopMap.get(sid))
     .filter((s): s is PrintStop => s !== undefined)
 
-  // ── 7. Build quarter-page list ────────────────────────────────────────────
-  const quarters: QuarterNode[] = []
-
-  // Cover
-  quarters.push({
-    type: 'cover',
-    passportTitle: passport.title,
-    institutionName,
-    coverEmblem: passport.cover_emblem,
-  })
-
-  // Stops
-  orderedStops.forEach((stop, idx) => {
-    let showJournal: boolean
-    if (journal_override === 'include_all') {
-      showJournal = true
-    } else if (journal_override === 'exclude_all') {
-      showJournal = false
-    } else {
-      // per-stop
-      showJournal = stop.print_include_journal
-    }
-
-    quarters.push({
-      type: 'stop',
-      stop,
-      index: idx + 1,
-      showJournal,
-    })
-  })
-
-  // Certificate
-  quarters.push({
-    type: 'cert',
-    passportTitle: passport.title,
-    institutionName,
-  })
-
-  // Pad to nearest multiple of 4
-  while (quarters.length % 4 !== 0) {
-    quarters.push({ type: 'blank' })
-  }
-
-  // ── 8. Generate PDF ───────────────────────────────────────────────────────
+  // ── 7. Render PDF ────────────────────────────────────────────────────────
   let pdfBuffer: Buffer
   try {
-    pdfBuffer = await renderToBuffer(<PrintPassportDoc quarters={quarters} />)
+    pdfBuffer = await renderToBuffer(
+      <PrintPassportDoc
+        passportTitle={passport.title}
+        institutionName={institutionName}
+        stops={orderedStops}
+        journalOverride={journal_override}
+      />
+    )
   } catch (err) {
     console.error('[print-pdf] renderToBuffer error:', err)
     return new Response(JSON.stringify({ error: 'PDF generation failed' }), {
@@ -883,29 +830,27 @@ async function handlePrintRequest(request: Request, passportId: string) {
     })
   }
 
-  // ── 9. Log print job ──────────────────────────────────────────────────────
-  const journalSetting = journal_override ?? 'per_stop'
-
+  // ── 8. Log print job (best-effort — don't fail the request) ─────────────
   try {
-    await supabase.from('print_jobs').insert({
-      passport_id: passportId,
-      institution_id: passport.proprietor_id ?? null,
-      created_by: user.id,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (supabase as any).from('print_jobs').insert({
+      passport_id:     passportId,
+      institution_id:  passport.proprietor_id ?? null,
+      created_by:      user.id,
       stop_ids,
       copies,
-      journal_setting: journalSetting,
+      journal_setting: journal_override ?? 'per_stop',
     })
   } catch (err) {
-    // Log but don't fail the request — the PDF is already generated
-    console.warn('[print-pdf] Failed to log print job:', err)
+    console.warn('[print-pdf] failed to log print job:', err)
   }
 
-  // ── 10. Return PDF ────────────────────────────────────────────────────────
-  const dateStr = new Date().toISOString().slice(0, 10)
+  // ── 9. Return PDF ────────────────────────────────────────────────────────
+  const dateStr   = new Date().toISOString().slice(0, 10)
   const safeTitle = passport.title.replace(/[^\w\s-]/g, '').trim()
-  const filename = `${safeTitle} - Print Passport - ${dateStr}.pdf`
+  const filename  = `${safeTitle} - Print Passport - ${dateStr}.pdf`
 
-  return new Response(pdfBuffer, {
+  return new Response(new Uint8Array(pdfBuffer), {
     status: 200,
     headers: {
       'Content-Type': 'application/pdf',
