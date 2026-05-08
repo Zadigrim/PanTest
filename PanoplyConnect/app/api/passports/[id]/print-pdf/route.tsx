@@ -2,17 +2,29 @@ import React from 'react'
 import { renderToBuffer, Document, Page, View, Text, StyleSheet } from '@react-pdf/renderer'
 import { createClient } from '@/lib/supabase/server'
 
-// ── Layout constants (points: 72pt = 1 inch) ─────────────────────────────────
+// ── Artboard (designer canvas) dimensions ─────────────────────────────────────
+// Matches Canvas.tsx constants — all box_x/y/width/height values are in these units
+const ARTBOARD_W = 612   // pixels
+const ARTBOARD_H = 792   // pixels
+
+// ── Print sheet layout (points: 72pt = 1 inch) ────────────────────────────────
 const SHEET_W = 612   // 8.5 in
 const SHEET_H = 792   // 11 in
 const SLOT_W  = 612   // full sheet width
 const SLOT_H  = 396   // 5.5 in — half of sheet height
 const FOLD_X  = 306   // 4.25 in — vertical fold center
-const CUT_Y   = 396   // 5.5 in — horizontal cut line / slot boundary
+const CUT_Y   = 396   // 5.5 in — horizontal cut line
 const PAD     = 14    // slot interior padding (~0.2 in)
 
-// ── Styles ────────────────────────────────────────────────────────────────────
+// ── Scaled artboard within each slot ─────────────────────────────────────────
+// Reserve 20pt for section title + gap; remainder is the canvas height
+const CANVAS_AREA_H  = SLOT_H - 2 * PAD - 20          // ~348pt
+const CANVAS_SCALE   = CANVAS_AREA_H / ARTBOARD_H      // ≈0.440
+const CANVAS_W       = ARTBOARD_W * CANVAS_SCALE        // ≈269pt  (portrait, fits in slot)
+const CANVAS_H       = ARTBOARD_H * CANVAS_SCALE        // ≈348pt
+const CANVAS_OFFSET_X = (SLOT_W - 2 * PAD - CANVAS_W) / 2  // centre horizontally in slot
 
+// ── Styles ────────────────────────────────────────────────────────────────────
 const S = StyleSheet.create({
 
   // Full sheet (PDF page)
@@ -23,21 +35,19 @@ const S = StyleSheet.create({
     position: 'relative',
   },
 
-  // Registration mark pieces — positioned absolutely on the sheet
+  // Registration mark pieces — absolutely positioned on the sheet
   regH: { position: 'absolute', height: 0.5, backgroundColor: '#CCCCCC' },
   regV: { position: 'absolute', width: 0.5,  backgroundColor: '#CCCCCC' },
 
   // Slot divider at cut line
   slotDivider: {
     position: 'absolute',
-    left: 0,
-    top: CUT_Y,
-    width: SHEET_W,
-    height: 0.5,
+    left: 0, top: CUT_Y,
+    width: SHEET_W, height: 0.5,
     backgroundColor: '#CCCCCC',
   },
 
-  // Slot: half-sheet container, absolutely positioned on the sheet
+  // Slot: one half-sheet, absolutely positioned on the sheet
   slot: {
     position: 'absolute',
     width: SLOT_W,
@@ -46,17 +56,15 @@ const S = StyleSheet.create({
     flexDirection: 'column',
   },
 
-  // Fold guide — thin vertical line at FOLD_X, spans full slot height
+  // Fold guide — thin vertical line at FOLD_X
   foldGuide: {
     position: 'absolute',
-    left: FOLD_X,
-    top: 0,
-    width: 0.5,
-    height: SLOT_H,
+    left: FOLD_X, top: 0,
+    width: 0.5, height: SLOT_H,
     backgroundColor: '#DDDDDD',
   },
 
-  // Content area inside slot (handles padding)
+  // Padded content area inside slot
   slotContent: {
     flex: 1,
     padding: PAD,
@@ -64,62 +72,50 @@ const S = StyleSheet.create({
     overflow: 'hidden',
   },
 
-  // Page number in bottom-right of each slot
+  // Page number — bottom-right of slot
   pgNum: {
     position: 'absolute',
-    bottom: PAD,
-    right: PAD,
-    fontSize: 8,
-    color: '#888888',
+    bottom: PAD, right: PAD,
+    fontSize: 8, color: '#888888',
     fontFamily: 'Helvetica',
   },
 
-  // ── Stop slot ─────────────────────────────────────────────────────────────
-  stopHeader: {
-    fontSize: 13,
+  // ── Passport page slot ─────────────────────────────────────────────────────
+  sectionTitle: {
+    fontSize: 9,
     fontFamily: 'Helvetica-Bold',
-    color: '#1A1A1A',
-    marginBottom: 8,
+    color: '#333333',
+    textAlign: 'center',
+    marginBottom: 4,
   },
 
-  stampBox: {
-    width: 180,
-    height: 180,
-    borderWidth: 1.5,
+  // The scaled artboard container
+  pageCanvas: {
+    position: 'relative',
+    borderWidth: 0.5,
+    borderColor: '#DDDDDD',
+    borderStyle: 'solid',
+    backgroundColor: '#FAFAFA',
+  },
+
+  // Each LocationBox on the scaled canvas
+  locationBox: {
+    position: 'absolute',
+    borderWidth: 1,
     borderColor: '#999999',
     borderStyle: 'solid',
-    borderRadius: 4,
+    borderRadius: 2,
     backgroundColor: '#FFFFFF',
-    alignSelf: 'center',
-    position: 'relative',
-    marginVertical: 10,
   },
 
-  stopNameInBox: {
+  // Stop name at bottom of LocationBox
+  locationBoxName: {
     position: 'absolute',
-    bottom: 5,
-    left: 0,
-    right: 0,
+    bottom: 2, left: 0, right: 0,
     textAlign: 'center',
-    fontSize: 7,
-    color: '#BBBBBB',
+    fontSize: 5,
+    color: '#AAAAAA',
     fontFamily: 'Helvetica',
-  },
-
-  journalPrompt: {
-    fontSize: 9,
-    fontFamily: 'Helvetica',
-    color: '#444444',
-    marginBottom: 4,
-    marginTop: 4,
-  },
-
-  writingLine: {
-    height: 0.5,
-    backgroundColor: '#CCCCCC',
-    marginVertical: 5,
-    width: '90%',
-    alignSelf: 'center',
   },
 
   // ── Cover slot ─────────────────────────────────────────────────────────────
@@ -279,9 +275,7 @@ const S = StyleSheet.create({
     width: 52,
   },
 
-  instrStepBody: {
-    flex: 1,
-  },
+  instrStepBody: { flex: 1 },
 
   instrStepTitle: {
     fontSize: 11,
@@ -296,15 +290,7 @@ const S = StyleSheet.create({
     lineHeight: 1.4,
   },
 
-  instrFooter: {
-    marginTop: 'auto',
-  },
-
-  instrFooterRule: {
-    height: 0.5,
-    backgroundColor: '#CCCCCC',
-    marginBottom: 12,
-  },
+  instrFooter: { marginTop: 'auto' },
 
   instrFooterText: {
     fontSize: 11,
@@ -315,17 +301,28 @@ const S = StyleSheet.create({
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-interface PrintStop {
+interface StopForPrint {
   id: string
   name: string
   stop_order: number
-  journal_prompt: string | null
-  print_include_journal: boolean
+  box_x: number
+  box_y: number
+  box_width: number
+  box_height: number
+}
+
+interface PassportPageForPrint {
+  id: string
+  page_order: number
+  page_type: 'stamp' | 'information'
+  section_name: string
+  section_title: string | null
+  stops: StopForPrint[]
 }
 
 type SlotContent =
   | { type: 'cover'; title: string; subtitle: string }
-  | { type: 'stop'; stop: PrintStop; index: number; showJournal: boolean }
+  | { type: 'page'; page: PassportPageForPrint }
   | { type: 'cert'; title: string; institutionName: string }
   | { type: 'blank' }
 
@@ -338,12 +335,9 @@ function RegistrationMarks() {
 
   return (
     <>
-      {/* Left edge crosshair */}
-      <View style={[S.regH, { left: 0,            top: y - 0.25,    width: len  }]} />
-      <View style={[S.regV, { left: half - 0.25,  top: y - half,    height: len }]} />
-
-      {/* Right edge crosshair */}
-      <View style={[S.regH, { left: SHEET_W - len, top: y - 0.25,   width: len  }]} />
+      <View style={[S.regH, { left: 0,                    top: y - 0.25, width: len  }]} />
+      <View style={[S.regV, { left: half - 0.25,          top: y - half, height: len }]} />
+      <View style={[S.regH, { left: SHEET_W - len,        top: y - 0.25, width: len  }]} />
       <View style={[S.regV, { left: SHEET_W - half - 0.25, top: y - half, height: len }]} />
     </>
   )
@@ -372,52 +366,39 @@ function CoverSlotContent({ title, subtitle }: { title: string; subtitle: string
   )
 }
 
-function StopSlotContent({
-  stop,
-  index,
-  showJournal,
-}: {
-  stop: PrintStop
-  index: number
-  showJournal: boolean
-}) {
+function PassportPageSlotContent({ page }: { page: PassportPageForPrint }) {
+  const label = page.section_title || page.section_name || `Page ${page.page_order}`
+
   return (
     <>
-      <Text style={S.stopHeader}>
-        <Text style={{ color: '#888888', fontFamily: 'Helvetica', fontSize: 13 }}>
-          {'Stop ' + index + '  '}
-        </Text>
-        {stop.name}
-      </Text>
+      {/* Section title */}
+      <Text style={S.sectionTitle}>{label}</Text>
 
-      {/* Stamp box — blank white interior, stop name at bottom only */}
-      <View style={S.stampBox}>
-        <Text style={S.stopNameInBox}>{stop.name}</Text>
+      {/* Scaled artboard canvas with LocationBoxes */}
+      <View
+        style={[
+          S.pageCanvas,
+          { width: CANVAS_W, height: CANVAS_H, marginLeft: CANVAS_OFFSET_X },
+        ]}
+      >
+        {page.stops.map((stop) => {
+          const x = stop.box_x * CANVAS_SCALE
+          const y = stop.box_y * CANVAS_SCALE
+          const w = stop.box_width  * CANVAS_SCALE
+          const h = stop.box_height * CANVAS_SCALE
+
+          return (
+            <View key={stop.id} style={[S.locationBox, { left: x, top: y, width: w, height: h }]}>
+              <Text style={S.locationBoxName}>{stop.name}</Text>
+            </View>
+          )
+        })}
       </View>
-
-      {showJournal && (
-        <>
-          {stop.journal_prompt ? (
-            <Text style={S.journalPrompt}>{stop.journal_prompt}</Text>
-          ) : null}
-          <View style={S.writingLine} />
-          <View style={S.writingLine} />
-          <View style={S.writingLine} />
-          <View style={S.writingLine} />
-          <View style={S.writingLine} />
-        </>
-      )}
     </>
   )
 }
 
-function CertSlotContent({
-  title,
-  institutionName,
-}: {
-  title: string
-  institutionName: string
-}) {
+function CertSlotContent({ title, institutionName }: { title: string; institutionName: string }) {
   return (
     <View style={S.certInner}>
       <Text style={S.certHeading}>Certificate of Completion</Text>
@@ -446,31 +427,21 @@ function Slot({
 }) {
   return (
     <View style={[S.slot, { top: slotTop }]}>
-      {/* Fold guide — dashed vertical at FOLD_X */}
       <View style={S.foldGuide} />
 
-      {/* Padded content area */}
       <View style={S.slotContent}>
         {content.type === 'cover' && (
           <CoverSlotContent title={content.title} subtitle={content.subtitle} />
         )}
-        {content.type === 'stop' && (
-          <StopSlotContent
-            stop={content.stop}
-            index={content.index}
-            showJournal={content.showJournal}
-          />
+        {content.type === 'page' && (
+          <PassportPageSlotContent page={content.page} />
         )}
         {content.type === 'cert' && (
-          <CertSlotContent
-            title={content.title}
-            institutionName={content.institutionName}
-          />
+          <CertSlotContent title={content.title} institutionName={content.institutionName} />
         )}
-        {/* blank: empty — no content */}
+        {/* blank: empty */}
       </View>
 
-      {/* Page number — bottom-right of slot */}
       {content.type !== 'blank' && (
         <Text style={S.pgNum}>{pageNum}</Text>
       )}
@@ -493,38 +464,32 @@ function ContentPage({
 }) {
   return (
     <Page size={[SHEET_W, SHEET_H]} style={S.sheet}>
-      {/* Registration marks at left/right edges of cut line */}
       <RegistrationMarks />
-
-      {/* Slot divider at cut line */}
       <View style={S.slotDivider} />
-
-      {/* Top slot (passport pages 1–2 of this sheet) */}
-      <Slot content={topSlot} slotTop={0} pageNum={topPageNum} />
-
-      {/* Bottom slot */}
+      <Slot content={topSlot}    slotTop={0}     pageNum={topPageNum}    />
       <Slot content={bottomSlot} slotTop={CUT_Y} pageNum={bottomPageNum} />
     </Page>
   )
 }
 
-// ── Assembly instruction page (PDF page 1) ────────────────────────────────────
+// ── Assembly instruction page ─────────────────────────────────────────────────
 
 function InstructionPage({
   passportTitle,
   institutionName,
-  stopCount,
-  totalPageCount,
+  pageCount,
+  totalSlots,
 }: {
   passportTitle: string
   institutionName: string
-  stopCount: number
-  totalPageCount: number
+  pageCount: number
+  totalSlots: number
 }) {
+  const sheetCount = Math.ceil(totalSlots / 4)
   const meta =
-    stopCount + ' stop' + (stopCount !== 1 ? 's' : '') +
-    ' · ' + totalPageCount + ' pages' +
-    ' · print as many copies as you need'
+    pageCount + ' page' + (pageCount !== 1 ? 's' : '') +
+    ' · ' + (totalSlots) + ' booklet pages' +
+    ' · ' + sheetCount + ' sheet' + (sheetCount !== 1 ? 's' : '') + ' per copy'
 
   return (
     <Page size={[SHEET_W, SHEET_H]} style={S.instrPage}>
@@ -532,9 +497,7 @@ function InstructionPage({
 
       <Text style={S.instrDocLabel}>Print-ready passport booklet</Text>
       <Text style={S.instrPassportTitle}>{passportTitle}</Text>
-      {institutionName ? (
-        <Text style={S.instrInstName}>{institutionName}</Text>
-      ) : null}
+      {institutionName ? <Text style={S.instrInstName}>{institutionName}</Text> : null}
       <Text style={S.instrMeta}>{meta}</Text>
 
       <View style={S.instrRule} />
@@ -597,57 +560,44 @@ function InstructionPage({
 interface PrintPassportDocProps {
   passportTitle: string
   institutionName: string
-  stops: PrintStop[]
-  journalOverride: 'include_all' | 'exclude_all' | null
+  pages: PassportPageForPrint[]
 }
 
-function PrintPassportDoc({
-  passportTitle,
-  institutionName,
-  stops,
-  journalOverride,
-}: PrintPassportDocProps) {
-  // Build sequential slot list: Cover → Stops → Certificate
+function PrintPassportDoc({ passportTitle, institutionName, pages }: PrintPassportDocProps) {
+  // Build sequential slot list: Cover → passport pages → Certificate
   const slots: SlotContent[] = []
 
   slots.push({ type: 'cover', title: passportTitle, subtitle: institutionName })
 
-  stops.forEach((stop, idx) => {
-    const showJournal =
-      journalOverride === 'include_all' ? true
-      : journalOverride === 'exclude_all' ? false
-      : stop.print_include_journal
-
-    slots.push({ type: 'stop', stop, index: idx + 1, showJournal })
-  })
+  for (const page of pages) {
+    slots.push({ type: 'page', page })
+  }
 
   slots.push({ type: 'cert', title: passportTitle, institutionName })
 
-  // Pad to even count so every slot has a partner
-  if (slots.length % 2 !== 0) {
-    slots.push({ type: 'blank' })
-  }
+  // Pad to even so every slot has a pair
+  if (slots.length % 2 !== 0) slots.push({ type: 'blank' })
 
   // Group into content PDF pages (pairs of slots)
-  const pages: [SlotContent, SlotContent][] = []
+  const contentPages: [SlotContent, SlotContent][] = []
   for (let i = 0; i < slots.length; i += 2) {
-    pages.push([slots[i], slots[i + 1]])
+    contentPages.push([slots[i], slots[i + 1]])
   }
 
-  const totalPageCount = 1 + stops.length + 1  // cover + stops + cert
+  const contentSlotCount = slots.filter((s) => s.type !== 'blank').length
 
   return (
     <Document>
-      {/* Page 1: assembly instructions — not cut or folded */}
+      {/* Page 1: assembly instructions */}
       <InstructionPage
         passportTitle={passportTitle}
         institutionName={institutionName}
-        stopCount={stops.length}
-        totalPageCount={totalPageCount}
+        pageCount={pages.length}
+        totalSlots={contentSlotCount}
       />
 
-      {/* Content pages: sequential imposition, two slots per sheet */}
-      {pages.map((pair, pIdx) => (
+      {/* Content pages: two slots per sheet, sequential imposition */}
+      {contentPages.map((pair, pIdx) => (
         <ContentPage
           key={pIdx}
           topSlot={pair[0]}
@@ -720,7 +670,10 @@ async function handlePrintRequest(request: Request, passportId: string) {
     .from('passports')
     .select('id, title, creator_id, proprietor_id')
     .eq('id', passportId)
-    .single() as { data: { id: string; title: string; creator_id: string; proprietor_id: string | null } | null; error: unknown }
+    .single() as {
+      data: { id: string; title: string; creator_id: string; proprietor_id: string | null } | null
+      error: unknown
+    }
 
   if (passportError || !passport) {
     return new Response(JSON.stringify({ error: 'Passport not found' }), {
@@ -754,7 +707,7 @@ async function handlePrintRequest(request: Request, passportId: string) {
     }
   }
 
-  // ── 5. Institution name (optional — personal passports have no proprietor) ─
+  // ── 5. Institution name (personal passports have no proprietor) ──────────
   let institutionName = ''
   if (passport.proprietor_id) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -766,28 +719,51 @@ async function handlePrintRequest(request: Request, passportId: string) {
     institutionName = inst?.name ?? ''
   }
 
-  // ── 6. Fetch stops in the requested order ────────────────────────────────
+  // ── 6. Fetch passport pages ordered by page_order ────────────────────────
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: pages, error: pagesErr } = await (supabase as any)
+  const { data: pagesRaw, error: pagesErr } = await (supabase as any)
     .from('passport_pages')
-    .select('id')
-    .eq('passport_id', passportId) as { data: { id: string }[] | null; error: unknown }
+    .select('id, page_order, page_type, section_name, section_title')
+    .eq('passport_id', passportId)
+    .order('page_order', { ascending: true }) as {
+      data: {
+        id: string
+        page_order: number
+        page_type: string
+        section_name: string
+        section_title: string | null
+      }[] | null
+      error: unknown
+    }
 
-  if (pagesErr) {
-    return new Response(JSON.stringify({ error: 'Failed to fetch passport pages' }), {
-      status: 500,
+  if (pagesErr || !pagesRaw || pagesRaw.length === 0) {
+    return new Response(JSON.stringify({ error: 'No pages found for this passport' }), {
+      status: 404,
       headers: { 'Content-Type': 'application/json' },
     })
   }
 
-  const pageIds = (pages ?? []).map((p: { id: string }) => p.id)
+  // ── 7. Fetch all stops for all pages ─────────────────────────────────────
+  const pageIds = pagesRaw.map((p) => p.id)
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: stopsRaw, error: stopsErr } = await (supabase as any)
     .from('stops')
-    .select('id, name, stop_order, page_id, journal_prompt, print_include_journal')
-    .in('id', stop_ids.length > 0 ? stop_ids : ['__none__'])
-    .in('page_id', pageIds.length > 0 ? pageIds : ['__none__'])
+    .select('id, page_id, stop_order, name, box_x, box_y, box_width, box_height')
+    .in('page_id', pageIds)
+    .order('stop_order', { ascending: true }) as {
+      data: {
+        id: string
+        page_id: string
+        stop_order: number
+        name: string
+        box_x: number | null
+        box_y: number | null
+        box_width: number
+        box_height: number
+      }[] | null
+      error: unknown
+    }
 
   if (stopsErr) {
     return new Response(JSON.stringify({ error: 'Failed to fetch stops' }), {
@@ -796,30 +772,49 @@ async function handlePrintRequest(request: Request, passportId: string) {
     })
   }
 
-  const stopMap = new Map<string, PrintStop>()
-  for (const s of (stopsRaw ?? []) as Record<string, unknown>[]) {
-    stopMap.set(s.id as string, {
-      id:                    s.id as string,
-      name:                  s.name as string,
-      stop_order:            (s.stop_order as number) ?? 0,
-      journal_prompt:        (s.journal_prompt as string | null) ?? null,
-      print_include_journal: Boolean(s.print_include_journal ?? false),
+  // ── 8. Build per-page data for the PDF ───────────────────────────────────
+  // A page is included if at least one of its stops is in stop_ids,
+  // OR if no stop selection was made (stop_ids empty → include all pages).
+  const selectedIds = new Set(stop_ids)
+  const includeAll  = stop_ids.length === 0
+
+  const pagesForPrint: PassportPageForPrint[] = pagesRaw
+    .map((page) => {
+      const pageStops = (stopsRaw ?? [])
+        .filter((s) => s.page_id === page.id)
+        .map((s) => ({
+          id:          s.id,
+          name:        s.name,
+          stop_order:  s.stop_order,
+          box_x:       s.box_x  ?? 40,
+          box_y:       s.box_y  ?? 40,
+          box_width:   s.box_width  ?? 120,
+          box_height:  s.box_height ?? 120,
+        }))
+
+      return {
+        id:            page.id,
+        page_order:    page.page_order,
+        page_type:     (page.page_type as 'stamp' | 'information') ?? 'stamp',
+        section_name:  page.section_name ?? '',
+        section_title: page.section_title,
+        stops:         pageStops,
+      }
     })
-  }
+    .filter((page) => {
+      if (page.page_type === 'information') return true  // always include info pages
+      if (includeAll) return true
+      return page.stops.some((s) => selectedIds.has(s.id))
+    })
 
-  const orderedStops: PrintStop[] = stop_ids
-    .map((sid) => stopMap.get(sid))
-    .filter((s): s is PrintStop => s !== undefined)
-
-  // ── 7. Render PDF ────────────────────────────────────────────────────────
+  // ── 9. Render PDF ────────────────────────────────────────────────────────
   let pdfBuffer: Buffer
   try {
     pdfBuffer = await renderToBuffer(
       <PrintPassportDoc
         passportTitle={passport.title}
         institutionName={institutionName}
-        stops={orderedStops}
-        journalOverride={journal_override}
+        pages={pagesForPrint}
       />
     )
   } catch (err) {
@@ -830,7 +825,7 @@ async function handlePrintRequest(request: Request, passportId: string) {
     })
   }
 
-  // ── 8. Log print job (best-effort — don't fail the request) ─────────────
+  // ── 10. Log print job (best-effort) ──────────────────────────────────────
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (supabase as any).from('print_jobs').insert({
@@ -845,7 +840,7 @@ async function handlePrintRequest(request: Request, passportId: string) {
     console.warn('[print-pdf] failed to log print job:', err)
   }
 
-  // ── 9. Return PDF ────────────────────────────────────────────────────────
+  // ── 11. Return PDF ────────────────────────────────────────────────────────
   const dateStr   = new Date().toISOString().slice(0, 10)
   const safeTitle = passport.title.replace(/[^\w\s-]/g, '').trim()
   const filename  = `${safeTitle} - Print Passport - ${dateStr}.pdf`
