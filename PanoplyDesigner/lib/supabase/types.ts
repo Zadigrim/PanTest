@@ -20,7 +20,7 @@ export interface PageElement {
 }
 export type PassportStatus = 'draft' | 'published' | 'archived'
 export type PassportType = 'location' | 'experience' | 'learning'
-export type BackgroundType = 'guilloche' | 'landscape' | 'none' | 'custom'
+export type BackgroundType = 'guilloche' | 'landscape' | 'none' | 'custom' | 'grid'
 export type SmudgeIntensity = 'none' | 'light' | 'medium' | 'heavy'
 export type ExperienceType = 'location' | 'experience'
 export type ExperienceVerification = 'witnessed' | 'documented' | 'presence' | 'honor'

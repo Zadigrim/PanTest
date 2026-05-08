@@ -1,5 +1,5 @@
 import React from 'react'
-import { renderToBuffer, Document, Page, View, Text, StyleSheet } from '@react-pdf/renderer'
+import { renderToBuffer, Document, Page, View, Text, StyleSheet, Svg, Ellipse, Path, Line } from '@react-pdf/renderer'
 import { createClient } from '@/lib/supabase/server'
 
 // ── Artboard (designer canvas) dimensions ─────────────────────────────────────
@@ -519,14 +519,88 @@ function PageElementsLayer({ elements, scale }: { elements: PageElement[]; scale
   )
 }
 
+// ── Background overlay components ─────────────────────────────────────────────
+// These render into the scaled canvas (CANVAS_W × CANVAS_H) using a viewBox of
+// the full artboard (612 × 792) so the pattern density matches the designer.
+
+function GuillocheOverlay({ color, opacity }: { color: string; opacity: number }) {
+  const tileSize = 32
+  const cols = Math.ceil(ARTBOARD_W / tileSize) + 1
+  const rows = Math.ceil(ARTBOARD_H / tileSize) + 1
+  const alpha = Math.max(8, Math.min(20, opacity)) / 100
+
+  const tiles: React.ReactNode[] = []
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const x  = c * tileSize
+      const y  = r * tileSize
+      const cx = x + 16
+      const cy = y + 16
+      const ts = tileSize
+      tiles.push(
+        <React.Fragment key={`${r}-${c}`}>
+          <Ellipse cx={cx} cy={cy} rx={14} ry={7}  strokeWidth={0.6} stroke={color} fill="none" />
+          <Ellipse cx={cx} cy={cy} rx={7}  ry={14} strokeWidth={0.6} stroke={color} fill="none" />
+          <Path
+            d={`M${cx},${y+2} L${x+ts-2},${cy} L${cx},${y+ts-2} L${x+2},${cy} Z`}
+            strokeWidth={0.4} stroke={color} fill="none"
+          />
+        </React.Fragment>,
+      )
+    }
+  }
+
+  return (
+    <Svg
+      viewBox={`0 0 ${ARTBOARD_W} ${ARTBOARD_H}`}
+      style={{ position: 'absolute', top: 0, left: 0, width: CANVAS_W, height: CANVAS_H, opacity: alpha }}
+    >
+      {tiles}
+    </Svg>
+  )
+}
+
+function GridOverlay({ color, opacity }: { color: string; opacity: number }) {
+  const minor  = 12   // artboard units between minor lines
+  const major  = 60   // artboard units between major lines
+  const minorA = Math.max(8, Math.min(20, opacity)) / 100
+  const majorA = Math.min(1, minorA * 2.5)
+  const minorC = hexToRgba(color.replace('#', ''), Math.round(minorA * 100))
+  const majorC = hexToRgba(color.replace('#', ''), Math.round(majorA * 100))
+
+  const lines: React.ReactNode[] = []
+  for (let x = 0; x <= ARTBOARD_W; x += minor) {
+    lines.push(
+      <Line key={`v${x}`} x1={x} y1={0} x2={x} y2={ARTBOARD_H}
+        stroke={x % major === 0 ? majorC : minorC}
+        strokeWidth={x % major === 0 ? 0.8 : 0.35}
+      />,
+    )
+  }
+  for (let y = 0; y <= ARTBOARD_H; y += minor) {
+    lines.push(
+      <Line key={`h${y}`} x1={0} y1={y} x2={ARTBOARD_W} y2={y}
+        stroke={y % major === 0 ? majorC : minorC}
+        strokeWidth={y % major === 0 ? 0.8 : 0.35}
+      />,
+    )
+  }
+
+  return (
+    <Svg
+      viewBox={`0 0 ${ARTBOARD_W} ${ARTBOARD_H}`}
+      style={{ position: 'absolute', top: 0, left: 0, width: CANVAS_W, height: CANVAS_H }}
+    >
+      {lines}
+    </Svg>
+  )
+}
+
 function PassportPageSlotContent({ page }: { page: PassportPageForPrint }) {
   const label      = page.section_title || page.section_name || `Page ${page.page_order}`
   const paperColor = `#${page.paper_color ?? 'F5F2EC'}`
-  // Guilloche / custom background: approximate the tinted overlay with a solid rgba fill
-  const showOverlay = page.background_type !== 'none' && page.background_color
-  const overlayColor = showOverlay
-    ? hexToRgba(page.background_color, page.background_opacity ?? 11)
-    : null
+  const bgColor    = `#${page.background_color ?? '0D1B2A'}`
+  const bgOpacity  = page.background_opacity ?? 12
 
   return (
     <>
@@ -538,9 +612,12 @@ function PassportPageSlotContent({ page }: { page: PassportPageForPrint }) {
           { width: CANVAS_W, height: CANVAS_H, marginLeft: CANVAS_OFFSET_X, backgroundColor: paperColor },
         ]}
       >
-        {/* Background tint overlay (guilloche approximation) */}
-        {overlayColor && (
-          <View style={{ position: 'absolute', left: 0, top: 0, right: 0, bottom: 0, backgroundColor: overlayColor }} />
+        {/* Background pattern overlay */}
+        {page.background_type === 'guilloche' && (
+          <GuillocheOverlay color={bgColor} opacity={bgOpacity} />
+        )}
+        {page.background_type === 'grid' && (
+          <GridOverlay color={bgColor} opacity={bgOpacity} />
         )}
 
         {/* Elements rendered before (below) LocationBoxes */}

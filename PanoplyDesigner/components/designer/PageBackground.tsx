@@ -8,23 +8,23 @@ interface Props {
   children?: React.ReactNode
 }
 
-/** Three-layer background: paper color → guilloche SVG → grain texture. */
+/** Three-layer background: paper color → pattern SVG → grain texture. */
 export function PageBackground({ page, children }: Props) {
   const paper = `#${page.paper_color ?? 'F5F2EC'}`
   const patternColor = `#${page.background_color ?? '0D1B2A'}`
+  const opacity = page.background_opacity ?? 12
 
   return (
     <div
       className="relative h-full w-full overflow-hidden"
       style={{ backgroundColor: paper }}
     >
-      {/* Layer 2: Guilloche (only when background_type is 'guilloche') */}
+      {/* Layer 2: Pattern overlay */}
       {page.background_type === 'guilloche' && (
-        <GuillochePattern
-          opacity={page.background_opacity ?? 12}
-          color={patternColor}
-          patternId={`guilloche-${page.id}`}
-        />
+        <GuillochePattern opacity={opacity} color={patternColor} patternId={`guilloche-${page.id}`} />
+      )}
+      {page.background_type === 'grid' && (
+        <GridPattern opacity={opacity} color={patternColor} patternId={`grid-${page.id}`} />
       )}
 
       {/* Layer 3: Grain texture via SVG noise */}
@@ -35,6 +35,43 @@ export function PageBackground({ page, children }: Props) {
         {children}
       </div>
     </div>
+  )
+}
+
+/** Engineering graph-paper grid: minor lines every 12px, major every 60px. */
+function GridPattern({
+  opacity = 12,
+  color = '#000000',
+  patternId = 'grid',
+}: {
+  opacity?: number
+  color?: string
+  patternId?: string
+}) {
+  const clampedOpacity = Math.max(8, Math.min(20, opacity)) / 100
+  const majorOpacity   = Math.min(1, clampedOpacity * 2.5)
+  const minorId = `${patternId}-minor`
+  const majorId = `${patternId}-major`
+
+  return (
+    <svg
+      aria-hidden
+      className="absolute inset-0 h-full w-full pointer-events-none"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <defs>
+        {/* 12×12 minor cell */}
+        <pattern id={minorId} x="0" y="0" width="12" height="12" patternUnits="userSpaceOnUse">
+          <path d="M 12 0 L 0 0 0 12" fill="none" stroke={color} strokeWidth="0.35" opacity={clampedOpacity} />
+        </pattern>
+        {/* 60×60 major cell (5 minor cells) — fills with minor then draws bold edges */}
+        <pattern id={majorId} x="0" y="0" width="60" height="60" patternUnits="userSpaceOnUse">
+          <rect width="60" height="60" fill={`url(#${minorId})`} />
+          <path d="M 60 0 L 0 0 0 60" fill="none" stroke={color} strokeWidth="0.8" opacity={majorOpacity} />
+        </pattern>
+      </defs>
+      <rect width="100%" height="100%" fill={`url(#${majorId})`} />
+    </svg>
   )
 }
 

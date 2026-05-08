@@ -391,6 +391,7 @@ function StopInspector({ stop }: { stop: Stop }) {
 
 const BG_TYPES: { value: BackgroundType; label: string }[] = [
   { value: 'guilloche', label: 'Guilloche' },
+  { value: 'grid',      label: 'Grid' },
   { value: 'none',      label: 'None' },
   { value: 'landscape', label: 'Landscape' },
   { value: 'custom',    label: 'Custom' },
@@ -464,7 +465,7 @@ function PageInspector({ page }: { page: PassportPage }) {
           </div>
         </Field>
 
-        {page.background_type === 'guilloche' && (
+        {(page.background_type === 'guilloche' || page.background_type === 'grid') && (
           <>
             <Field label="Pattern color (hex, no #)">
               <div className="flex gap-2">
