@@ -10,19 +10,31 @@ const ARTBOARD_H = 792   // pixels
 // ── Print sheet layout (points: 72pt = 1 inch) ────────────────────────────────
 const SHEET_W = 612   // 8.5 in
 const SHEET_H = 792   // 11 in
-const SLOT_W  = 612   // full sheet width
-const SLOT_H  = 396   // 5.5 in — half of sheet height
-const FOLD_X  = 306   // 4.25 in — vertical fold center
-const CUT_Y   = 396   // 5.5 in — horizontal cut line
-const PAD     = 14    // slot interior padding (~0.2 in)
+const QUAD_W  = 306   // 4.25 in — quadrant width (half of sheet width)
+const QUAD_H  = 396   // 5.5 in  — quadrant height (half of sheet height)
+const CUT_X   = 306   // vertical cut line
+const CUT_Y   = 396   // horizontal cut line
+const PAD     = 14    // quadrant interior padding (~0.2 in)
 
-// ── Scaled artboard within each slot ─────────────────────────────────────────
-// Reserve 20pt for section title + gap; remainder is the canvas height
-const CANVAS_AREA_H  = SLOT_H - 2 * PAD - 20          // ~348pt
-const CANVAS_SCALE   = CANVAS_AREA_H / ARTBOARD_H      // ≈0.440
-const CANVAS_W       = ARTBOARD_W * CANVAS_SCALE        // ≈269pt  (portrait, fits in slot)
-const CANVAS_H       = ARTBOARD_H * CANVAS_SCALE        // ≈348pt
-const CANVAS_OFFSET_X = (SLOT_W - 2 * PAD - CANVAS_W) / 2  // centre horizontally in slot
+// ── Scaled artboard within each quadrant ─────────────────────────────────────
+// Reserve 20pt for section title; fit the 612:792 artboard into remaining space.
+const CANVAS_AREA_H   = QUAD_H - 2 * PAD - 20            // 348pt
+const CANVAS_AREA_W   = QUAD_W - 2 * PAD                 // 278pt
+const ASPECT_RATIO    = ARTBOARD_H / ARTBOARD_W           // ≈1.2941
+const FIT_BY_HEIGHT_W = CANVAS_AREA_H / ASPECT_RATIO     // ≈268.8pt
+// Height-fit wins: FIT_BY_HEIGHT_W (269) < CANVAS_AREA_W (278)
+const CANVAS_H        = CANVAS_AREA_H                     // 348pt
+const CANVAS_W        = FIT_BY_HEIGHT_W                   // ≈269pt
+const CANVAS_SCALE    = CANVAS_H / ARTBOARD_H             // ≈0.4394
+const CANVAS_OFFSET_X = (QUAD_W - 2 * PAD - CANVAS_W) / 2 // ≈4.6pt
+
+// ── Quadrant top-left corner positions on the sheet ───────────────────────────
+const QUAD_POSITIONS: { x: number; y: number }[] = [
+  { x: 0,     y: 0     },  // top-left
+  { x: CUT_X, y: 0     },  // top-right
+  { x: 0,     y: CUT_Y },  // bottom-left
+  { x: CUT_X, y: CUT_Y },  // bottom-right
+]
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 const S = StyleSheet.create({
@@ -35,36 +47,36 @@ const S = StyleSheet.create({
     position: 'relative',
   },
 
-  // Registration mark pieces — absolutely positioned on the sheet
+  // Cut guide lines — rendered below quadrant content
+  guideH: {
+    position: 'absolute',
+    left: 0,
+    height: 0.5,
+    width: SHEET_W,
+    backgroundColor: '#EEEEEE',
+  },
+  guideV: {
+    position: 'absolute',
+    top: 0,
+    width: 0.5,
+    height: SHEET_H,
+    backgroundColor: '#EEEEEE',
+  },
+
+  // Registration mark pieces — crosshairs at sheet edge intersections
   regH: { position: 'absolute', height: 0.5, backgroundColor: '#CCCCCC' },
   regV: { position: 'absolute', width: 0.5,  backgroundColor: '#CCCCCC' },
 
-  // Slot divider at cut line
-  slotDivider: {
-    position: 'absolute',
-    left: 0, top: CUT_Y,
-    width: SHEET_W, height: 0.5,
-    backgroundColor: '#CCCCCC',
-  },
-
-  // Slot: one half-sheet, absolutely positioned on the sheet
+  // Quadrant: one quarter-sheet, absolutely positioned on the sheet
   slot: {
     position: 'absolute',
-    width: SLOT_W,
-    height: SLOT_H,
+    width: QUAD_W,
+    height: QUAD_H,
     overflow: 'hidden',
     flexDirection: 'column',
   },
 
-  // Fold guide — thin vertical line at FOLD_X
-  foldGuide: {
-    position: 'absolute',
-    left: FOLD_X, top: 0,
-    width: 0.5, height: SLOT_H,
-    backgroundColor: '#DDDDDD',
-  },
-
-  // Padded content area inside slot
+  // Padded content area inside quadrant
   slotContent: {
     flex: 1,
     padding: PAD,
@@ -72,15 +84,64 @@ const S = StyleSheet.create({
     overflow: 'hidden',
   },
 
-  // Page number — bottom-right of slot
+  // Page number — bottom-left of quadrant (left edge = staple edge of finished booklet)
   pgNum: {
     position: 'absolute',
-    bottom: PAD, right: PAD,
-    fontSize: 8, color: '#888888',
+    bottom: PAD,
+    left: PAD,
+    fontSize: 8,
+    color: '#888888',
     fontFamily: 'Helvetica',
   },
 
-  // ── Passport page slot ─────────────────────────────────────────────────────
+  // ── Assembly instructions ──────────────────────────────────────────────────
+  instrTitle: {
+    fontSize: 11,
+    fontFamily: 'Helvetica-Bold',
+    color: '#1A1A1A',
+    marginBottom: 8,
+  },
+
+  instrStep: {
+    flexDirection: 'row',
+    marginBottom: 6,
+    alignItems: 'flex-start',
+  },
+
+  instrStepNum: {
+    fontSize: 9,
+    fontFamily: 'Helvetica-Bold',
+    color: '#1A1A1A',
+    width: 14,
+  },
+
+  instrStepText: {
+    flex: 1,
+    fontSize: 9,
+    fontFamily: 'Helvetica',
+    color: '#333333',
+    lineHeight: 1.4,
+  },
+
+  instrStepLabel: {
+    fontFamily: 'Helvetica-Bold',
+    color: '#1A1A1A',
+  },
+
+  instrRule: {
+    height: 0.5,
+    backgroundColor: '#CCCCCC',
+    marginTop: 8,
+    marginBottom: 8,
+  },
+
+  instrFooter: {
+    fontSize: 8,
+    fontFamily: 'Helvetica-Oblique',
+    color: '#666666',
+  },
+
+  // ── Passport page quadrant ────────────────────────────────────────────────
   sectionTitle: {
     fontSize: 9,
     fontFamily: 'Helvetica-Bold',
@@ -89,7 +150,7 @@ const S = StyleSheet.create({
     marginBottom: 4,
   },
 
-  // The scaled artboard container
+  // Scaled artboard container
   pageCanvas: {
     position: 'relative',
     borderWidth: 0.5,
@@ -108,7 +169,7 @@ const S = StyleSheet.create({
     backgroundColor: '#FFFFFF',
   },
 
-  // Stop name at bottom of LocationBox
+  // Stop name inside LocationBox
   locationBoxName: {
     position: 'absolute',
     bottom: 2, left: 0, right: 0,
@@ -118,7 +179,7 @@ const S = StyleSheet.create({
     fontFamily: 'Helvetica',
   },
 
-  // ── Cover slot ─────────────────────────────────────────────────────────────
+  // ── Cover quadrant ────────────────────────────────────────────────────────
   coverInner: {
     flex: 1,
     alignItems: 'center',
@@ -127,7 +188,7 @@ const S = StyleSheet.create({
   },
 
   coverTitle: {
-    fontSize: 18,
+    fontSize: 14,
     fontFamily: 'Helvetica-Bold',
     color: '#1A1A1A',
     textAlign: 'center',
@@ -145,7 +206,7 @@ const S = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-end',
     marginBottom: 10,
-    width: '85%',
+    width: '100%',
   },
 
   coverFieldLabel: {
@@ -161,7 +222,7 @@ const S = StyleSheet.create({
     backgroundColor: '#CCCCCC',
   },
 
-  // ── Certificate slot ───────────────────────────────────────────────────────
+  // ── Certificate quadrant ──────────────────────────────────────────────────
   certInner: {
     flex: 1,
     flexDirection: 'column',
@@ -170,7 +231,7 @@ const S = StyleSheet.create({
   },
 
   certHeading: {
-    fontSize: 11,
+    fontSize: 10,
     fontFamily: 'Helvetica-Bold',
     color: '#333333',
     alignSelf: 'center',
@@ -178,7 +239,7 @@ const S = StyleSheet.create({
   },
 
   certTitle: {
-    fontSize: 13,
+    fontSize: 12,
     fontFamily: 'Helvetica-Bold',
     color: '#1A1A1A',
     textAlign: 'center',
@@ -212,91 +273,6 @@ const S = StyleSheet.create({
     alignSelf: 'center',
     textAlign: 'center',
   },
-
-  // ── Assembly instruction page ──────────────────────────────────────────────
-  instrPage: {
-    width: SHEET_W,
-    height: SHEET_H,
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 72,
-    paddingTop: 60,
-    paddingBottom: 48,
-    flexDirection: 'column',
-  },
-
-  instrBrand: {
-    fontSize: 11,
-    fontFamily: 'Helvetica-Bold',
-    color: '#222222',
-    letterSpacing: 2,
-    marginBottom: 16,
-  },
-
-  instrDocLabel: {
-    fontSize: 11,
-    color: '#666666',
-    marginBottom: 2,
-  },
-
-  instrPassportTitle: {
-    fontSize: 16,
-    fontFamily: 'Helvetica-Bold',
-    color: '#1A1A1A',
-    marginBottom: 4,
-  },
-
-  instrInstName: {
-    fontSize: 11,
-    color: '#555555',
-    marginBottom: 4,
-  },
-
-  instrMeta: {
-    fontSize: 11,
-    color: '#888888',
-    marginBottom: 24,
-  },
-
-  instrRule: {
-    height: 0.5,
-    backgroundColor: '#CCCCCC',
-    marginBottom: 24,
-  },
-
-  instrStepRow: {
-    flexDirection: 'row',
-    marginBottom: 20,
-  },
-
-  instrStepNum: {
-    fontSize: 11,
-    fontFamily: 'Helvetica-Bold',
-    color: '#1A1A1A',
-    width: 52,
-  },
-
-  instrStepBody: { flex: 1 },
-
-  instrStepTitle: {
-    fontSize: 11,
-    fontFamily: 'Helvetica-Bold',
-    color: '#1A1A1A',
-    marginBottom: 2,
-  },
-
-  instrStepText: {
-    fontSize: 11,
-    color: '#555555',
-    lineHeight: 1.4,
-  },
-
-  instrFooter: { marginTop: 'auto' },
-
-  instrFooterText: {
-    fontSize: 11,
-    color: '#777777',
-    textAlign: 'center',
-  },
 })
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -321,29 +297,75 @@ interface PassportPageForPrint {
 }
 
 type SlotContent =
+  | { type: 'instructions' }
   | { type: 'cover'; title: string; subtitle: string }
   | { type: 'page'; page: PassportPageForPrint }
   | { type: 'cert'; title: string; institutionName: string }
   | { type: 'blank' }
 
-// ── Registration marks: crosshairs at left/right edges of cut line ────────────
+// ── Cut guides and registration crosshairs ────────────────────────────────────
 
 function RegistrationMarks() {
   const len  = 16
   const half = len / 2
-  const y    = CUT_Y
+
+  // Crosshairs at the four sheet-edge intersections of the two cut lines
+  const positions = [
+    { x: 0,       y: CUT_Y },  // left edge, horizontal cut
+    { x: SHEET_W, y: CUT_Y },  // right edge, horizontal cut
+    { x: CUT_X,   y: 0       },  // top edge, vertical cut
+    { x: CUT_X,   y: SHEET_H },  // bottom edge, vertical cut
+  ]
 
   return (
     <>
-      <View style={[S.regH, { left: 0,                    top: y - 0.25, width: len  }]} />
-      <View style={[S.regV, { left: half - 0.25,          top: y - half, height: len }]} />
-      <View style={[S.regH, { left: SHEET_W - len,        top: y - 0.25, width: len  }]} />
-      <View style={[S.regV, { left: SHEET_W - half - 0.25, top: y - half, height: len }]} />
+      {/* Faint guide lines */}
+      <View style={[S.guideH, { top: CUT_Y - 0.25 }]} />
+      <View style={[S.guideV, { left: CUT_X - 0.25 }]} />
+
+      {/* Crosshairs */}
+      {positions.map((pos, i) => (
+        <React.Fragment key={i}>
+          <View style={[S.regH, { left: pos.x - half, top: pos.y - 0.25, width: len }]} />
+          <View style={[S.regV, { left: pos.x - 0.25, top: pos.y - half, height: len }]} />
+        </React.Fragment>
+      ))}
     </>
   )
 }
 
-// ── Slot content components ───────────────────────────────────────────────────
+// ── Quadrant content components ───────────────────────────────────────────────
+
+function InstructionsQuadrantContent() {
+  const steps: { label: string; body: string }[] = [
+    { label: 'Print',   body: 'Print all sheets single-sided.' },
+    { label: 'Cut',     body: 'Cut each sheet into four pieces along the lines.' },
+    { label: 'Stack',   body: 'For each student, stack the pieces in this order: Cover, then pages 1, 2, 3 in number order (corner of each piece), then Certificate at the bottom.' },
+    { label: 'Staple',  body: 'Staple twice along the left edge.' },
+  ]
+
+  return (
+    <>
+      <Text style={S.instrTitle}>How to assemble</Text>
+
+      {steps.map((step, i) => (
+        <View key={i} style={S.instrStep}>
+          <Text style={S.instrStepNum}>{i + 1}.</Text>
+          <Text style={S.instrStepText}>
+            <Text style={S.instrStepLabel}>{step.label}{'  '}</Text>
+            {step.body}
+          </Text>
+        </View>
+      ))}
+
+      <View style={S.instrRule} />
+
+      <Text style={S.instrFooter}>
+        Students stamp or sticker each page as they complete each stop.
+      </Text>
+    </>
+  )
+}
 
 function CoverSlotContent({ title, subtitle }: { title: string; subtitle: string }) {
   return (
@@ -371,10 +393,8 @@ function PassportPageSlotContent({ page }: { page: PassportPageForPrint }) {
 
   return (
     <>
-      {/* Section title */}
       <Text style={S.sectionTitle}>{label}</Text>
 
-      {/* Scaled artboard canvas with LocationBoxes */}
       <View
         style={[
           S.pageCanvas,
@@ -414,22 +434,21 @@ function CertSlotContent({ title, institutionName }: { title: string; institutio
   )
 }
 
-// ── Slot wrapper: fold guide + content + page number ─────────────────────────
+// ── Quadrant wrapper ──────────────────────────────────────────────────────────
 
 function Slot({
   content,
-  slotTop,
+  position,
   pageNum,
 }: {
   content: SlotContent
-  slotTop: number
-  pageNum: number
+  position: { x: number; y: number }
+  pageNum: number | null
 }) {
   return (
-    <View style={[S.slot, { top: slotTop }]}>
-      <View style={S.foldGuide} />
-
+    <View style={[S.slot, { top: position.y, left: position.x }]}>
       <View style={S.slotContent}>
+        {content.type === 'instructions' && <InstructionsQuadrantContent />}
         {content.type === 'cover' && (
           <CoverSlotContent title={content.title} subtitle={content.subtitle} />
         )}
@@ -442,115 +461,28 @@ function Slot({
         {/* blank: empty */}
       </View>
 
-      {content.type !== 'blank' && (
+      {pageNum !== null && (
         <Text style={S.pgNum}>{pageNum}</Text>
       )}
     </View>
   )
 }
 
-// ── Content page: two slots + sheet guides ────────────────────────────────────
+// ── Sheet page: four quadrants + cut guides ───────────────────────────────────
 
-function ContentPage({
-  topSlot,
-  bottomSlot,
-  topPageNum,
-  bottomPageNum,
+function SheetPage({
+  quadrants,
+  pageNums,
 }: {
-  topSlot: SlotContent
-  bottomSlot: SlotContent
-  topPageNum: number
-  bottomPageNum: number
+  quadrants: [SlotContent, SlotContent, SlotContent, SlotContent]
+  pageNums: [number | null, number | null, number | null, number | null]
 }) {
   return (
     <Page size={[SHEET_W, SHEET_H]} style={S.sheet}>
       <RegistrationMarks />
-      <View style={S.slotDivider} />
-      <Slot content={topSlot}    slotTop={0}     pageNum={topPageNum}    />
-      <Slot content={bottomSlot} slotTop={CUT_Y} pageNum={bottomPageNum} />
-    </Page>
-  )
-}
-
-// ── Assembly instruction page ─────────────────────────────────────────────────
-
-function InstructionPage({
-  passportTitle,
-  institutionName,
-  pageCount,
-  totalSlots,
-}: {
-  passportTitle: string
-  institutionName: string
-  pageCount: number
-  totalSlots: number
-}) {
-  const sheetCount = Math.ceil(totalSlots / 4)
-  const meta =
-    pageCount + ' page' + (pageCount !== 1 ? 's' : '') +
-    ' · ' + (totalSlots) + ' booklet pages' +
-    ' · ' + sheetCount + ' sheet' + (sheetCount !== 1 ? 's' : '') + ' per copy'
-
-  return (
-    <Page size={[SHEET_W, SHEET_H]} style={S.instrPage}>
-      <Text style={S.instrBrand}>PANOPLY</Text>
-
-      <Text style={S.instrDocLabel}>Print-ready passport booklet</Text>
-      <Text style={S.instrPassportTitle}>{passportTitle}</Text>
-      {institutionName ? <Text style={S.instrInstName}>{institutionName}</Text> : null}
-      <Text style={S.instrMeta}>{meta}</Text>
-
-      <View style={S.instrRule} />
-
-      <View style={S.instrStepRow}>
-        <Text style={S.instrStepNum}>Step 1</Text>
-        <View style={S.instrStepBody}>
-          <Text style={S.instrStepTitle}>Print double-sided</Text>
-          <Text style={S.instrStepText}>
-            Set your printer to double-sided, flip on short edge.
-          </Text>
-        </View>
-      </View>
-
-      <View style={S.instrStepRow}>
-        <Text style={S.instrStepNum}>Step 2</Text>
-        <View style={S.instrStepBody}>
-          <Text style={S.instrStepTitle}>Cut</Text>
-          <Text style={S.instrStepText}>
-            Cut each sheet in half horizontally at the center. The marks on
-            the left and right edges show you where.
-          </Text>
-        </View>
-      </View>
-
-      <View style={S.instrStepRow}>
-        <Text style={S.instrStepNum}>Step 3</Text>
-        <View style={S.instrStepBody}>
-          <Text style={S.instrStepTitle}>Stack</Text>
-          <Text style={S.instrStepText}>
-            Stack all half-sheets in order. Page numbers are in the bottom corner.
-          </Text>
-        </View>
-      </View>
-
-      <View style={S.instrStepRow}>
-        <Text style={S.instrStepNum}>Step 4</Text>
-        <View style={S.instrStepBody}>
-          <Text style={S.instrStepTitle}>Fold and staple</Text>
-          <Text style={S.instrStepText}>
-            Fold each half-sheet in half vertically. Staple twice along the
-            left folded edge.
-          </Text>
-        </View>
-      </View>
-
-      <View style={S.instrRule} />
-
-      <View style={S.instrFooter}>
-        <Text style={S.instrFooterText}>
-          Students use rubber stamps or stickers in the stamp boxes.
-        </Text>
-      </View>
+      {QUAD_POSITIONS.map((pos, i) => (
+        <Slot key={i} content={quadrants[i]} position={pos} pageNum={pageNums[i]} />
+      ))}
     </Page>
   )
 }
@@ -564,9 +496,10 @@ interface PrintPassportDocProps {
 }
 
 function PrintPassportDoc({ passportTitle, institutionName, pages }: PrintPassportDocProps) {
-  // Build sequential slot list: Cover → passport pages → Certificate
+  // Build sequential slot list: Instructions → Cover → interior pages → Certificate
   const slots: SlotContent[] = []
 
+  slots.push({ type: 'instructions' })
   slots.push({ type: 'cover', title: passportTitle, subtitle: institutionName })
 
   for (const page of pages) {
@@ -575,35 +508,37 @@ function PrintPassportDoc({ passportTitle, institutionName, pages }: PrintPasspo
 
   slots.push({ type: 'cert', title: passportTitle, institutionName })
 
-  // Pad to even so every slot has a pair
-  if (slots.length % 2 !== 0) slots.push({ type: 'blank' })
-
-  // Group into content PDF pages (pairs of slots)
-  const contentPages: [SlotContent, SlotContent][] = []
-  for (let i = 0; i < slots.length; i += 2) {
-    contentPages.push([slots[i], slots[i + 1]])
+  // Pad to a multiple of 4
+  while (slots.length % 4 !== 0) {
+    slots.push({ type: 'blank' })
   }
 
-  const contentSlotCount = slots.filter((s) => s.type !== 'blank').length
+  // Compute page numbers — instructions, cover, and blank slots are unnumbered
+  let pageNumber = 0
+  const pageNumbers: (number | null)[] = slots.map((slot) => {
+    if (slot.type === 'instructions' || slot.type === 'cover' || slot.type === 'blank') {
+      return null
+    }
+    pageNumber++
+    return pageNumber
+  })
+
+  // Group into sheets of 4 quadrants
+  const sheets: SlotContent[][] = []
+  for (let i = 0; i < slots.length; i += 4) {
+    sheets.push(slots.slice(i, i + 4))
+  }
 
   return (
     <Document>
-      {/* Page 1: assembly instructions */}
-      <InstructionPage
-        passportTitle={passportTitle}
-        institutionName={institutionName}
-        pageCount={pages.length}
-        totalSlots={contentSlotCount}
-      />
-
-      {/* Content pages: two slots per sheet, sequential imposition */}
-      {contentPages.map((pair, pIdx) => (
-        <ContentPage
-          key={pIdx}
-          topSlot={pair[0]}
-          bottomSlot={pair[1]}
-          topPageNum={pIdx * 2 + 1}
-          bottomPageNum={pIdx * 2 + 2}
+      {sheets.map((quadrants, sheetIdx) => (
+        <SheetPage
+          key={sheetIdx}
+          quadrants={quadrants as [SlotContent, SlotContent, SlotContent, SlotContent]}
+          pageNums={
+            pageNumbers.slice(sheetIdx * 4, sheetIdx * 4 + 4) as
+              [number | null, number | null, number | null, number | null]
+          }
         />
       ))}
     </Document>
