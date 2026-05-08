@@ -43,7 +43,8 @@ export function Canvas() {
     async (pageId: string, elementId: string, patch: Partial<PageElement>) => {
       const updated = updateElement(pageId, elementId, patch)
       const supabase = createClient()
-      await supabase.from('passport_pages').update({ elements: updated }).eq('id', pageId)
+      const { error } = await supabase.from('passport_pages').update({ elements: updated }).eq('id', pageId)
+      if (error) console.error('[designer] elements save failed — is migration 017 applied?', error)
     },
     [updateElement],
   )

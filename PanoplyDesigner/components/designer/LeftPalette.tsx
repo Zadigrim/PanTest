@@ -20,6 +20,7 @@ export function LeftPalette() {
 
   const [addingStop, setAddingStop] = useState(false)
   const [addingPage, setAddingPage] = useState(false)
+  const [elemSaveError, setElemSaveError] = useState<string | null>(null)
 
   const handleAddStop = async () => {
     if (!activePageId || !passport) return
@@ -70,7 +71,13 @@ export function LeftPalette() {
     const updated = addElement(activePageId, defaults)
     setSelectedElement(id)
     const supabase = createClient()
-    await supabase.from('passport_pages').update({ elements: updated }).eq('id', activePageId)
+    const { error } = await supabase.from('passport_pages').update({ elements: updated }).eq('id', activePageId)
+    if (error) {
+      console.error('[designer] elements save failed — is migration 017 applied?', error)
+      setElemSaveError('Could not save element. Check the browser console for details.')
+    } else {
+      setElemSaveError(null)
+    }
   }
 
   const handleAddPage = async () => {
@@ -163,6 +170,11 @@ export function LeftPalette() {
         <p className="mb-1.5 text-xs font-medium uppercase tracking-wider text-panoply-gray-3">
           Elements
         </p>
+        {elemSaveError && (
+          <p className="mb-2 rounded-card bg-red-50 px-2 py-1.5 text-xs text-red-600">
+            {elemSaveError}
+          </p>
+        )}
         <div className="space-y-1">
           <Button variant="ghost" size="sm" className="w-full justify-start text-xs gap-2" onClick={() => handleAddElement('text')} disabled={!activePageId}>
             <span>T</span> Add label

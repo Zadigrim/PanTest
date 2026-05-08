@@ -622,14 +622,16 @@ function ElementInspector({ element, pageId }: { element: PageElement; pageId: s
   const persist = async (patch: Partial<PageElement>) => {
     const updated = updateElement(pageId, element.id, patch)
     const supabase = createClient()
-    await supabase.from('passport_pages').update({ elements: updated }).eq('id', pageId)
+    const { error } = await supabase.from('passport_pages').update({ elements: updated }).eq('id', pageId)
+    if (error) console.error('[designer] elements save failed — is migration 017 applied?', error)
   }
 
   const handleDelete = async () => {
     const updated = removeElement(pageId, element.id)
     setSelectedElement(null)
     const supabase = createClient()
-    await supabase.from('passport_pages').update({ elements: updated }).eq('id', pageId)
+    const { error } = await supabase.from('passport_pages').update({ elements: updated }).eq('id', pageId)
+    if (error) console.error('[designer] elements save failed — is migration 017 applied?', error)
   }
 
   return (
