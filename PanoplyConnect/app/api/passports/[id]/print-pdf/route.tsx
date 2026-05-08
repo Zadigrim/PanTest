@@ -150,13 +150,12 @@ const S = StyleSheet.create({
     marginBottom: 4,
   },
 
-  // Scaled artboard container
+  // Scaled artboard container (backgroundColor applied inline from page data)
   pageCanvas: {
     position: 'relative',
     borderWidth: 0.5,
     borderColor: '#DDDDDD',
     borderStyle: 'solid',
-    backgroundColor: '#FAFAFA',
   },
 
   // Each LocationBox on the scaled canvas
@@ -326,6 +325,10 @@ interface PassportPageForPrint {
   section_title: string | null
   stops: StopForPrint[]
   elements: PageElement[]
+  paper_color: string          // hex without #, e.g. 'F5F2EC'
+  background_type: string      // 'guilloche' | 'landscape' | 'none' | 'custom'
+  background_color: string     // hex without #
+  background_opacity: number   // 8–20
 }
 
 type SlotContent =
@@ -334,6 +337,17 @@ type SlotContent =
   | { type: 'page'; page: PassportPageForPrint }
   | { type: 'cert'; title: string; institutionName: string }
   | { type: 'blank' }
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function hexToRgba(hex: string, opacityPct: number): string {
+  const h = hex.replace('#', '')
+  if (h.length !== 6) return `rgba(0,0,0,${opacityPct / 100})`
+  const r = parseInt(h.slice(0, 2), 16)
+  const g = parseInt(h.slice(2, 4), 16)
+  const b = parseInt(h.slice(4, 6), 16)
+  return `rgba(${r},${g},${b},${(opacityPct / 100).toFixed(2)})`
+}
 
 // ── Cut guides and registration crosshairs ────────────────────────────────────
 
@@ -506,7 +520,13 @@ function PageElementsLayer({ elements, scale }: { elements: PageElement[]; scale
 }
 
 function PassportPageSlotContent({ page }: { page: PassportPageForPrint }) {
-  const label = page.section_title || page.section_name || `Page ${page.page_order}`
+  const label      = page.section_title || page.section_name || `Page ${page.page_order}`
+  const paperColor = `#${page.paper_color ?? 'F5F2EC'}`
+  // Guilloche / custom background: approximate the tinted overlay with a solid rgba fill
+  const showOverlay = page.background_type !== 'none' && page.background_color
+  const overlayColor = showOverlay
+    ? hexToRgba(page.background_color, page.background_opacity ?? 11)
+    : null
 
   return (
     <>
@@ -515,9 +535,14 @@ function PassportPageSlotContent({ page }: { page: PassportPageForPrint }) {
       <View
         style={[
           S.pageCanvas,
-          { width: CANVAS_W, height: CANVAS_H, marginLeft: CANVAS_OFFSET_X },
+          { width: CANVAS_W, height: CANVAS_H, marginLeft: CANVAS_OFFSET_X, backgroundColor: paperColor },
         ]}
       >
+        {/* Background tint overlay (guilloche approximation) */}
+        {overlayColor && (
+          <View style={{ position: 'absolute', left: 0, top: 0, right: 0, bottom: 0, backgroundColor: overlayColor }} />
+        )}
+
         {/* Elements rendered before (below) LocationBoxes */}
         <PageElementsLayer elements={page.elements} scale={CANVAS_SCALE} />
 
@@ -783,25 +808,31 @@ async function handlePrintRequest(request: Request, passportId: string) {
     page_type: string
     section_name: string
     section_title: string | null
+    paper_color: string | null
+    background_type: string | null
+    background_color: string | null
+    background_opacity: number | null
     elements: PageElement[] | null
   }
+
+  const BG_FIELDS = 'paper_color, background_type, background_color, background_opacity'
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: pagesWithEl, error: elErr } = await (supabase as any)
     .from('passport_pages')
-    .select('id, page_order, page_type, section_name, section_title, elements')
+    .select(`id, page_order, page_type, section_name, section_title, ${BG_FIELDS}, elements`)
     .eq('passport_id', passportId)
     .order('page_order', { ascending: true }) as { data: RawPage[] | null; error: unknown }
 
   let pagesRaw: RawPage[] | null = pagesWithEl
 
   if (elErr) {
-    // elements column absent — retry without it
+    // elements column absent — retry without it (migration 017 not yet applied)
     console.warn('[print-pdf] elements column unavailable, retrying without it:', elErr)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: pagesNoEl, error: pagesErr } = await (supabase as any)
       .from('passport_pages')
-      .select('id, page_order, page_type, section_name, section_title')
+      .select(`id, page_order, page_type, section_name, section_title, ${BG_FIELDS}`)
       .eq('passport_id', passportId)
       .order('page_order', { ascending: true }) as { data: Omit<RawPage, 'elements'>[] | null; error: unknown }
 
@@ -871,13 +902,17 @@ async function handlePrintRequest(request: Request, passportId: string) {
         }))
 
       return {
-        id:            page.id,
-        page_order:    page.page_order,
-        page_type:     (page.page_type as 'stamp' | 'information') ?? 'stamp',
-        section_name:  page.section_name ?? '',
-        section_title: page.section_title,
-        stops:         pageStops,
-        elements:      (page.elements ?? []) as PageElement[],
+        id:                 page.id,
+        page_order:         page.page_order,
+        page_type:          (page.page_type as 'stamp' | 'information') ?? 'stamp',
+        section_name:       page.section_name ?? '',
+        section_title:      page.section_title,
+        stops:              pageStops,
+        elements:           (page.elements ?? []) as PageElement[],
+        paper_color:        page.paper_color        ?? 'F5F2EC',
+        background_type:    page.background_type    ?? 'guilloche',
+        background_color:   page.background_color   ?? '4a6fa5',
+        background_opacity: page.background_opacity ?? 11,
       }
     })
     .filter((page) => {
