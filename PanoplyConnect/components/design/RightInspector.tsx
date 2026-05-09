@@ -849,43 +849,44 @@ function PageInspector({ page }: { page: DesignerPassportPage }) {
         </Field>
 
         {(bg === 'guilloche' || bg === 'grid') && (
-          <>
-            <Field label="Pattern color">
-              <div className="flex gap-2">
-                <Input
-                  value={page.background_color ?? '0D1B2A'}
-                  maxLength={6}
-                  onChange={(e) => updatePage(page.id, { background_color: e.target.value })}
-                  onBlur={(e) => persist({ background_color: e.target.value })}
-                  className="h-8 flex-1 font-mono text-sm uppercase"
-                />
-                <ColorPickerInput
-                  value={page.background_color ?? '0D1B2A'}
-                  onChange={(hex) => updatePage(page.id, { background_color: hex })}
-                  onCommit={(hex) => void persist({ background_color: hex })}
-                />
-              </div>
-            </Field>
-            <Field label={`Opacity: ${Math.min(12, Math.max(8, page.background_opacity ?? 10))}%`}>
-              <input
-                type="range"
-                min={8}
-                max={12}
-                step={1}
-                value={Math.min(12, Math.max(8, page.background_opacity ?? 10))}
-                onChange={(e) =>
-                  updatePage(page.id, { background_opacity: Number(e.target.value) })
-                }
-                onMouseUp={(e) =>
-                  persist({
-                    background_opacity: Number((e.target as HTMLInputElement).value),
-                  })
-                }
-                className="w-full accent-panoply-teal"
+          <Field label="Pattern color">
+            <div className="flex gap-2">
+              <Input
+                value={page.background_color ?? '0D1B2A'}
+                maxLength={6}
+                onChange={(e) => updatePage(page.id, { background_color: e.target.value })}
+                onBlur={(e) => persist({ background_color: e.target.value })}
+                className="h-8 flex-1 font-mono text-sm uppercase"
               />
-              <p className="text-xs text-panoply-gray-3">8–12%. 10% is recommended for stamp legibility.</p>
-            </Field>
-          </>
+              <ColorPickerInput
+                value={page.background_color ?? '0D1B2A'}
+                onChange={(hex) => updatePage(page.id, { background_color: hex })}
+                onCommit={(hex) => void persist({ background_color: hex })}
+              />
+            </div>
+          </Field>
+        )}
+
+        {(bg === 'guilloche' || bg === 'grid' || bg === 'custom') && (
+          <Field label={`Opacity: ${Math.min(12, Math.max(8, page.background_opacity ?? 10))}%`}>
+            <input
+              type="range"
+              min={8}
+              max={12}
+              step={1}
+              value={Math.min(12, Math.max(8, page.background_opacity ?? 10))}
+              onChange={(e) =>
+                updatePage(page.id, { background_opacity: Number(e.target.value) })
+              }
+              onMouseUp={(e) =>
+                persist({
+                  background_opacity: Number((e.target as HTMLInputElement).value),
+                })
+              }
+              className="w-full accent-panoply-teal"
+            />
+            <p className="text-xs text-panoply-gray-3">8–12%. 10% is recommended for stamp legibility.</p>
+          </Field>
         )}
 
         {bg === 'custom' && (
