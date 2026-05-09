@@ -165,7 +165,6 @@ const S = StyleSheet.create({
     borderColor: '#999999',
     borderStyle: 'solid',
     borderRadius: 2,
-    backgroundColor: '#FFFFFF',
   },
 
   // Stop name inside LocationBox
@@ -174,7 +173,7 @@ const S = StyleSheet.create({
     bottom: 2, left: 0, right: 0,
     textAlign: 'center',
     fontSize: 5,
-    color: '#AAAAAA',
+    color: '#000000',
     fontFamily: 'Helvetica',
   },
 
