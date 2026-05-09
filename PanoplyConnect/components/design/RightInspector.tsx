@@ -867,27 +867,25 @@ function PageInspector({ page }: { page: DesignerPassportPage }) {
           </Field>
         )}
 
-        {(bg === 'guilloche' || bg === 'grid' || bg === 'custom') && (
-          <Field label={`Opacity: ${Math.min(12, Math.max(8, page.background_opacity ?? 10))}%`}>
-            <input
-              type="range"
-              min={8}
-              max={12}
-              step={1}
-              value={Math.min(12, Math.max(8, page.background_opacity ?? 10))}
-              onChange={(e) =>
-                updatePage(page.id, { background_opacity: Number(e.target.value) })
-              }
-              onMouseUp={(e) =>
-                persist({
-                  background_opacity: Number((e.target as HTMLInputElement).value),
-                })
-              }
-              className="w-full accent-panoply-teal"
-            />
-            <p className="text-xs text-panoply-gray-3">8–12%. 10% is recommended for stamp legibility.</p>
-          </Field>
-        )}
+        <Field label={`Opacity: ${Math.min(12, Math.max(8, page.background_opacity ?? 10))}%`}>
+          <input
+            type="range"
+            min={8}
+            max={12}
+            step={1}
+            value={Math.min(12, Math.max(8, page.background_opacity ?? 10))}
+            onChange={(e) =>
+              updatePage(page.id, { background_opacity: Number(e.target.value) })
+            }
+            onMouseUp={(e) =>
+              persist({
+                background_opacity: Number((e.target as HTMLInputElement).value),
+              })
+            }
+            className="w-full accent-panoply-teal"
+          />
+          <p className="text-xs text-panoply-gray-3">8–12%. 10% is recommended for stamp legibility.</p>
+        </Field>
 
         {bg === 'custom' && (
           <CustomBgPicker page={page} persist={persist} />
