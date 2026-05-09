@@ -1,7 +1,7 @@
 'use client'
 
 interface Props {
-  /** 8–20 (maps to opacity). Matches background_opacity on DesignerPassportPage. */
+  /** 8–12 (maps to opacity). Matches background_opacity on DesignerPassportPage. */
   opacity?: number
   /** Stroke color. Defaults to black. */
   color?: string
@@ -18,7 +18,7 @@ export function GuillochePattern({
   color = '#000000',
   patternId = 'guilloche',
 }: Props) {
-  const clampedOpacity = Math.max(8, Math.min(20, opacity)) / 100
+  const clampedOpacity = Math.max(8, Math.min(12, opacity)) / 100
   const id = `${patternId}-tile`
 
   return (

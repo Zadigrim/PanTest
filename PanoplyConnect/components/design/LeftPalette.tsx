@@ -262,7 +262,7 @@ export function LeftPalette() {
         section_name: `Section ${nextOrder + 1}`,
         background_type: 'guilloche',
         background_color: '0D1B2A',
-        background_opacity: 12,
+        background_opacity: 10,
         paper_color: 'F5F2EC',
       })
       .select()

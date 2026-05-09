@@ -12,7 +12,7 @@ interface Props {
 export function PageBackground({ page, children }: Props) {
   const paper = `#${page.paper_color ?? 'F5F2EC'}`
   const patternColor = `#${page.background_color ?? '0D1B2A'}`
-  const opacity = page.background_opacity ?? 12
+  const opacity = Math.min(12, Math.max(8, page.background_opacity ?? 10))
 
   return (
     <div
