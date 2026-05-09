@@ -623,10 +623,7 @@ function PassportPageSlotContent({ page }: { page: PassportPageForPrint }) {
         {page.background_type === 'grid' && (
           <GridOverlay color={bgColor} opacity={bgOpacity} />
         )}
-        {page.background_type === 'color' && (
-          <View style={{ position: 'absolute', top: 0, left: 0, width: CANVAS_W, height: CANVAS_H, backgroundColor: bgColor }} />
-        )}
-        {page.background_type === 'custom' && page.background_image_url && (
+{page.background_type === 'custom' && page.background_image_url && (
           <Image
             src={page.background_image_url}
             style={{ position: 'absolute', top: 0, left: 0, width: CANVAS_W, height: CANVAS_H, objectFit: 'cover', opacity: bgOpacity / 100 }}

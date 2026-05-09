@@ -25,10 +25,7 @@ export function PageBackground({ page, children }: Props) {
       {page.background_type === 'grid' && (
         <GridPattern opacity={opacity} color={patternColor} patternId={`grid-${page.id}`} />
       )}
-      {page.background_type === 'color' && (
-        <div className="absolute inset-0 pointer-events-none" style={{ backgroundColor: patternColor }} />
-      )}
-      {page.background_type === 'custom' && page.background_image_url && (
+{page.background_type === 'custom' && page.background_image_url && (
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={page.background_image_url}
