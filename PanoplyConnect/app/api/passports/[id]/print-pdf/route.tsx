@@ -1,5 +1,5 @@
 import React from 'react'
-import { renderToBuffer, Document, Page, View, Text, StyleSheet, Svg, Ellipse, Path, Line } from '@react-pdf/renderer'
+import { renderToBuffer, Document, Page, View, Text, StyleSheet, Svg, Ellipse, Path, Line, Image } from '@react-pdf/renderer'
 import { createClient } from '@/lib/supabase/server'
 
 // ── Artboard (designer canvas) dimensions ─────────────────────────────────────
@@ -326,9 +326,10 @@ interface PassportPageForPrint {
   stops: StopForPrint[]
   elements: PageElement[]
   paper_color: string          // hex without #, e.g. 'F5F2EC'
-  background_type: string      // 'guilloche' | 'landscape' | 'none' | 'custom'
+  background_type: string      // 'guilloche' | 'grid' | 'none' | 'custom'
   background_color: string     // hex without #
   background_opacity: number   // 8–20
+  background_image_url: string | null
 }
 
 type SlotContent =
@@ -616,12 +617,18 @@ function PassportPageSlotContent({ page }: { page: PassportPageForPrint }) {
           { width: CANVAS_W, height: CANVAS_H, marginLeft: CANVAS_OFFSET_X, backgroundColor: paperColor },
         ]}
       >
-        {/* Background pattern overlay */}
+        {/* Background pattern or image overlay */}
         {page.background_type === 'guilloche' && (
           <GuillocheOverlay color={bgColor} opacity={bgOpacity} />
         )}
         {page.background_type === 'grid' && (
           <GridOverlay color={bgColor} opacity={bgOpacity} />
+        )}
+        {page.background_type === 'custom' && page.background_image_url && (
+          <Image
+            src={page.background_image_url}
+            style={{ position: 'absolute', top: 0, left: 0, width: CANVAS_W, height: CANVAS_H, objectFit: 'cover' }}
+          />
         )}
 
         {/* Elements rendered before (below) LocationBoxes */}
@@ -893,10 +900,11 @@ async function handlePrintRequest(request: Request, passportId: string) {
     background_type: string | null
     background_color: string | null
     background_opacity: number | null
+    background_image_url: string | null
     elements: PageElement[] | null
   }
 
-  const BG_FIELDS = 'paper_color, background_type, background_color, background_opacity'
+  const BG_FIELDS = 'paper_color, background_type, background_color, background_opacity, background_image_url'
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: pagesWithEl, error: elErr } = await (supabase as any)
@@ -990,10 +998,11 @@ async function handlePrintRequest(request: Request, passportId: string) {
         section_title:      page.section_title,
         stops:              pageStops,
         elements:           (page.elements ?? []) as PageElement[],
-        paper_color:        page.paper_color        ?? 'F5F2EC',
-        background_type:    page.background_type    ?? 'guilloche',
-        background_color:   page.background_color   ?? '4a6fa5',
-        background_opacity: page.background_opacity ?? 11,
+        paper_color:          page.paper_color          ?? 'F5F2EC',
+        background_type:      page.background_type      ?? 'guilloche',
+        background_color:     page.background_color     ?? '4a6fa5',
+        background_opacity:   page.background_opacity   ?? 11,
+        background_image_url: page.background_image_url ?? null,
       }
     })
     .filter((page) => {

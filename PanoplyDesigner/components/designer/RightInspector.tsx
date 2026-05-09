@@ -11,7 +11,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
-import type { Stop, PassportPage, BackgroundType, PageElement, PassportType } from '@/lib/supabase/types'
+import type { Stop, PassportPage, BackgroundType, PageElement, PassportType, DesignAsset } from '@/lib/supabase/types'
 
 export function RightInspector() {
   const activePage = usePassportStore(selectActivePage)
@@ -387,15 +387,116 @@ function StopInspector({ stop }: { stop: Stop }) {
   )
 }
 
-// ── Page Inspector ────────────────────────────────────────────────────────
+// ── Custom background asset picker ────────────────────────────────────────
 
-const BG_TYPES: { value: BackgroundType; label: string }[] = [
-  { value: 'guilloche', label: 'Guilloche' },
-  { value: 'grid',      label: 'Grid' },
-  { value: 'none',      label: 'None' },
-  { value: 'landscape', label: 'Landscape' },
-  { value: 'custom',    label: 'Custom' },
-]
+function CustomBgPicker({
+  page,
+  persist,
+}: {
+  page: PassportPage
+  persist: (patch: Partial<PassportPage>) => Promise<void>
+}) {
+  const [assets, setAssets] = React.useState<DesignAsset[]>([])
+  const [loading, setLoading] = React.useState(true)
+  const [uploading, setUploading] = React.useState(false)
+
+  React.useEffect(() => {
+    const supabase = createClient()
+    ;(supabase as any)
+      .from('design_assets')
+      .select('id, url, name, asset_type, storage_path, created_at')
+      .eq('asset_type', 'background')
+      .order('created_at', { ascending: false })
+      .then(({ data }: { data: DesignAsset[] | null }) => {
+        setAssets(data ?? [])
+        setLoading(false)
+      })
+  }, [])
+
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploading(true)
+    try {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      const ext = file.name.split('.').pop() ?? 'png'
+      const path = `${user.id}/bg-${Date.now()}.${ext}`
+      const { error: upErr } = await supabase.storage
+        .from('design-assets')
+        .upload(path, file)
+      if (upErr) { console.error(upErr); return }
+      const { data: { publicUrl } } = supabase.storage
+        .from('design-assets')
+        .getPublicUrl(path)
+      const { data: asset } = await (supabase as any)
+        .from('design_assets')
+        .insert({ asset_type: 'background', url: publicUrl, storage_path: path, name: file.name })
+        .select('id, url, name, asset_type, storage_path, created_at')
+        .single() as { data: DesignAsset | null }
+      if (asset) {
+        setAssets((prev) => [asset, ...prev])
+        await persist({ background_image_url: asset.url })
+      }
+    } finally {
+      setUploading(false)
+      e.target.value = ''
+    }
+  }
+
+  return (
+    <div className="space-y-2">
+      <Label className="text-xs text-panoply-gray-3">Background image</Label>
+
+      {loading ? (
+        <p className="text-xs text-panoply-gray-3">Loading…</p>
+      ) : assets.length === 0 ? (
+        <p className="text-xs text-panoply-gray-3">No backgrounds uploaded yet.</p>
+      ) : (
+        <div className="grid grid-cols-3 gap-1.5">
+          {assets.map((asset) => (
+            <button
+              key={asset.id}
+              onClick={() => persist({ background_image_url: asset.url })}
+              className={`relative aspect-video overflow-hidden rounded border-2 transition-colors ${
+                page.background_image_url === asset.url
+                  ? 'border-panoply-teal'
+                  : 'border-transparent hover:border-panoply-teal/40'
+              }`}
+              title={asset.name ?? ''}
+            >
+              <img
+                src={asset.url ?? ''}
+                alt={asset.name ?? ''}
+                className="h-full w-full object-cover"
+              />
+            </button>
+          ))}
+        </div>
+      )}
+
+      <label
+        className={`flex cursor-pointer items-center justify-center gap-2 rounded-card border border-panoply-gray-2 px-3 py-2 text-xs transition-colors ${
+          uploading
+            ? 'pointer-events-none opacity-50'
+            : 'text-panoply-gray-3 hover:border-panoply-teal/40'
+        }`}
+      >
+        <input
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={handleUpload}
+          disabled={uploading}
+        />
+        {uploading ? 'Uploading…' : '+ Upload background'}
+      </label>
+    </div>
+  )
+}
+
+// ── Page Inspector ────────────────────────────────────────────────────────
 
 function PageInspector({ page }: { page: PassportPage }) {
   const updatePage = usePassportStore((s) => s.updatePage)
@@ -406,6 +507,8 @@ function PageInspector({ page }: { page: PassportPage }) {
     const { error } = await supabase.from('passport_pages').update(patch).eq('id', page.id)
     if (error) console.error('[persist page]', error)
   }
+
+  const bg = page.background_type
 
   return (
     <div className="space-y-5 p-4">
@@ -431,24 +534,20 @@ function PageInspector({ page }: { page: PassportPage }) {
       </Section>
 
       <Section title="Background">
-        <div>
-          <Label className="text-xs text-panoply-gray-3">Type</Label>
-          <div className="mt-1.5 grid grid-cols-2 gap-1">
-            {BG_TYPES.map(({ value, label }) => (
-              <button
-                key={value}
-                onClick={() => persist({ background_type: value })}
-                className={`rounded-card border py-1.5 text-xs transition-colors ${
-                  page.background_type === value
-                    ? 'border-panoply-teal bg-panoply-teal-lt text-panoply-teal-dk font-medium'
-                    : 'border-panoply-gray-2 text-panoply-gray-3 hover:border-panoply-teal/40'
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        </div>
+        <Field label="Type">
+          <select
+            value={bg}
+            onChange={(e) => persist({ background_type: e.target.value as BackgroundType })}
+            className="h-8 w-full rounded-card border border-panoply-gray-2 bg-white px-2 text-xs text-panoply-gray-3 focus:border-panoply-teal focus:outline-none"
+          >
+            <option value="guilloche">Guilloche</option>
+            <option value="grid">Grid</option>
+            <option value="none">None</option>
+            <option value="custom">Custom image</option>
+            {/* keep landscape selectable if already set, but don't offer it as a new choice */}
+            {bg === 'landscape' && <option value="landscape">Landscape (legacy)</option>}
+          </select>
+        </Field>
 
         <Field label="Paper color (hex, no #)">
           <div className="flex gap-2">
@@ -466,7 +565,7 @@ function PageInspector({ page }: { page: PassportPage }) {
           </div>
         </Field>
 
-        {(page.background_type === 'guilloche' || page.background_type === 'grid') && (
+        {(bg === 'guilloche' || bg === 'grid') && (
           <>
             <Field label="Pattern color (hex, no #)">
               <div className="flex gap-2">
@@ -495,6 +594,10 @@ function PageInspector({ page }: { page: PassportPage }) {
               />
             </Field>
           </>
+        )}
+
+        {bg === 'custom' && (
+          <CustomBgPicker page={page} persist={persist} />
         )}
       </Section>
 

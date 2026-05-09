@@ -84,8 +84,18 @@ export interface PassportPage {
   background_type: BackgroundType
   background_color: string
   background_opacity: number
+  background_image_url: string | null
   paper_color: string
   elements: PageElement[]
+  created_at: string
+}
+
+export interface DesignAsset {
+  id: string
+  url: string | null
+  storage_path: string | null
+  name: string | null
+  asset_type: 'background' | 'stamp' | 'cover'
   created_at: string
 }
 
@@ -149,6 +159,7 @@ export interface Database {
       institutions:              { Row: Institution }
       passports:                 { Row: Passport }
       passport_pages:            { Row: PassportPage }
+      design_assets:             { Row: DesignAsset }
       stops:                     { Row: Stop }
       spend_verification_log:    { Row: SpendVerificationLog }
       creator_certifications:    { Row: CreatorCertification }

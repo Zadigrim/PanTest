@@ -8,7 +8,7 @@ interface Props {
   children?: React.ReactNode
 }
 
-/** Three-layer background: paper color → pattern SVG → grain texture. */
+/** Three-layer background: paper color → pattern/image → grain texture. */
 export function PageBackground({ page, children }: Props) {
   const paper = `#${page.paper_color ?? 'F5F2EC'}`
   const patternColor = `#${page.background_color ?? '0D1B2A'}`
@@ -19,12 +19,19 @@ export function PageBackground({ page, children }: Props) {
       className="relative h-full w-full overflow-hidden"
       style={{ backgroundColor: paper }}
     >
-      {/* Layer 2: Pattern overlay */}
+      {/* Layer 2: Pattern or image overlay */}
       {page.background_type === 'guilloche' && (
         <GuillochePattern opacity={opacity} color={patternColor} patternId={`guilloche-${page.id}`} />
       )}
       {page.background_type === 'grid' && (
         <GridPattern opacity={opacity} color={patternColor} patternId={`grid-${page.id}`} />
+      )}
+      {page.background_type === 'custom' && page.background_image_url && (
+        <img
+          src={page.background_image_url}
+          alt=""
+          className="absolute inset-0 h-full w-full object-cover pointer-events-none"
+        />
       )}
 
       {/* Layer 3: Grain texture via SVG noise */}

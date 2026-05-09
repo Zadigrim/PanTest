@@ -91,6 +91,7 @@ export interface DesignerPassportPage {
   background_type: BackgroundType
   background_color: string
   background_opacity: number
+  background_image_url: string | null
   paper_color: string
   elements: DesignerPageElement[]
   created_at: string
