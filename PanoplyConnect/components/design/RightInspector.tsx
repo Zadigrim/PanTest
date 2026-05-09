@@ -827,9 +827,26 @@ function PageInspector({ page }: { page: DesignerPassportPage }) {
             <option value="grid">Grid</option>
             <option value="none">None</option>
             <option value="custom">Custom image</option>
+            <option value="color">Solid color</option>
             {bg === 'landscape' && <option value="landscape">Landscape (legacy)</option>}
           </select>
         </Field>
+
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={bg === 'color'}
+            onChange={(e) => {
+              if (e.target.checked) {
+                void persist({ background_type: 'color', background_opacity: 100 })
+              } else {
+                void persist({ background_type: 'none' })
+              }
+            }}
+            className="h-4 w-4 rounded accent-panoply-teal"
+          />
+          <span className="text-sm text-panoply-navy">Full color background</span>
+        </label>
 
         <Field label="Paper color">
           <div className="flex gap-2">
@@ -867,25 +884,46 @@ function PageInspector({ page }: { page: DesignerPassportPage }) {
           </Field>
         )}
 
-        <Field label={`Opacity: ${Math.min(100, Math.max(8, page.background_opacity ?? 10))}%`}>
-          <input
-            type="range"
-            min={8}
-            max={100}
-            step={1}
-            value={Math.min(100, Math.max(8, page.background_opacity ?? 10))}
-            onChange={(e) =>
-              updatePage(page.id, { background_opacity: Number(e.target.value) })
-            }
-            onMouseUp={(e) =>
-              persist({
-                background_opacity: Number((e.target as HTMLInputElement).value),
-              })
-            }
-            className="w-full accent-panoply-teal"
-          />
-          <p className="text-xs text-panoply-gray-3">8–100%. Keep at 10% for stamp legibility unless intentional.</p>
-        </Field>
+        {bg === 'color' && (
+          <Field label="Fill color">
+            <div className="flex gap-2">
+              <Input
+                value={page.background_color ?? '0D1B2A'}
+                maxLength={6}
+                onChange={(e) => updatePage(page.id, { background_color: e.target.value })}
+                onBlur={(e) => persist({ background_color: e.target.value })}
+                className="h-8 flex-1 font-mono text-sm uppercase"
+              />
+              <ColorPickerInput
+                value={page.background_color ?? '0D1B2A'}
+                onChange={(hex) => updatePage(page.id, { background_color: hex })}
+                onCommit={(hex) => void persist({ background_color: hex })}
+              />
+            </div>
+          </Field>
+        )}
+
+        {bg !== 'color' && (
+          <Field label={`Opacity: ${Math.min(100, Math.max(8, page.background_opacity ?? 10))}%`}>
+            <input
+              type="range"
+              min={8}
+              max={100}
+              step={1}
+              value={Math.min(100, Math.max(8, page.background_opacity ?? 10))}
+              onChange={(e) =>
+                updatePage(page.id, { background_opacity: Number(e.target.value) })
+              }
+              onMouseUp={(e) =>
+                persist({
+                  background_opacity: Number((e.target as HTMLInputElement).value),
+                })
+              }
+              className="w-full accent-panoply-teal"
+            />
+            <p className="text-xs text-panoply-gray-3">8–100%. Keep at 10% for stamp legibility unless intentional.</p>
+          </Field>
+        )}
 
         {bg === 'custom' && (
           <CustomBgPicker page={page} persist={persist} />
