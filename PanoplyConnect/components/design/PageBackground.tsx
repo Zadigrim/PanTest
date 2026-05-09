@@ -52,7 +52,7 @@ function GridPattern({
   color?: string
   patternId?: string
 }) {
-  const clampedOpacity = Math.max(8, Math.min(20, opacity)) / 100
+  const clampedOpacity = Math.max(8, Math.min(12, opacity)) / 100
   const majorOpacity   = Math.min(1, clampedOpacity * 2.5)
   const minorId = `${patternId}-minor`
   const majorId = `${patternId}-major`
