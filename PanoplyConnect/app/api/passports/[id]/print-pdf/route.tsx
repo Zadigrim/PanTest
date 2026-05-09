@@ -163,14 +163,14 @@ const S = StyleSheet.create({
     position: 'absolute',
     borderWidth: 1,
     borderColor: '#999999',
-    borderStyle: 'solid',
+    borderStyle: 'dashed',
     borderRadius: 2,
   },
 
   // Stop name inside LocationBox
   locationBoxName: {
     position: 'absolute',
-    bottom: 2, left: 0, right: 0,
+    top: 2, left: 0, right: 0,
     textAlign: 'center',
     fontSize: 5,
     color: '#000000',
