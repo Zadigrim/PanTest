@@ -12,7 +12,7 @@ interface Props {
 export function PageBackground({ page, children }: Props) {
   const paper = `#${page.paper_color ?? 'F5F2EC'}`
   const patternColor = `#${page.background_color ?? '0D1B2A'}`
-  const opacity = Math.min(12, Math.max(8, page.background_opacity ?? 10))
+  const opacity = Math.min(100, Math.max(8, page.background_opacity ?? 10))
 
   return (
     <div
@@ -52,7 +52,7 @@ function GridPattern({
   color?: string
   patternId?: string
 }) {
-  const clampedOpacity = Math.max(8, Math.min(12, opacity)) / 100
+  const clampedOpacity = Math.max(8, Math.min(100, opacity)) / 100
   const majorOpacity   = Math.min(1, clampedOpacity * 2.5)
   const minorId = `${patternId}-minor`
   const majorId = `${patternId}-major`

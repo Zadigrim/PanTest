@@ -528,7 +528,7 @@ function GuillocheOverlay({ color, opacity }: { color: string; opacity: number }
   const cols = Math.ceil(ARTBOARD_W / tileSize) + 1
   const rows = Math.ceil(ARTBOARD_H / tileSize) + 1
   // Use strokeOpacity attribute on each element — @react-pdf ignores CSS opacity on Svg containers
-  const strokeOpacity = Math.max(8, Math.min(12, opacity)) / 100
+  const strokeOpacity = Math.max(8, Math.min(100, opacity)) / 100
 
   const tiles: React.ReactNode[] = []
   for (let r = 0; r < rows; r++) {
@@ -565,7 +565,7 @@ function GridOverlay({ color, opacity }: { color: string; opacity: number }) {
   const minor  = 12   // artboard units between minor lines
   const major  = 60   // artboard units between major lines
   // Use strokeOpacity on each Line — @react-pdf ignores CSS opacity on Svg containers
-  const minorOpacity = Math.max(8, Math.min(12, opacity)) / 100
+  const minorOpacity = Math.max(8, Math.min(100, opacity)) / 100
   const majorOpacity = Math.min(1, minorOpacity * 2.5)
 
   const lines: React.ReactNode[] = []
@@ -604,7 +604,7 @@ function PassportPageSlotContent({ page }: { page: PassportPageForPrint }) {
   const label      = page.section_title || page.section_name || `Page ${page.page_order}`
   const paperColor = `#${page.paper_color ?? 'F5F2EC'}`
   const bgColor    = `#${page.background_color ?? '0D1B2A'}`
-  const bgOpacity  = Math.min(12, Math.max(8, page.background_opacity ?? 10))
+  const bgOpacity  = Math.min(100, Math.max(8, page.background_opacity ?? 10))
 
   return (
     <>
@@ -1000,7 +1000,7 @@ async function handlePrintRequest(request: Request, passportId: string) {
         paper_color:          page.paper_color          ?? 'F5F2EC',
         background_type:      page.background_type      ?? 'guilloche',
         background_color:     page.background_color     ?? '4a6fa5',
-        background_opacity:   Math.min(12, Math.max(8, page.background_opacity ?? 10)),
+        background_opacity:   Math.min(100, Math.max(8, page.background_opacity ?? 10)),
         background_image_url: page.background_image_url ?? null,
       }
     })

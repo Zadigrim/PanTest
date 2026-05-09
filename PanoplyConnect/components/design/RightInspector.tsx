@@ -867,13 +867,13 @@ function PageInspector({ page }: { page: DesignerPassportPage }) {
           </Field>
         )}
 
-        <Field label={`Opacity: ${Math.min(12, Math.max(8, page.background_opacity ?? 10))}%`}>
+        <Field label={`Opacity: ${Math.min(100, Math.max(8, page.background_opacity ?? 10))}%`}>
           <input
             type="range"
             min={8}
-            max={12}
+            max={100}
             step={1}
-            value={Math.min(12, Math.max(8, page.background_opacity ?? 10))}
+            value={Math.min(100, Math.max(8, page.background_opacity ?? 10))}
             onChange={(e) =>
               updatePage(page.id, { background_opacity: Number(e.target.value) })
             }
@@ -884,7 +884,7 @@ function PageInspector({ page }: { page: DesignerPassportPage }) {
             }
             className="w-full accent-panoply-teal"
           />
-          <p className="text-xs text-panoply-gray-3">8–12%. 10% is recommended for stamp legibility.</p>
+          <p className="text-xs text-panoply-gray-3">8–100%. Keep at 10% for stamp legibility unless intentional.</p>
         </Field>
 
         {bg === 'custom' && (

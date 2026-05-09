@@ -18,7 +18,7 @@ export function GuillochePattern({
   color = '#000000',
   patternId = 'guilloche',
 }: Props) {
-  const clampedOpacity = Math.max(8, Math.min(12, opacity)) / 100
+  const clampedOpacity = Math.max(8, Math.min(100, opacity)) / 100
   const id = `${patternId}-tile`
 
   return (
