@@ -627,7 +627,7 @@ function PassportPageSlotContent({ page }: { page: PassportPageForPrint }) {
         {page.background_type === 'custom' && page.background_image_url && (
           <Image
             src={page.background_image_url}
-            style={{ position: 'absolute', top: 0, left: 0, width: CANVAS_W, height: CANVAS_H, objectFit: 'cover' }}
+            style={{ position: 'absolute', top: 0, left: 0, width: CANVAS_W, height: CANVAS_H, objectFit: 'cover', opacity: bgOpacity / 100 }}
           />
         )}
 

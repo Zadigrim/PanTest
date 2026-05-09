@@ -31,6 +31,7 @@ export function PageBackground({ page, children }: Props) {
           src={page.background_image_url}
           alt=""
           className="absolute inset-0 h-full w-full object-cover pointer-events-none"
+          style={{ opacity: opacity / 100 }}
         />
       )}
 

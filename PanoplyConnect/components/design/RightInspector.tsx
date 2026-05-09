@@ -723,7 +723,7 @@ function CustomBgPicker({
       const db = createClient() as any
       const { data: asset } = await db
         .from('design_assets')
-        .insert({ asset_type: 'background', url: publicUrl, storage_path: path, name: file.name })
+        .insert({ asset_type: 'background', url: publicUrl, storage_path: path, name: file.name, owner_id: user.id })
         .select('id, url, name')
         .single()
       if (asset) {
