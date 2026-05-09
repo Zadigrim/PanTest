@@ -533,7 +533,7 @@ function PageInspector({ page }: { page: PassportPage }) {
         </Field>
       </Section>
 
-      <Section title="Background">
+      <Section title="Background ✓">
         <Field label="Type">
           <select
             value={bg}
