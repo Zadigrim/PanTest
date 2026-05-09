@@ -867,13 +867,13 @@ function PageInspector({ page }: { page: DesignerPassportPage }) {
           </Field>
         )}
 
-        <Field label={`Opacity: ${Math.min(100, Math.max(8, page.background_opacity ?? 10))}%`}>
+        <Field label={`Opacity: ${Math.min(100, Math.max(10, page.background_opacity ?? 100))}%`}>
           <input
             type="range"
-            min={8}
+            min={10}
             max={100}
             step={1}
-            value={Math.min(100, Math.max(8, page.background_opacity ?? 10))}
+            value={Math.min(100, Math.max(10, page.background_opacity ?? 100))}
             onChange={(e) =>
               updatePage(page.id, { background_opacity: Number(e.target.value) })
             }
@@ -892,7 +892,7 @@ function PageInspector({ page }: { page: DesignerPassportPage }) {
             <label className="flex items-center gap-2 cursor-pointer">
               <input
                 type="checkbox"
-                checked={(page.background_opacity ?? 10) >= 100}
+                checked={(page.background_opacity ?? 100) >= 100}
                 onChange={(e) => {
                   const val = e.target.checked ? 100 : 10
                   updatePage(page.id, { background_opacity: val })
