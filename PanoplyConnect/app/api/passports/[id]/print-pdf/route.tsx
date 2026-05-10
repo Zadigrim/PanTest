@@ -372,23 +372,45 @@ function hexToRgba(hex: string, opacityPct: number): string {
 
 // ── Cut guides and registration crosshairs ────────────────────────────────────
 
-function RegistrationMarks() {
+function RegistrationMarks({ isFirstSheet }: { isFirstSheet: boolean }) {
   const len  = 16
   const half = len / 2
 
-  // Crosshairs at the four sheet-edge intersections of the two cut lines
-  const positions = [
-    { x: 0,       y: CUT_Y },  // left edge, horizontal cut
-    { x: SHEET_W, y: CUT_Y },  // right edge, horizontal cut
-    { x: CUT_X,   y: 0       },  // top edge, vertical cut
-    { x: CUT_X,   y: SHEET_H },  // bottom edge, vertical cut
-  ]
+  // Sheet 1: horizontal cut across full width; vertical cut only on bottom half.
+  // Crosshairs at left-mid, right-mid, centre of cut intersection, and bottom-centre.
+  // Sheet 2+: full horizontal and vertical cuts with crosshairs at all four edge positions.
+  const positions = isFirstSheet
+    ? [
+        { x: 0,       y: CUT_Y  },  // left edge, horizontal cut
+        { x: SHEET_W, y: CUT_Y  },  // right edge, horizontal cut
+        { x: CUT_X,   y: CUT_Y  },  // centre intersection (where bottom vertical meets horizontal)
+        { x: CUT_X,   y: SHEET_H }, // bottom edge, vertical cut (bottom half only)
+      ]
+    : [
+        { x: 0,       y: CUT_Y  },  // left edge, horizontal cut
+        { x: SHEET_W, y: CUT_Y  },  // right edge, horizontal cut
+        { x: CUT_X,   y: 0      },  // top edge, vertical cut
+        { x: CUT_X,   y: SHEET_H }, // bottom edge, vertical cut
+      ]
 
   return (
     <>
-      {/* Faint guide lines */}
+      {/* Faint horizontal guide — full width on every sheet */}
       <View style={[S.guideH, { top: CUT_Y - 0.25 }]} />
-      <View style={[S.guideV, { left: CUT_X - 0.25 }]} />
+
+      {/* Faint vertical guide — full height on normal sheets; bottom half only on sheet 1 */}
+      {isFirstSheet ? (
+        <View style={{
+          position: 'absolute',
+          left: CUT_X - 0.25,
+          top: CUT_Y,
+          width: 0.5,
+          height: QUAD_H,
+          backgroundColor: '#EEEEEE',
+        }} />
+      ) : (
+        <View style={[S.guideV, { left: CUT_X - 0.25 }]} />
+      )}
 
       {/* Crosshairs */}
       {positions.map((pos, i) => (
@@ -405,10 +427,12 @@ function RegistrationMarks() {
 
 function InstructionsQuadrantContent() {
   const steps: { label: string; body: string }[] = [
-    { label: 'Print',   body: 'Print all sheets single-sided.' },
-    { label: 'Cut',     body: 'Cut each sheet into four pieces along the lines.' },
-    { label: 'Stack',   body: 'For each student, stack the pieces in this order: Cover, then pages 1, 2, 3 in number order (corner of each piece), then Certificate at the bottom.' },
-    { label: 'Staple',  body: 'Staple twice along the left edge.' },
+    { label: 'Print',        body: 'Print all sheets single-sided.' },
+    { label: 'Sheet 1 — horizontal cut', body: 'Cut horizontally across the middle of Sheet 1. Discard the top half (this strip).' },
+    { label: 'Other sheets', body: 'Cut each remaining sheet into four pieces along the cut lines.' },
+    { label: 'Sheet 1 bottom half', body: 'Cut down the middle to separate Cover and Page 1.' },
+    { label: 'Stack',        body: 'For each student: Cover on top, then pages 1, 2, 3 … in number order (see corner), then Certificate at the bottom.' },
+    { label: 'Staple',       body: 'Staple twice along the left edge.' },
   ]
 
   return (
@@ -791,13 +815,15 @@ function Slot({
 function SheetPage({
   quadrants,
   pageNums,
+  isFirstSheet,
 }: {
   quadrants: [SlotContent, SlotContent, SlotContent, SlotContent]
   pageNums: [number | null, number | null, number | null, number | null]
+  isFirstSheet: boolean
 }) {
   return (
     <Page size={[SHEET_W, SHEET_H]} style={S.sheet}>
-      <RegistrationMarks />
+      <RegistrationMarks isFirstSheet={isFirstSheet} />
       {QUAD_POSITIONS.map((pos, i) => (
         <Slot key={i} content={quadrants[i]} position={pos} pageNum={pageNums[i]} />
       ))}
@@ -814,49 +840,60 @@ interface PrintPassportDocProps {
 }
 
 function PrintPassportDoc({ passportTitle, institutionName, pages }: PrintPassportDocProps) {
-  // Build sequential slot list: Instructions → Cover → interior pages → Certificate
-  const slots: SlotContent[] = []
-
-  slots.push({ type: 'instructions' })
-  slots.push({ type: 'cover', title: passportTitle, subtitle: institutionName })
-
+  // Content slots in booklet order: cover → interior pages → certificate
+  const allSlots: SlotContent[] = []
+  allSlots.push({ type: 'cover', title: passportTitle, subtitle: institutionName })
   for (const page of pages) {
-    slots.push({ type: 'page', page })
+    allSlots.push({ type: 'page', page })
+  }
+  allSlots.push({ type: 'cert', title: passportTitle, institutionName })
+
+  // Sheet 1 has a fixed layout:
+  //   UL = instructions (discardable strip)
+  //   UR = blank        (discardable strip)
+  //   LL = cover        (allSlots[0])
+  //   LR = page 1       (allSlots[1], or blank if the passport has no interior pages)
+  const sheet1: [SlotContent, SlotContent, SlotContent, SlotContent] = [
+    { type: 'instructions' },
+    { type: 'blank' },
+    allSlots[0],
+    allSlots[1] ?? { type: 'blank' },
+  ]
+
+  // Subsequent sheets: remaining content slots packed four per sheet, padded with blanks
+  const remaining = allSlots.slice(2)
+  const subsequentSheets: [SlotContent, SlotContent, SlotContent, SlotContent][] = []
+  for (let i = 0; i < remaining.length; i += 4) {
+    subsequentSheets.push([
+      remaining[i]     ?? { type: 'blank' },
+      remaining[i + 1] ?? { type: 'blank' },
+      remaining[i + 2] ?? { type: 'blank' },
+      remaining[i + 3] ?? { type: 'blank' },
+    ])
   }
 
-  slots.push({ type: 'cert', title: passportTitle, institutionName })
+  const allSheets = [sheet1, ...subsequentSheets]
 
-  // Pad to a multiple of 4
-  while (slots.length % 4 !== 0) {
-    slots.push({ type: 'blank' })
-  }
-
-  // Compute page numbers — instructions, cover, and blank slots are unnumbered
+  // Assign page numbers sequentially across all slots; only 'page' slots are numbered
   let pageNumber = 0
-  const pageNumbers: (number | null)[] = slots.map((slot) => {
-    if (slot.type === 'instructions' || slot.type === 'cover' || slot.type === 'blank') {
-      return null
+  const allPageNums: (number | null)[] = []
+  for (const sheet of allSheets) {
+    for (const slot of sheet) {
+      allPageNums.push(slot.type === 'page' ? ++pageNumber : null)
     }
-    pageNumber++
-    return pageNumber
-  })
-
-  // Group into sheets of 4 quadrants
-  const sheets: SlotContent[][] = []
-  for (let i = 0; i < slots.length; i += 4) {
-    sheets.push(slots.slice(i, i + 4))
   }
 
   return (
     <Document>
-      {sheets.map((quadrants, sheetIdx) => (
+      {allSheets.map((quadrants, sheetIdx) => (
         <SheetPage
           key={sheetIdx}
-          quadrants={quadrants as [SlotContent, SlotContent, SlotContent, SlotContent]}
+          quadrants={quadrants}
           pageNums={
-            pageNumbers.slice(sheetIdx * 4, sheetIdx * 4 + 4) as
+            allPageNums.slice(sheetIdx * 4, sheetIdx * 4 + 4) as
               [number | null, number | null, number | null, number | null]
           }
+          isFirstSheet={sheetIdx === 0}
         />
       ))}
     </Document>
