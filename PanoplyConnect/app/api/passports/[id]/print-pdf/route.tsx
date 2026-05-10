@@ -500,7 +500,7 @@ function ImageEl({ el, scale }: { el: ImagePageElement; scale: number }) {
         opacity: (el.opacity ?? 100) / 100,
       }}
     >
-      <Image src={el.imageUrl} style={{ width: el.width * scale, height: el.height * scale, objectFit: 'cover' }} />
+      <Image src={el.imageUrl} style={{ width: el.width * scale, height: el.height * scale, objectFit: 'contain' }} />
     </View>
   )
 }
@@ -703,7 +703,7 @@ function PassportPageSlotContent({ page }: { page: PassportPageForPrint }) {
         {page.background_type === 'custom' && page.background_image_url && (
           <Image
             src={page.background_image_url}
-            style={{ position: 'absolute', top: 0, left: 0, width: CANVAS_W, height: CANVAS_H, objectFit: 'cover', opacity: customBgOpacity / 100 }}
+            style={{ position: 'absolute', top: 0, left: 0, width: CANVAS_W, height: CANVAS_H, objectFit: 'contain', opacity: customBgOpacity / 100 }}
           />
         )}
 

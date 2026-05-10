@@ -191,7 +191,7 @@ export function PageElementBox({
           <img
             src={element.imageUrl}
             alt=""
-            className="h-full w-full object-cover pointer-events-none select-none"
+            className="h-full w-full object-contain pointer-events-none select-none"
             style={{ opacity: (element.opacity ?? 100) / 100 }}
             draggable={false}
           />
