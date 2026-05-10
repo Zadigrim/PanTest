@@ -217,24 +217,21 @@ export function LeftPalette() {
         ? window.crypto.randomUUID()
         : Math.random().toString(36).slice(2)
 
-    const defaults: DesignerPageElement =
-      type === 'text'
-        ? {
-            id,
-            type,
-            x: 40,
-            y: 40,
-            width: 200,
-            height: 28,
-            content: 'Section Header',
-            fontSize: 16,
-            fontWeight: 'bold',
-            color: '0D1B2A',
-            align: 'left',
-          }
-        : type === 'hline'
-        ? { id, type, x: 40, y: 100, width: 532, height: 8, thickness: 2, lineColor: '0D1B2A' }
-        : { id, type, x: 300, y: 40, width: 8, height: 400, thickness: 2, lineColor: '0D1B2A' }
+    let defaults: DesignerPageElement
+    if (type === 'text') {
+      defaults = {
+        id, type,
+        x: 40, y: 40, width: 200, height: 28,
+        content: 'Section Header',
+        fontSize: 16, fontWeight: 'bold', color: '0D1B2A', align: 'left', rotation: 0,
+      }
+    } else if (type === 'line') {
+      defaults = { id, type, x1: 40, y1: 100, x2: 572, y2: 100, thickness: 2, lineColor: '0D1B2A' }
+    } else if (type === 'image') {
+      defaults = { id, type, x: 40, y: 40, width: 200, height: 200, imageUrl: '', rotation: 0, opacity: 100 }
+    } else {
+      return
+    }
 
     const updated = addElement(activePageId, defaults)
     setSelectedElement(id)
@@ -374,19 +371,19 @@ export function LeftPalette() {
               variant="ghost"
               size="sm"
               className="w-full justify-start text-xs gap-2"
-              onClick={() => handleAddElement('hline')}
+              onClick={() => handleAddElement('image')}
               disabled={!activePageId}
             >
-              <span>—</span> Add H-line
+              <span>🖼</span> Add image
             </Button>
             <Button
               variant="ghost"
               size="sm"
               className="w-full justify-start text-xs gap-2"
-              onClick={() => handleAddElement('vline')}
+              onClick={() => handleAddElement('line')}
               disabled={!activePageId}
             >
-              <span>|</span> Add V-line
+              <span>╱</span> Add line
             </Button>
           </div>
           <ElementsList pageId={activePageId} />
@@ -441,10 +438,20 @@ function ElementsList({ pageId }: { pageId: string | null }) {
 
   if (elements.length === 0) return null
 
-  const typeIcon = (type: string) =>
-    type === 'text' ? 'T' : type === 'hline' ? '—' : '|'
-  const typeLabel = (el: DesignerPageElement) =>
-    el.type === 'text' ? el.content || 'Label' : el.type === 'hline' ? 'H-Line' : 'V-Line'
+  const typeIcon = (type: string) => {
+    if (type === 'text') return 'T'
+    if (type === 'image') return '🖼'
+    if (type === 'line') return '╱'
+    if (type === 'hline') return '—'
+    return '|'
+  }
+  const typeLabel = (el: DesignerPageElement) => {
+    if (el.type === 'text') return el.content || 'Label'
+    if (el.type === 'image') return 'Image'
+    if (el.type === 'line') return 'Line'
+    if (el.type === 'hline') return 'H-Line'
+    return 'V-Line'
+  }
 
   return (
     <div className="mt-1 space-y-0.5">

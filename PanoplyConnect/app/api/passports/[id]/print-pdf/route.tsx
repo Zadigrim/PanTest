@@ -283,6 +283,7 @@ interface StopForPrint {
   box_y: number
   box_width: number
   box_height: number
+  rotation: number
 }
 
 interface BaseElement {
@@ -300,6 +301,25 @@ interface TextPageElement extends BaseElement {
   fontWeight?: 'normal' | 'bold'
   color?: string       // hex without #
   align?: 'left' | 'center' | 'right'
+  rotation?: number
+}
+
+interface ImagePageElement extends BaseElement {
+  type: 'image'
+  imageUrl?: string
+  opacity?: number    // 0–100, default 100
+  rotation?: number
+}
+
+interface LinePageElement {
+  id: string
+  type: 'line'
+  x1: number
+  y1: number
+  x2: number
+  y2: number
+  thickness?: number
+  lineColor?: string
 }
 
 interface HLinePageElement extends BaseElement {
@@ -314,7 +334,7 @@ interface VLinePageElement extends BaseElement {
   lineColor?: string   // hex without #
 }
 
-type PageElement = TextPageElement | HLinePageElement | VLinePageElement
+type PageElement = TextPageElement | ImagePageElement | LinePageElement | HLinePageElement | VLinePageElement
 
 interface PassportPageForPrint {
   id: string
@@ -324,10 +344,11 @@ interface PassportPageForPrint {
   section_title: string | null
   stops: StopForPrint[]
   elements: PageElement[]
-  paper_color: string          // hex without #, e.g. 'F5F2EC'
-  background_type: string      // 'guilloche' | 'grid' | 'none' | 'custom'
-  background_color: string     // hex without #
-  background_opacity: number   // 10–100
+  paper_color: string                    // hex without #, e.g. 'F5F2EC'
+  background_type: string               // 'guilloche' | 'grid' | 'none' | 'custom'
+  background_color: string              // hex without #
+  background_opacity: number            // 10–100 (pattern)
+  custom_background_opacity: number     // 10–100 (custom image)
   background_image_url: string | null
 }
 
@@ -434,13 +455,14 @@ function CoverSlotContent({ title, subtitle }: { title: string; subtitle: string
   )
 }
 
-// ── Page element rendering (text, hline, vline) ───────────────────────────────
+// ── Page element rendering ────────────────────────────────────────────────────
 
 function TextEl({ el, scale }: { el: TextPageElement; scale: number }) {
   const color      = `#${el.color ?? '0D1B2A'}`
   const fontSize   = (el.fontSize ?? 14) * scale
   const fontFamily = el.fontWeight === 'bold' ? 'Helvetica-Bold' : 'Helvetica'
   const textAlign  = el.align ?? 'left'
+  const rotation   = el.rotation ?? 0
 
   return (
     <View
@@ -451,6 +473,7 @@ function TextEl({ el, scale }: { el: TextPageElement; scale: number }) {
         width:  el.width  * scale,
         height: el.height * scale,
         overflow: 'hidden',
+        transform: rotation ? `rotate(${rotation}deg)` : undefined,
       }}
     >
       <Text style={{ fontSize, fontFamily, color, textAlign }}>
@@ -460,10 +483,62 @@ function TextEl({ el, scale }: { el: TextPageElement; scale: number }) {
   )
 }
 
+function ImageEl({ el, scale }: { el: ImagePageElement; scale: number }) {
+  if (!el.imageUrl) return null
+  const rotation = el.rotation ?? 0
+
+  return (
+    <View
+      style={{
+        position: 'absolute',
+        left:   el.x * scale,
+        top:    el.y * scale,
+        width:  el.width  * scale,
+        height: el.height * scale,
+        overflow: 'hidden',
+        transform: rotation ? `rotate(${rotation}deg)` : undefined,
+        opacity: (el.opacity ?? 100) / 100,
+      }}
+    >
+      <Image src={el.imageUrl} style={{ width: el.width * scale, height: el.height * scale, objectFit: 'cover' }} />
+    </View>
+  )
+}
+
+function LineEl({ el, scale }: { el: LinePageElement; scale: number }) {
+  const thickness = el.thickness ?? 2
+  const color     = `#${el.lineColor ?? '0D1B2A'}`
+  // Bounding box for the SVG
+  const minX  = Math.min(el.x1, el.x2)
+  const minY  = Math.min(el.y1, el.y2)
+  const svgW  = Math.abs(el.x2 - el.x1) + thickness * 2
+  const svgH  = Math.abs(el.y2 - el.y1) + thickness * 2
+  const offX  = minX - thickness
+
+  return (
+    <Svg
+      viewBox={`${offX} ${minY - thickness} ${svgW} ${svgH}`}
+      style={{
+        position: 'absolute',
+        left: (minX - thickness) * scale,
+        top: (minY - thickness) * scale,
+        width:  svgW * scale,
+        height: svgH * scale,
+      }}
+    >
+      <Line
+        x1={el.x1} y1={el.y1} x2={el.x2} y2={el.y2}
+        stroke={color}
+        strokeWidth={thickness}
+        strokeOpacity={1}
+      />
+    </Svg>
+  )
+}
+
 function HLineEl({ el, scale }: { el: HLinePageElement; scale: number }) {
   const thickness = el.thickness ?? 2
   const color     = `#${el.lineColor ?? '0D1B2A'}`
-  // Center the bar within the element's bounding box height
   const top  = (el.y + el.height / 2 - thickness / 2) * scale
   const left = el.x * scale
 
@@ -473,8 +548,8 @@ function HLineEl({ el, scale }: { el: HLinePageElement; scale: number }) {
         position: 'absolute',
         left,
         top,
-        width:  el.width    * scale,
-        height: thickness   * scale,
+        width:  el.width  * scale,
+        height: thickness * scale,
         backgroundColor: color,
       }}
     />
@@ -484,7 +559,6 @@ function HLineEl({ el, scale }: { el: HLinePageElement; scale: number }) {
 function VLineEl({ el, scale }: { el: VLinePageElement; scale: number }) {
   const thickness = el.thickness ?? 2
   const color     = `#${el.lineColor ?? '0D1B2A'}`
-  // Center the bar within the element's bounding box width
   const left = (el.x + el.width / 2 - thickness / 2) * scale
   const top  = el.y * scale
 
@@ -494,8 +568,8 @@ function VLineEl({ el, scale }: { el: VLinePageElement; scale: number }) {
         position: 'absolute',
         left,
         top,
-        width:  thickness   * scale,
-        height: el.height   * scale,
+        width:  thickness  * scale,
+        height: el.height  * scale,
         backgroundColor: color,
       }}
     />
@@ -508,6 +582,8 @@ function PageElementsLayer({ elements, scale }: { elements: PageElement[]; scale
       {(elements ?? []).map((el) => {
         try {
           if (el.type === 'text')  return <TextEl  key={el.id} el={el} scale={scale} />
+          if (el.type === 'image') return <ImageEl key={el.id} el={el} scale={scale} />
+          if (el.type === 'line')  return <LineEl  key={el.id} el={el} scale={scale} />
           if (el.type === 'hline') return <HLineEl key={el.id} el={el} scale={scale} />
           if (el.type === 'vline') return <VLineEl key={el.id} el={el} scale={scale} />
         } catch {
@@ -601,10 +677,11 @@ function GridOverlay({ color, opacity }: { color: string; opacity: number }) {
 }
 
 function PassportPageSlotContent({ page }: { page: PassportPageForPrint }) {
-  const label      = page.section_title || page.section_name || `Page ${page.page_order}`
-  const paperColor = `#${page.paper_color ?? 'F5F2EC'}`
-  const bgColor    = `#${page.background_color ?? '0D1B2A'}`
-  const bgOpacity  = Math.min(100, Math.max(8, page.background_opacity ?? 100))
+  const label           = page.section_title || page.section_name || `Page ${page.page_order}`
+  const paperColor      = `#${page.paper_color ?? 'F5F2EC'}`
+  const bgColor         = `#${page.background_color ?? '0D1B2A'}`
+  const bgOpacity       = Math.min(100, Math.max(10, page.background_opacity ?? 100))
+  const customBgOpacity = Math.min(100, Math.max(10, page.custom_background_opacity ?? 100))
 
   return (
     <>
@@ -623,10 +700,10 @@ function PassportPageSlotContent({ page }: { page: PassportPageForPrint }) {
         {page.background_type === 'grid' && (
           <GridOverlay color={bgColor} opacity={bgOpacity} />
         )}
-{page.background_type === 'custom' && page.background_image_url && (
+        {page.background_type === 'custom' && page.background_image_url && (
           <Image
             src={page.background_image_url}
-            style={{ position: 'absolute', top: 0, left: 0, width: CANVAS_W, height: CANVAS_H, objectFit: 'cover', opacity: bgOpacity / 100 }}
+            style={{ position: 'absolute', top: 0, left: 0, width: CANVAS_W, height: CANVAS_H, objectFit: 'cover', opacity: customBgOpacity / 100 }}
           />
         )}
 
@@ -640,7 +717,16 @@ function PassportPageSlotContent({ page }: { page: PassportPageForPrint }) {
           const h = stop.box_height * CANVAS_SCALE
 
           return (
-            <View key={stop.id} style={[S.locationBox, { left: x, top: y, width: w, height: h }]}>
+            <View
+              key={stop.id}
+              style={[
+                S.locationBox,
+                {
+                  left: x, top: y, width: w, height: h,
+                  transform: stop.rotation ? `rotate(${stop.rotation}deg)` : undefined,
+                },
+              ]}
+            >
               <Text style={S.locationBoxName}>{stop.name}</Text>
             </View>
           )
@@ -899,11 +985,12 @@ async function handlePrintRequest(request: Request, passportId: string) {
     background_type: string | null
     background_color: string | null
     background_opacity: number | null
+    custom_background_opacity: number | null
     background_image_url: string | null
     elements: PageElement[] | null
   }
 
-  const BG_FIELDS = 'paper_color, background_type, background_color, background_opacity, background_image_url'
+  const BG_FIELDS = 'paper_color, background_type, background_color, background_opacity, custom_background_opacity, background_image_url'
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: pagesWithEl, error: elErr } = await (supabase as any)
@@ -946,7 +1033,7 @@ async function handlePrintRequest(request: Request, passportId: string) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: stopsRaw, error: stopsErr } = await (supabase as any)
     .from('stops')
-    .select('id, page_id, stop_order, name, box_x, box_y, box_width, box_height')
+    .select('id, page_id, stop_order, name, box_x, box_y, box_width, box_height, rotation')
     .in('page_id', pageIds)
     .order('stop_order', { ascending: true }) as {
       data: {
@@ -958,6 +1045,7 @@ async function handlePrintRequest(request: Request, passportId: string) {
         box_y: number | null
         box_width: number
         box_height: number
+        rotation: number | null
       }[] | null
       error: unknown
     }
@@ -987,6 +1075,7 @@ async function handlePrintRequest(request: Request, passportId: string) {
           box_y:       s.box_y  ?? 40,
           box_width:   s.box_width  ?? 120,
           box_height:  s.box_height ?? 120,
+          rotation:    s.rotation   ?? 0,
         }))
 
       return {
@@ -997,11 +1086,12 @@ async function handlePrintRequest(request: Request, passportId: string) {
         section_title:      page.section_title,
         stops:              pageStops,
         elements:           (page.elements ?? []) as PageElement[],
-        paper_color:          page.paper_color          ?? 'F5F2EC',
-        background_type:      page.background_type      ?? 'guilloche',
-        background_color:     page.background_color     ?? '4a6fa5',
-        background_opacity:   Math.min(100, Math.max(8, page.background_opacity ?? 100)),
-        background_image_url: page.background_image_url ?? null,
+        paper_color:               page.paper_color               ?? 'F5F2EC',
+        background_type:           page.background_type           ?? 'guilloche',
+        background_color:          page.background_color          ?? '4a6fa5',
+        background_opacity:        Math.min(100, Math.max(10, page.background_opacity        ?? 100)),
+        custom_background_opacity: Math.min(100, Math.max(10, page.custom_background_opacity ?? 100)),
+        background_image_url:      page.background_image_url      ?? null,
       }
     })
     .filter((page) => {

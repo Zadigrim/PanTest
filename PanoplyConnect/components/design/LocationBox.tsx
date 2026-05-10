@@ -3,6 +3,8 @@
 import { useRef, useCallback } from 'react'
 import type { DesignerStop } from '@/lib/design/types'
 
+const ROT_HANDLE_OFFSET = 28
+
 function hexToRgbComponents(hex: string): string {
   const h = hex.replace('#', '').padEnd(6, '0')
   const r = parseInt(h.slice(0, 2), 16) || 0
@@ -23,6 +25,7 @@ interface Props {
     box_y?: number
     box_width?: number
     box_height?: number
+    rotation?: number
   }) => void
 }
 
@@ -43,6 +46,10 @@ export function LocationBox({
   const y = stop.box_y ?? 40
   const w = stop.box_width ?? 120
   const h = stop.box_height ?? 120
+  const rotation = stop.rotation ?? 0
+
+  const containerRef = useRef<HTMLDivElement>(null)
+  const rotState = useRef<{ cx: number; cy: number } | null>(null)
 
   const dragState = useRef<{
     startMouseX: number
@@ -154,8 +161,43 @@ export function LocationBox({
     resizeState.current = null
   }, [])
 
+  // ── Rotation ─────────────────────────────────────────────────────────────────
+  const startRotation = useCallback(
+    (e: React.PointerEvent) => {
+      e.stopPropagation()
+      const rect = containerRef.current?.getBoundingClientRect()
+      if (!rect) return
+      rotState.current = { cx: rect.left + rect.width / 2, cy: rect.top + rect.height / 2 }
+      ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+    },
+    [],
+  )
+
+  const handleRotationMove = useCallback(
+    (e: React.PointerEvent) => {
+      if (!rotState.current) return
+      const { cx, cy } = rotState.current
+      const angleRad = Math.atan2(e.clientY - cy, e.clientX - cx)
+      const angleDeg = angleRad * (180 / Math.PI) + 90
+      const snapped = Math.round(angleDeg / 15) * 15
+      const normalized = ((snapped % 360) + 360) % 360
+      onChange({ rotation: normalized })
+    },
+    [onChange],
+  )
+
+  const handleRotationEnd = useCallback(() => { rotState.current = null }, [])
+
   return (
-    <div className="absolute" style={{ left: x, top: y, width: w, height: h }}>
+    <div
+      ref={containerRef}
+      className="absolute"
+      style={{
+        left: x, top: y, width: w, height: h,
+        transform: rotation ? `rotate(${rotation}deg)` : undefined,
+        transformOrigin: '50% 50%',
+      }}
+    >
       {/* Main box — drag target. Border uses ink color at 50% opacity */}
       <div
         className={`absolute inset-0 cursor-move select-none rounded-sm transition-[border-color] ${
@@ -200,6 +242,36 @@ export function LocationBox({
           </div>
         )}
       </div>
+
+      {/* Rotation handle (when selected) */}
+      {isSelected && (
+        <>
+          <div
+            className="absolute pointer-events-none"
+            style={{
+              left: '50%',
+              top: -ROT_HANDLE_OFFSET,
+              width: 1,
+              height: ROT_HANDLE_OFFSET,
+              backgroundColor: '#0EA5E9',
+              transform: 'translateX(-50%)',
+            }}
+          />
+          <div
+            className="absolute z-30 rounded-full border-2 border-panoply-teal bg-white shadow-sm cursor-grab active:cursor-grabbing"
+            style={{
+              width: 16, height: 16,
+              left: '50%',
+              top: -(ROT_HANDLE_OFFSET + 8),
+              transform: 'translateX(-50%)',
+            }}
+            onPointerDown={startRotation}
+            onPointerMove={handleRotationMove}
+            onPointerUp={handleRotationEnd}
+            onPointerCancel={handleRotationEnd}
+          />
+        </>
+      )}
 
       {/* Resize handles (8-point, only when selected) */}
       {isSelected &&

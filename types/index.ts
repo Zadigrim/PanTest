@@ -88,6 +88,7 @@ export interface Stop {
   stamp_rotation_fixed: number | null
   stamp_rotation_range: number
   stamp_smudge: StampSmudge
+  rotation: number   // visual rotation of the location box, 0–359 degrees
   verification_type: VerificationType | null
   created_at: string
 }

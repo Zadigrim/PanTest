@@ -11,20 +11,41 @@ export function computeStampPlacement(
   boxWidth: number,
   boxHeight: number,
   contactRadius: number,
-  stop: Pick<Stop, 'stamp_rotation_fixed' | 'stamp_rotation_range'>
+  stop: Pick<Stop, 'stamp_rotation_fixed' | 'stamp_rotation_range' | 'rotation'>
 ): StampPlacement | null {
-  // Center point must fall within the location box bounding area
+  const boxRotationDeg = stop.rotation ?? 0
+  const cx = boxLeft + boxWidth / 2
+  const cy = boxTop + boxHeight / 2
+
+  let localX: number
+  let localY: number
+
+  if (boxRotationDeg === 0) {
+    localX = touchX - cx
+    localY = touchY - cy
+  } else {
+    // Rotate touch point into box-local space (inverse of box rotation)
+    const rad = (boxRotationDeg * Math.PI) / 180
+    const cosR = Math.cos(-rad)
+    const sinR = Math.sin(-rad)
+    const dx = touchX - cx
+    const dy = touchY - cy
+    localX = dx * cosR - dy * sinR
+    localY = dx * sinR + dy * cosR
+  }
+
+  // Center-within-box rule: touch center must be inside the (unrotated) box
   if (
-    touchX < boxLeft ||
-    touchX > boxLeft + boxWidth ||
-    touchY < boxTop ||
-    touchY > boxTop + boxHeight
+    localX < -boxWidth / 2 ||
+    localX > boxWidth / 2 ||
+    localY < -boxHeight / 2 ||
+    localY > boxHeight / 2
   ) {
     return null // outside box — silent no-op
   }
 
-  const posX = ((touchX - boxLeft) / boxWidth) * 100
-  const posY = ((touchY - boxTop) / boxHeight) * 100
+  const posX = ((localX + boxWidth / 2) / boxWidth) * 100
+  const posY = ((localY + boxHeight / 2) / boxHeight) * 100
 
   let rotationDeg: number
   if (stop.stamp_rotation_fixed != null) {

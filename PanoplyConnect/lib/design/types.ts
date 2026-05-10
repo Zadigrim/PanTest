@@ -3,26 +3,77 @@
 // and are used exclusively by the designer route group.
 
 export type SpendTier = 'free' | 'under_15' | '15_50' | '50_150' | '150_500' | '500_plus'
-export type PageElementType = 'text' | 'hline' | 'vline'
 
-export interface DesignerPageElement {
+// ── Page element types ────────────────────────────────────────────────────────
+
+export type PageElementType = 'text' | 'image' | 'line' | 'hline' | 'vline'
+
+interface BaseBoxElement {
   id: string
-  type: PageElementType
   x: number
   y: number
   width: number
   height: number
-  // text
+}
+
+export interface TextPageElement extends BaseBoxElement {
+  type: 'text'
   content?: string
   fontSize?: number
   fontWeight?: 'normal' | 'bold'
   fontFamily?: string
   color?: string
   align?: 'left' | 'center' | 'right'
-  // line
+  rotation?: number   // degrees 0–359, default 0
+}
+
+export interface ImagePageElement extends BaseBoxElement {
+  type: 'image'
+  imageUrl: string
+  rotation?: number   // degrees 0–359, default 0
+  opacity?: number    // 0–100, default 100
+}
+
+export interface LinePageElement {
+  id: string
+  type: 'line'
+  x1: number
+  y1: number
+  x2: number
+  y2: number
+  thickness?: number
+  lineColor?: string  // hex without #, default '0D1B2A'
+}
+
+// Legacy types kept for backward-compat rendering of pre-migration data.
+export interface HLinePageElement extends BaseBoxElement {
+  type: 'hline'
   thickness?: number
   lineColor?: string
 }
+export interface VLinePageElement extends BaseBoxElement {
+  type: 'vline'
+  thickness?: number
+  lineColor?: string
+}
+
+export type DesignerPageElement =
+  | TextPageElement
+  | ImagePageElement
+  | LinePageElement
+  | HLinePageElement
+  | VLinePageElement
+
+// Type guards
+export const isLineEl  = (el: DesignerPageElement): el is LinePageElement  => el.type === 'line'
+export const isTextEl  = (el: DesignerPageElement): el is TextPageElement  => el.type === 'text'
+export const isImageEl = (el: DesignerPageElement): el is ImagePageElement => el.type === 'image'
+export const isBoxEl   = (
+  el: DesignerPageElement,
+): el is TextPageElement | ImagePageElement | HLinePageElement | VLinePageElement =>
+  el.type !== 'line'
+
+// ── Other types ───────────────────────────────────────────────────────────────
 
 export type PassportStatus = 'draft' | 'published' | 'archived'
 export type PassportType = 'location' | 'experience' | 'learning'
@@ -34,15 +85,13 @@ export type CreatorDecision = 'accepted' | 'adjusted' | 'overridden'
 export type PrintJournalSetting = 'include_all' | 'exclude_all' | 'per_stop'
 
 export interface CoverSideData {
-  front_bg: string       // hex without #, default '0D1B2A'
-  back_bg: string        // hex without #, default '0D1B2A'
+  front_bg: string
+  back_bg: string
   image_url: string | null
-  image_opacity: number  // 10–100
-  // Position as fraction of canvas dimensions (0 = top/left, stored on save)
-  image_position_x: number  // default 0.5 (centred)
-  image_position_y: number  // default 0.5 (centred)
-  image_scale: number        // 1.0 = fit, >1 = zoomed in; default 1
-  // Freely-positioned text/line elements on the cover face
+  image_opacity: number
+  image_position_x: number
+  image_position_y: number
+  image_scale: number
   elements: DesignerPageElement[]
 }
 
@@ -92,6 +141,7 @@ export interface DesignerPassportPage {
   background_color: string
   background_opacity: number
   background_image_url: string | null
+  custom_background_opacity: number   // 0–100, applies when background_type === 'custom'
   paper_color: string
   elements: DesignerPageElement[]
   created_at: string
@@ -123,6 +173,7 @@ export interface DesignerStop {
   box_y: number | null
   box_width: number
   box_height: number
+  rotation: number              // visual rotation of the location box, 0–359
   learning_objective: string | null
   experience_type: ExperienceType | null
   experience_verification_method: ExperienceVerification | null

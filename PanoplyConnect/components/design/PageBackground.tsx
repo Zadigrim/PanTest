@@ -12,7 +12,8 @@ interface Props {
 export function PageBackground({ page, children }: Props) {
   const paper = `#${page.paper_color ?? 'F5F2EC'}`
   const patternColor = `#${page.background_color ?? '0D1B2A'}`
-  const opacity = Math.min(100, Math.max(10,page.background_opacity ?? 100))
+  const opacity = Math.min(100, Math.max(10, page.background_opacity ?? 100))
+  const customOpacity = Math.min(100, Math.max(10, page.custom_background_opacity ?? 100))
 
   return (
     <div
@@ -31,7 +32,7 @@ export function PageBackground({ page, children }: Props) {
           src={page.background_image_url}
           alt=""
           className="absolute inset-0 h-full w-full object-cover pointer-events-none"
-          style={{ opacity: opacity / 100 }}
+          style={{ opacity: customOpacity / 100 }}
         />
       )}
 

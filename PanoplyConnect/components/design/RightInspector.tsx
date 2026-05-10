@@ -19,6 +19,9 @@ import type {
   BackgroundType,
   DesignerPageElement,
   PassportType,
+  ImagePageElement,
+  TextPageElement,
+  LinePageElement,
 } from '@/lib/design/types'
 import type { StampAsset } from '@/lib/design/stamp-assets'
 
@@ -34,10 +37,10 @@ export function RightInspector({
   const label = selectedStop
     ? 'Stop'
     : selectedElement
-    ? selectedElement.type === 'text'
-      ? 'Label'
-      : selectedElement.type === 'hline'
-      ? 'H-Line'
+    ? selectedElement.type === 'text'  ? 'Label'
+      : selectedElement.type === 'image' ? 'Image'
+      : selectedElement.type === 'line'  ? 'Line'
+      : selectedElement.type === 'hline' ? 'H-Line'
       : 'V-Line'
     : activePage
     ? 'Page'
@@ -46,7 +49,11 @@ export function RightInspector({
   const title = selectedStop
     ? selectedStop.name
     : selectedElement
-    ? selectedElement.content ?? '—'
+    ? selectedElement.type === 'text'  ? (selectedElement.content ?? '—')
+      : selectedElement.type === 'image' ? 'Image element'
+      : selectedElement.type === 'line'  ? 'Line'
+      : selectedElement.type === 'hline' ? 'H-Line'
+      : 'V-Line'
     : activePage
     ? activePage.section_title ?? activePage.section_name
     : 'No selection'
@@ -321,6 +328,18 @@ function StopInspector({
           value={stop.name}
           onChange={(e) => updateStop(stop.id, { name: e.target.value })}
           onBlur={(e) => persist({ name: e.target.value })}
+          className="h-8 text-sm"
+        />
+      </Field>
+
+      <Field label="Rotation (°)">
+        <Input
+          type="number"
+          min={0}
+          max={359}
+          value={stop.rotation ?? 0}
+          onChange={(e) => updateStop(stop.id, { rotation: Number(e.target.value) })}
+          onBlur={(e) => persist({ rotation: Number(e.target.value) })}
           className="h-8 text-sm"
         />
       </Field>
@@ -867,36 +886,56 @@ function PageInspector({ page }: { page: DesignerPassportPage }) {
           </Field>
         )}
 
-        <Field label={`Opacity: ${Math.min(100, Math.max(10, page.background_opacity ?? 100))}%`}>
-          <input
-            type="range"
-            min={10}
-            max={100}
-            step={1}
-            value={Math.min(100, Math.max(10, page.background_opacity ?? 100))}
-            onChange={(e) =>
-              updatePage(page.id, { background_opacity: Number(e.target.value) })
-            }
-            onMouseUp={(e) =>
-              persist({
-                background_opacity: Number((e.target as HTMLInputElement).value),
-              })
-            }
-            className="w-full accent-panoply-teal"
-          />
-          <p className="text-xs text-panoply-gray-3">8–100%. Keep at 10% for stamp legibility unless intentional.</p>
-        </Field>
+        {/* Pattern opacity — only for guilloche/grid */}
+        {(bg === 'guilloche' || bg === 'grid') && (
+          <Field label={`Opacity: ${Math.min(100, Math.max(10, page.background_opacity ?? 100))}%`}>
+            <input
+              type="range"
+              min={10}
+              max={100}
+              step={1}
+              value={Math.min(100, Math.max(10, page.background_opacity ?? 100))}
+              onChange={(e) =>
+                updatePage(page.id, { background_opacity: Number(e.target.value) })
+              }
+              onMouseUp={(e) =>
+                persist({
+                  background_opacity: Number((e.target as HTMLInputElement).value),
+                })
+              }
+              className="w-full accent-panoply-teal"
+            />
+            <p className="text-xs text-panoply-gray-3">10–100%. Keep low for stamp legibility.</p>
+          </Field>
+        )}
 
+        {/* Custom image controls */}
         {bg === 'custom' && (
           <>
+            <Field label={`Image opacity: ${Math.min(100, Math.max(10, page.custom_background_opacity ?? 100))}%`}>
+              <input
+                type="range"
+                min={10}
+                max={100}
+                step={1}
+                value={Math.min(100, Math.max(10, page.custom_background_opacity ?? 100))}
+                onChange={(e) =>
+                  updatePage(page.id, { custom_background_opacity: Number(e.target.value) })
+                }
+                onMouseUp={(e) =>
+                  persist({ custom_background_opacity: Number((e.target as HTMLInputElement).value) })
+                }
+                className="w-full accent-panoply-teal"
+              />
+            </Field>
             <label className="flex items-center gap-2 cursor-pointer">
               <input
                 type="checkbox"
-                checked={(page.background_opacity ?? 100) >= 100}
+                checked={(page.custom_background_opacity ?? 100) >= 100}
                 onChange={(e) => {
                   const val = e.target.checked ? 100 : 10
-                  updatePage(page.id, { background_opacity: val })
-                  void persist({ background_opacity: val })
+                  updatePage(page.id, { custom_background_opacity: val })
+                  void persist({ custom_background_opacity: val })
                 }}
                 className="h-4 w-4 rounded accent-panoply-teal"
               />
@@ -1027,6 +1066,60 @@ function PassportInspector() {
   )
 }
 
+// ── Image element picker ───────────────────────────────────────────────────────
+
+function ImageElementPicker({
+  element,
+  persist,
+}: {
+  element: ImagePageElement
+  persist: (patch: Partial<ImagePageElement>) => Promise<void>
+}) {
+  const [uploading, setUploading] = useState(false)
+
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploading(true)
+    try {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      const ext = file.name.split('.').pop() ?? 'png'
+      const path = `${user.id}/img-${Date.now()}.${ext}`
+      const { error: upErr } = await supabase.storage.from('design-assets').upload(path, file)
+      if (upErr) { console.error(upErr); return }
+      const { data: { publicUrl } } = supabase.storage.from('design-assets').getPublicUrl(path)
+      await persist({ imageUrl: publicUrl })
+    } finally {
+      setUploading(false)
+      e.target.value = ''
+    }
+  }
+
+  return (
+    <div className="space-y-2">
+      {element.imageUrl && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={element.imageUrl}
+          alt=""
+          className="w-full rounded border border-panoply-gray-2 object-cover"
+          style={{ maxHeight: 120 }}
+        />
+      )}
+      <label
+        className={`flex cursor-pointer items-center justify-center gap-2 rounded-card border border-panoply-gray-2 px-3 py-2 text-xs transition-colors ${
+          uploading ? 'pointer-events-none opacity-50' : 'text-panoply-gray-3 hover:border-panoply-teal/40'
+        }`}
+      >
+        <input type="file" accept="image/*" className="hidden" onChange={handleUpload} disabled={uploading} />
+        {uploading ? 'Uploading…' : '+ Upload image'}
+      </label>
+    </div>
+  )
+}
+
 // ── Element Inspector ──────────────────────────────────────────────────────────
 
 const LABEL_COLORS = ['0D1B2A', '1D9E75', 'C9A84C', 'D85A30', '7F77DD', '888888']
@@ -1069,6 +1162,31 @@ function ElementInspector({
 
   return (
     <div className="space-y-5 p-4">
+      {element.type === 'image' && (
+        <Section title="Image">
+          <ImageElementPicker
+            element={element as ImagePageElement}
+            persist={(patch) => persist(patch as Partial<DesignerPageElement>)}
+          />
+          <Field label={`Opacity: ${(element as ImagePageElement).opacity ?? 100}%`}>
+            <input
+              type="range"
+              min={10}
+              max={100}
+              step={1}
+              value={(element as ImagePageElement).opacity ?? 100}
+              onChange={(e) =>
+                updateElement(pageId, element.id, { opacity: Number(e.target.value) } as Partial<DesignerPageElement>)
+              }
+              onMouseUp={(e) =>
+                void persist({ opacity: Number((e.target as HTMLInputElement).value) } as Partial<DesignerPageElement>)
+              }
+              className="w-full accent-panoply-teal"
+            />
+          </Field>
+        </Section>
+      )}
+
       {element.type === 'text' && (
         <Section title="Text">
           <Field label="Content">
@@ -1164,34 +1282,34 @@ function ElementInspector({
         </Section>
       )}
 
-      {(element.type === 'hline' || element.type === 'vline') && (
+      {(element.type === 'line' || element.type === 'hline' || element.type === 'vline') && (
         <Section title="Line">
           <Field label="Thickness (px)">
             <Input
               type="number"
               min={1}
               max={20}
-              value={element.thickness ?? 2}
+              value={(element as LinePageElement).thickness ?? (element as any).thickness ?? 2}
               onChange={(e) =>
-                updateElement(pageId, element.id, { thickness: Number(e.target.value) })
+                updateElement(pageId, element.id, { thickness: Number(e.target.value) } as Partial<DesignerPageElement>)
               }
-              onBlur={(e) => persist({ thickness: Number(e.target.value) })}
+              onBlur={(e) => persist({ thickness: Number(e.target.value) } as Partial<DesignerPageElement>)}
               className="h-8 text-sm"
             />
           </Field>
           <Field label="Color">
             <div className="flex gap-2">
               <Input
-                value={element.lineColor ?? '0D1B2A'}
+                value={(element as LinePageElement).lineColor ?? (element as any).lineColor ?? '0D1B2A'}
                 maxLength={6}
-                onChange={(e) => updateElement(pageId, element.id, { lineColor: e.target.value })}
-                onBlur={(e) => void persist({ lineColor: e.target.value })}
+                onChange={(e) => updateElement(pageId, element.id, { lineColor: e.target.value } as Partial<DesignerPageElement>)}
+                onBlur={(e) => void persist({ lineColor: e.target.value } as Partial<DesignerPageElement>)}
                 className="h-8 flex-1 font-mono text-sm uppercase"
               />
               <ColorPickerInput
-                value={element.lineColor ?? '0D1B2A'}
-                onChange={(hex) => updateElement(pageId, element.id, { lineColor: hex })}
-                onCommit={(hex) => void persist({ lineColor: hex })}
+                value={(element as LinePageElement).lineColor ?? (element as any).lineColor ?? '0D1B2A'}
+                onChange={(hex) => updateElement(pageId, element.id, { lineColor: hex } as Partial<DesignerPageElement>)}
+                onCommit={(hex) => void persist({ lineColor: hex } as Partial<DesignerPageElement>)}
               />
             </div>
           </Field>
@@ -1199,52 +1317,56 @@ function ElementInspector({
       )}
 
       <Section title="Position">
-        <div className="grid grid-cols-2 gap-2">
-          <Field label="X">
+        {element.type === 'line' ? (
+          <div className="grid grid-cols-2 gap-2">
+            {(['x1', 'y1', 'x2', 'y2'] as const).map((key) => (
+              <Field key={key} label={key.toUpperCase()}>
+                <Input
+                  type="number"
+                  value={Math.round((element as LinePageElement)[key])}
+                  onChange={(e) =>
+                    updateElement(pageId, element.id, { [key]: Number(e.target.value) } as Partial<DesignerPageElement>)
+                  }
+                  onBlur={(e) => persist({ [key]: Number(e.target.value) } as Partial<DesignerPageElement>)}
+                  className="h-8 text-sm"
+                />
+              </Field>
+            ))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-2">
+            {(['x', 'y', 'width', 'height'] as const).map((key) => (
+              <Field key={key} label={key === 'width' ? 'W' : key === 'height' ? 'H' : key.toUpperCase()}>
+                <Input
+                  type="number"
+                  value={Math.round((element as any)[key])}
+                  onChange={(e) =>
+                    updateElement(pageId, element.id, { [key]: Number(e.target.value) } as Partial<DesignerPageElement>)
+                  }
+                  onBlur={(e) => persist({ [key]: Number(e.target.value) } as Partial<DesignerPageElement>)}
+                  className="h-8 text-sm"
+                />
+              </Field>
+            ))}
+          </div>
+        )}
+
+        {/* Rotation — text and image only */}
+        {(element.type === 'text' || element.type === 'image') && (
+          <Field label="Rotation (°)">
             <Input
               type="number"
-              value={Math.round(element.x)}
+              min={0}
+              max={359}
+              value={(element as TextPageElement | ImagePageElement).rotation ?? 0}
               onChange={(e) =>
-                updateElement(pageId, element.id, { x: Number(e.target.value) })
+                updateElement(pageId, element.id, { rotation: Number(e.target.value) } as Partial<DesignerPageElement>)
               }
-              onBlur={(e) => persist({ x: Number(e.target.value) })}
+              onBlur={(e) => persist({ rotation: Number(e.target.value) } as Partial<DesignerPageElement>)}
               className="h-8 text-sm"
             />
           </Field>
-          <Field label="Y">
-            <Input
-              type="number"
-              value={Math.round(element.y)}
-              onChange={(e) =>
-                updateElement(pageId, element.id, { y: Number(e.target.value) })
-              }
-              onBlur={(e) => persist({ y: Number(e.target.value) })}
-              className="h-8 text-sm"
-            />
-          </Field>
-          <Field label="W">
-            <Input
-              type="number"
-              value={Math.round(element.width)}
-              onChange={(e) =>
-                updateElement(pageId, element.id, { width: Number(e.target.value) })
-              }
-              onBlur={(e) => persist({ width: Number(e.target.value) })}
-              className="h-8 text-sm"
-            />
-          </Field>
-          <Field label="H">
-            <Input
-              type="number"
-              value={Math.round(element.height)}
-              onChange={(e) =>
-                updateElement(pageId, element.id, { height: Number(e.target.value) })
-              }
-              onBlur={(e) => persist({ height: Number(e.target.value) })}
-              className="h-8 text-sm"
-            />
-          </Field>
-        </div>
+        )}
       </Section>
 
       <div className="border-t border-panoply-gray-2 pt-4">

@@ -11,7 +11,9 @@ import {
 import { PageBackground } from './PageBackground'
 import { LocationBox } from './LocationBox'
 import { PageElementBox } from './PageElementBox'
-import type { DesignerPageElement } from '@/lib/design/types'
+import { LineElementBox } from './LineElementBox'
+import type { LinePageElement } from '@/lib/design/types'
+import { isLineEl, isBoxEl } from '@/lib/design/types'
 
 const ARTBOARD_W = 612
 const ARTBOARD_H = 792
@@ -84,16 +86,27 @@ export function Canvas() {
         >
           <PageBackground page={activePage}>
             {/* Elements layer (below stops) */}
-            {elements.map((el) => (
-              <PageElementBox
-                key={el.id}
-                element={el}
-                isSelected={el.id === selectedElementId}
-                scale={zoom}
-                onSelect={() => setSelectedElement(el.id)}
-                onChange={(patch) => handleElementChange(activePage.id, el.id, patch)}
-              />
-            ))}
+            {elements.map((el) =>
+              isLineEl(el) ? (
+                <LineElementBox
+                  key={el.id}
+                  element={el}
+                  isSelected={el.id === selectedElementId}
+                  scale={zoom}
+                  onSelect={() => setSelectedElement(el.id)}
+                  onChange={(patch) => handleElementChange(activePage.id, el.id, patch as Partial<LinePageElement>)}
+                />
+              ) : isBoxEl(el) ? (
+                <PageElementBox
+                  key={el.id}
+                  element={el}
+                  isSelected={el.id === selectedElementId}
+                  scale={zoom}
+                  onSelect={() => setSelectedElement(el.id)}
+                  onChange={(patch) => handleElementChange(activePage.id, el.id, patch)}
+                />
+              ) : null
+            )}
 
             {/* Stops layer */}
             {stops.map((stop) => (
