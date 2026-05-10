@@ -1,12 +1,15 @@
-// Individual passport page with guilloche background, paper texture, vignette.
-// Page content layers (bottom to top):
-//   1. paper color  2. guilloche SVG  3. paper grain  4. vignette  5. binding shadow  6. content
+// Passport page — renders the designer artboard scaled to fit the screen width.
+// Background layers (bottom→top): paper color → pattern/image → grain → vignette → binding shadow → canvas
 import React from 'react'
-import { View, Text, ScrollView, StyleSheet } from 'react-native'
+import { View, Text, Image, StyleSheet } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
+import Svg, { Defs, Pattern, Path, Rect } from 'react-native-svg'
 import { GuillocheBackground } from '../ui/GuillocheBackground'
-import { GeographicSection } from './GeographicSection'
+import { DesignerCanvas } from './DesignerCanvas'
 import type { Passport, PassportPage as PassportPageType, Stop, Stamp, StampSlotState, StampPlacement } from '../../types'
+
+// Designer artboard width in logical units
+const ARTBOARD_W = 612
 
 interface Props {
   passport: Passport
@@ -33,28 +36,52 @@ export function PassportPage({
   onPressStart,
   onPressCancel,
 }: Props) {
-  return (
-    <View style={[styles.page, { width, height, backgroundColor: passport.paper_color }]}>
-      {/* Layer 2: Guilloche background illustration */}
-      <GuillocheBackground
-        color={passport.illus_color}
-        opacity={passport.illus_opacity}
-        width={width}
-        height={height}
-      />
+  const scale = width / ARTBOARD_W
+  const artboardH = 792 * scale
 
-      {/* Layer 3: Paper grain texture */}
+  // Background settings — prefer per-page designer values, fall back to passport-level
+  const paperColor = page.paper_color ? `#${page.paper_color}` : `#${passport.paper_color ?? 'F5F2EC'}`
+  const bgType = page.background_type ?? 'guilloche'
+  const bgColor = page.background_color ? `#${page.background_color}` : `#${passport.illus_color ?? '0D1B2A'}`
+  const bgOpacity = page.background_opacity != null
+    ? page.background_opacity / 100
+    : (passport.illus_opacity ?? 0.11)
+  const customBgOpacity = (page.custom_background_opacity ?? 100) / 100
+
+  return (
+    <View style={[styles.page, { width, height, backgroundColor: paperColor }]}>
+      {/* Guilloche security-print pattern */}
+      {bgType === 'guilloche' && (
+        <GuillocheBackground color={bgColor} opacity={bgOpacity} width={width} height={height} />
+      )}
+
+      {/* Grid pattern */}
+      {bgType === 'grid' && (
+        <GridBackground color={bgColor} opacity={bgOpacity} width={width} height={height} />
+      )}
+
+      {/* Custom background image */}
+      {bgType === 'custom' && !!page.background_image_url && (
+        <Image
+          source={{ uri: page.background_image_url }}
+          style={[StyleSheet.absoluteFill, { opacity: customBgOpacity }]}
+          resizeMode="contain"
+          pointerEvents="none"
+        />
+      )}
+
+      {/* Paper grain */}
       <View style={styles.grain} pointerEvents="none" />
 
-      {/* Layer 4: Corner vignette */}
+      {/* Corner vignette */}
       <LinearGradient
         colors={['rgba(0,0,0,0.06)', 'transparent', 'transparent', 'rgba(0,0,0,0.06)']}
-        style={[StyleSheet.absoluteFill, styles.vignette]}
+        style={StyleSheet.absoluteFill}
         locations={[0, 0.3, 0.7, 1]}
         pointerEvents="none"
       />
 
-      {/* Layer 5: Binding shadow on left edge */}
+      {/* Binding shadow on left edge */}
       <LinearGradient
         colors={['rgba(0,0,0,0.15)', 'transparent']}
         start={{ x: 0, y: 0 }}
@@ -63,25 +90,55 @@ export function PassportPage({
         pointerEvents="none"
       />
 
-      {/* Layer 6: Page content */}
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        <GeographicSection
-          page={page}
-          stops={stops}
-          stamps={stamps}
-          slotStates={slotStates}
-          onStampPlaced={onStampPlaced}
-          onPressStart={onPressStart}
-          onPressCancel={onPressCancel}
-        />
-      </ScrollView>
+      {/* Designer canvas — all elements and stamp boxes at absolute positions */}
+      <DesignerCanvas
+        page={page}
+        stops={stops}
+        stamps={stamps}
+        slotStates={slotStates}
+        scale={scale}
+        artboardH={artboardH}
+        onStampPlaced={onStampPlaced}
+        onPressStart={onPressStart}
+        onPressCancel={onPressCancel}
+      />
 
       {/* Page number */}
       <Text style={styles.pageNumber}>{page.page_order}</Text>
+    </View>
+  )
+}
+
+function GridBackground({
+  color,
+  opacity,
+  width,
+  height,
+}: {
+  color: string
+  opacity: number
+  width: number
+  height: number
+}) {
+  const minorId = 'rn-grid-minor'
+  const majorId = 'rn-grid-major'
+  const clampedOpacity = Math.max(0.1, Math.min(1, opacity))
+  const majorOpacity = Math.min(1, clampedOpacity * 2.5)
+
+  return (
+    <View style={[StyleSheet.absoluteFill, { opacity: clampedOpacity }]} pointerEvents="none">
+      <Svg width={width} height={height}>
+        <Defs>
+          <Pattern id={minorId} x="0" y="0" width="12" height="12" patternUnits="userSpaceOnUse">
+            <Path d="M 12 0 L 0 0 0 12" fill="none" stroke={color} strokeWidth="0.35" />
+          </Pattern>
+          <Pattern id={majorId} x="0" y="0" width="60" height="60" patternUnits="userSpaceOnUse">
+            <Rect width="60" height="60" fill={`url(#${minorId})`} />
+            <Path d="M 60 0 L 0 0 0 60" fill="none" stroke={color} strokeWidth="0.8" opacity={majorOpacity} />
+          </Pattern>
+        </Defs>
+        <Rect width={width} height={height} fill={`url(#${majorId})`} />
+      </Svg>
     </View>
   )
 }
@@ -95,15 +152,6 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     opacity: 0.025,
     backgroundColor: '#000',
-  },
-  vignette: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  scroll: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingBottom: 32,
   },
   pageNumber: {
     position: 'absolute',

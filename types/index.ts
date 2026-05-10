@@ -59,6 +59,38 @@ export interface Passport {
   updated_at: string
 }
 
+// ── Designer element types (mirror of PanoplyConnect lib/design/types.ts) ────
+
+export interface TextDesignerEl {
+  id: string; type: 'text'
+  x: number; y: number; width: number; height: number
+  content?: string; fontSize?: number; fontWeight?: 'normal' | 'bold'
+  fontFamily?: string; color?: string; align?: 'left' | 'center' | 'right'
+  rotation?: number
+}
+export interface ImageDesignerEl {
+  id: string; type: 'image'
+  x: number; y: number; width: number; height: number
+  imageUrl: string; rotation?: number; opacity?: number
+}
+export interface LineDesignerEl {
+  id: string; type: 'line'
+  x1: number; y1: number; x2: number; y2: number
+  thickness?: number; lineColor?: string
+}
+export interface HLineDesignerEl {
+  id: string; type: 'hline'
+  x: number; y: number; width: number; height: number
+  thickness?: number; lineColor?: string
+}
+export interface VLineDesignerEl {
+  id: string; type: 'vline'
+  x: number; y: number; width: number; height: number
+  thickness?: number; lineColor?: string
+}
+export type PageDesignerElement =
+  | TextDesignerEl | ImageDesignerEl | LineDesignerEl | HLineDesignerEl | VLineDesignerEl
+
 export interface PassportPage {
   id: string
   passport_id: string
@@ -67,6 +99,16 @@ export interface PassportPage {
   section_tagline: string | null
   prize_description: string | null
   prize_redeemable_location_ids: string[] | null
+  // Designer fields
+  paper_color: string | null
+  background_type: string | null
+  background_color: string | null
+  background_opacity: number | null
+  background_image_url: string | null
+  custom_background_opacity: number | null
+  elements: PageDesignerElement[] | null
+  section_title: string | null
+  section_subtitle: string | null
   created_at: string
 }
 
@@ -88,6 +130,10 @@ export interface Stop {
   stamp_rotation_fixed: number | null
   stamp_rotation_range: number
   stamp_smudge: StampSmudge
+  box_x: number | null
+  box_y: number | null
+  box_width: number
+  box_height: number
   rotation: number   // visual rotation of the location box, 0–359 degrees
   verification_type: VerificationType | null
   created_at: string
