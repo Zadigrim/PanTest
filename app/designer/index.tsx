@@ -1,4 +1,4 @@
-// PanoplyDesigner — passport list for creator.
+// OkujiDesigner — passport list for creator.
 import React, { useEffect, useState } from 'react'
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from 'react-native'
 import { router } from 'expo-router'

@@ -116,7 +116,7 @@ export function ExitVisa({ passport, page, stops, stamps, chapterNumber }: Props
       {/* Footer */}
       <View style={styles.footer}>
         <View style={styles.footerRule} />
-        <Text style={styles.footerText}>PANOPLY · OFFICIAL RECORD</Text>
+        <Text style={styles.footerText}>OKUJI · OFFICIAL RECORD</Text>
       </View>
     </View>
   )

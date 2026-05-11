@@ -29,7 +29,7 @@ export default function LoginScreen() {
     >
       <View style={styles.inner}>
         <Text style={styles.logo}>🧭</Text>
-        <Text style={styles.title}>Panoply</Text>
+        <Text style={styles.title}>Okuji</Text>
         <Text style={styles.subtitle}>Your passport to real experiences</Text>
 
         <TextInput

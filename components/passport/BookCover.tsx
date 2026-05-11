@@ -76,7 +76,7 @@ export function BookCover({ passport, onOpen }: Props) {
         <View style={styles.midRule} />
 
         {/* Brand */}
-        <Text style={styles.brand}>PANOPLY</Text>
+        <Text style={styles.brand}>OKUJI</Text>
 
         {/* Bottom decorative rule */}
         <View style={styles.decorativeRule} />

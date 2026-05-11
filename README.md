@@ -1,6 +1,6 @@
 # Okuji — Internal Technical Reference
 
-> **Naming note**: The product is being rebranded to **Okuji**. The codebase, database tables, environment variables, and npm package names still say **Panoply** throughout. No code rename has been performed yet; this document uses "Okuji" for the product and "Panoply" when referring to specific code identifiers.
+> **Naming note**: The product is being rebranded to **Okuji**. The codebase, database tables, environment variables, and npm package names still say **Okuji** throughout. No code rename has been performed yet; this document uses "Okuji" for the product and "Okuji" when referring to specific code identifiers.
 
 ---
 
@@ -11,8 +11,8 @@ Okuji is a physical-world passport platform. A **passport** is a printed booklet
 The system has three distinct user populations:
 
 - **Visitors / collectors** — use the mobile app to discover and stamp passports
-- **Institutional managers / individual creators** — use PanoplyConnect to manage passports, distribute them to employees, and view completions
-- **Designers** — use PanoplyDesigner to lay out passport pages, position stamp boxes, and publish passports
+- **Institutional managers / individual creators** — use OkujiConnect to manage passports, distribute them to employees, and view completions
+- **Designers** — use OkujiDesigner to lay out passport pages, position stamp boxes, and publish passports
 
 ---
 
@@ -28,23 +28,23 @@ PanTest/                         ← repo root; also the Expo mobile app
 ├── supabase/
 │   ├── functions/               ← Deno edge functions
 │   └── migrations/              ← Numbered SQL migrations for mobile schema
-├── PanoplyConnect/              ← Next.js 14 B2B portal (separate app)
+├── OkujiConnect/              ← Next.js 14 B2B portal (separate app)
 │   ├── app/                     ← App Router pages
 │   ├── lib/                     ← Connect-specific utilities
 │   └── supabase/migrations/     ← Additional migrations for Connect tables
-├── PanoplyDesigner/             ← Next.js 14 creator tool (separate app)
+├── OkujiDesigner/             ← Next.js 14 creator tool (separate app)
 │   └── app/                     ← App Router pages
 └── docs/
     └── CLAUDE_CODE_HANDOFF.md   ← Wireframe notes for Employee Terminal & Designer v1
 ```
 
-All three apps share one Supabase project. PanoplyDesigner may have its own separate Supabase project for its working state (not confirmed).
+All three apps share one Supabase project. OkujiDesigner may have its own separate Supabase project for its working state (not confirmed).
 
 ---
 
 ## 3. Technology Stack
 
-| Layer | Mobile App | PanoplyConnect | PanoplyDesigner |
+| Layer | Mobile App | OkujiConnect | OkujiDesigner |
 |---|---|---|---|
 | Framework | Expo ~54 / React Native 0.76.9 | Next.js 14.2 (App Router) | Next.js 14.2 (App Router) |
 | Styling | NativeWind ^4 (Tailwind) | Tailwind CSS | Tailwind CSS |
@@ -89,7 +89,7 @@ PostGIS is enabled. A `verify_radius` function checks whether submitted GPS fall
 
 `stamp_slots` — designer-only layout elements that position stamp boxes on a page using **percentage** coordinates (`pos_x`, `pos_y`, `width_pct`, `height_pct`). These are separate from the absolute-pixel `box_x/y/width/height` fields on `stops` which the mobile app and PDF renderer use.
 
-### Connect tables (PanoplyConnect/supabase/migrations/002)
+### Connect tables (OkujiConnect/supabase/migrations/002)
 
 | Table | Purpose |
 |---|---|
@@ -109,9 +109,9 @@ PostGIS is enabled. A `verify_radius` function checks whether submitted GPS fall
 
 ### Session handling
 
-PanoplyConnect's middleware calls `supabase.auth.getSession()` (no network call, reads the cookie) for routing decisions. The actual security check (`getUser()`) happens in server components / layouts running in Node.js. This is intentional — `getUser()` makes an outbound Supabase call that fails unreliably in the Edge Runtime.
+OkujiConnect's middleware calls `supabase.auth.getSession()` (no network call, reads the cookie) for routing decisions. The actual security check (`getUser()`) happens in server components / layouts running in Node.js. This is intentional — `getUser()` makes an outbound Supabase call that fails unreliably in the Edge Runtime.
 
-### Role detection (`PanoplyConnect/lib/roles.ts`)
+### Role detection (`OkujiConnect/lib/roles.ts`)
 
 Five roles are detected at runtime, not stored in a single column:
 
@@ -185,7 +185,7 @@ Precise coordinates are **never stored**. After verification, the edge function 
 
 ### Visitor code flow
 
-For Tier 4, `app/passport/stamp/[stopId].tsx` shows a short visitor code modal. The visitor reads this code to an on-site employee. The employee enters it in the Employee Terminal in PanoplyConnect to authorize the stamp.
+For Tier 4, `app/passport/stamp/[stopId].tsx` shows a short visitor code modal. The visitor reads this code to an on-site employee. The employee enters it in the Employee Terminal in OkujiConnect to authorize the stamp.
 
 ---
 
@@ -203,7 +203,7 @@ Sentry is integrated for crash reporting (`@sentry/react-native ^5.22`).
 
 ---
 
-## 9. PanoplyConnect — Institutional Portal
+## 9. OkujiConnect — Institutional Portal
 
 Next.js 14 App Router. Route groups:
 
@@ -232,7 +232,7 @@ Six navigation cards. Role-sensitive metrics: platform admins see system-wide co
 
 ---
 
-## 10. PanoplyDesigner — Creator Tool
+## 10. OkujiDesigner — Creator Tool
 
 Next.js 14. Uses `@anthropic-ai/sdk ^0.39` — Claude is integrated for some creator-assistance feature (exact scope not fully mapped; likely copy generation or layout suggestions).
 
@@ -258,7 +258,7 @@ Called on passport page completion. Generates a token in MCM-XXXX-XX format and 
 
 ## 12. PDF Generation (Print-for-Kids)
 
-Route: `PanoplyConnect/app/api/passports/[id]/print-pdf/route.tsx`
+Route: `OkujiConnect/app/api/passports/[id]/print-pdf/route.tsx`
 
 Uses `@react-pdf/renderer` server-side via `renderToBuffer()`. Produces a portrait 8.5"×11" PDF (612×792 pt) where each sheet holds **two slots** — cut along y=396, fold guide at x=306.
 
@@ -302,7 +302,7 @@ Tables added after the initial TypeScript types were generated return `never` fr
 | `EXPO_PUBLIC_SUPABASE_ANON_KEY` | Public anon key |
 | `EXPO_PUBLIC_SENTRY_DSN` | Sentry project DSN |
 
-### PanoplyConnect (`PanoplyConnect/.env.local`)
+### OkujiConnect (`OkujiConnect/.env.local`)
 
 | Variable | Purpose |
 |---|---|
@@ -313,7 +313,7 @@ Tables added after the initial TypeScript types were generated return `never` fr
 | `STRIPE_WEBHOOK_SECRET` | Stripe webhook signing secret |
 | `RESEND_API_KEY` | Resend email key |
 
-### PanoplyDesigner (`PanoplyDesigner/.env.local`)
+### OkujiDesigner (`OkujiDesigner/.env.local`)
 
 | Variable | Purpose |
 |---|---|
@@ -328,9 +328,9 @@ Tables added after the initial TypeScript types were generated return `never` fr
 Migration numbering is split across two locations:
 
 - `supabase/migrations/001–004` — mobile + shared schema (passports, stops, stamps, stamp_slots, accolades, etc.)
-- `PanoplyConnect/supabase/migrations/002` — Connect-specific tables (acquisitions, presence_sessions, etc.)
+- `OkujiConnect/supabase/migrations/002` — Connect-specific tables (acquisitions, presence_sessions, etc.)
 
-To apply: `supabase db push` from the repo root for mobile migrations; equivalent command from `PanoplyConnect/` for Connect migrations. Confirm with `supabase migration list` that all migrations show as applied before deploying edge functions.
+To apply: `supabase db push` from the repo root for mobile migrations; equivalent command from `OkujiConnect/` for Connect migrations. Confirm with `supabase migration list` that all migrations show as applied before deploying edge functions.
 
 Edge functions are deployed with `supabase functions deploy <function-name>`.
 
@@ -343,12 +343,12 @@ Edge functions are deployed with `supabase functions deploy <function-name>`.
 cd /path/to/PanTest
 npx expo start
 
-# PanoplyConnect
-cd PanoplyConnect
+# OkujiConnect
+cd OkujiConnect
 npm run dev          # port 3000
 
-# PanoplyDesigner
-cd PanoplyDesigner
+# OkujiDesigner
+cd OkujiDesigner
 npm run dev          # port 3001 (or as configured)
 
 # Type-check mobile
@@ -366,7 +366,7 @@ There is no root-level script that starts all three apps simultaneously. Each mu
 
 ### Coordinate system split
 
-`stamp_slots` (migration 004) uses percentage-based positioning (`pos_x`, `pos_y` as 0–100). `stops` uses absolute artboard pixels (`box_x`, `box_y`). It is unclear which system the designer writes when a user drags a box — the code in PanoplyDesigner was not fully traced. These two systems may be redundant or may serve different purposes (layout grid vs. tap-hit-test region).
+`stamp_slots` (migration 004) uses percentage-based positioning (`pos_x`, `pos_y` as 0–100). `stops` uses absolute artboard pixels (`box_x`, `box_y`). It is unclear which system the designer writes when a user drags a box — the code in OkujiDesigner was not fully traced. These two systems may be redundant or may serve different purposes (layout grid vs. tap-hit-test region).
 
 ### Institutional manager identity
 
@@ -374,11 +374,11 @@ There is no root-level script that starts all three apps simultaneously. Each mu
 
 ### Designer Supabase project
 
-PanoplyDesigner has its own `package.json` and Supabase client configuration. It may connect to a separate Supabase project (not the shared mobile/Connect project). If so, passport data published from Designer must be synced or copied to the shared project — the mechanism for this is not visible in the codebase.
+OkujiDesigner has its own `package.json` and Supabase client configuration. It may connect to a separate Supabase project (not the shared mobile/Connect project). If so, passport data published from Designer must be synced or copied to the shared project — the mechanism for this is not visible in the codebase.
 
 ### Analytics
 
-The analytics page in PanoplyConnect is a stub. No aggregation queries, materialized views, or reporting pipeline exists.
+The analytics page in OkujiConnect is a stub. No aggregation queries, materialized views, or reporting pipeline exists.
 
 ### Billing completeness
 
@@ -398,12 +398,12 @@ It appears `stamp_slots` was added (migration 004) as a designer-facing layout p
 
 ### Debug routes
 
-`PanoplyConnect/app/api/auth-debug/route.ts` and `/api/middleware-debug` are present in the codebase. They must be removed or protected before production deployment.
+`OkujiConnect/app/api/auth-debug/route.ts` and `/api/middleware-debug` are present in the codebase. They must be removed or protected before production deployment.
 
 ### `supabase as any` proliferation
 
 Multiple tables lack TypeScript type coverage in the generated Supabase client. Any query to a newer table requires the `(supabase as any)` cast. Running `supabase gen types typescript` and updating `types/supabase.ts` would eliminate this.
 
-### Rebrand (Panoply → Okuji)
+### Rebrand (Okuji → Okuji)
 
-No code has been renamed. Every package name, table name, CSS class prefix (`panoply-`), component name, and route (`/creator/`) still uses "Panoply." The rebrand is pending a coordinated rename pass across all three apps.
+No code has been renamed. Every package name, table name, CSS class prefix (`okuji-`), component name, and route (`/creator/`) still uses "Okuji." The rebrand is pending a coordinated rename pass across all three apps.

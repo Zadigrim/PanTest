@@ -42,7 +42,7 @@ export function PassportCover({ passport, width, height }: Props) {
           <Text style={styles.subtitle} numberOfLines={2}>{passport.description}</Text>
         )}
         <View style={styles.bottomLine} />
-        <Text style={styles.brand}>PANOPLY</Text>
+        <Text style={styles.brand}>OKUJI</Text>
       </View>
     </View>
   )

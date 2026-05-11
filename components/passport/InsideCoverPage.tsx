@@ -37,7 +37,7 @@ export function InsideCoverPage({ passport, collectorPassport, bearerName }: Pro
 
       {/* Header band */}
       <View style={styles.header}>
-        <Text style={styles.headerText}>PANOPLY PASSPORT</Text>
+        <Text style={styles.headerText}>OKUJI PASSPORT</Text>
         <View style={styles.headerRule} />
       </View>
 
@@ -77,7 +77,7 @@ export function InsideCoverPage({ passport, collectorPassport, bearerName }: Pro
         <View style={styles.noticeBox}>
           <Text style={styles.noticeText}>
             This passport is the exclusive property of the bearer and is
-            issued to record participation in the Panoply programme.
+            issued to record participation in the Okuji programme.
             Report loss or damage immediately.
           </Text>
         </View>
@@ -91,7 +91,7 @@ export function InsideCoverPage({ passport, collectorPassport, bearerName }: Pro
 
       {/* Footer */}
       <View style={styles.footer}>
-        <Text style={styles.footerText}>panoply.app</Text>
+        <Text style={styles.footerText}>okuji.app</Text>
       </View>
     </View>
   )
