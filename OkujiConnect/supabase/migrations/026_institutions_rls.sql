@@ -15,5 +15,6 @@ ALTER TABLE public.institutions ENABLE ROW LEVEL SECURITY;
 
 -- Public read: institution names and metadata are non-sensitive and needed
 -- by collectors viewing passports, the marketplace, and the print-PDF route.
+DROP POLICY IF EXISTS "institutions_public_read" ON public.institutions;
 CREATE POLICY "institutions_public_read" ON public.institutions
   FOR SELECT USING (true);
