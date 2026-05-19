@@ -11,7 +11,9 @@
       "resizeMode": "contain",
       "backgroundColor": "#0D1B2A"
     },
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.panoply.app",
@@ -41,7 +43,8 @@
       "bundler": "metro"
     },
     "plugins": [
-      "expo-router"
+      "expo-router",
+      "@sentry/react-native"
     ],
     "scheme": "panoply",
     "experiments": {
