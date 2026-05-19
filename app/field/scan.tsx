@@ -1,5 +1,5 @@
 // QR scanner for employee field mode.
-// Scans a QR encoding PANOPLY:{userId}:{stopId}
+// Scans a QR encoding OKUJI:{userId}:{stopId}
 import React, { useState, useEffect, useRef } from 'react'
 import {
   View, Text, TouchableOpacity, StyleSheet, TextInput,
@@ -8,9 +8,9 @@ import {
 import { Camera, CameraView } from 'expo-camera'
 import { router } from 'expo-router'
 
-function parsePanoplyQr(raw: string): { userId: string; stopId: string } | null {
+function parseOkujiQr(raw: string): { userId: string; stopId: string } | null {
   const parts = raw.split(':')
-  if (parts.length !== 3 || parts[0] !== 'PANOPLY') return null
+  if (parts.length !== 3 || parts[0] !== 'OKUJI') return null
   const [, userId, stopId] = parts
   if (!userId || !stopId) return null
   return { userId, stopId }
@@ -32,11 +32,11 @@ export default function ScanScreen() {
     if (scanned) return
     setScanned(true)
 
-    const parsed = parsePanoplyQr(data)
+    const parsed = parseOkujiQr(data)
     if (!parsed) {
       Alert.alert(
         'Unrecognized code',
-        'This QR does not appear to be a Panoply visitor code.',
+        'This QR does not appear to be a Okuji visitor code.',
         [{ text: 'Try again', onPress: () => setScanned(false) }]
       )
       return
@@ -50,8 +50,8 @@ export default function ScanScreen() {
 
   const handleManualSubmit = () => {
     const raw = manualText.trim().toUpperCase()
-    // Manual entry: PANOPLY:userId:stopId or just userId:stopId
-    const parsed = parsePanoplyQr(raw) ?? parsePanoplyQr(`PANOPLY:${raw}`)
+    // Manual entry: OKUJI:userId:stopId or just userId:stopId
+    const parsed = parseOkujiQr(raw) ?? parseOkujiQr(`OKUJI:${raw}`)
     if (!parsed) {
       Alert.alert('Invalid format', 'Enter the code as shown on the visitor\'s screen.')
       return
@@ -75,7 +75,7 @@ export default function ScanScreen() {
             style={styles.manualInput}
             value={manualText}
             onChangeText={setManualText}
-            placeholder="PANOPLY:userId:stopId"
+            placeholder="OKUJI:userId:stopId"
             placeholderTextColor="#555"
             autoCapitalize="characters"
             autoCorrect={false}

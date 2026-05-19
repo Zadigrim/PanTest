@@ -59,7 +59,7 @@ export interface Passport {
   updated_at: string
 }
 
-// ── Designer element types (mirror of PanoplyConnect lib/design/types.ts) ────
+// ── Designer element types (mirror of OkujiConnect lib/design/types.ts) ────
 
 export interface TextDesignerEl {
   id: string; type: 'text'

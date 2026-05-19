@@ -20,7 +20,7 @@ export function TokenScanner({ onTokenScanned }: Props) {
     if (isValidTokenFormat(code)) {
       onTokenScanned(code)
     } else {
-      Alert.alert('Invalid QR', 'This QR code is not a Panoply redemption token.', [
+      Alert.alert('Invalid QR', 'This QR code is not a Okuji redemption token.', [
         { text: 'Try Again', onPress: () => setScanned(false) },
       ])
     }

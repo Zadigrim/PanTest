@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "Panoply",
-    "slug": "panoply",
+    "name": "Okuji",
+    "slug": "okuji",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -16,12 +16,12 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.panoply.app",
+      "bundleIdentifier": "com.okuji.app",
       "infoPlist": {
-        "NSCameraUsageDescription": "Panoply uses your camera to scan QR codes at locations.",
-        "NSLocationWhenInUseUsageDescription": "Panoply uses your location only at the moment you stamp a location — never in the background.",
-        "NSMicrophoneUsageDescription": "Panoply uses your microphone for voice journal entries.",
-        "NSPhotoLibraryUsageDescription": "Panoply accesses your photos for journal entries."
+        "NSCameraUsageDescription": "Okuji uses your camera to scan QR codes at locations.",
+        "NSLocationWhenInUseUsageDescription": "Okuji uses your location only at the moment you stamp a location — never in the background.",
+        "NSMicrophoneUsageDescription": "Okuji uses your microphone for voice journal entries.",
+        "NSPhotoLibraryUsageDescription": "Okuji accesses your photos for journal entries."
       }
     },
     "android": {
@@ -29,7 +29,7 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0D1B2A"
       },
-      "package": "com.panoply.app",
+      "package": "com.okuji.app",
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.ACCESS_FINE_LOCATION",
@@ -44,9 +44,11 @@
     },
     "plugins": [
       "expo-router",
-      "@sentry/react-native"
+      "@sentry/react-native",
+      "expo-audio",
+      "expo-video"
     ],
-    "scheme": "panoply",
+    "scheme": "okuji",
     "experiments": {
       "typedRoutes": true
     }

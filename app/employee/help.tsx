@@ -26,7 +26,7 @@ const ITEMS = [
   },
   {
     q: 'Who do I contact for issues?',
-    a: 'Contact your venue manager or reach Panoply support at support@panoply.app.',
+    a: 'Contact your venue manager or reach Okuji support at nathan.app.',
   },
 ]
 

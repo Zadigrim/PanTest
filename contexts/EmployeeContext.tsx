@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import { supabase } from '../lib/supabase'
 import type { EmployeeAuthorization } from '../types'
 
-const EMPLOYEE_MODE_KEY = '@panoply/employee_mode'
+const EMPLOYEE_MODE_KEY = '@okuji/employee_mode'
 
 interface EmployeeContextValue {
   isEmployee: boolean
