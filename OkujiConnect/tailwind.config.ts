@@ -11,6 +11,20 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        // Okuji palette — canonical tokens
+        // Do not add tint scales. Softer tones come from opacity over ink or paper.
+        // Any color outside this set must be either a functional exception or a bug.
+        ink: '#1f1d1a',
+        paper: '#f6f1e6',
+        cream: '#f5f0e8',
+        muted: '#6b6356',
+        hairline: '#c8bfa9',
+        accent: '#c9a84c',
+        green: '#1d9e75',
+        red: '#9b2335',
+        blue: '#2d5a8e',
+        navy: '#0d1b2a',
+        // Legacy okuji-* palette — retained during migration to canonical tokens.
         'okuji-navy':    '#0D1B2A',
         'okuji-teal':    '#1D9E75',
         'okuji-teal-dk': '#0F6E56',
