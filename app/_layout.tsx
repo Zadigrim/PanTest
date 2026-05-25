@@ -1,8 +1,10 @@
-import { useEffect } from 'react'
-import { Stack } from 'expo-router'
+import { useEffect, useState } from 'react'
+import { Stack, useRouter, useSegments } from 'expo-router'
+import * as SplashScreen from 'expo-splash-screen'
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import { StyleSheet } from 'react-native'
 import * as Sentry from '@sentry/react-native'
+import type { Session } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
 import { EmployeeProvider } from '../contexts/EmployeeContext'
 
@@ -11,7 +13,45 @@ Sentry.init({
   enableNativeFramesTracking: true,
 })
 
+// Hold the native splash until we've resolved auth state.
+SplashScreen.preventAutoHideAsync()
+
 export default function RootLayout() {
+  const [session, setSession] = useState<Session | null>(null)
+  const [loading, setLoading] = useState(true)
+  const segments = useSegments()
+  const router = useRouter()
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      setSession(data.session)
+      setLoading(false)
+    })
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      setSession(nextSession)
+    })
+
+    return () => subscription.unsubscribe()
+  }, [])
+
+  // Centralized auth gate: route into the right group on auth changes.
+  useEffect(() => {
+    if (loading) return
+    const inAuthGroup = segments[0] === '(auth)'
+    if (!session && !inAuthGroup) {
+      router.replace('/(auth)/login')
+    } else if (session && inAuthGroup) {
+      router.replace('/(tabs)')
+    }
+  }, [session, segments, loading, router])
+
+  useEffect(() => {
+    if (!loading) SplashScreen.hideAsync()
+  }, [loading])
+
+  if (loading) return null // native splash stays visible
+
   return (
     <GestureHandlerRootView style={styles.root}>
       <EmployeeProvider>

@@ -144,6 +144,7 @@ export interface CollectorPassport {
   user_id: string
   passport_id: string
   acquired_at: string
+  last_used_at: string | null
   completed_at: string | null
 }
 

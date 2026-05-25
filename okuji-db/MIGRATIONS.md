@@ -261,5 +261,21 @@ institutions, passport_autosaves, print_jobs
 
 ---
 
+## 004 — Collector passport last_used_at
+
+**Status:** Incremental
+
+**Purpose:** Adds `last_used_at` (timestamptz, nullable) to `collector_passports`
+so the mobile "My Passports" list can sort recently-used passports first, with
+never-used ones falling to the bottom.
+
+**Why:** "Used" means a stamp was recorded against that collector passport. The
+migration (1) backfills `last_used_at` from the most recent existing stamp per
+collector passport, and (2) installs an `AFTER INSERT` trigger on `stamps`
+(`stamps_touch_last_used`) that bumps the owning collector passport's
+`last_used_at` whenever a newer stamp is recorded.
+
+---
+
 *This document is maintained as part of the Okuji development process. Every new
 migration must include an entry here before the PR is merged.*

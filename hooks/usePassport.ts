@@ -70,6 +70,7 @@ export function useCollectorPassports() {
       .from('collector_passports')
       .select('*, passport:passports(*)')
       .eq('user_id', user.id)
+      .order('last_used_at', { ascending: false, nullsFirst: false })
       .order('acquired_at', { ascending: false })
 
     if (mountedRef.current) {

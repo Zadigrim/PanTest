@@ -1,5 +1,5 @@
 import { Tabs } from 'expo-router'
-import { Text } from 'react-native'
+import { Compass, Library, User, Tag } from 'lucide-react-native'
 import { useEmployeeContext } from '../../contexts/EmployeeContext'
 
 export default function TabsLayout() {
@@ -21,21 +21,21 @@ export default function TabsLayout() {
         name="index"
         options={{
           title: 'Discover',
-          tabBarIcon: ({ color }) => <Text style={{ fontSize: 20, color }}>🗺</Text>,
+          tabBarIcon: ({ color, size }) => <Compass color={color} size={size} />,
         }}
       />
       <Tabs.Screen
         name="my-passports"
         options={{
           title: 'My Passports',
-          tabBarIcon: ({ color }) => <Text style={{ fontSize: 20, color }}>📖</Text>,
+          tabBarIcon: ({ color, size }) => <Library color={color} size={size} />,
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
           title: 'Profile',
-          tabBarIcon: ({ color }) => <Text style={{ fontSize: 20, color }}>👤</Text>,
+          tabBarIcon: ({ color, size }) => <User color={color} size={size} />,
         }}
       />
       <Tabs.Screen
@@ -43,7 +43,7 @@ export default function TabsLayout() {
         options={{
           title: 'Field',
           href: showField ? undefined : null,
-          tabBarIcon: ({ color }) => <Text style={{ fontSize: 20, color }}>🏷</Text>,
+          tabBarIcon: ({ color, size }) => <Tag color={color} size={size} />,
         }}
       />
     </Tabs>
