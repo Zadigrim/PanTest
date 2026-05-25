@@ -4,6 +4,7 @@ import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert, ActivityIndi
 import { router } from 'expo-router'
 import { supabase, getCurrentUser } from '../../lib/supabase'
 import type { Passport } from '../../types'
+import { palette } from '../../lib/colors'
 
 export default function DesignerIndexScreen() {
   const [passports, setPassports] = useState<Passport[]>([])
@@ -38,7 +39,7 @@ export default function DesignerIndexScreen() {
     }
   }
 
-  if (loading) return <View style={styles.centered}><ActivityIndicator color="#C9A84C" /></View>
+  if (loading) return <View style={styles.centered}><ActivityIndicator color={palette.accent} /></View>
 
   return (
     <View style={styles.container}>
@@ -81,12 +82,12 @@ const styles = StyleSheet.create({
   swatch: { width: 56, height: 64, alignItems: 'center', justifyContent: 'center' },
   swatchEmoji: { fontSize: 22 },
   rowBody: { flex: 1, padding: 12 },
-  rowTitle: { fontSize: 15, fontWeight: '700', color: '#0D1B2A' },
+  rowTitle: { fontSize: 15, fontWeight: '700', color: palette.navy },
   rowStatus: { fontSize: 12, color: '#888', marginTop: 2 },
   arrow: { fontSize: 22, color: '#ccc', paddingHorizontal: 14 },
   createBtn: {
-    backgroundColor: '#0D1B2A', borderRadius: 10, padding: 16,
+    backgroundColor: palette.navy, borderRadius: 10, padding: 16,
     alignItems: 'center', marginTop: 8,
   },
-  createBtnText: { color: '#F5F0E8', fontWeight: '700', fontSize: 15 },
+  createBtnText: { color: palette.cream, fontWeight: '700', fontSize: 15 },
 })

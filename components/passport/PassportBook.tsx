@@ -14,6 +14,7 @@ import { GestureDetector, Gesture } from 'react-native-gesture-handler'
 import { PassportCover } from './PassportCover'
 import { PassportPage } from './PassportPage'
 import type { Passport, PassportPage as PassportPageType, Stop, Stamp, StampSlotState, StampPlacement } from '../../types'
+import { palette } from '../../lib/colors'
 
 interface Props {
   passport: Passport
@@ -170,7 +171,7 @@ const styles = StyleSheet.create({
   },
   navArrow: {
     fontSize: 28,
-    color: '#C9A84C',
+    color: palette.accent,
     fontFamily: 'serif',
   },
   pageIndicator: {

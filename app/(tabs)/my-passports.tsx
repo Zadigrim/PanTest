@@ -3,6 +3,7 @@ import React, { useEffect } from 'react'
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, Image } from 'react-native'
 import { router, useFocusEffect } from 'expo-router'
 import { useCollectorPassports } from '../../hooks/usePassport'
+import { palette } from '../../lib/colors'
 
 export default function MyPassportsScreen() {
   const { passports, loading, reload } = useCollectorPassports()
@@ -14,7 +15,7 @@ export default function MyPassportsScreen() {
   if (loading) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator color="#C9A84C" />
+        <ActivityIndicator color={palette.accent} />
       </View>
     )
   }
@@ -93,12 +94,12 @@ const styles = StyleSheet.create({
   },
   spineEmblem: { fontSize: 22 },
   rowBody: { flex: 1, padding: 12 },
-  title: { fontSize: 15, fontWeight: '700', color: '#0D1B2A', fontFamily: 'serif' },
+  title: { fontSize: 15, fontWeight: '700', color: palette.navy, fontFamily: 'serif' },
   desc: { fontSize: 12, color: '#888', fontStyle: 'italic', marginTop: 2 },
-  acquired: { fontSize: 11, color: '#1D9E75', marginTop: 4 },
+  acquired: { fontSize: 11, color: palette.green, marginTop: 4 },
   arrow: { fontSize: 22, color: '#ccc', paddingHorizontal: 14 },
   empty: { padding: 60, alignItems: 'center', gap: 8 },
   emptyIcon: { fontSize: 48 },
   emptyText: { fontSize: 16, color: '#999' },
-  emptyLink: { fontSize: 14, color: '#1D9E75', fontWeight: '600' },
+  emptyLink: { fontSize: 14, color: palette.green, fontWeight: '600' },
 })

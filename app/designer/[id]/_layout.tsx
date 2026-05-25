@@ -8,6 +8,7 @@ import {
 import { Slot, router, useLocalSearchParams, usePathname } from 'expo-router'
 import { supabase, getCurrentUser } from '../../../lib/supabase'
 import type { Passport, PassportPage } from '../../../types'
+import { palette } from '../../../lib/colors'
 
 // ── Designer context ──────────────────────────────────────────────────────────
 export type SelectedType = 'slot' | 'stop' | 'section' | null
@@ -34,13 +35,13 @@ const Ctx = createContext<DesignerCtx>({
 })
 export function useDesigner() { return useContext(Ctx) }
 
-const INK     = '#1f1d1a'
-const PAPER   = '#f6f1e6'
-const MUTED   = '#6b6356'
-const HAIRLINE = '#c8bfa9'
-const ACCENT  = '#c9a84c'
-const GREEN   = '#1d9e75'
-const NAVY    = '#0d1b2a'
+const INK     = palette.ink
+const PAPER   = palette.paper
+const MUTED   = palette.muted
+const HAIRLINE = palette.hairline
+const ACCENT  = palette.accent
+const GREEN   = palette.green
+const NAVY    = palette.navy
 
 const RAIL_W     = 172
 const INSPECT_W  = 256

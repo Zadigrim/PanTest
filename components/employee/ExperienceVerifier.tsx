@@ -4,6 +4,7 @@
 import React, { useState } from 'react'
 import { View, Text, TouchableOpacity, TextInput, StyleSheet, Alert } from 'react-native'
 import type { Stop } from '../../types'
+import { palette } from '../../lib/colors'
 
 interface Props {
   stop: Stop
@@ -75,7 +76,7 @@ const styles = StyleSheet.create({
   stopName: {
     fontSize: 22,
     fontWeight: '700',
-    color: '#0D1B2A',
+    color: palette.navy,
     marginBottom: 4,
     fontFamily: 'serif',
   },
@@ -118,7 +119,7 @@ const styles = StyleSheet.create({
     textAlignVertical: 'top',
   },
   verifyBtn: {
-    backgroundColor: '#1D9E75',
+    backgroundColor: palette.green,
     borderRadius: 12,
     padding: 18,
     alignItems: 'center',

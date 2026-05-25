@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react'
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from 'react-native'
 import { CameraView, useCameraPermissions } from 'expo-camera'
 import { isValidTokenFormat } from '../../lib/qr'
+import { palette } from '../../lib/colors'
 
 interface Props {
   onTokenScanned: (code: string) => void
@@ -102,7 +103,7 @@ const styles = StyleSheet.create({
     width: 220,
     height: 220,
     borderWidth: 2,
-    borderColor: '#C9A84C',
+    borderColor: palette.accent,
     borderRadius: 12,
     backgroundColor: 'transparent',
   },
@@ -139,7 +140,7 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
   manualBtn: {
-    backgroundColor: '#0D1B2A',
+    backgroundColor: palette.navy,
     borderRadius: 8,
     paddingHorizontal: 16,
     justifyContent: 'center',
@@ -147,6 +148,6 @@ const styles = StyleSheet.create({
   manualBtnText: { color: '#fff', fontWeight: '600' },
   permissionContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
   permissionText: { fontSize: 15, color: '#333', textAlign: 'center', marginBottom: 16 },
-  permissionBtn: { backgroundColor: '#0D1B2A', borderRadius: 8, padding: 12 },
+  permissionBtn: { backgroundColor: palette.navy, borderRadius: 8, padding: 12 },
   permissionBtnText: { color: '#fff', fontWeight: '600' },
 })

@@ -1,11 +1,12 @@
 // Employee Terminal — Help screen (placeholder).
 import React from 'react'
 import { View, Text, StyleSheet, ScrollView } from 'react-native'
+import { palette } from '../../lib/colors'
 
-const INK   = '#1f1d1a'
-const MUTED = '#6b6356'
-const ACCENT = '#c9a84c'
-const HAIRLINE = '#c8bfa9'
+const INK   = palette.ink
+const MUTED = palette.muted
+const ACCENT = palette.accent
+const HAIRLINE = palette.hairline
 
 const ITEMS = [
   {

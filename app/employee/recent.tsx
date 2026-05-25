@@ -5,12 +5,13 @@ import {
 } from 'react-native'
 import { router } from 'expo-router'
 import { supabase, getCurrentUser } from '../../lib/supabase'
+import { palette } from '../../lib/colors'
 
-const INK     = '#1f1d1a'
-const MUTED   = '#6b6356'
-const ACCENT  = '#c9a84c'
-const GREEN   = '#1d9e75'
-const HAIRLINE = '#c8bfa9'
+const INK     = palette.ink
+const MUTED   = palette.muted
+const ACCENT  = palette.accent
+const GREEN   = palette.green
+const HAIRLINE = palette.hairline
 
 interface Item {
   id: string

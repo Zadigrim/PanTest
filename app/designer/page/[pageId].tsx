@@ -7,6 +7,7 @@ import {
 import { useLocalSearchParams, router } from 'expo-router'
 import { supabase } from '../../../lib/supabase'
 import type { PassportPage, Stop } from '../../../types'
+import { palette } from '../../../lib/colors'
 
 export default function PageEditorScreen() {
   const { pageId } = useLocalSearchParams<{ pageId: string }>()
@@ -62,7 +63,7 @@ export default function PageEditorScreen() {
         stop_order: stops.length + 1,
         name: 'New Stop',
         stamp_icon: '📍',
-        stamp_color: '#1D9E75',
+        stamp_color: palette.green,
         stamp_shape: 'circle',
         stamp_smudge: 'light',
         evidence_tier: 3,
@@ -91,7 +92,7 @@ export default function PageEditorScreen() {
   }, [])
 
   if (loading || !page) {
-    return <View style={styles.centered}><ActivityIndicator color="#C9A84C" /></View>
+    return <View style={styles.centered}><ActivityIndicator color={palette.accent} /></View>
   }
 
   return (
@@ -189,7 +190,7 @@ const styles = StyleSheet.create({
     shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.06, shadowRadius: 3, elevation: 1,
   },
-  sectionTitle: { fontSize: 15, fontWeight: '700', color: '#0D1B2A', marginBottom: 12 },
+  sectionTitle: { fontSize: 15, fontWeight: '700', color: palette.navy, marginBottom: 12 },
   label: { fontSize: 12, color: '#888', marginBottom: 4, marginTop: 10 },
   input: {
     borderWidth: 1, borderColor: '#e0e0e0', borderRadius: 8,
@@ -197,11 +198,11 @@ const styles = StyleSheet.create({
   },
   multiline: { minHeight: 72, textAlignVertical: 'top' },
   saveBtn: {
-    backgroundColor: '#0D1B2A', borderRadius: 8, padding: 12,
+    backgroundColor: palette.navy, borderRadius: 8, padding: 12,
     alignItems: 'center', marginTop: 16,
   },
   btnDisabled: { opacity: 0.6 },
-  saveBtnText: { color: '#F5F0E8', fontWeight: '700', fontSize: 14 },
+  saveBtnText: { color: palette.cream, fontWeight: '700', fontSize: 14 },
   stopRow: {
     flexDirection: 'row', alignItems: 'center',
     borderBottomWidth: 1, borderBottomColor: '#f0f0f0',
@@ -223,7 +224,7 @@ const styles = StyleSheet.create({
   },
   stopEmoji: { fontSize: 18 },
   stopBody: { flex: 1 },
-  stopName: { fontSize: 14, fontWeight: '600', color: '#0D1B2A' },
+  stopName: { fontSize: 14, fontWeight: '600', color: palette.navy },
   stopLocation: { fontSize: 11, color: '#888', fontStyle: 'italic' },
   stopMeta: { fontSize: 10, color: '#bbb', marginTop: 1 },
   stopArrow: { fontSize: 18, color: '#ccc', paddingHorizontal: 4 },
@@ -232,5 +233,5 @@ const styles = StyleSheet.create({
   },
   deleteBtnText: { fontSize: 14, color: '#C0392B' },
   addBtn: { paddingVertical: 14, alignItems: 'center' },
-  addBtnText: { color: '#1D9E75', fontWeight: '600', fontSize: 14 },
+  addBtnText: { color: palette.green, fontWeight: '600', fontSize: 14 },
 })

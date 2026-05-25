@@ -7,11 +7,12 @@ import { router } from 'expo-router'
 import { usePublishedPassports, acquirePassport } from '../../hooks/usePassport'
 import { getCurrentUser } from '../../lib/supabase'
 import type { Passport } from '../../types'
+import { palette } from '../../lib/colors'
 
-const NAVY = '#0D1B2A'
-const GOLD = '#C9A84C'
-const GREEN = '#1D9E75'
-const CREAM = '#F5F0E8'
+const NAVY = palette.navy
+const GOLD = palette.accent
+const GREEN = palette.green
+const CREAM = palette.cream
 const CARD_W = 148
 const CARD_H = 210
 

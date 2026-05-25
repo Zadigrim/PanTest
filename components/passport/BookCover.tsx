@@ -6,6 +6,7 @@ import {
 } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
 import type { Passport } from '../../types'
+import { palette } from '../../lib/colors'
 
 interface Props {
   passport: Passport
@@ -14,9 +15,9 @@ interface Props {
 
 const COVER_GREEN = '#2E7D4D'
 const SPINE_ACCENT = '#1a5c33'
-const RIBBON_RED = '#9b2335'
-const CREAM = '#f6f1e6'
-const GOLD = '#c9a84c'
+const RIBBON_RED = palette.red
+const CREAM = palette.paper
+const GOLD = palette.accent
 
 export function BookCover({ passport, onOpen }: Props) {
   const { width: sw, height: sh } = useWindowDimensions()

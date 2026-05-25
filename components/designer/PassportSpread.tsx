@@ -4,11 +4,12 @@
 import React from 'react'
 import { View, Text, StyleSheet, useWindowDimensions } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
+import { palette } from '../../lib/colors'
 
-const INK      = '#1f1d1a'
-const PAPER    = '#f6f1e6'
-const HAIRLINE = '#c8bfa9'
-const ACCENT   = '#c9a84c'
+const INK      = palette.ink
+const PAPER    = palette.paper
+const HAIRLINE = palette.hairline
+const ACCENT   = palette.accent
 
 const SPREAD_RATIO = 2 / 3   // page width : height
 const MAX_PAGE_W   = 280

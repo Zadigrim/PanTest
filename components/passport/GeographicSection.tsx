@@ -3,6 +3,7 @@ import React from 'react'
 import { View, Text, StyleSheet } from 'react-native'
 import { LocationBox } from './LocationBox'
 import type { PassportPage, Stop, Stamp, StampSlotState, StampPlacement } from '../../types'
+import { palette } from '../../lib/colors'
 
 interface Props {
   page: PassportPage
@@ -80,7 +81,7 @@ const styles = StyleSheet.create({
   headerLine: {
     flex: 1,
     height: 0.5,
-    backgroundColor: '#C9A84C',
+    backgroundColor: palette.accent,
     opacity: 0.6,
   },
   headerTextContainer: {
@@ -91,7 +92,7 @@ const styles = StyleSheet.create({
     fontFamily: 'serif',
     fontSize: 15,
     fontWeight: '700',
-    color: '#0D1B2A',
+    color: palette.navy,
     letterSpacing: 2,
   },
   tagline: {
@@ -116,7 +117,7 @@ const styles = StyleSheet.create({
   prizeLabel: {
     fontSize: 9,
     letterSpacing: 1.5,
-    color: '#C9A84C',
+    color: palette.accent,
     fontWeight: '700',
     marginBottom: 2,
   },

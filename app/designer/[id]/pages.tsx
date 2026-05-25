@@ -9,11 +9,12 @@ import { useDesigner } from './_layout'
 import { PassportSpread, useSpreadDimensions } from '../../../components/designer/PassportSpread'
 import { StampSlot } from '../../../components/designer/StampSlot'
 import type { PassportPage, Stop } from '../../../types'
+import { palette } from '../../../lib/colors'
 
-const INK     = '#1f1d1a'
-const MUTED   = '#6b6356'
-const ACCENT  = '#c9a84c'
-const HAIRLINE = '#c8bfa9'
+const INK     = palette.ink
+const MUTED   = palette.muted
+const ACCENT  = palette.accent
+const HAIRLINE = palette.hairline
 
 interface SlotRecord {
   id: string
@@ -187,7 +188,7 @@ const s = StyleSheet.create({
   },
   pagePicker: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    backgroundColor: '#f5f0e8', borderTopWidth: 1, borderTopColor: HAIRLINE,
+    backgroundColor: palette.cream, borderTopWidth: 1, borderTopColor: HAIRLINE,
     paddingVertical: 8, gap: 16,
   },
   pagePickerBtn: { padding: 6 },

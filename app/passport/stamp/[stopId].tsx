@@ -9,6 +9,7 @@ import { supabase, getCurrentUser } from '../../../lib/supabase'
 import { useGPS, useStampVerification } from '../../../hooks/useGPS'
 import { StampArtwork } from '../../../components/stamp/StampArtwork'
 import type { Stop } from '../../../types'
+import { palette } from '../../../lib/colors'
 
 export default function StampScreen() {
   const { stopId, qrCodeId } = useLocalSearchParams<{ stopId: string; qrCodeId?: string }>()
@@ -112,7 +113,7 @@ export default function StampScreen() {
     setStamped(true)
   }
 
-  if (loading) return <ActivityIndicator style={styles.centered} color="#C9A84C" />
+  if (loading) return <ActivityIndicator style={styles.centered} color={palette.accent} />
 
   return (
     <View style={styles.container}>
@@ -169,16 +170,16 @@ export default function StampScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32, backgroundColor: '#fff' },
   centered: { flex: 1 },
-  name: { fontSize: 24, fontWeight: '700', color: '#0D1B2A', fontFamily: 'serif', textAlign: 'center' },
+  name: { fontSize: 24, fontWeight: '700', color: palette.navy, fontFamily: 'serif', textAlign: 'center' },
   location: { fontSize: 14, color: '#888', fontStyle: 'italic', marginTop: 4, marginBottom: 32 },
   artContainer: { marginBottom: 40 },
-  success: { fontSize: 24, color: '#1D9E75', fontWeight: '700' },
+  success: { fontSize: 24, color: palette.green, fontWeight: '700' },
   btn: {
-    backgroundColor: '#0D1B2A', borderRadius: 12, padding: 18,
+    backgroundColor: palette.navy, borderRadius: 12, padding: 18,
     paddingHorizontal: 40, alignItems: 'center',
   },
   btnDisabled: { opacity: 0.5 },
-  btnText: { color: '#F5F0E8', fontWeight: '700', fontSize: 16 },
+  btnText: { color: palette.cream, fontWeight: '700', fontSize: 16 },
   // Employee code
   codeBtn: { marginTop: 24, paddingVertical: 10, paddingHorizontal: 20 },
   codeBtnText: { fontSize: 13, color: '#aaa', textDecorationLine: 'underline' },
@@ -188,7 +189,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalSheet: {
-    backgroundColor: '#0D1B2A', borderTopLeftRadius: 20, borderTopRightRadius: 20,
+    backgroundColor: palette.navy, borderTopLeftRadius: 20, borderTopRightRadius: 20,
     padding: 32, alignItems: 'center',
   },
   modalTitle: {
@@ -197,7 +198,7 @@ const styles = StyleSheet.create({
   },
   modalCode: {
     fontSize: 56, fontFamily: 'monospace', fontWeight: '700',
-    color: '#C9A84C', letterSpacing: 8, marginBottom: 20,
+    color: palette.accent, letterSpacing: 8, marginBottom: 20,
   },
   modalHint: {
     fontSize: 14, color: '#888', textAlign: 'center', lineHeight: 20, marginBottom: 32,
@@ -205,5 +206,5 @@ const styles = StyleSheet.create({
   modalClose: {
     backgroundColor: '#152232', borderRadius: 10, paddingVertical: 14, paddingHorizontal: 40,
   },
-  modalCloseText: { color: '#F5F0E8', fontWeight: '600', fontSize: 15 },
+  modalCloseText: { color: palette.cream, fontWeight: '600', fontSize: 15 },
 })

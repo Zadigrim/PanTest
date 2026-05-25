@@ -4,6 +4,7 @@ import {
 } from 'react-native'
 import { router } from 'expo-router'
 import { supabase } from '../../lib/supabase'
+import { palette } from '../../lib/colors'
 
 export default function RegisterScreen() {
   const [displayName, setDisplayName] = useState('')
@@ -89,24 +90,24 @@ export default function RegisterScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0D1B2A' },
+  container: { flex: 1, backgroundColor: palette.navy },
   inner: { flex: 1, justifyContent: 'center', padding: 32 },
   logo: { fontSize: 48, textAlign: 'center', marginBottom: 8 },
   title: {
-    fontSize: 26, fontWeight: '700', color: '#F5F0E8',
+    fontSize: 26, fontWeight: '700', color: palette.cream,
     textAlign: 'center', fontFamily: 'serif', letterSpacing: 1, marginBottom: 32,
   },
   input: {
     borderWidth: 1, borderColor: '#2a3d52', borderRadius: 10,
-    padding: 14, color: '#F5F0E8', backgroundColor: '#152232',
+    padding: 14, color: palette.cream, backgroundColor: '#152232',
     fontSize: 15, marginBottom: 12,
   },
   btn: {
-    backgroundColor: '#1D9E75', borderRadius: 10, padding: 16,
+    backgroundColor: palette.green, borderRadius: 10, padding: 16,
     alignItems: 'center', marginTop: 8,
   },
   btnDisabled: { opacity: 0.6 },
   btnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
   link: { marginTop: 20, alignItems: 'center' },
-  linkText: { color: '#C9A84C', fontSize: 13 },
+  linkText: { color: palette.accent, fontSize: 13 },
 })

@@ -8,12 +8,13 @@ import { useLocalSearchParams, router } from 'expo-router'
 import { supabase } from '../../../lib/supabase'
 import { StampArtwork } from '../../../components/stamp/StampArtwork'
 import type { Stop, StampShape, StampSmudge, VerificationType } from '../../../types'
+import { palette } from '../../../lib/colors'
 
 const SHAPE_OPTIONS: StampShape[] = ['circle', 'rectangle', 'hexagon', 'badge']
 const SMUDGE_OPTIONS: StampSmudge[] = ['none', 'light', 'medium', 'heavy']
 const VERIFICATION_OPTIONS: VerificationType[] = ['presence', 'witnessed', 'documented', 'honor']
 const PRESET_COLORS = [
-  '#1D9E75', '#0D1B2A', '#C9A84C', '#C0392B', '#2980B9',
+  palette.green, palette.navy, palette.accent, '#C0392B', '#2980B9',
   '#8E44AD', '#E67E22', '#27AE60', '#2C3E50', '#7F8C8D',
 ]
 
@@ -100,7 +101,7 @@ export default function StopEditorScreen() {
   }, [set])
 
   if (loading || !stop) {
-    return <View style={styles.centered}><ActivityIndicator color="#C9A84C" /></View>
+    return <View style={styles.centered}><ActivityIndicator color={palette.accent} /></View>
   }
 
   return (
@@ -274,19 +275,19 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f4f4f4' },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   previewCard: {
-    backgroundColor: '#0D1B2A',
+    backgroundColor: palette.navy,
     alignItems: 'center',
     paddingVertical: 28,
     gap: 12,
   },
-  previewLabel: { color: '#C9A84C', fontSize: 11, letterSpacing: 1.5, textTransform: 'uppercase' },
+  previewLabel: { color: palette.accent, fontSize: 11, letterSpacing: 1.5, textTransform: 'uppercase' },
   section: {
     backgroundColor: '#fff', margin: 16, borderRadius: 12,
     padding: 16, marginBottom: 0,
     shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.06, shadowRadius: 3, elevation: 1,
   },
-  sectionTitle: { fontSize: 15, fontWeight: '700', color: '#0D1B2A', marginBottom: 8 },
+  sectionTitle: { fontSize: 15, fontWeight: '700', color: palette.navy, marginBottom: 8 },
   label: { fontSize: 12, color: '#888', marginBottom: 4, marginTop: 12 },
   input: {
     borderWidth: 1, borderColor: '#e0e0e0', borderRadius: 8,
@@ -300,7 +301,7 @@ const styles = StyleSheet.create({
     borderWidth: 1.5, borderColor: '#ddd',
     alignItems: 'center', justifyContent: 'center',
   },
-  tierBtnActive: { backgroundColor: '#0D1B2A', borderColor: '#0D1B2A' },
+  tierBtnActive: { backgroundColor: palette.navy, borderColor: palette.navy },
   tierBtnText: { fontSize: 15, color: '#888', fontWeight: '600' },
   tierBtnTextActive: { color: '#fff' },
   tierHint: { fontSize: 11, color: '#888', fontStyle: 'italic', marginTop: 6 },
@@ -310,13 +311,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16,
     borderWidth: 1, borderColor: '#ddd', backgroundColor: '#fafafa',
   },
-  optionBtnActive: { backgroundColor: '#0D1B2A', borderColor: '#0D1B2A' },
+  optionBtnActive: { backgroundColor: palette.navy, borderColor: palette.navy },
   optionBtnText: { fontSize: 12, color: '#555' },
   optionBtnTextActive: { color: '#fff', fontWeight: '600' },
   qrRow: { flexDirection: 'row', gap: 8, marginTop: 0, alignItems: 'center' },
   qrInput: { flex: 1 },
   qrGenBtn: {
-    backgroundColor: '#1D9E75', borderRadius: 8,
+    backgroundColor: palette.green, borderRadius: 8,
     paddingHorizontal: 12, paddingVertical: 10,
   },
   qrGenBtnText: { color: '#fff', fontSize: 13, fontWeight: '600' },
@@ -328,10 +329,10 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.35, shadowRadius: 4, elevation: 4,
   },
   saveBtn: {
-    backgroundColor: '#0D1B2A', borderRadius: 12, margin: 16,
+    backgroundColor: palette.navy, borderRadius: 12, margin: 16,
     padding: 16, alignItems: 'center',
   },
   btnDisabled: { opacity: 0.6 },
-  saveBtnText: { color: '#F5F0E8', fontWeight: '700', fontSize: 16 },
+  saveBtnText: { color: palette.cream, fontWeight: '700', fontSize: 16 },
   bottomSpacer: { height: 16 },
 })

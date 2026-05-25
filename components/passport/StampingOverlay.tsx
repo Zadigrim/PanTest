@@ -13,6 +13,7 @@ import Animated, {
 import Svg, { Circle } from 'react-native-svg'
 import * as Haptics from 'expo-haptics'
 import type { Stop } from '../../types'
+import { palette } from '../../lib/colors'
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle)
 
@@ -28,8 +29,8 @@ const STROKE = 5
 const DIAMETER = (R + STROKE) * 2
 const CIRCUMFERENCE = 2 * Math.PI * R
 
-const INK = '#1f1d1a'
-const GOLD = '#c9a84c'
+const INK = palette.ink
+const GOLD = palette.accent
 
 export function StampingOverlay({ stop, onStamp, onCancel }: Props) {
   const progress = useSharedValue(0)
@@ -132,7 +133,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   card: {
-    backgroundColor: '#f6f1e6',
+    backgroundColor: palette.paper,
     borderRadius: 4,
     paddingHorizontal: 32,
     paddingVertical: 28,

@@ -7,6 +7,7 @@ import {
 } from 'react-native'
 import { GiftCardExtra } from './GiftCardExtra'
 import type { RedemptionToken } from '../../types'
+import { palette } from '../../lib/colors'
 
 interface Props {
   token: RedemptionToken & { passport_pages?: { section_name: string; prize_description: string | null } }
@@ -116,7 +117,7 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontFamily: 'monospace',
     fontWeight: '700',
-    color: '#0D1B2A',
+    color: palette.navy,
     letterSpacing: 2,
   },
   sectionName: {
@@ -126,17 +127,17 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
   },
   prizeCard: {
-    backgroundColor: '#F5F0E8',
+    backgroundColor: palette.cream,
     borderRadius: 10,
     padding: 16,
     borderLeftWidth: 4,
-    borderLeftColor: '#C9A84C',
+    borderLeftColor: palette.accent,
     marginBottom: 8,
   },
   prizeLabel: {
     fontSize: 10,
     letterSpacing: 2,
-    color: '#C9A84C',
+    color: palette.accent,
     fontWeight: '700',
     marginBottom: 6,
   },
@@ -150,7 +151,7 @@ const styles = StyleSheet.create({
     marginTop: 24,
   },
   givenBtn: {
-    backgroundColor: '#1D9E75',
+    backgroundColor: palette.green,
     borderRadius: 12,
     padding: 18,
     alignItems: 'center',

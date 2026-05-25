@@ -1,6 +1,7 @@
 import { Tabs } from 'expo-router'
 import { Compass, Library, User, Tag } from 'lucide-react-native'
 import { useEmployeeContext } from '../../contexts/EmployeeContext'
+import { palette } from '../../lib/colors'
 
 // Land on My Passports after login (splash → login → my passports).
 export const unstable_settings = { initialRouteName: 'my-passports' }
@@ -12,11 +13,11 @@ export default function TabsLayout() {
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: '#C9A84C',
+        tabBarActiveTintColor: palette.accent,
         tabBarInactiveTintColor: '#888',
-        tabBarStyle: { backgroundColor: '#0D1B2A', borderTopColor: '#1a2d44' },
-        headerStyle: { backgroundColor: '#0D1B2A' },
-        headerTintColor: '#F5F0E8',
+        tabBarStyle: { backgroundColor: palette.navy, borderTopColor: '#1a2d44' },
+        headerStyle: { backgroundColor: palette.navy },
+        headerTintColor: palette.cream,
         headerTitleStyle: { fontWeight: '600', letterSpacing: 0.5 },
       }}
     >

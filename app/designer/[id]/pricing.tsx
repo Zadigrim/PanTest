@@ -2,11 +2,12 @@
 import React, { useState } from 'react'
 import { View, Text, TextInput, ScrollView, TouchableOpacity, StyleSheet, Switch } from 'react-native'
 import { useDesigner } from './_layout'
+import { palette } from '../../../lib/colors'
 
-const INK     = '#1f1d1a'
-const MUTED   = '#6b6356'
-const HAIRLINE = '#c8bfa9'
-const ACCENT  = '#c9a84c'
+const INK     = palette.ink
+const MUTED   = palette.muted
+const HAIRLINE = palette.hairline
+const ACCENT  = palette.accent
 
 export default function PricingRoute() {
   const { passport, save, saving } = useDesigner()
@@ -67,7 +68,7 @@ export default function PricingRoute() {
 }
 
 const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f5f0e8' },
+  container: { flex: 1, backgroundColor: palette.cream },
   content: { padding: 28, paddingBottom: 48 },
   heading: { fontSize: 18, fontWeight: '700', color: INK, marginBottom: 8 },
   hint: { fontSize: 13, color: MUTED, lineHeight: 20, marginBottom: 24 },
@@ -86,7 +87,7 @@ const s = StyleSheet.create({
     padding: 10, fontSize: 18, color: INK, backgroundColor: '#fff', width: 120,
   },
   saveBtn: {
-    backgroundColor: '#1d9e75', borderRadius: 4, padding: 14,
+    backgroundColor: palette.green, borderRadius: 4, padding: 14,
     alignItems: 'center', marginTop: 24,
   },
   saveBtnDisabled: { opacity: 0.5 },

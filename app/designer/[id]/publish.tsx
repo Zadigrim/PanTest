@@ -2,13 +2,14 @@
 import React, { useMemo } from 'react'
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native'
 import { useDesigner } from './_layout'
+import { palette } from '../../../lib/colors'
 
-const INK    = '#1f1d1a'
-const MUTED  = '#6b6356'
-const GREEN  = '#1d9e75'
-const RED    = '#9b2335'
-const ACCENT = '#c9a84c'
-const HAIRLINE = '#c8bfa9'
+const INK    = palette.ink
+const MUTED  = palette.muted
+const GREEN  = palette.green
+const RED    = palette.red
+const ACCENT = palette.accent
+const HAIRLINE = palette.hairline
 
 export default function PublishRoute() {
   const { passport, pages, save, saving } = useDesigner()
@@ -84,7 +85,7 @@ export default function PublishRoute() {
 }
 
 const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f5f0e8' },
+  container: { flex: 1, backgroundColor: palette.cream },
   content: { padding: 28, paddingBottom: 48 },
   heading: { fontSize: 20, fontWeight: '700', color: INK, marginBottom: 8 },
   hint: { fontSize: 13, color: MUTED, lineHeight: 20, marginBottom: 24 },

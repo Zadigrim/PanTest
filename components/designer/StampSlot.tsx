@@ -5,11 +5,12 @@ import React from 'react'
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native'
 import { Gesture, GestureDetector } from 'react-native-gesture-handler'
 import Animated, { useSharedValue, useAnimatedStyle, runOnJS } from 'react-native-reanimated'
+import { palette } from '../../lib/colors'
 
-const ACCENT   = '#c9a84c'
-const INK      = '#1f1d1a'
-const MUTED    = '#6b6356'
-const HAIRLINE = '#c8bfa9'
+const ACCENT   = palette.accent
+const INK      = palette.ink
+const MUTED    = palette.muted
+const HAIRLINE = palette.hairline
 const HANDLE   = 10
 
 export interface SlotData {

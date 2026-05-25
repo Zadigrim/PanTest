@@ -3,6 +3,7 @@
 import React from 'react'
 import { View, StyleSheet, useWindowDimensions } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
+import { palette } from '../../lib/colors'
 
 interface Props {
   children: React.ReactNode
@@ -10,7 +11,7 @@ interface Props {
 }
 
 const FRAME_BG = '#2a1f12'
-const BORDER_COLOR = '#1f1d1a'
+const BORDER_COLOR = palette.ink
 const RULE_COLOR = 'rgba(0,0,0,0.055)'
 const RULE_SPACING = 22
 

@@ -6,6 +6,7 @@ import {
 } from 'react-native'
 import { useLocalSearchParams, router } from 'expo-router'
 import { supabase, getCurrentUser } from '../../lib/supabase'
+import { palette } from '../../lib/colors'
 
 interface CollectorInfo {
   firstName: string
@@ -189,7 +190,7 @@ export default function LookupScreen() {
   if (loading) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator color="#C9A84C" size="large" />
+        <ActivityIndicator color={palette.accent} size="large" />
       </View>
     )
   }
@@ -274,21 +275,21 @@ export default function LookupScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0D1B2A', padding: 20 },
+  container: { flex: 1, backgroundColor: palette.navy, padding: 20 },
   centered: {
-    flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#0D1B2A',
+    flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.navy,
   },
   codeSection: { marginTop: 12 },
-  sectionTitle: { fontSize: 20, color: '#F5F0E8', fontFamily: 'serif', marginBottom: 6 },
+  sectionTitle: { fontSize: 20, color: palette.cream, fontFamily: 'serif', marginBottom: 6 },
   sectionHint: { fontSize: 13, color: '#888', fontStyle: 'italic', marginBottom: 20, lineHeight: 19 },
   codeInput: {
     backgroundColor: '#152232', borderRadius: 10, padding: 16,
-    color: '#F5F0E8', fontSize: 22, fontFamily: 'monospace',
+    color: palette.cream, fontSize: 22, fontFamily: 'monospace',
     borderWidth: 1, borderColor: '#1a2d44', letterSpacing: 4,
     textAlign: 'center', marginBottom: 14,
   },
   primaryBtn: {
-    backgroundColor: '#1D9E75', borderRadius: 10, paddingVertical: 14,
+    backgroundColor: palette.green, borderRadius: 10, paddingVertical: 14,
     alignItems: 'center',
   },
   primaryBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
@@ -303,26 +304,26 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: '#1a2d44', marginTop: 12,
   },
   cardLabel: {
-    fontSize: 10, color: '#C9A84C', fontWeight: '700',
+    fontSize: 10, color: palette.accent, fontWeight: '700',
     letterSpacing: 2, textTransform: 'uppercase', marginBottom: 6,
   },
-  firstName: { fontSize: 32, color: '#F5F0E8', fontFamily: 'serif', fontWeight: '700' },
+  firstName: { fontSize: 32, color: palette.cream, fontFamily: 'serif', fontWeight: '700' },
   divider: { height: 1, backgroundColor: '#1a2d44', marginVertical: 16 },
   detailLabel: {
     fontSize: 10, color: '#888', fontWeight: '700',
     letterSpacing: 1, textTransform: 'uppercase', marginBottom: 3,
   },
-  detailValue: { fontSize: 15, color: '#F5F0E8', marginBottom: 12 },
+  detailValue: { fontSize: 15, color: palette.cream, marginBottom: 12 },
   alreadyBanner: {
     backgroundColor: '#1a2d44', borderRadius: 8, padding: 14,
     alignItems: 'center', marginTop: 8,
   },
   alreadyText: { color: '#888', fontSize: 14, fontStyle: 'italic' },
   acknowledgeBtn: {
-    backgroundColor: '#C9A84C', borderRadius: 10, paddingVertical: 16,
+    backgroundColor: palette.accent, borderRadius: 10, paddingVertical: 16,
     alignItems: 'center', marginTop: 8,
   },
-  acknowledgeBtnText: { color: '#0D1B2A', fontWeight: '700', fontSize: 17 },
+  acknowledgeBtnText: { color: palette.navy, fontWeight: '700', fontSize: 17 },
   ghostBtn: { marginTop: 16, alignItems: 'center', paddingVertical: 8 },
   ghostBtnText: { color: '#555', fontSize: 13 },
 })

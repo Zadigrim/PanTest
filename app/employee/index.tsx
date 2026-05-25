@@ -10,12 +10,13 @@ import { router } from 'expo-router'
 import { useEmployeeAccount, useTokenScanner, useRedemption } from '../../hooks/useEmployee'
 import { getCurrentUser } from '../../lib/supabase'
 import { useCounterRefresh } from './_layout'
+import { palette } from '../../lib/colors'
 
-const INK   = '#1f1d1a'
-const PAPER = '#f6f1e6'
-const MUTED = '#6b6356'
-const ACCENT = '#c9a84c'
-const HAIRLINE = '#c8bfa9'
+const INK   = palette.ink
+const PAPER = palette.paper
+const MUTED = palette.muted
+const ACCENT = palette.accent
+const HAIRLINE = palette.hairline
 const CORNER_SZ = 22
 const CORNER_T  = 2.5
 
@@ -283,5 +284,5 @@ const s = StyleSheet.create({
     alignItems: 'center',
   },
   lookupBtnDisabled: { opacity: 0.4 },
-  lookupBtnText: { color: '#f5f0e8', fontSize: 15, fontWeight: '600' },
+  lookupBtnText: { color: palette.cream, fontSize: 15, fontWeight: '600' },
 })

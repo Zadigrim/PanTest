@@ -7,6 +7,7 @@ import {
 import { useLocalSearchParams, router } from 'expo-router'
 import { supabase, getCurrentUser } from '../../lib/supabase'
 import { useEmployeeContext } from '../../contexts/EmployeeContext'
+import { palette } from '../../lib/colors'
 
 const NOTE_MAX = 280
 
@@ -202,7 +203,7 @@ export default function AccoladeScreen() {
         activeOpacity={0.85}
       >
         {submitting
-          ? <ActivityIndicator color="#0D1B2A" />
+          ? <ActivityIndicator color={palette.navy} />
           : <Text style={styles.submitBtnText}>Give this accolade.</Text>}
       </TouchableOpacity>
     </ScrollView>
@@ -210,10 +211,10 @@ export default function AccoladeScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0D1B2A' },
+  container: { flex: 1, backgroundColor: palette.navy },
   content: { padding: 20, paddingBottom: 48 },
   sectionLabel: {
-    fontSize: 11, color: '#C9A84C', fontWeight: '700',
+    fontSize: 11, color: palette.accent, fontWeight: '700',
     letterSpacing: 2, textTransform: 'uppercase', marginBottom: 12,
   },
   chipScroll: { marginHorizontal: -20 },
@@ -222,30 +223,30 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: '#1a2d44', borderRadius: 20,
     paddingVertical: 8, paddingHorizontal: 16, backgroundColor: '#152232',
   },
-  chipActive: { borderColor: '#C9A84C', backgroundColor: '#C9A84C' },
+  chipActive: { borderColor: palette.accent, backgroundColor: palette.accent },
   chipText: { color: '#888', fontSize: 14 },
-  chipTextActive: { color: '#0D1B2A', fontWeight: '700' },
+  chipTextActive: { color: palette.navy, fontWeight: '700' },
   customInput: {
     backgroundColor: '#152232', borderRadius: 10, padding: 14,
-    color: '#F5F0E8', fontSize: 16, borderWidth: 1, borderColor: '#C9A84C',
+    color: palette.cream, fontSize: 16, borderWidth: 1, borderColor: palette.accent,
     marginTop: 10,
   },
   noteInput: {
     backgroundColor: '#152232', borderRadius: 10, padding: 14,
-    color: '#F5F0E8', fontSize: 15, borderWidth: 1, borderColor: '#1a2d44',
+    color: palette.cream, fontSize: 15, borderWidth: 1, borderColor: '#1a2d44',
     minHeight: 100,
   },
   charCount: { color: '#555', fontSize: 12, textAlign: 'right', marginTop: 6 },
   previewCard: {
     backgroundColor: '#152232', borderRadius: 12, padding: 18,
-    borderWidth: 1, borderColor: '#C9A84C', marginTop: 24,
+    borderWidth: 1, borderColor: palette.accent, marginTop: 24,
   },
   previewLabel: {
-    fontSize: 10, color: '#C9A84C', fontWeight: '700',
+    fontSize: 10, color: palette.accent, fontWeight: '700',
     letterSpacing: 2, textTransform: 'uppercase', marginBottom: 8,
   },
   previewTitle: {
-    fontSize: 22, color: '#F5F0E8', fontFamily: 'serif', fontWeight: '700', marginBottom: 8,
+    fontSize: 22, color: palette.cream, fontFamily: 'serif', fontWeight: '700', marginBottom: 8,
   },
   previewNote: {
     fontSize: 14, color: '#aaa', fontStyle: 'italic', lineHeight: 20, marginBottom: 12,
@@ -254,9 +255,9 @@ const styles = StyleSheet.create({
   previewGiver: { fontSize: 12, color: '#888' },
   previewTo: { fontSize: 12, color: '#666', marginTop: 2 },
   submitBtn: {
-    backgroundColor: '#C9A84C', borderRadius: 10, paddingVertical: 16,
+    backgroundColor: palette.accent, borderRadius: 10, paddingVertical: 16,
     alignItems: 'center', marginTop: 28,
   },
   submitBtnDisabled: { opacity: 0.4 },
-  submitBtnText: { color: '#0D1B2A', fontWeight: '700', fontSize: 16 },
+  submitBtnText: { color: palette.navy, fontWeight: '700', fontSize: 16 },
 })

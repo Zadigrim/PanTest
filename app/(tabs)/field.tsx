@@ -7,6 +7,7 @@ import {
 import { router } from 'expo-router'
 import { supabase, getCurrentUser } from '../../lib/supabase'
 import { useEmployeeContext } from '../../contexts/EmployeeContext'
+import { palette } from '../../lib/colors'
 
 interface FieldStop {
   id: string
@@ -110,7 +111,7 @@ export default function FieldHomeScreen() {
   if (loading) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator color="#C9A84C" size="large" />
+        <ActivityIndicator color={palette.accent} size="large" />
       </View>
     )
   }
@@ -142,7 +143,7 @@ export default function FieldHomeScreen() {
         data={stops}
         keyExtractor={(s) => s.id}
         contentContainerStyle={styles.list}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#C9A84C" />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={palette.accent} />}
         renderItem={({ item }) => {
           const isGps = item.verification_type === 'gps_area'
           return (
@@ -177,10 +178,10 @@ export default function FieldHomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0D1B2A' },
+  container: { flex: 1, backgroundColor: palette.navy },
   centered: {
     flex: 1, alignItems: 'center', justifyContent: 'center',
-    backgroundColor: '#0D1B2A', padding: 32,
+    backgroundColor: palette.navy, padding: 32,
   },
   offText: { color: '#888', textAlign: 'center', fontSize: 15, fontStyle: 'italic' },
   header: {
@@ -188,13 +189,13 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1, borderBottomColor: '#1a2d44',
   },
   institution: {
-    fontSize: 11, color: '#C9A84C', fontWeight: '700',
+    fontSize: 11, color: palette.accent, fontWeight: '700',
     letterSpacing: 2, textTransform: 'uppercase', marginBottom: 4,
   },
-  greeting: { fontSize: 22, color: '#F5F0E8', fontFamily: 'serif' },
+  greeting: { fontSize: 22, color: palette.cream, fontFamily: 'serif' },
   scanBtn: {
     marginHorizontal: 16, marginTop: 14, marginBottom: 4,
-    backgroundColor: '#1D9E75', borderRadius: 10, paddingVertical: 14,
+    backgroundColor: palette.green, borderRadius: 10, paddingVertical: 14,
     alignItems: 'center',
   },
   scanBtnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
@@ -205,11 +206,11 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: '#1a2d44',
   },
   stopInfo: { flex: 1 },
-  stopName: { fontSize: 16, color: '#F5F0E8', fontWeight: '600', fontFamily: 'serif' },
+  stopName: { fontSize: 16, color: palette.cream, fontWeight: '600', fontFamily: 'serif' },
   passportTitle: { fontSize: 12, color: '#888', marginTop: 3, fontStyle: 'italic' },
   stopMeta: { alignItems: 'flex-end', marginLeft: 12 },
   verifyIcon: { fontSize: 20 },
-  hereText: { fontSize: 11, color: '#C9A84C', marginTop: 3 },
+  hereText: { fontSize: 11, color: palette.accent, marginTop: 3 },
   empty: { padding: 40, alignItems: 'center' },
   emptyText: { color: '#555', fontStyle: 'italic', textAlign: 'center', fontSize: 14 },
 })

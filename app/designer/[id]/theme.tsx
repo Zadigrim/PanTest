@@ -2,18 +2,19 @@
 import React, { useState } from 'react'
 import { View, Text, TextInput, ScrollView, TouchableOpacity, StyleSheet } from 'react-native'
 import { useDesigner } from './_layout'
+import { palette } from '../../../lib/colors'
 
-const MUTED   = '#6b6356'
-const HAIRLINE = '#c8bfa9'
-const INK     = '#1f1d1a'
+const MUTED   = palette.muted
+const HAIRLINE = palette.hairline
+const INK     = palette.ink
 
-const PAPERS = ['#f6f1e6','#f0ece3','#e8f0e8','#e8ecf4','#f4ece8','#fff']
-const INKS   = ['#1f1d1a','#0d1b2a','#2e3a1f','#1a1a2e','#2e1a1a']
+const PAPERS = [palette.paper,'#f0ece3','#e8f0e8','#e8ecf4','#f4ece8','#fff']
+const INKS   = [palette.ink,palette.navy,'#2e3a1f','#1a1a2e','#2e1a1a']
 
 export default function ThemeRoute() {
   const { passport, save, saving } = useDesigner()
-  const [paper, setPaper] = useState(passport?.paper_color ?? '#f6f1e6')
-  const [illus, setIllus] = useState(passport?.illus_color ?? '#c9a84c')
+  const [paper, setPaper] = useState(passport?.paper_color ?? palette.paper)
+  const [illus, setIllus] = useState(passport?.illus_color ?? palette.accent)
   const [opacity, setOpacity] = useState(String(passport?.illus_opacity ?? 0.15))
 
   if (!passport) return null
@@ -72,7 +73,7 @@ function SwatchRow({ label, colors, value, onChange }: {
 }
 
 const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f5f0e8' },
+  container: { flex: 1, backgroundColor: palette.cream },
   content: { padding: 28, paddingBottom: 48 },
   field: { marginBottom: 22 },
   label: { fontSize: 10, fontWeight: '700', letterSpacing: 1.5, color: MUTED, marginBottom: 8, textTransform: 'uppercase' },
@@ -84,7 +85,7 @@ const s = StyleSheet.create({
     padding: 10, fontSize: 14, color: INK, backgroundColor: '#fff', width: 120,
   },
   saveBtn: {
-    backgroundColor: '#1d9e75', borderRadius: 4, padding: 14,
+    backgroundColor: palette.green, borderRadius: 4, padding: 14,
     alignItems: 'center', marginTop: 8,
   },
   saveBtnDisabled: { opacity: 0.5 },

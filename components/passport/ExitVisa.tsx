@@ -5,6 +5,7 @@ import { View, Text, StyleSheet, useWindowDimensions } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
 import { GuillocheBackground } from '../ui/GuillocheBackground'
 import type { Passport, PassportPage, Stop, Stamp } from '../../types'
+import { palette } from '../../lib/colors'
 
 interface Props {
   passport: Passport
@@ -14,11 +15,11 @@ interface Props {
   chapterNumber: number
 }
 
-const PAPER = '#f6f1e6'
-const INK = '#1f1d1a'
-const GOLD = '#c9a84c'
+const PAPER = palette.paper
+const INK = palette.ink
+const GOLD = palette.accent
 const GREEN = '#2E7D4D'
-const RED = '#9b2335'
+const RED = palette.red
 
 export function ExitVisa({ passport, page, stops, stamps, chapterNumber }: Props) {
   const { width: sw, height: sh } = useWindowDimensions()

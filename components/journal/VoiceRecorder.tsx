@@ -4,6 +4,7 @@
 import React, { useState, useRef, useCallback } from 'react'
 import { View, Text, TouchableOpacity, StyleSheet, Animated } from 'react-native'
 import * as Speech from 'expo-speech'
+import { palette } from '../../lib/colors'
 
 type RecorderState = 'ready' | 'recording' | 'paused'
 
@@ -76,7 +77,7 @@ export function VoiceRecorder({ onTranscriptUpdate }: Props) {
     else if (state === 'paused') handleContinue()
   }, [state, startRecording, handlePause, handleContinue])
 
-  const micColor = state === 'ready' ? '#1D9E75' : state === 'recording' ? '#C0392B' : '#E67E22'
+  const micColor = state === 'ready' ? palette.green : state === 'recording' ? '#C0392B' : '#E67E22'
 
   const fullTranscript = words.map((w) => w.word).join(' ')
 

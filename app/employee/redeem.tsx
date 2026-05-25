@@ -12,13 +12,14 @@ import { GiftCardExtra } from '../../components/employee/GiftCardExtra'
 import { useEmployeeAccount, useRedemption } from '../../hooks/useEmployee'
 import { useCounterRefresh } from './_layout'
 import type { RedemptionToken } from '../../types'
+import { palette } from '../../lib/colors'
 
-const INK    = '#1f1d1a'
-const MUTED  = '#6b6356'
-const ACCENT = '#c9a84c'
-const GREEN  = '#1d9e75'
-const RED    = '#9b2335'
-const HAIRLINE = '#c8bfa9'
+const INK    = palette.ink
+const MUTED  = palette.muted
+const ACCENT = palette.accent
+const GREEN  = palette.green
+const RED    = palette.red
+const HAIRLINE = palette.hairline
 
 type TokenWithPage = RedemptionToken & {
   passport_pages?: { section_name: string; prize_description: string | null; passports?: { title: string } }

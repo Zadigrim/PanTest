@@ -1,14 +1,15 @@
 import { Stack } from 'expo-router'
+import { palette } from '../../lib/colors'
 
 export default function FieldLayout() {
   return (
     <Stack
       screenOptions={{
-        headerStyle: { backgroundColor: '#0D1B2A' },
-        headerTintColor: '#F5F0E8',
+        headerStyle: { backgroundColor: palette.navy },
+        headerTintColor: palette.cream,
         headerTitleStyle: { fontFamily: 'serif', letterSpacing: 0.5 },
         headerBackTitle: 'Field',
-        contentStyle: { backgroundColor: '#0D1B2A' },
+        contentStyle: { backgroundColor: palette.navy },
       }}
     >
       <Stack.Screen name="scan" options={{ title: 'Scan Visitor' }} />

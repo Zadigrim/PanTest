@@ -7,6 +7,7 @@ import {
 } from 'react-native'
 import { router } from 'expo-router'
 import { supabase } from '../../lib/supabase'
+import { palette } from '../../lib/colors'
 
 interface NearbyStop {
   id: string
@@ -17,8 +18,8 @@ interface NearbyStop {
   passportTitle: string
 }
 
-const NAVY = '#0D1B2A'
-const GOLD = '#C9A84C'
+const NAVY = palette.navy
+const GOLD = palette.accent
 
 export default function NearbyMode() {
   const [stops, setStops] = useState<NearbyStop[]>([])

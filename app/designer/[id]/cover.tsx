@@ -2,13 +2,14 @@
 import React, { useState } from 'react'
 import { View, Text, TextInput, ScrollView, TouchableOpacity, StyleSheet, Switch } from 'react-native'
 import { useDesigner } from './_layout'
+import { palette } from '../../../lib/colors'
 
-const INK     = '#1f1d1a'
-const MUTED   = '#6b6356'
-const ACCENT  = '#c9a84c'
-const HAIRLINE = '#c8bfa9'
+const INK     = palette.ink
+const MUTED   = palette.muted
+const ACCENT  = palette.accent
+const HAIRLINE = palette.hairline
 
-const PALETTE = ['#2E7D4D','#0d1b2a','#9b2335','#2d5a8e','#7a5c2e','#444','#f5f0e8']
+const PALETTE = ['#2E7D4D',palette.navy,palette.red,palette.blue,'#7a5c2e','#444',palette.cream]
 
 export default function CoverRoute() {
   const { passport, save, saving } = useDesigner()
@@ -95,8 +96,8 @@ const s = StyleSheet.create({
     borderRightWidth: 1, borderRightColor: HAIRLINE, gap: 12, padding: 24,
   },
   previewEmblem: { fontSize: 40 },
-  previewTitle: { fontSize: 16, fontWeight: '700', color: '#f5f0e8', textAlign: 'center' },
-  form: { flex: 1, backgroundColor: '#f5f0e8' },
+  previewTitle: { fontSize: 16, fontWeight: '700', color: palette.cream, textAlign: 'center' },
+  form: { flex: 1, backgroundColor: palette.cream },
   formContent: { padding: 24, gap: 0, paddingBottom: 48 },
   field: { marginBottom: 18 },
   label: { fontSize: 10, fontWeight: '700', letterSpacing: 1.5, color: MUTED, marginBottom: 6, textTransform: 'uppercase' },
@@ -109,7 +110,7 @@ const s = StyleSheet.create({
   swatch: { width: 32, height: 32, borderRadius: 4, borderWidth: 1.5, borderColor: 'transparent' },
   swatchActive: { borderColor: INK },
   saveBtn: {
-    backgroundColor: '#1d9e75', borderRadius: 4, padding: 14,
+    backgroundColor: palette.green, borderRadius: 4, padding: 14,
     alignItems: 'center', marginTop: 12,
   },
   saveBtnDisabled: { opacity: 0.5 },

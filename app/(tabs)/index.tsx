@@ -5,10 +5,11 @@ import {
 } from 'react-native'
 import NearbyMode from '../../components/discover/NearbyMode'
 import CatalogueMode from '../../components/discover/CatalogueMode'
+import { palette } from '../../lib/colors'
 
-const NAVY = '#0D1B2A'
-const GOLD = '#C9A84C'
-const CREAM = '#F5F0E8'
+const NAVY = palette.navy
+const GOLD = palette.accent
+const CREAM = palette.cream
 
 type Tab = 'nearby' | 'catalogue'
 

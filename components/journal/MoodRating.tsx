@@ -1,5 +1,6 @@
 import React from 'react'
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native'
+import { palette } from '../../lib/colors'
 
 const MOODS = [
   { value: 1, emoji: '😕', label: 'Meh' },
@@ -59,7 +60,7 @@ const styles = StyleSheet.create({
     minWidth: 52,
   },
   moodBtnSelected: {
-    borderColor: '#C9A84C',
+    borderColor: palette.accent,
     backgroundColor: '#C9A84C15',
   },
   emoji: {
@@ -71,7 +72,7 @@ const styles = StyleSheet.create({
     color: '#888',
   },
   moodLabelSelected: {
-    color: '#C9A84C',
+    color: palette.accent,
     fontWeight: '600',
   },
 })

@@ -8,12 +8,13 @@ import { useLocalSearchParams, router } from 'expo-router'
 import { supabase } from '../../../lib/supabase'
 import { useDesigner } from './_layout'
 import type { Stop, PassportPage } from '../../../types'
+import { palette } from '../../../lib/colors'
 
-const INK     = '#1f1d1a'
-const MUTED   = '#6b6356'
-const ACCENT  = '#c9a84c'
-const HAIRLINE = '#c8bfa9'
-const NAVY    = '#0d1b2a'
+const INK     = palette.ink
+const MUTED   = palette.muted
+const ACCENT  = palette.accent
+const HAIRLINE = palette.hairline
+const NAVY    = palette.navy
 
 interface StopWithPage extends Stop { page?: { section_name: string } }
 
@@ -156,7 +157,7 @@ const s = StyleSheet.create({
   container: { flex: 1, flexDirection: 'row', backgroundColor: '#e8e1d2' },
   mapArea: { flex: 1 },
   listArea: {
-    width: 240, backgroundColor: '#f5f0e8',
+    width: 240, backgroundColor: palette.cream,
     borderLeftWidth: 1, borderLeftColor: HAIRLINE,
   },
   listHeader: {
@@ -179,7 +180,7 @@ const s = StyleSheet.create({
     width: 22, height: 22, borderRadius: 11,
     backgroundColor: NAVY, alignItems: 'center', justifyContent: 'center',
   },
-  stopNumText: { fontSize: 10, color: '#f5f0e8', fontWeight: '700' },
+  stopNumText: { fontSize: 10, color: palette.cream, fontWeight: '700' },
   stopName: { fontSize: 13, fontWeight: '600', color: INK },
   stopSection: { fontSize: 10, color: MUTED, marginTop: 1 },
   editLink: { fontSize: 11, color: MUTED },

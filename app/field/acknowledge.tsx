@@ -7,6 +7,7 @@ import {
 import { useLocalSearchParams, router } from 'expo-router'
 import { supabase, getCurrentUser } from '../../lib/supabase'
 import { useEmployeeContext } from '../../contexts/EmployeeContext'
+import { palette } from '../../lib/colors'
 
 export default function AcknowledgeScreen() {
   const { stampId, userId, stopId } = useLocalSearchParams<{
@@ -154,7 +155,7 @@ export default function AcknowledgeScreen() {
             activeOpacity={0.8}
           >
             {confirming
-              ? <ActivityIndicator color="#0D1B2A" size="large" />
+              ? <ActivityIndicator color={palette.navy} size="large" />
               : <Text style={styles.bigBtnText}>I met this visitor ✓</Text>}
           </TouchableOpacity>
         </>
@@ -192,14 +193,14 @@ export default function AcknowledgeScreen() {
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1, backgroundColor: '#0D1B2A',
+    flex: 1, backgroundColor: palette.navy,
     padding: 24, justifyContent: 'center',
   },
   header: { marginBottom: 24, alignItems: 'center' },
   prompt: { fontSize: 18, color: '#888', fontStyle: 'italic', marginBottom: 6 },
-  nameHint: { fontSize: 24, color: '#F5F0E8', fontFamily: 'serif', fontWeight: '700' },
+  nameHint: { fontSize: 24, color: palette.cream, fontFamily: 'serif', fontWeight: '700' },
   bigBtn: {
-    backgroundColor: '#C9A84C',
+    backgroundColor: palette.accent,
     borderRadius: 14,
     minHeight: 120,
     alignItems: 'center',
@@ -208,26 +209,26 @@ const styles = StyleSheet.create({
   },
   bigBtnDisabled: { opacity: 0.6 },
   bigBtnText: {
-    color: '#0D1B2A', fontWeight: '700', fontSize: 22, textAlign: 'center',
+    color: palette.navy, fontWeight: '700', fontSize: 22, textAlign: 'center',
   },
   confirmedContainer: { alignItems: 'center' },
-  doneIcon: { fontSize: 52, color: '#1D9E75', marginBottom: 12 },
+  doneIcon: { fontSize: 52, color: palette.green, marginBottom: 12 },
   doneText: {
-    fontSize: 20, color: '#F5F0E8', fontFamily: 'serif',
+    fontSize: 20, color: palette.cream, fontFamily: 'serif',
     textAlign: 'center', lineHeight: 28, marginBottom: 32,
   },
   accoladeRow: { width: '100%', marginBottom: 10 },
   accoladeBtn: {
-    borderWidth: 1, borderColor: '#C9A84C', borderRadius: 10,
+    borderWidth: 1, borderColor: palette.accent, borderRadius: 10,
     paddingVertical: 14, alignItems: 'center',
   },
-  accoladeBtnText: { color: '#C9A84C', fontWeight: '600', fontSize: 16 },
+  accoladeBtnText: { color: palette.accent, fontWeight: '600', fontSize: 16 },
   recommendRow: { width: '100%', marginBottom: 10 },
   recommendBtn: {
-    borderWidth: 1, borderColor: '#1D9E75', borderRadius: 10,
+    borderWidth: 1, borderColor: palette.green, borderRadius: 10,
     paddingVertical: 14, alignItems: 'center',
   },
-  recommendBtnText: { color: '#1D9E75', fontWeight: '600', fontSize: 16 },
+  recommendBtnText: { color: palette.green, fontWeight: '600', fontSize: 16 },
   doneBtn: { marginTop: 24, paddingVertical: 12, paddingHorizontal: 32 },
   doneBtnText: { color: '#555', fontSize: 15 },
 })

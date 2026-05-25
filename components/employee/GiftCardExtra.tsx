@@ -2,6 +2,7 @@
 // Both are logged in the redemption_tokens audit record.
 import React from 'react'
 import { View, Text, TextInput, StyleSheet, TouchableOpacity } from 'react-native'
+import { palette } from '../../lib/colors'
 
 const AMOUNTS = [5, 10, 15, 25]
 
@@ -74,7 +75,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
   },
   amountBtnSelected: {
-    borderColor: '#C9A84C',
+    borderColor: palette.accent,
     backgroundColor: '#C9A84C20',
   },
   amountText: {

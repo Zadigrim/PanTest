@@ -7,6 +7,7 @@ import {
 } from 'react-native'
 import { Camera, CameraView } from 'expo-camera'
 import { router } from 'expo-router'
+import { palette } from '../../lib/colors'
 
 function parseOkujiQr(raw: string): { userId: string; stopId: string } | null {
   const parts = raw.split(':')
@@ -139,10 +140,10 @@ export default function ScanScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0D1B2A' },
+  container: { flex: 1, backgroundColor: palette.navy },
   centered: {
     flex: 1, alignItems: 'center', justifyContent: 'center',
-    backgroundColor: '#0D1B2A', padding: 32,
+    backgroundColor: palette.navy, padding: 32,
   },
   overlay: {
     ...StyleSheet.absoluteFillObject,
@@ -151,11 +152,11 @@ const styles = StyleSheet.create({
   },
   reticle: {
     width: 240, height: 240, borderRadius: 16,
-    borderWidth: 2, borderColor: '#C9A84C',
+    borderWidth: 2, borderColor: palette.accent,
     backgroundColor: 'transparent',
   },
   scanHint: {
-    marginTop: 20, color: '#F5F0E8', fontSize: 14,
+    marginTop: 20, color: palette.cream, fontSize: 14,
     fontStyle: 'italic',
     textShadowColor: '#000', textShadowRadius: 4, textShadowOffset: { width: 0, height: 1 },
   },
@@ -167,18 +168,18 @@ const styles = StyleSheet.create({
     flex: 1, padding: 28, justifyContent: 'center',
   },
   manualTitle: {
-    fontSize: 22, color: '#F5F0E8', fontFamily: 'serif', marginBottom: 6,
+    fontSize: 22, color: palette.cream, fontFamily: 'serif', marginBottom: 6,
   },
   manualHint: {
     fontSize: 13, color: '#888', marginBottom: 24, fontStyle: 'italic',
   },
   manualInput: {
     backgroundColor: '#152232', borderRadius: 10, padding: 16,
-    color: '#F5F0E8', fontSize: 16, fontFamily: 'monospace',
+    color: palette.cream, fontSize: 16, fontFamily: 'monospace',
     borderWidth: 1, borderColor: '#1a2d44', marginBottom: 16,
   },
   primaryBtn: {
-    backgroundColor: '#1D9E75', borderRadius: 10, paddingVertical: 14,
+    backgroundColor: palette.green, borderRadius: 10, paddingVertical: 14,
     alignItems: 'center', width: '100%',
   },
   primaryBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },

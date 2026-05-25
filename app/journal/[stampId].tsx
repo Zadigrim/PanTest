@@ -5,6 +5,7 @@ import { useLocalSearchParams, router } from 'expo-router'
 import { supabase, getCurrentUser } from '../../lib/supabase'
 import { JournalEntry } from '../../components/journal/JournalEntry'
 import type { JournalEntry as JournalEntryType } from '../../types'
+import { palette } from '../../lib/colors'
 
 export default function JournalScreen() {
   const { stampId } = useLocalSearchParams<{ stampId: string }>()
@@ -33,7 +34,7 @@ export default function JournalScreen() {
   if (loading || !userId) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator color="#C9A84C" />
+        <ActivityIndicator color={palette.accent} />
       </View>
     )
   }

@@ -21,6 +21,7 @@ import { ExitVisa } from '../../components/passport/ExitVisa'
 import { StampingOverlay } from '../../components/passport/StampingOverlay'
 
 import type { StampPlacement, StampSlotState, Stop, CollectorPassport, Stamp } from '../../types'
+import { palette } from '../../lib/colors'
 
 function defaultPlacement(): StampPlacement {
   return { posX: 50, posY: 50, contactSizePx: 80, rotationDeg: Math.random() * 30 - 15 }
@@ -326,7 +327,7 @@ export default function PassportScreen() {
   if (loading || !passport) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator color="#C9A84C" size="large" />
+        <ActivityIndicator color={palette.accent} size="large" />
       </View>
     )
   }
@@ -335,7 +336,7 @@ export default function PassportScreen() {
   if (!collectorPassport) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator color="#C9A84C" size="large" />
+        <ActivityIndicator color={palette.accent} size="large" />
       </View>
     )
   }

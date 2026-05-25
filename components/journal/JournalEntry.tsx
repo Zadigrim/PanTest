@@ -8,6 +8,7 @@ import { supabase } from '../../lib/supabase'
 import { MoodRating } from './MoodRating'
 import { VoiceRecorder } from './VoiceRecorder'
 import type { InputMethod } from '../../types'
+import { palette } from '../../lib/colors'
 
 interface Props {
   stampId: string
@@ -138,7 +139,7 @@ const styles = StyleSheet.create({
   },
   voiceToggleText: {
     fontSize: 13,
-    color: '#1D9E75',
+    color: palette.green,
     fontWeight: '600',
   },
   textInput: {
@@ -175,7 +176,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   saveBtn: {
-    backgroundColor: '#1D9E75',
+    backgroundColor: palette.green,
     borderRadius: 10,
     padding: 14,
     alignItems: 'center',

@@ -5,19 +5,20 @@ import {
 import { Slot, router, usePathname } from 'expo-router'
 import { useEmployeeContext } from '../../contexts/EmployeeContext'
 import { supabase, getCurrentUser } from '../../lib/supabase'
+import { palette } from '../../lib/colors'
 
 // ── Counter context — child screens call refresh() after a scan/distribution ──
 interface CounterCtx { refresh: () => void }
 const Ctx = createContext<CounterCtx>({ refresh: () => {} })
 export function useCounterRefresh() { return useContext(Ctx) }
 
-const INK = '#1f1d1a'
-const PAPER = '#f6f1e6'
-const MUTED = '#6b6356'
-const HAIRLINE = '#c8bfa9'
-const ACCENT = '#c9a84c'
-const GREEN = '#1d9e75'
-const NAVY = '#0d1b2a'
+const INK = palette.ink
+const PAPER = palette.paper
+const MUTED = palette.muted
+const HAIRLINE = palette.hairline
+const ACCENT = palette.accent
+const GREEN = palette.green
+const NAVY = palette.navy
 const RAIL_W = 300
 const WIDE_BP = 680
 
@@ -296,10 +297,10 @@ const s = StyleSheet.create({
     paddingBottom: 10,
   },
   brandMarkNarrow: { fontSize: 10, fontWeight: '700', letterSpacing: 2, color: ACCENT, textTransform: 'uppercase' },
-  venueNarrow: { fontSize: 13, fontWeight: '600', color: '#f5f0e8', marginTop: 2 },
+  venueNarrow: { fontSize: 13, fontWeight: '600', color: palette.cream, marginTop: 2 },
   statsRow: { flexDirection: 'row', gap: 10, alignItems: 'center' },
   statChip: { alignItems: 'center' },
-  statNum: { fontSize: 18, fontWeight: '700', color: '#f5f0e8', lineHeight: 20 },
+  statNum: { fontSize: 18, fontWeight: '700', color: palette.cream, lineHeight: 20 },
   statLabel: { fontSize: 9, color: 'rgba(245,240,232,0.55)', textTransform: 'lowercase' },
   topTabs: {
     flexDirection: 'row',
@@ -309,7 +310,7 @@ const s = StyleSheet.create({
   topTab: { flex: 1, paddingVertical: 9, alignItems: 'center', borderBottomWidth: 2, borderBottomColor: 'transparent' },
   topTabActive: { borderBottomColor: ACCENT },
   topTabLabel: { fontSize: 13, color: 'rgba(245,240,232,0.55)' },
-  topTabLabelActive: { color: '#f5f0e8', fontWeight: '600' },
+  topTabLabelActive: { color: palette.cream, fontWeight: '600' },
 
   // ── Workspace ────────────────────────────────────────────────────────────
   workspace: { flex: 1, backgroundColor: '#fff' },

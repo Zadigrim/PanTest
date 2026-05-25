@@ -7,6 +7,7 @@ import {
 import { useLocalSearchParams, router } from 'expo-router'
 import { supabase, getCurrentUser } from '../../lib/supabase'
 import { useEmployeeContext } from '../../contexts/EmployeeContext'
+import { palette } from '../../lib/colors'
 
 const NOTE_MAX = 200
 
@@ -122,7 +123,7 @@ export default function RecommendScreen() {
           activeOpacity={0.85}
         >
           {submitting
-            ? <ActivityIndicator color="#0D1B2A" />
+            ? <ActivityIndicator color={palette.navy} />
             : <Text style={styles.submitBtnText}>Add recommendation</Text>}
         </TouchableOpacity>
 
@@ -135,25 +136,25 @@ export default function RecommendScreen() {
 }
 
 const styles = StyleSheet.create({
-  wrapper: { flex: 1, backgroundColor: '#0D1B2A' },
+  wrapper: { flex: 1, backgroundColor: palette.navy },
   container: { flex: 1 },
   content: { padding: 20, paddingBottom: 48 },
   pageTitle: {
-    fontSize: 22, color: '#F5F0E8', fontFamily: 'serif', marginBottom: 24,
+    fontSize: 22, color: palette.cream, fontFamily: 'serif', marginBottom: 24,
   },
   fieldLabel: {
-    fontSize: 11, color: '#C9A84C', fontWeight: '700',
+    fontSize: 11, color: palette.accent, fontWeight: '700',
     letterSpacing: 2, textTransform: 'uppercase', marginBottom: 8,
   },
   input: {
     backgroundColor: '#152232', borderRadius: 10, padding: 14,
-    color: '#F5F0E8', fontSize: 15, borderWidth: 1, borderColor: '#1a2d44',
+    color: palette.cream, fontSize: 15, borderWidth: 1, borderColor: '#1a2d44',
     marginBottom: 18,
   },
   noteInput: { minHeight: 80 },
   charCount: { color: '#555', fontSize: 12, textAlign: 'right', marginTop: -14, marginBottom: 18 },
   submitBtn: {
-    backgroundColor: '#1D9E75', borderRadius: 10, paddingVertical: 16,
+    backgroundColor: palette.green, borderRadius: 10, paddingVertical: 16,
     alignItems: 'center', marginTop: 12,
   },
   submitBtnDisabled: { opacity: 0.4 },

@@ -8,14 +8,15 @@ import * as WebBrowser from 'expo-web-browser'
 import { supabase, getCurrentUser } from '../../lib/supabase'
 import { useEmployeeContext } from '../../contexts/EmployeeContext'
 import type { Profile } from '../../types'
+import { palette } from '../../lib/colors'
 
-const INK    = '#1f1d1a'
-const MUTED  = '#6b6356'
-const ACCENT = '#c9a84c'
-const NAVY   = '#0d1b2a'
-const GREEN  = '#1d9e75'
-const HAIRLINE = '#c8bfa9'
-const PAPER  = '#f6f1e6'
+const INK    = palette.ink
+const MUTED  = palette.muted
+const ACCENT = palette.accent
+const NAVY   = palette.navy
+const GREEN  = palette.green
+const HAIRLINE = palette.hairline
+const PAPER  = palette.paper
 
 export default function ProfileScreen() {
   const [profile, setProfile] = useState<Profile | null>(null)

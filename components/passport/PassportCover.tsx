@@ -2,6 +2,7 @@ import React from 'react'
 import { View, Text, StyleSheet, ImageBackground } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
 import type { Passport } from '../../types'
+import { palette } from '../../lib/colors'
 
 interface Props {
   passport: Passport
@@ -74,7 +75,7 @@ const styles = StyleSheet.create({
     fontFamily: 'serif',
     fontSize: 22,
     fontWeight: '700',
-    color: '#F5F0E8',
+    color: palette.cream,
     textAlign: 'center',
     letterSpacing: 1,
     marginBottom: 8,

@@ -6,6 +6,7 @@ import { supabase, getCurrentUser } from '../../lib/supabase'
 import { ExperienceVerifier } from '../../components/employee/ExperienceVerifier'
 import { useEmployeeAccount, useRedemption } from '../../hooks/useEmployee'
 import type { Stop } from '../../types'
+import { palette } from '../../lib/colors'
 
 export default function VerifyScreen() {
   const { stopId, stampId, isPageCompleting } = useLocalSearchParams<{
@@ -52,7 +53,7 @@ export default function VerifyScreen() {
     }
   }
 
-  if (loading || !stop) return <View style={styles.centered}><ActivityIndicator color="#C9A84C" /></View>
+  if (loading || !stop) return <View style={styles.centered}><ActivityIndicator color={palette.accent} /></View>
 
   return (
     <ExperienceVerifier

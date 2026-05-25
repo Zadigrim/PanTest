@@ -10,6 +10,7 @@ import { haversineDistance } from '../../lib/gps'
 import { supabase } from '../../lib/supabase'
 import { router } from 'expo-router'
 import type { Stop, PassportPage } from '../../types'
+import { palette } from '../../lib/colors'
 
 interface NearbyStop extends Stop {
   passportId: string
@@ -43,10 +44,10 @@ function parsePoint(raw: unknown): { lat: number; lng: number } | null {
   return null
 }
 
-const NAVY = '#0D1B2A'
-const GOLD = '#C9A84C'
-const GREEN = '#1D9E75'
-const INK = '#1f1d1a'
+const NAVY = palette.navy
+const GOLD = palette.accent
+const GREEN = palette.green
+const INK = palette.ink
 const MAP_HEIGHT_RATIO = 0.38
 
 export default function NearbyMode() {
@@ -147,8 +148,8 @@ export default function NearbyMode() {
                   description={s.passportTitle}
                   pinColor={
                     s.distanceM !== null && s.distanceM <= s.radius_meters
-                      ? '#1D9E75'
-                      : '#C9A84C'
+                      ? palette.green
+                      : palette.accent
                   }
                 />
               ))}
