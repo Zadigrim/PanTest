@@ -11,7 +11,7 @@ Okuji is a physical-world passport platform. A **passport** is a printed booklet
 The system has three distinct user populations:
 
 - **Visitors / collectors** — use the mobile app to discover and stamp passports
-- **Institutional managers / individual creators** — use OkujiConnect to manage passports, distribute them to employees, and view completions
+- **Institutional managers / individual creators** — use okujiKobo to manage passports, distribute them to employees, and view completions
 - **Designers** — use OkujiDesigner to lay out passport pages, position stamp boxes, and publish passports
 
 ---
@@ -28,7 +28,7 @@ PanTest/                         ← repo root; also the Expo mobile app
 ├── supabase/
 │   ├── functions/               ← Deno edge functions
 │   └── migrations/              ← Numbered SQL migrations for mobile schema
-├── OkujiConnect/              ← Next.js 14 B2B portal (separate app)
+├── okujiKobo/              ← Next.js 14 B2B portal (separate app)
 │   ├── app/                     ← App Router pages
 │   ├── lib/                     ← Connect-specific utilities
 │   └── supabase/migrations/     ← Additional migrations for Connect tables
@@ -44,7 +44,7 @@ All three apps share one Supabase project. OkujiDesigner may have its own separa
 
 ## 3. Technology Stack
 
-| Layer | Mobile App | OkujiConnect | OkujiDesigner |
+| Layer | Mobile App | okujiKobo | OkujiDesigner |
 |---|---|---|---|
 | Framework | Expo ~54 / React Native 0.76.9 | Next.js 14.2 (App Router) | Next.js 14.2 (App Router) |
 | Styling | NativeWind ^4 (Tailwind) | Tailwind CSS | Tailwind CSS |
@@ -89,7 +89,7 @@ PostGIS is enabled. A `verify_radius` function checks whether submitted GPS fall
 
 `stamp_slots` — designer-only layout elements that position stamp boxes on a page using **percentage** coordinates (`pos_x`, `pos_y`, `width_pct`, `height_pct`). These are separate from the absolute-pixel `box_x/y/width/height` fields on `stops` which the mobile app and PDF renderer use.
 
-### Connect tables (OkujiConnect/supabase/migrations/002)
+### Connect tables (okujiKobo/supabase/migrations/002)
 
 | Table | Purpose |
 |---|---|
@@ -109,9 +109,9 @@ PostGIS is enabled. A `verify_radius` function checks whether submitted GPS fall
 
 ### Session handling
 
-OkujiConnect's middleware calls `supabase.auth.getSession()` (no network call, reads the cookie) for routing decisions. The actual security check (`getUser()`) happens in server components / layouts running in Node.js. This is intentional — `getUser()` makes an outbound Supabase call that fails unreliably in the Edge Runtime.
+okujiKobo's middleware calls `supabase.auth.getSession()` (no network call, reads the cookie) for routing decisions. The actual security check (`getUser()`) happens in server components / layouts running in Node.js. This is intentional — `getUser()` makes an outbound Supabase call that fails unreliably in the Edge Runtime.
 
-### Role detection (`OkujiConnect/lib/roles.ts`)
+### Role detection (`okujiKobo/lib/roles.ts`)
 
 Five roles are detected at runtime, not stored in a single column:
 
@@ -185,7 +185,7 @@ Precise coordinates are **never stored**. After verification, the edge function 
 
 ### Visitor code flow
 
-For Tier 4, `app/passport/stamp/[stopId].tsx` shows a short visitor code modal. The visitor reads this code to an on-site employee. The employee enters it in the Employee Terminal in OkujiConnect to authorize the stamp.
+For Tier 4, `app/passport/stamp/[stopId].tsx` shows a short visitor code modal. The visitor reads this code to an on-site employee. The employee enters it in the Employee Terminal in okujiKobo to authorize the stamp.
 
 ---
 
@@ -203,7 +203,7 @@ Sentry is integrated for crash reporting (`@sentry/react-native ^5.22`).
 
 ---
 
-## 9. OkujiConnect — Institutional Portal
+## 9. okujiKobo — Institutional Portal
 
 Next.js 14 App Router. Route groups:
 
@@ -258,7 +258,7 @@ Called on passport page completion. Generates a token in MCM-XXXX-XX format and 
 
 ## 12. PDF Generation (Print-for-Kids)
 
-Route: `OkujiConnect/app/api/passports/[id]/print-pdf/route.tsx`
+Route: `okujiKobo/app/api/passports/[id]/print-pdf/route.tsx`
 
 Uses `@react-pdf/renderer` server-side via `renderToBuffer()`. Produces a portrait 8.5"×11" PDF (612×792 pt) where each sheet holds **two slots** — cut along y=396, fold guide at x=306.
 
@@ -302,7 +302,7 @@ Tables added after the initial TypeScript types were generated return `never` fr
 | `EXPO_PUBLIC_SUPABASE_ANON_KEY` | Public anon key |
 | `EXPO_PUBLIC_SENTRY_DSN` | Sentry project DSN |
 
-### OkujiConnect (`OkujiConnect/.env.local`)
+### okujiKobo (`okujiKobo/.env.local`)
 
 | Variable | Purpose |
 |---|---|
@@ -328,9 +328,9 @@ Tables added after the initial TypeScript types were generated return `never` fr
 Migration numbering is split across two locations:
 
 - `supabase/migrations/001–004` — mobile + shared schema (passports, stops, stamps, stamp_slots, accolades, etc.)
-- `OkujiConnect/supabase/migrations/002` — Connect-specific tables (acquisitions, presence_sessions, etc.)
+- `okujiKobo/supabase/migrations/002` — Connect-specific tables (acquisitions, presence_sessions, etc.)
 
-To apply: `supabase db push` from the repo root for mobile migrations; equivalent command from `OkujiConnect/` for Connect migrations. Confirm with `supabase migration list` that all migrations show as applied before deploying edge functions.
+To apply: `supabase db push` from the repo root for mobile migrations; equivalent command from `okujiKobo/` for Connect migrations. Confirm with `supabase migration list` that all migrations show as applied before deploying edge functions.
 
 Edge functions are deployed with `supabase functions deploy <function-name>`.
 
@@ -343,8 +343,8 @@ Edge functions are deployed with `supabase functions deploy <function-name>`.
 cd /path/to/PanTest
 npx expo start
 
-# OkujiConnect
-cd OkujiConnect
+# okujiKobo
+cd okujiKobo
 npm run dev          # port 3000
 
 # OkujiDesigner
@@ -378,7 +378,7 @@ OkujiDesigner has its own `package.json` and Supabase client configuration. It m
 
 ### Analytics
 
-The analytics page in OkujiConnect is a stub. No aggregation queries, materialized views, or reporting pipeline exists.
+The analytics page in okujiKobo is a stub. No aggregation queries, materialized views, or reporting pipeline exists.
 
 ### Billing completeness
 
@@ -398,7 +398,7 @@ It appears `stamp_slots` was added (migration 004) as a designer-facing layout p
 
 ### Debug routes
 
-`OkujiConnect/app/api/auth-debug/route.ts` and `/api/middleware-debug` are present in the codebase. They must be removed or protected before production deployment.
+`okujiKobo/app/api/auth-debug/route.ts` and `/api/middleware-debug` are present in the codebase. They must be removed or protected before production deployment.
 
 ### `supabase as any` proliferation
 

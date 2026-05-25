@@ -31,7 +31,7 @@ and the platform admin flag (`is_platform_admin`). The `is_platform_admin` flag
 gives full read/write access to every table — set only on the founder's account.
 
 **institutions**
-Organisations that use OkujiConnect — schools, libraries, nature centers, McMenamins
+Organisations that use okujiKobo — schools, libraries, nature centers, McMenamins
 hotels, tourism boards, etc. Each institution has a type (from a 35-value list spanning
 educational, environmental, cultural, social, commercial, and legacy categories), a
 pricing model (free forever, paid passport, subscription tiers), and an admission flag
@@ -116,7 +116,7 @@ Includes prize description, approximate value, and optional location whitelist
 (prize can only be claimed at certain stops).
 
 **employee_authorizations**
-Who can act on behalf of an institution in OkujiConnect: verify stamps, distribute
+Who can act on behalf of an institution in okujiKobo: verify stamps, distribute
 prizes, or add extras to collector passports. Each authorization record specifies
 which permissions the employee has.
 
@@ -248,7 +248,7 @@ institutions, passport_autosaves, print_jobs
 1. **Platform admin flag.** Adds `is_platform_admin` to profiles and creates the
    `public.is_admin()` helper function. All existing RLS policies are dropped and
    recreated with the admin bypass clause so the founder can access every section
-   of OkujiConnect without restriction.
+   of okujiKobo without restriction.
 
 2. **Stamp asset system.** Adds `stamp_asset_id` and `stamp_type` columns to stops,
    allowing a stop's stamp to reference a custom uploaded image from `design_assets`

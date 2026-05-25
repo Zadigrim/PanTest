@@ -1,6 +1,6 @@
 # Okuji — implementation brief for Claude Code
 
-This brief covers two surfaces inside **Okuji Connect** (the internal/operator
+This brief covers two surfaces inside **okujiKobo** (the internal/operator
 side of the product):
 
 1. **Designer (v1)** — desktop app that lets passport designers (e.g. a Brooklyn
