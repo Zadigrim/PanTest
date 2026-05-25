@@ -12,7 +12,7 @@ function NavLink({ href, children }: { href: string; children: ReactNode }) {
   return (
     <Link
       href={href}
-      className="flex items-center gap-2.5 px-3 py-2 rounded-panel text-sm font-medium text-okuji-teal-lt/90 hover:bg-white/10 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-okuji-teal"
+      className="flex items-center gap-2.5 px-3 py-2 rounded-panel text-sm font-medium text-cream/90 hover:bg-white/10 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green"
     >
       {children}
     </Link>
@@ -35,7 +35,7 @@ async function LogoutButton() {
     <form action={signOut}>
       <button
         type="submit"
-        className="w-full flex items-center gap-2.5 px-3 py-2 rounded-panel text-sm font-medium text-okuji-teal-lt/70 hover:bg-white/10 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-okuji-teal text-left"
+        className="w-full flex items-center gap-2.5 px-3 py-2 rounded-panel text-sm font-medium text-cream/70 hover:bg-white/10 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green text-left"
       >
         <svg
           width="16"
@@ -133,7 +133,7 @@ export default async function ManageLayout({ children }: { children: ReactNode }
             className="h-9 w-9 rounded-card object-cover shrink-0"
           />
         ) : (
-          <div className="h-9 w-9 rounded-card bg-okuji-teal flex items-center justify-center shrink-0">
+          <div className="h-9 w-9 rounded-card bg-green flex items-center justify-center shrink-0">
             <span className="text-white font-bold text-sm select-none">
               {authorization ? (institutionName[0]?.toUpperCase() ?? 'I') : 'P'}
             </span>
@@ -143,7 +143,7 @@ export default async function ManageLayout({ children }: { children: ReactNode }
           <p className="text-white font-semibold text-sm truncate leading-tight">
             {authorization ? institutionName : 'Okuji'}
           </p>
-          <p className="text-okuji-teal-lt/60 text-xs truncate">Manage</p>
+          <p className="text-cream/60 text-xs truncate">Manage</p>
         </div>
       </div>
     </div>
@@ -151,8 +151,8 @@ export default async function ManageLayout({ children }: { children: ReactNode }
 
   if (!authorization) {
     return (
-      <div className="flex min-h-screen bg-okuji-gray-1">
-        <aside className="w-60 shrink-0 bg-okuji-navy flex flex-col">
+      <div className="flex min-h-screen bg-paper">
+        <aside className="w-60 shrink-0 bg-navy flex flex-col">
           {sidebarHeader}
           <div className="flex-1" />
           <div className="px-3 py-4 border-t border-white/10">
@@ -160,16 +160,16 @@ export default async function ManageLayout({ children }: { children: ReactNode }
           </div>
         </aside>
         <main className="flex-1 min-w-0 overflow-auto flex items-center justify-center p-6">
-          <div className="max-w-md w-full bg-white rounded-modal shadow-sm border border-okuji-gray-2 p-8 text-center">
+          <div className="max-w-md w-full bg-white rounded-modal shadow-sm border border-hairline p-8 text-center">
             <div className="text-4xl mb-4" aria-hidden="true">🔒</div>
-            <h1 className="text-xl font-semibold text-okuji-navy mb-2">Access denied</h1>
-            <p className="text-okuji-gray-3 text-sm leading-relaxed">
+            <h1 className="text-xl font-semibold text-navy mb-2">Access denied</h1>
+            <p className="text-muted text-sm leading-relaxed">
               You need institutional access to view this page. Contact your institution
               administrator to be added as an employee.
             </p>
             <Link
               href="/"
-              className="mt-6 inline-flex items-center justify-center h-9 px-4 rounded-panel bg-okuji-teal text-white text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-okuji-teal"
+              className="mt-6 inline-flex items-center justify-center h-9 px-4 rounded-panel bg-green text-white text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green"
             >
               Back to home
             </Link>
@@ -180,9 +180,9 @@ export default async function ManageLayout({ children }: { children: ReactNode }
   }
 
   return (
-    <div className="flex min-h-screen bg-okuji-gray-1">
+    <div className="flex min-h-screen bg-paper">
       {/* ── Sidebar ─────────────────────────────────────────── */}
-      <aside className="w-60 shrink-0 bg-okuji-navy flex flex-col">
+      <aside className="w-60 shrink-0 bg-navy flex flex-col">
         {sidebarHeader}
 
         {/* Navigation */}
@@ -285,7 +285,7 @@ export default async function ManageLayout({ children }: { children: ReactNode }
         {/* Bottom: employee role + sign out */}
         <div className="px-3 py-4 border-t border-white/10 space-y-1">
           {authorization.role_label && (
-            <p className="px-3 text-xs text-okuji-teal-lt/50 truncate">
+            <p className="px-3 text-xs text-cream/50 truncate">
               {authorization.role_label}
             </p>
           )}

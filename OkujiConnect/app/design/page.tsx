@@ -11,9 +11,9 @@ import type { DesignerPassport, CoverSideData } from '@/lib/design/types'
 export const metadata = { title: 'My Passports — OkujiDesigner' }
 
 const STATUS_STYLES: Record<string, string> = {
-  draft:     'bg-okuji-gray-2 text-okuji-gray-3',
-  published: 'bg-okuji-teal-lt text-okuji-teal-dk',
-  archived:  'bg-okuji-amber/15 text-okuji-amber',
+  draft:     'bg-hairline text-muted',
+  published: 'bg-cream text-green',
+  archived:  'bg-accent/15 text-accent',
 }
 
 // ── Cover thumbnail — 2:3 proportions, full card width ───────────────────────
@@ -38,7 +38,7 @@ function CoverThumbnail({ passport }: { passport: DesignerPassport }) {
 
 function PassportCard({ passport }: { passport: DesignerPassport }) {
   return (
-    <div className="flex flex-col overflow-hidden rounded-panel border border-okuji-gray-2 bg-white transition-shadow hover:shadow-md">
+    <div className="flex flex-col overflow-hidden rounded-panel border border-hairline bg-white transition-shadow hover:shadow-md">
       {/* Cover thumbnail — full width, no padding, 2:3 ratio */}
       <Link href={`/design/${passport.id}`} className="block">
         <CoverThumbnail passport={passport} />
@@ -47,7 +47,7 @@ function PassportCard({ passport }: { passport: DesignerPassport }) {
       {/* Info section — stretches to fill card height */}
       <Link href={`/design/${passport.id}`} className="group flex flex-1 flex-col gap-2 px-4 pb-4 pt-3">
         <div className="flex items-start justify-between gap-2">
-          <h3 className="font-semibold text-okuji-navy group-hover:text-okuji-teal-dk transition-colors line-clamp-2 leading-snug">
+          <h3 className="font-semibold text-navy group-hover:text-green transition-colors line-clamp-2 leading-snug">
             {passport.title}
           </h3>
           <span
@@ -60,24 +60,24 @@ function PassportCard({ passport }: { passport: DesignerPassport }) {
         </div>
 
         {passport.description && (
-          <p className="text-sm text-okuji-gray-3 line-clamp-2 leading-snug">
+          <p className="text-sm text-muted line-clamp-2 leading-snug">
             {passport.description}
           </p>
         )}
 
-        <div className="mt-auto flex flex-wrap items-center gap-2 text-xs text-okuji-gray-3 pt-1">
+        <div className="mt-auto flex flex-wrap items-center gap-2 text-xs text-muted pt-1">
           <span>{spendTierLabel(passport.expected_spend_tier)}</span>
           {passport.transit_accessible && <span title="Transit accessible">🚌</span>}
           {passport.wheelchair_accessible && <span title="Wheelchair accessible">♿</span>}
         </div>
 
-        <p className="text-xs text-okuji-gray-3">
+        <p className="text-xs text-muted">
           Updated {new Date(passport.updated_at).toLocaleDateString()}
         </p>
       </Link>
 
       {/* Card footer — always visible, print button lower-left */}
-      <div className="border-t border-okuji-gray-2 px-3 py-2 flex items-center">
+      <div className="border-t border-hairline px-3 py-2 flex items-center">
         <PrintPassportButton
           compact
           passport={{
@@ -111,19 +111,19 @@ export default async function DesignIndexPage() {
   const list = (passports ?? []) as DesignerPassport[]
 
   return (
-    <div className="min-h-screen bg-okuji-gray-1">
+    <div className="min-h-screen bg-paper">
       {/* Top bar */}
-      <header className="border-b border-okuji-gray-2 bg-white px-8 py-4">
+      <header className="border-b border-hairline bg-white px-8 py-4">
         <div className="mx-auto flex max-w-6xl items-center justify-between">
           <div className="flex items-center gap-3">
             <span className="text-2xl">🧭</span>
-            <span className="font-serif text-xl font-bold text-okuji-navy tracking-wide">
+            <span className="font-serif text-xl font-bold text-navy tracking-wide">
               OkujiDesigner
             </span>
           </div>
           <Link
             href="/"
-            className="text-sm text-okuji-gray-3 hover:text-okuji-navy transition-colors"
+            className="text-sm text-muted hover:text-navy transition-colors"
           >
             ← Back to Okuji
           </Link>
@@ -133,8 +133,8 @@ export default async function DesignIndexPage() {
       <main className="mx-auto max-w-6xl px-8 py-10">
         <div className="mb-8 flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-okuji-navy">My Passports</h1>
-            <p className="mt-1 text-sm text-okuji-gray-3">
+            <h1 className="text-2xl font-bold text-navy">My Passports</h1>
+            <p className="mt-1 text-sm text-muted">
               {list.length === 0
                 ? 'Create your first passport to get started.'
                 : `${list.length} passport${list.length === 1 ? '' : 's'}`}
@@ -144,12 +144,12 @@ export default async function DesignIndexPage() {
         </div>
 
         {list.length === 0 && (
-          <div className="rounded-modal border-2 border-dashed border-okuji-gray-2 py-20 text-center">
-            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-okuji-teal-lt text-3xl">
+          <div className="rounded-modal border-2 border-dashed border-hairline py-20 text-center">
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-cream text-3xl">
               🗺
             </div>
-            <h2 className="text-lg font-semibold text-okuji-navy">No passports yet</h2>
-            <p className="mt-2 text-sm text-okuji-gray-3">
+            <h2 className="text-lg font-semibold text-navy">No passports yet</h2>
+            <p className="mt-2 text-sm text-muted">
               Create your first passport to start building experiences.
             </p>
             <div className="mt-6">

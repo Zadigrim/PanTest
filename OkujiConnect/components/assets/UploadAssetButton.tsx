@@ -65,12 +65,12 @@ export function UploadAssetButton({ assetType }: Props) {
         type="button"
         onClick={handleClick}
         disabled={uploading}
-        className="inline-flex items-center gap-2 h-9 px-4 rounded-panel text-sm font-medium bg-okuji-teal text-white hover:bg-okuji-teal-dk disabled:opacity-60 disabled:pointer-events-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-okuji-teal"
+        className="inline-flex items-center gap-2 h-9 px-4 rounded-panel text-sm font-medium bg-green text-white hover:bg-green disabled:opacity-60 disabled:pointer-events-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green"
       >
         {uploading ? 'Uploading…' : 'Upload asset'}
       </button>
       {error && (
-        <p role="alert" className="text-xs text-okuji-coral max-w-[200px] text-right">
+        <p role="alert" className="text-xs text-accent max-w-[200px] text-right">
           {error}
         </p>
       )}

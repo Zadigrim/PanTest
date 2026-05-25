@@ -10,6 +10,6 @@
   }
 
   body {
-    @apply bg-white text-okuji-navy font-sans;
+    @apply bg-white text-navy font-sans;
   }
 }

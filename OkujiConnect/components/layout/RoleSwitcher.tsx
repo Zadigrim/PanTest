@@ -35,12 +35,12 @@ export function RoleSwitcher({ roles, activeRole }: RoleSwitcherProps) {
             h-7 cursor-pointer appearance-none rounded-card
             border border-white/20 bg-white/10
             pl-2 pr-6 text-xs text-white
-            hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-okuji-teal
+            hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-green
             disabled:opacity-50 transition-colors
           "
         >
           {roles.map((r) => (
-            <option key={r} value={r} className="bg-okuji-navy text-white">
+            <option key={r} value={r} className="bg-navy text-white">
               {ROLE_LABELS[r]}
             </option>
           ))}

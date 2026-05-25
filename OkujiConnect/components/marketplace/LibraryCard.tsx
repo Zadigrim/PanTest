@@ -48,13 +48,13 @@ interface ProgressBarProps {
 
 function ProgressBar({ pct, state }: ProgressBarProps) {
   const fillColor =
-    state === 'completed'  ? 'bg-okuji-teal'
-    : state === 'in_progress' ? 'bg-okuji-teal'
-    : 'bg-okuji-gray-2'
+    state === 'completed'  ? 'bg-green'
+    : state === 'in_progress' ? 'bg-green'
+    : 'bg-hairline'
 
   return (
     <div
-      className="h-1.5 w-full overflow-hidden rounded-full bg-okuji-gray-2"
+      className="h-1.5 w-full overflow-hidden rounded-full bg-hairline"
       role="progressbar"
       aria-valuenow={Math.round(pct)}
       aria-valuemin={0}
@@ -73,7 +73,7 @@ function ProgressBar({ pct, state }: ProgressBarProps) {
 function StatePill({ state }: { state: ProgressState }) {
   if (state === 'completed') {
     return (
-      <span className="inline-flex items-center gap-1 rounded-card bg-okuji-teal-lt px-2 py-0.5 text-xs font-medium text-okuji-teal-dk">
+      <span className="inline-flex items-center gap-1 rounded-card bg-cream px-2 py-0.5 text-xs font-medium text-green">
         <svg viewBox="0 0 12 12" className="h-3 w-3" fill="none" aria-hidden="true">
           <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
@@ -93,7 +93,7 @@ function StatePill({ state }: { state: ProgressState }) {
     )
   }
   return (
-    <span className="inline-flex items-center rounded-card bg-okuji-gray-2 px-2 py-0.5 text-xs font-medium text-okuji-gray-3">
+    <span className="inline-flex items-center rounded-card bg-hairline px-2 py-0.5 text-xs font-medium text-muted">
       Not Started
     </span>
   )
@@ -158,14 +158,14 @@ export function LibraryCard({
   return (
     <div
       className={cn(
-        'flex gap-3 rounded-panel border border-okuji-gray-2 bg-white p-3 shadow-sm',
+        'flex gap-3 rounded-panel border border-hairline bg-white p-3 shadow-sm',
         'transition-shadow hover:shadow-md'
       )}
     >
       {/* ── Cover thumbnail ───────────────────────────────────────────────── */}
       <Link
         href={`/passport/${id}`}
-        className="block h-20 w-16 shrink-0 overflow-hidden rounded-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-okuji-teal"
+        className="block h-20 w-16 shrink-0 overflow-hidden rounded-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green"
         tabIndex={-1}
         aria-hidden="true"
       >
@@ -179,7 +179,7 @@ export function LibraryCard({
         <div className="flex items-start justify-between gap-2">
           <Link
             href={`/passport/${id}`}
-            className="line-clamp-2 text-sm font-semibold leading-snug text-okuji-navy hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-okuji-teal rounded-sm"
+            className="line-clamp-2 text-sm font-semibold leading-snug text-navy hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green rounded-sm"
           >
             {title}
           </Link>
@@ -191,13 +191,13 @@ export function LibraryCard({
           <div className="flex-1">
             <ProgressBar pct={pct} state={state} />
           </div>
-          <span className="shrink-0 text-xs tabular-nums text-okuji-gray-3">
+          <span className="shrink-0 text-xs tabular-nums text-muted">
             {stampCount}/{totalStops} stops
           </span>
         </div>
 
         {/* Meta row */}
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-okuji-gray-3">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted">
           {estimated_hours != null && (
             <span>
               {estimated_hours < 1

@@ -91,7 +91,7 @@ const SPEND_TIER_LABELS: Record<string, string> = {
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section className="space-y-3">
-      <h2 className="text-base font-semibold text-okuji-navy">{title}</h2>
+      <h2 className="text-base font-semibold text-navy">{title}</h2>
       {children}
     </section>
   )
@@ -226,7 +226,7 @@ export default async function ExplorePassportDetailPage({
         {/* Back link */}
         <Link
           href="/explore"
-          className="mb-6 inline-flex items-center gap-1 text-sm text-okuji-gray-3 hover:text-okuji-navy transition-colors"
+          className="mb-6 inline-flex items-center gap-1 text-sm text-muted hover:text-navy transition-colors"
         >
           ← Back to Explore
         </Link>
@@ -235,13 +235,13 @@ export default async function ExplorePassportDetailPage({
         <div className="flex items-start gap-3">
           <span className="text-3xl leading-tight" aria-hidden="true">{typeIcon}</span>
           <div className="flex-1 min-w-0">
-            <h1 className="text-2xl font-bold text-okuji-navy leading-tight">
+            <h1 className="text-2xl font-bold text-navy leading-tight">
               {passport.title}
             </h1>
             {creator?.display_name && (
-              <p className="mt-1 text-sm text-okuji-gray-3">
+              <p className="mt-1 text-sm text-muted">
                 by{' '}
-                <span className="font-medium text-okuji-navy">
+                <span className="font-medium text-navy">
                   {creator.display_name}
                 </span>
               </p>
@@ -252,27 +252,27 @@ export default async function ExplorePassportDetailPage({
         {/* Badge row */}
         <div className="mt-4 flex flex-wrap gap-2 text-xs">
           {passport.expected_spend_tier && SPEND_TIER_LABELS[passport.expected_spend_tier] && (
-            <span className="rounded-full border border-okuji-gray-2 px-2.5 py-1 text-okuji-gray-3">
+            <span className="rounded-full border border-hairline px-2.5 py-1 text-muted">
               {SPEND_TIER_LABELS[passport.expected_spend_tier]} on the ground
             </span>
           )}
           {passport.is_free && (
-            <span className="rounded-full bg-okuji-teal-lt px-2.5 py-1 font-medium text-okuji-teal-dk">
+            <span className="rounded-full bg-cream px-2.5 py-1 font-medium text-green">
               Free passport
             </span>
           )}
           {passport.transit_accessible && (
-            <span className="rounded-full border border-okuji-gray-2 px-2.5 py-1 text-okuji-gray-3">
+            <span className="rounded-full border border-hairline px-2.5 py-1 text-muted">
               🚌 Transit friendly
             </span>
           )}
           {passport.wheelchair_accessible && (
-            <span className="rounded-full border border-okuji-gray-2 px-2.5 py-1 text-okuji-gray-3">
+            <span className="rounded-full border border-hairline px-2.5 py-1 text-muted">
               ♿ Wheelchair accessible
             </span>
           )}
           {passport.passport_type && (
-            <span className="rounded-full border border-okuji-gray-2 px-2.5 py-1 text-okuji-gray-3 capitalize">
+            <span className="rounded-full border border-hairline px-2.5 py-1 text-muted capitalize">
               {passport.passport_type}
             </span>
           )}
@@ -280,7 +280,7 @@ export default async function ExplorePassportDetailPage({
 
         {/* Stats row */}
         {(pages.length > 0 || allStops.length > 0) && (
-          <p className="mt-3 text-sm text-okuji-gray-3">
+          <p className="mt-3 text-sm text-muted">
             {pages.length} {pages.length === 1 ? 'page' : 'pages'}
             {allStops.length > 0 && (
               <>
@@ -299,14 +299,14 @@ export default async function ExplorePassportDetailPage({
           </p>
         )}
 
-        <hr className="my-6 border-okuji-gray-2" />
+        <hr className="my-6 border-hairline" />
 
         <div className="space-y-8">
 
           {/* Description */}
           {passport.description && (
             <Section title="About">
-              <p className="text-sm leading-relaxed text-okuji-gray-3 whitespace-pre-line">
+              <p className="text-sm leading-relaxed text-muted whitespace-pre-line">
                 {passport.description}
               </p>
             </Section>
@@ -327,22 +327,22 @@ export default async function ExplorePassportDetailPage({
                     return (
                       <li
                         key={stop.id}
-                        className="flex items-start gap-3 rounded-card border border-okuji-gray-2 bg-okuji-gray-1 px-4 py-3"
+                        className="flex items-start gap-3 rounded-card border border-hairline bg-paper px-4 py-3"
                       >
-                        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-okuji-teal text-white text-xs font-semibold">
+                        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-green text-white text-xs font-semibold">
                           {globalIdx}
                         </span>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-okuji-navy">{stop.name}</p>
+                          <p className="text-sm font-medium text-navy">{stop.name}</p>
                           {(stop.address_street || stop.address_city) && (
-                            <p className="mt-0.5 text-xs text-okuji-gray-3">
+                            <p className="mt-0.5 text-xs text-muted">
                               {[stop.address_street, stop.address_city, stop.address_state]
                                 .filter(Boolean)
                                 .join(', ')}
                             </p>
                           )}
                           {stop.learning_objective && (
-                            <p className="mt-0.5 text-xs italic text-okuji-gray-3">
+                            <p className="mt-0.5 text-xs italic text-muted">
                               {stop.learning_objective}
                             </p>
                           )}
@@ -351,7 +351,7 @@ export default async function ExplorePassportDetailPage({
                               {(stop.classifiers ?? []).slice(0, 3).map((c) => (
                                 <span
                                   key={c}
-                                  className="rounded-card bg-okuji-teal-lt px-1.5 py-0.5 text-[10px] font-medium text-okuji-teal-dk capitalize"
+                                  className="rounded-card bg-cream px-1.5 py-0.5 text-[10px] font-medium text-green capitalize"
                                 >
                                   {c.replace(/_/g, ' ')}
                                 </span>
@@ -379,16 +379,16 @@ export default async function ExplorePassportDetailPage({
                 {prizePages.map((page) => (
                   <div
                     key={page.id}
-                    className="flex items-start gap-3 rounded-panel border border-okuji-amber bg-amber-50 px-4 py-3"
+                    className="flex items-start gap-3 rounded-panel border border-accent bg-amber-50 px-4 py-3"
                   >
                     <span className="text-xl" aria-hidden="true">🏆</span>
                     <div>
                       {page.section_title && (
-                        <p className="text-sm font-semibold text-okuji-navy">
+                        <p className="text-sm font-semibold text-navy">
                           {page.section_title}
                         </p>
                       )}
-                      <p className="text-sm text-okuji-gray-3">{page.prize_description}</p>
+                      <p className="text-sm text-muted">{page.prize_description}</p>
                     </div>
                   </div>
                 ))}
@@ -399,25 +399,25 @@ export default async function ExplorePassportDetailPage({
           {/* About the creator */}
           {creator && (creator.display_name || creator.bio) && (
             <Section title="About the creator">
-              <div className="flex items-start gap-4 rounded-panel border border-okuji-gray-2 bg-okuji-gray-1 p-4">
+              <div className="flex items-start gap-4 rounded-panel border border-hairline bg-paper p-4">
                 {creator.avatar_url ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={creator.avatar_url}
                     alt={creator.display_name ?? 'Creator'}
-                    className="h-12 w-12 shrink-0 rounded-full object-cover border-2 border-okuji-gray-2"
+                    className="h-12 w-12 shrink-0 rounded-full object-cover border-2 border-hairline"
                   />
                 ) : (
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-okuji-teal text-white text-base font-semibold select-none">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-green text-white text-base font-semibold select-none">
                     {(creator.display_name ?? '?')[0].toUpperCase()}
                   </div>
                 )}
                 <div className="min-w-0">
-                  <p className="text-sm font-semibold text-okuji-navy">
+                  <p className="text-sm font-semibold text-navy">
                     {creator.display_name ?? 'Unknown creator'}
                   </p>
                   {creator.bio && (
-                    <p className="mt-1 text-sm text-okuji-gray-3 leading-relaxed line-clamp-4">
+                    <p className="mt-1 text-sm text-muted leading-relaxed line-clamp-4">
                       {creator.bio}
                     </p>
                   )}
@@ -429,7 +429,7 @@ export default async function ExplorePassportDetailPage({
           {/* Bottom CTAs */}
           <div
             className={cn(
-              'flex flex-col gap-3 border-t border-okuji-gray-2 pt-6',
+              'flex flex-col gap-3 border-t border-hairline pt-6',
               'sm:flex-row sm:items-center',
             )}
           >
@@ -437,7 +437,7 @@ export default async function ExplorePassportDetailPage({
               href={`/stops?passport=${passport.id}`}
               className={cn(
                 'inline-flex h-11 flex-1 items-center justify-center rounded-panel px-6 text-sm font-semibold',
-                'border border-okuji-gray-2 text-okuji-navy hover:border-okuji-teal hover:text-okuji-teal-dk',
+                'border border-hairline text-navy hover:border-green hover:text-green',
                 'transition-colors',
                 !hasSharedStops && 'pointer-events-none opacity-40',
               )}

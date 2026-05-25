@@ -73,15 +73,15 @@ const SORT_OPTIONS: { label: string; value: FilterState['sortBy'] }[] = [
 // ─── Shared select style ──────────────────────────────────────────────────────
 
 const SELECT_BASE =
-  'h-8 cursor-pointer appearance-none rounded-card border border-okuji-gray-2 bg-white ' +
-  'pl-3 pr-7 text-xs text-okuji-navy transition-colors ' +
-  'hover:border-okuji-teal focus:outline-none focus:ring-2 focus:ring-okuji-teal ' +
+  'h-8 cursor-pointer appearance-none rounded-card border border-hairline bg-white ' +
+  'pl-3 pr-7 text-xs text-navy transition-colors ' +
+  'hover:border-green focus:outline-none focus:ring-2 focus:ring-green ' +
   'disabled:cursor-not-allowed disabled:opacity-50'
 
 // Wrapper that adds the chevron caret via a pseudo-element replacement (inline SVG bg)
 const SELECT_WRAPPER = 'relative inline-flex shrink-0'
 const SELECT_CARET =
-  "pointer-events-none absolute inset-y-0 right-2 flex items-center text-okuji-gray-3"
+  "pointer-events-none absolute inset-y-0 right-2 flex items-center text-muted"
 
 // ─── Multi-select pill helper ─────────────────────────────────────────────────
 
@@ -141,10 +141,10 @@ function MultiSelect({ label, options, selected, onChange }: MultiSelectProps) {
         onClick={() => setOpen((prev: boolean) => !prev)}
         className={cn(
           'flex h-8 items-center gap-1 rounded-card border px-3 text-xs transition-colors',
-          'focus:outline-none focus:ring-2 focus:ring-okuji-teal',
+          'focus:outline-none focus:ring-2 focus:ring-green',
           isActive
-            ? 'border-okuji-teal bg-okuji-teal-lt text-okuji-teal-dk font-medium'
-            : 'border-okuji-gray-2 bg-white text-okuji-navy hover:border-okuji-teal'
+            ? 'border-green bg-cream text-green font-medium'
+            : 'border-hairline bg-white text-navy hover:border-green'
         )}
         aria-haspopup="listbox"
         aria-expanded={open}
@@ -166,7 +166,7 @@ function MultiSelect({ label, options, selected, onChange }: MultiSelectProps) {
           aria-multiselectable="true"
           aria-label={label}
           className={cn(
-            'absolute left-0 top-full z-50 mt-1 min-w-[10rem] rounded-panel border border-okuji-gray-2',
+            'absolute left-0 top-full z-50 mt-1 min-w-[10rem] rounded-panel border border-hairline',
             'bg-white py-1 shadow-lg'
           )}
         >
@@ -181,16 +181,16 @@ function MultiSelect({ label, options, selected, onChange }: MultiSelectProps) {
                 onClick={() => toggle(opt.value)}
                 className={cn(
                   'flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs transition-colors',
-                  'hover:bg-okuji-gray-1',
-                  checked ? 'text-okuji-teal-dk font-medium' : 'text-okuji-navy'
+                  'hover:bg-paper',
+                  checked ? 'text-green font-medium' : 'text-navy'
                 )}
               >
                 <span
                   className={cn(
                     'flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-sm border',
                     checked
-                      ? 'border-okuji-teal bg-okuji-teal text-white'
-                      : 'border-okuji-gray-3'
+                      ? 'border-green bg-green text-white'
+                      : 'border-muted'
                   )}
                   aria-hidden="true"
                 >
@@ -206,11 +206,11 @@ function MultiSelect({ label, options, selected, onChange }: MultiSelectProps) {
           })}
           {selected.length > 0 && (
             <>
-              <hr className="my-1 border-okuji-gray-2" />
+              <hr className="my-1 border-hairline" />
               <button
                 type="button"
                 onClick={() => { onChange([]); setOpen(false) }}
-                className="w-full px-3 py-1.5 text-left text-xs text-okuji-gray-3 hover:text-okuji-coral transition-colors"
+                className="w-full px-3 py-1.5 text-left text-xs text-muted hover:text-accent transition-colors"
               >
                 Clear all
               </button>
@@ -249,7 +249,7 @@ export function FilterBar({ filters, onChange }: FilterBarProps) {
   return (
     <div
       className={cn(
-        'sticky top-0 z-30 bg-white border-b border-okuji-gray-2',
+        'sticky top-0 z-30 bg-white border-b border-hairline',
         'overflow-x-auto scrollbar-none'
       )}
       role="search"
@@ -300,10 +300,10 @@ export function FilterBar({ filters, onChange }: FilterBarProps) {
           onClick={() => set('accessibleOnly', !filters.accessibleOnly)}
           className={cn(
             'flex h-8 items-center gap-1.5 rounded-card border px-3 text-xs transition-colors',
-            'focus:outline-none focus:ring-2 focus:ring-okuji-teal',
+            'focus:outline-none focus:ring-2 focus:ring-green',
             filters.accessibleOnly
-              ? 'border-okuji-teal bg-okuji-teal-lt text-okuji-teal-dk font-medium'
-              : 'border-okuji-gray-2 bg-white text-okuji-navy hover:border-okuji-teal'
+              ? 'border-green bg-cream text-green font-medium'
+              : 'border-hairline bg-white text-navy hover:border-green'
           )}
           aria-pressed={filters.accessibleOnly}
         >
@@ -318,7 +318,7 @@ export function FilterBar({ filters, onChange }: FilterBarProps) {
             onChange={handleTravelerChange}
             className={cn(
               SELECT_BASE,
-              filters.travelerType && 'border-okuji-teal text-okuji-teal-dk font-medium'
+              filters.travelerType && 'border-green text-green font-medium'
             )}
             aria-label="Traveler type filter"
           >
@@ -335,7 +335,7 @@ export function FilterBar({ filters, onChange }: FilterBarProps) {
         </div>
 
         {/* ── Divider ─────────────────────────────────────────────────────── */}
-        <div className="h-5 w-px shrink-0 bg-okuji-gray-2" aria-hidden="true" />
+        <div className="h-5 w-px shrink-0 bg-hairline" aria-hidden="true" />
 
         {/* ── Sort ────────────────────────────────────────────────────────── */}
         <div className={SELECT_WRAPPER}>

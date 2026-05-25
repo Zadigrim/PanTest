@@ -10,16 +10,16 @@ import { cn } from '@/lib/cn'
 // default/outline/ghost/danger. This version adds secondary and navy so designer
 // components don't need to be modified.
 const buttonVariants = cva(
-  'inline-flex items-center justify-center gap-2 rounded-panel text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-okuji-teal disabled:pointer-events-none disabled:opacity-50',
+  'inline-flex items-center justify-center gap-2 rounded-panel text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green disabled:pointer-events-none disabled:opacity-50',
   {
     variants: {
       variant: {
-        default:   'bg-okuji-teal text-white hover:bg-okuji-teal-dk',
-        secondary: 'bg-okuji-gray-2 text-okuji-navy hover:bg-okuji-gray-2/80',
-        ghost:     'text-okuji-navy hover:bg-okuji-gray-2',
-        outline:   'border border-okuji-gray-2 bg-transparent text-okuji-navy hover:bg-okuji-gray-1',
-        danger:    'bg-okuji-coral text-white hover:bg-okuji-coral/90',
-        navy:      'bg-okuji-navy text-white hover:bg-okuji-navy/90',
+        default:   'bg-green text-white hover:bg-green',
+        secondary: 'bg-hairline text-navy hover:bg-hairline/80',
+        ghost:     'text-navy hover:bg-hairline',
+        outline:   'border border-hairline bg-transparent text-navy hover:bg-paper',
+        danger:    'bg-accent text-white hover:bg-accent/90',
+        navy:      'bg-navy text-white hover:bg-navy/90',
       },
       size: {
         sm:   'h-8 px-3 text-xs',

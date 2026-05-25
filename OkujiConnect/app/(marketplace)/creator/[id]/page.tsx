@@ -49,21 +49,21 @@ export default async function CreatorPage({ params }: { params: { id: string } }
     <div className="mx-auto max-w-5xl px-4 py-8">
       {/* Header */}
       <div className="mb-8 flex items-start gap-5">
-        <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-okuji-teal-lt text-3xl">
+        <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-cream text-3xl">
           {creator.avatar_url
             ? <img src={creator.avatar_url} alt={displayName} className="h-20 w-20 rounded-full object-cover" />
             : '🧭'}
         </div>
         <div>
-          <h1 className="font-serif text-2xl font-bold text-okuji-navy">{displayName}</h1>
+          <h1 className="font-serif text-2xl font-bold text-navy">{displayName}</h1>
           {institution && (
-            <p className="text-sm text-okuji-gray-3">Institutional creator</p>
+            <p className="text-sm text-muted">Institutional creator</p>
           )}
           {creator.bio && (
-            <p className="mt-2 max-w-2xl text-sm text-okuji-gray-3">{creator.bio}</p>
+            <p className="mt-2 max-w-2xl text-sm text-muted">{creator.bio}</p>
           )}
           {(avgMood !== null || avgCompletion !== null) && (
-            <div className="mt-2 flex gap-4 text-sm text-okuji-gray-3">
+            <div className="mt-2 flex gap-4 text-sm text-muted">
               {avgMood !== null && <span>★ {avgMood.toFixed(1)} avg rating</span>}
               {avgCompletion !== null && <span>{Math.round(avgCompletion * 100)}% completion rate</span>}
               <span>{(passports ?? []).length} passports</span>
@@ -73,11 +73,11 @@ export default async function CreatorPage({ params }: { params: { id: string } }
       </div>
 
       {/* Passport grid */}
-      <h2 className="mb-4 text-xs font-semibold uppercase tracking-wider text-okuji-gray-3">
+      <h2 className="mb-4 text-xs font-semibold uppercase tracking-wider text-muted">
         Passports
       </h2>
       {(passports ?? []).length === 0 ? (
-        <p className="py-8 text-center text-okuji-gray-3">No published passports yet.</p>
+        <p className="py-8 text-center text-muted">No published passports yet.</p>
       ) : (
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {(passports as PassportWithDetails[]).map((passport) => (

@@ -4,14 +4,14 @@ import { cva, type VariantProps } from 'class-variance-authority'
 import { cn } from '@/lib/cn'
 
 const buttonVariants = cva(
-  'inline-flex items-center justify-center gap-2 rounded-panel text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-okuji-teal disabled:pointer-events-none disabled:opacity-50',
+  'inline-flex items-center justify-center gap-2 rounded-panel text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green disabled:pointer-events-none disabled:opacity-50',
   {
     variants: {
       variant: {
-        default: 'bg-okuji-teal text-white hover:bg-okuji-teal-dk',
-        outline: 'border border-okuji-teal bg-transparent text-okuji-teal hover:bg-okuji-teal-lt',
-        ghost:   'text-okuji-navy hover:bg-okuji-gray-2',
-        danger:  'bg-okuji-coral text-white hover:bg-okuji-coral/90',
+        default: 'bg-green text-white hover:bg-green',
+        outline: 'border border-green bg-transparent text-green hover:bg-cream',
+        ghost:   'text-navy hover:bg-hairline',
+        danger:  'bg-accent text-white hover:bg-accent/90',
       },
       size: {
         sm:      'h-8 px-3 text-xs',

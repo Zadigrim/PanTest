@@ -18,19 +18,19 @@ import {
 
 // ─── Shared helpers ───────────────────────────────────────────────────────────
 
-const INPUT_CLS = 'w-full rounded-panel border border-okuji-gray-2 px-3 py-1.5 text-sm text-okuji-navy focus:border-okuji-teal focus:outline-none focus:ring-1 focus:ring-okuji-teal disabled:bg-okuji-gray-1 disabled:text-okuji-gray-3'
+const INPUT_CLS = 'w-full rounded-panel border border-hairline px-3 py-1.5 text-sm text-navy focus:border-green focus:outline-none focus:ring-1 focus:ring-green disabled:bg-paper disabled:text-muted'
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-1">
-      <label className="text-xs font-medium text-okuji-gray-3">{label}</label>
+      <label className="text-xs font-medium text-muted">{label}</label>
       {children}
     </div>
   )
 }
 
 function PricingBadge({ model, locked }: { model: string; locked?: boolean }) {
-  const colorCls = PRICING_BADGE_COLORS[model as PricingModel] ?? 'bg-okuji-gray-2 text-okuji-gray-3'
+  const colorCls = PRICING_BADGE_COLORS[model as PricingModel] ?? 'bg-hairline text-muted'
   const label = PRICING_MODEL_LABELS[model as PricingModel] ?? model
   return (
     <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${colorCls}`}>
@@ -168,13 +168,13 @@ function PropertiesSection({
   const currentModel = editing ? effectiveModel : institution.pricing_model
 
   return (
-    <section className="rounded-panel border border-okuji-gray-2 bg-white p-5">
+    <section className="rounded-panel border border-hairline bg-white p-5">
       <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-base font-semibold text-okuji-navy">Properties</h2>
+        <h2 className="text-base font-semibold text-navy">Properties</h2>
         {isAdmin && !editing && (
           <button
             onClick={() => setEditing(true)}
-            className="text-sm text-okuji-teal-dk hover:underline"
+            className="text-sm text-green hover:underline"
           >
             Edit
           </button>
@@ -222,27 +222,27 @@ function PropertiesSection({
         {/* Admission radio (nature/science types) */}
         {(editing && showAdmission) && (
           <div className="sm:col-span-2">
-            <fieldset className="rounded-panel border border-okuji-gray-2 p-3">
-              <legend className="px-1 text-xs font-medium text-okuji-gray-3">Admission</legend>
-              <p className="mb-2 text-xs text-okuji-gray-3">Does this institution charge admission?</p>
+            <fieldset className="rounded-panel border border-hairline p-3">
+              <legend className="px-1 text-xs font-medium text-muted">Admission</legend>
+              <p className="mb-2 text-xs text-muted">Does this institution charge admission?</p>
               <div className="flex gap-4">
-                <label className="flex items-center gap-2 text-sm text-okuji-navy">
+                <label className="flex items-center gap-2 text-sm text-navy">
                   <input
                     type="radio"
                     name={`${formId}-admission`}
                     checked={form.charges_admission}
                     onChange={() => set('charges_admission', true)}
-                    className="accent-okuji-teal"
+                    className="accent-green"
                   />
                   Yes — paid admission
                 </label>
-                <label className="flex items-center gap-2 text-sm text-okuji-navy">
+                <label className="flex items-center gap-2 text-sm text-navy">
                   <input
                     type="radio"
                     name={`${formId}-admission`}
                     checked={!form.charges_admission}
                     onChange={() => set('charges_admission', false)}
-                    className="accent-okuji-teal"
+                    className="accent-green"
                   />
                   No — free admission
                 </label>
@@ -265,7 +265,7 @@ function PropertiesSection({
                 placeholder="e.g. 12000"
               />
               {editing && (
-                <p className="text-xs text-okuji-gray-3">Under 25,000 → free. Over 25,000 → Community tier.</p>
+                <p className="text-xs text-muted">Under 25,000 → free. Over 25,000 → Community tier.</p>
               )}
             </Field>
           </div>
@@ -273,19 +273,19 @@ function PropertiesSection({
 
         {/* Pricing model */}
         <div className="sm:col-span-2">
-          <p className="mb-1 text-xs font-medium text-okuji-gray-3">Pricing model</p>
+          <p className="mb-1 text-xs font-medium text-muted">Pricing model</p>
           <div className={`rounded-panel border px-3 py-3 ${
-            instLocked ? 'border-okuji-amber bg-okuji-amber/10' : 'border-okuji-gray-2 bg-okuji-gray-1'
+            instLocked ? 'border-accent bg-accent/10' : 'border-hairline bg-paper'
           }`}>
             <div className="flex items-center gap-2">
               <PricingBadge model={currentModel} locked={instLocked} />
               {editing && computedModel !== effectiveModel && (
-                <span className="text-xs text-okuji-amber">
+                <span className="text-xs text-accent">
                   (auto: {PRICING_MODEL_LABELS[computedModel as PricingModel] ?? computedModel})
                 </span>
               )}
             </div>
-            <p className="mt-1 text-xs text-okuji-gray-3">
+            <p className="mt-1 text-xs text-muted">
               {PRICING_MODEL_DESCRIPTIONS[currentModel as PricingModel] ?? ''}
             </p>
           </div>
@@ -294,8 +294,8 @@ function PropertiesSection({
         {/* Admin override */}
         {isAdmin && editing && (
           <div className="sm:col-span-2">
-            <div className="rounded-panel border border-okuji-gray-2 p-3">
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-okuji-gray-3">
+            <div className="rounded-panel border border-hairline p-3">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted">
                 Admin override
               </p>
               <div className="flex gap-3 items-end">
@@ -313,10 +313,10 @@ function PropertiesSection({
                     </select>
                   </Field>
                 </div>
-                <label className="flex items-center gap-2 text-xs text-okuji-navy pb-1.5 whitespace-nowrap">
+                <label className="flex items-center gap-2 text-xs text-navy pb-1.5 whitespace-nowrap">
                   <input
                     type="checkbox"
-                    className="accent-okuji-teal h-3.5 w-3.5"
+                    className="accent-green h-3.5 w-3.5"
                     checked={form.pricing_model_locked}
                     onChange={(e) => set('pricing_model_locked', e.target.checked)}
                     disabled={!form.pricing_model_override}
@@ -349,8 +349,8 @@ function PropertiesSection({
         </Field>
 
         {/* Contact */}
-        <div className="sm:col-span-2 border-t border-okuji-gray-2 pt-4">
-          <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-okuji-gray-3">Contact</p>
+        <div className="sm:col-span-2 border-t border-hairline pt-4">
+          <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">Contact</p>
         </div>
         <Field label="Contact name">
           <input
@@ -371,8 +371,8 @@ function PropertiesSection({
         </Field>
 
         {/* Address */}
-        <div className="sm:col-span-2 border-t border-okuji-gray-2 pt-4">
-          <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-okuji-gray-3">Address</p>
+        <div className="sm:col-span-2 border-t border-hairline pt-4">
+          <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">Address</p>
         </div>
         <div className="sm:col-span-2">
           <Field label="Street">
@@ -415,8 +415,8 @@ function PropertiesSection({
         {/* Internal notes (admin only) */}
         {isAdmin && (
           <>
-            <div className="sm:col-span-2 border-t border-okuji-gray-2 pt-4">
-              <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-okuji-gray-3">Internal notes</p>
+            <div className="sm:col-span-2 border-t border-hairline pt-4">
+              <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">Internal notes</p>
             </div>
             <div className="sm:col-span-2">
               <textarea
@@ -432,12 +432,12 @@ function PropertiesSection({
       </div>
 
       {editing && (
-        <div className="mt-4 flex items-center justify-end gap-3 border-t border-okuji-gray-2 pt-4">
+        <div className="mt-4 flex items-center justify-end gap-3 border-t border-hairline pt-4">
           {error && <span role="alert" className="flex-1 text-sm text-red-600">{error}</span>}
           <button
             type="button"
             onClick={handleCancel}
-            className="rounded-panel border border-okuji-gray-2 px-4 py-2 text-sm font-medium text-okuji-gray-3 hover:border-okuji-navy hover:text-okuji-navy transition-colors"
+            className="rounded-panel border border-hairline px-4 py-2 text-sm font-medium text-muted hover:border-navy hover:text-navy transition-colors"
           >
             Cancel
           </button>
@@ -445,7 +445,7 @@ function PropertiesSection({
             type="button"
             onClick={handleSave}
             disabled={isPending}
-            className="rounded-panel bg-okuji-teal px-4 py-2 text-sm font-medium text-white hover:bg-okuji-teal-dk disabled:opacity-50 transition-colors"
+            className="rounded-panel bg-green px-4 py-2 text-sm font-medium text-white hover:bg-green disabled:opacity-50 transition-colors"
           >
             {isPending ? 'Saving…' : 'Save changes'}
           </button>
@@ -559,8 +559,8 @@ function AddMemberForm({
   }
 
   return (
-    <form id={formId} onSubmit={handleSubmit} className="rounded-panel border border-okuji-gray-2 bg-okuji-gray-1 p-4">
-      <p className="mb-3 text-sm font-semibold text-okuji-navy">Add member</p>
+    <form id={formId} onSubmit={handleSubmit} className="rounded-panel border border-hairline bg-paper p-4">
+      <p className="mb-3 text-sm font-semibold text-navy">Add member</p>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field label="Email *">
           <input
@@ -588,7 +588,7 @@ function AddMemberForm({
         <button
           type="submit"
           disabled={isPending}
-          className="rounded-panel bg-okuji-navy px-4 py-2 text-sm font-medium text-white hover:bg-okuji-teal-dk disabled:opacity-50 transition-colors"
+          className="rounded-panel bg-navy px-4 py-2 text-sm font-medium text-white hover:bg-green disabled:opacity-50 transition-colors"
         >
           {isPending ? 'Adding…' : 'Add member'}
         </button>
@@ -600,10 +600,10 @@ function AddMemberForm({
 
 function PermCheck({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) {
   return (
-    <label className="flex cursor-pointer items-center gap-1.5 text-sm text-okuji-navy">
+    <label className="flex cursor-pointer items-center gap-1.5 text-sm text-navy">
       <input
         type="checkbox"
-        className="accent-okuji-teal h-4 w-4"
+        className="accent-green h-4 w-4"
         checked={checked}
         onChange={(e) => onChange(e.target.checked)}
       />
@@ -692,8 +692,8 @@ function MembersSection({
   }
 
   return (
-    <section className="rounded-panel border border-okuji-gray-2 bg-white p-5">
-      <h2 className="mb-4 text-base font-semibold text-okuji-navy">Members</h2>
+    <section className="rounded-panel border border-hairline bg-white p-5">
+      <h2 className="mb-4 text-base font-semibold text-navy">Members</h2>
 
       {error && (
         <div role="alert" className="mb-4 rounded-panel border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -703,7 +703,7 @@ function MembersSection({
 
       {loading ? (
         <div className="flex justify-center py-8">
-          <svg className="h-6 w-6 animate-spin text-okuji-teal" viewBox="0 0 24 24" fill="none">
+          <svg className="h-6 w-6 animate-spin text-green" viewBox="0 0 24 24" fill="none">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 00-8 8h4z" />
           </svg>
@@ -711,17 +711,17 @@ function MembersSection({
       ) : (
         <>
           {members.length === 0 ? (
-            <p className="text-sm italic text-okuji-gray-3">No members yet.</p>
+            <p className="text-sm italic text-muted">No members yet.</p>
           ) : (
-            <div className="mb-4 overflow-x-auto rounded-panel border border-okuji-gray-2">
+            <div className="mb-4 overflow-x-auto rounded-panel border border-hairline">
               <table className="w-full min-w-[560px] text-sm">
                 <thead>
-                  <tr className="border-b border-okuji-gray-2 bg-okuji-gray-1 text-left">
-                    <th className="px-4 py-2.5 font-medium text-okuji-gray-3">Name</th>
-                    <th className="px-4 py-2.5 font-medium text-okuji-gray-3">Role</th>
-                    <th className="px-4 py-2.5 text-center font-medium text-okuji-gray-3">Verify</th>
-                    <th className="px-4 py-2.5 text-center font-medium text-okuji-gray-3">Prizes</th>
-                    <th className="px-4 py-2.5 text-center font-medium text-okuji-gray-3">Extras</th>
+                  <tr className="border-b border-hairline bg-paper text-left">
+                    <th className="px-4 py-2.5 font-medium text-muted">Name</th>
+                    <th className="px-4 py-2.5 font-medium text-muted">Role</th>
+                    <th className="px-4 py-2.5 text-center font-medium text-muted">Verify</th>
+                    <th className="px-4 py-2.5 text-center font-medium text-muted">Prizes</th>
+                    <th className="px-4 py-2.5 text-center font-medium text-muted">Extras</th>
                     <th className="px-4 py-2.5" />
                   </tr>
                 </thead>
@@ -782,15 +782,15 @@ function MemberRow({
 
   return (
     <>
-      <tr className="border-b border-okuji-gray-2 last:border-0 hover:bg-okuji-gray-1/40">
-        <td className="px-4 py-3 font-medium text-okuji-navy">
-          {member.displayName ?? <span className="italic text-okuji-gray-3">Unknown</span>}
+      <tr className="border-b border-hairline last:border-0 hover:bg-paper/40">
+        <td className="px-4 py-3 font-medium text-navy">
+          {member.displayName ?? <span className="italic text-muted">Unknown</span>}
         </td>
-        <td className="px-4 py-3 text-okuji-gray-3">{member.role_label ?? '—'}</td>
+        <td className="px-4 py-3 text-muted">{member.role_label ?? '—'}</td>
         <td className="px-4 py-3 text-center">
           <input
             type="checkbox"
-            className="accent-okuji-teal h-4 w-4"
+            className="accent-green h-4 w-4"
             checked={member.can_verify}
             disabled={!canManage}
             onChange={(e) => onPermChange(member.authzId, 'can_verify', e.target.checked)}
@@ -800,7 +800,7 @@ function MemberRow({
         <td className="px-4 py-3 text-center">
           <input
             type="checkbox"
-            className="accent-okuji-teal h-4 w-4"
+            className="accent-green h-4 w-4"
             checked={member.can_distribute_prizes}
             disabled={!canManage}
             onChange={(e) => onPermChange(member.authzId, 'can_distribute_prizes', e.target.checked)}
@@ -810,7 +810,7 @@ function MemberRow({
         <td className="px-4 py-3 text-center">
           <input
             type="checkbox"
-            className="accent-okuji-teal h-4 w-4"
+            className="accent-green h-4 w-4"
             checked={member.can_add_extras}
             disabled={!canManage}
             onChange={(e) => onPermChange(member.authzId, 'can_add_extras', e.target.checked)}
@@ -822,7 +822,7 @@ function MemberRow({
             <button
               onClick={handleRemove}
               disabled={removing}
-              className="text-xs text-okuji-coral hover:underline disabled:opacity-50"
+              className="text-xs text-accent hover:underline disabled:opacity-50"
             >
               {removing ? 'Removing…' : 'Remove'}
             </button>
@@ -830,7 +830,7 @@ function MemberRow({
         </td>
       </tr>
       {permError && (
-        <tr className="border-b border-okuji-gray-2">
+        <tr className="border-b border-hairline">
           <td colSpan={6} className="px-4 pb-2">
             <span role="alert" className="text-xs text-red-600">{permError}</span>
           </td>
@@ -869,31 +869,31 @@ function PassportsSection({ institutionId }: { institutionId: string }) {
   }, [institutionId])
 
   return (
-    <section className="rounded-panel border border-okuji-gray-2 bg-white p-5">
-      <h2 className="mb-4 text-base font-semibold text-okuji-navy">Passports</h2>
+    <section className="rounded-panel border border-hairline bg-white p-5">
+      <h2 className="mb-4 text-base font-semibold text-navy">Passports</h2>
 
       {loading ? (
         <div className="flex justify-center py-8">
-          <svg className="h-6 w-6 animate-spin text-okuji-teal" viewBox="0 0 24 24" fill="none">
+          <svg className="h-6 w-6 animate-spin text-green" viewBox="0 0 24 24" fill="none">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 00-8 8h4z" />
           </svg>
         </div>
       ) : passports.length === 0 ? (
-        <p className="text-sm italic text-okuji-gray-3">No passports linked to this institution yet.</p>
+        <p className="text-sm italic text-muted">No passports linked to this institution yet.</p>
       ) : (
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
           {passports.map((p) => (
             <div
               key={p.id}
-              className="rounded-panel border border-okuji-gray-2 bg-okuji-gray-1 px-3 py-2.5"
+              className="rounded-panel border border-hairline bg-paper px-3 py-2.5"
             >
-              <p className="text-sm font-medium text-okuji-navy">{p.title}</p>
-              <div className="mt-1 flex items-center gap-2 text-xs text-okuji-gray-3">
+              <p className="text-sm font-medium text-navy">{p.title}</p>
+              <div className="mt-1 flex items-center gap-2 text-xs text-muted">
                 <span className={`rounded-full px-1.5 py-0.5 ${
-                  p.status === 'published' ? 'bg-okuji-teal-lt text-okuji-teal-dk'
-                  : p.status === 'archived' ? 'bg-okuji-amber/15 text-okuji-amber'
-                  : 'bg-okuji-gray-2 text-okuji-gray-3'
+                  p.status === 'published' ? 'bg-cream text-green'
+                  : p.status === 'archived' ? 'bg-accent/15 text-accent'
+                  : 'bg-hairline text-muted'
                 }`}>
                   {p.status ?? 'draft'}
                 </span>
@@ -952,7 +952,7 @@ export default function InstitutionDetailPage() {
   if (loading) {
     return (
       <div className="flex h-[60vh] items-center justify-center">
-        <svg className="h-8 w-8 animate-spin text-okuji-teal" viewBox="0 0 24 24" fill="none">
+        <svg className="h-8 w-8 animate-spin text-green" viewBox="0 0 24 24" fill="none">
           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 00-8 8h4z" />
         </svg>
@@ -964,10 +964,10 @@ export default function InstitutionDetailPage() {
     return (
       <div className="flex flex-col items-center py-24 text-center">
         <span className="text-5xl">🏛</span>
-        <h2 className="mt-4 text-lg font-bold text-okuji-navy">Institution not found</h2>
+        <h2 className="mt-4 text-lg font-bold text-navy">Institution not found</h2>
         <Link
           href="/access"
-          className="mt-4 text-sm text-okuji-teal-dk hover:underline"
+          className="mt-4 text-sm text-green hover:underline"
         >
           ← Back to Access Management
         </Link>
@@ -980,19 +980,19 @@ export default function InstitutionDetailPage() {
   return (
     <div className="mx-auto max-w-4xl px-6 py-8">
       {/* Breadcrumb */}
-      <div className="mb-6 flex items-center gap-2 text-sm text-okuji-gray-3">
-        <Link href="/access" className="hover:text-okuji-navy transition-colors">
+      <div className="mb-6 flex items-center gap-2 text-sm text-muted">
+        <Link href="/access" className="hover:text-navy transition-colors">
           Access Management
         </Link>
         <span>›</span>
-        <span className="font-medium text-okuji-navy">{institution.name}</span>
+        <span className="font-medium text-navy">{institution.name}</span>
       </div>
 
       {/* Header */}
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-okuji-navy">{institution.name}</h1>
+        <h1 className="text-2xl font-bold text-navy">{institution.name}</h1>
         {institution.institution_type && (
-          <p className="mt-1 text-sm text-okuji-gray-3">
+          <p className="mt-1 text-sm text-muted">
             {INSTITUTION_TYPE_LABELS[institution.institution_type] ?? institution.institution_type}
           </p>
         )}

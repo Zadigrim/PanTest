@@ -61,7 +61,7 @@ export default async function AppNav() {
 
   return (
     <header
-      className="sticky top-0 z-40 h-14 bg-okuji-navy border-b border-white/10"
+      className="sticky top-0 z-40 h-14 bg-navy border-b border-white/10"
       aria-label="Global navigation"
     >
       <div className="mx-auto flex h-full max-w-7xl items-center gap-4 px-4 sm:px-6">
@@ -71,7 +71,7 @@ export default async function AppNav() {
           href="/"
           className={cn(
             'flex shrink-0 items-center gap-1.5 rounded-sm',
-            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-okuji-teal'
+            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green'
           )}
           aria-label="OkujiConnect home"
         >
@@ -94,7 +94,7 @@ export default async function AppNav() {
                 href={href}
                 className={cn(
                   'whitespace-nowrap rounded-panel px-3 py-1.5 text-sm font-medium transition-colors',
-                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-okuji-teal',
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green',
                   isActive
                     ? 'bg-white/15 text-white'
                     : 'text-[#A8C0CE] hover:bg-white/10 hover:text-white'
@@ -113,7 +113,7 @@ export default async function AppNav() {
                 href={href}
                 className={cn(
                   'whitespace-nowrap rounded-panel px-3 py-1.5 text-sm font-medium transition-colors',
-                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-okuji-teal',
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green',
                   isActive
                     ? 'bg-white/15 text-white'
                     : 'text-[#A8C0CE] hover:bg-white/10 hover:text-white'
@@ -142,8 +142,8 @@ export default async function AppNav() {
               href="/profile"
               className={cn(
                 'flex h-8 w-8 items-center justify-center rounded-full overflow-hidden shrink-0',
-                'border-2 border-white/20 hover:border-okuji-teal transition-colors',
-                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-okuji-teal'
+                'border-2 border-white/20 hover:border-green transition-colors',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green'
               )}
               aria-label={`Profile: ${displayName ?? user.email}`}
             >
@@ -155,7 +155,7 @@ export default async function AppNav() {
                   className="h-full w-full object-cover"
                 />
               ) : (
-                <span className="flex h-full w-full items-center justify-center bg-okuji-teal text-white text-xs font-semibold select-none">
+                <span className="flex h-full w-full items-center justify-center bg-green text-white text-xs font-semibold select-none">
                   {initials}
                 </span>
               )}
@@ -165,8 +165,8 @@ export default async function AppNav() {
               href="/login"
               className={cn(
                 'inline-flex items-center rounded-panel px-3 h-8 text-sm font-medium',
-                'text-white bg-okuji-teal hover:bg-okuji-teal-dk transition-colors',
-                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-okuji-teal'
+                'text-white bg-green hover:bg-green transition-colors',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green'
               )}
             >
               Sign in

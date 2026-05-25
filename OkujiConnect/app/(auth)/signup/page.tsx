@@ -62,7 +62,7 @@ export default function SignupPage() {
         <h1 className="mt-3 font-serif text-2xl font-bold text-white tracking-tight">
           OkujiConnect
         </h1>
-        <p className="mt-1 text-sm text-okuji-gray-3">
+        <p className="mt-1 text-sm text-muted">
           Create your account
         </p>
       </div>
@@ -83,7 +83,7 @@ export default function SignupPage() {
 
           {/* Display name */}
           <div className="flex flex-col gap-1.5">
-            <label htmlFor="display_name" className="text-sm font-medium text-okuji-navy">
+            <label htmlFor="display_name" className="text-sm font-medium text-navy">
               Display name
             </label>
             <input
@@ -93,9 +93,9 @@ export default function SignupPage() {
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
               className={cn(
-                'h-9 rounded-panel border border-okuji-gray-2 bg-okuji-gray-1 px-3 text-sm',
-                'text-okuji-navy placeholder:text-okuji-gray-3',
-                'focus:outline-none focus:ring-2 focus:ring-okuji-teal focus:border-okuji-teal',
+                'h-9 rounded-panel border border-hairline bg-paper px-3 text-sm',
+                'text-navy placeholder:text-muted',
+                'focus:outline-none focus:ring-2 focus:ring-green focus:border-green',
                 'transition-colors'
               )}
               placeholder="Your name"
@@ -104,7 +104,7 @@ export default function SignupPage() {
 
           {/* Email */}
           <div className="flex flex-col gap-1.5">
-            <label htmlFor="email" className="text-sm font-medium text-okuji-navy">
+            <label htmlFor="email" className="text-sm font-medium text-navy">
               Email
             </label>
             <input
@@ -115,9 +115,9 @@ export default function SignupPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className={cn(
-                'h-9 rounded-panel border border-okuji-gray-2 bg-okuji-gray-1 px-3 text-sm',
-                'text-okuji-navy placeholder:text-okuji-gray-3',
-                'focus:outline-none focus:ring-2 focus:ring-okuji-teal focus:border-okuji-teal',
+                'h-9 rounded-panel border border-hairline bg-paper px-3 text-sm',
+                'text-navy placeholder:text-muted',
+                'focus:outline-none focus:ring-2 focus:ring-green focus:border-green',
                 'transition-colors'
               )}
               placeholder="you@example.com"
@@ -126,7 +126,7 @@ export default function SignupPage() {
 
           {/* Password */}
           <div className="flex flex-col gap-1.5">
-            <label htmlFor="password" className="text-sm font-medium text-okuji-navy">
+            <label htmlFor="password" className="text-sm font-medium text-navy">
               Password
             </label>
             <input
@@ -138,9 +138,9 @@ export default function SignupPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className={cn(
-                'h-9 rounded-panel border border-okuji-gray-2 bg-okuji-gray-1 px-3 text-sm',
-                'text-okuji-navy placeholder:text-okuji-gray-3',
-                'focus:outline-none focus:ring-2 focus:ring-okuji-teal focus:border-okuji-teal',
+                'h-9 rounded-panel border border-hairline bg-paper px-3 text-sm',
+                'text-navy placeholder:text-muted',
+                'focus:outline-none focus:ring-2 focus:ring-green focus:border-green',
                 'transition-colors'
               )}
               placeholder="At least 6 characters"
@@ -152,8 +152,8 @@ export default function SignupPage() {
             type="submit"
             disabled={loading}
             className={cn(
-              'mt-1 h-10 rounded-panel bg-okuji-teal px-4 text-sm font-medium text-white',
-              'hover:bg-[#0F6E56] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-okuji-teal',
+              'mt-1 h-10 rounded-panel bg-green px-4 text-sm font-medium text-white',
+              'hover:bg-[#0F6E56] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green',
               'disabled:opacity-50 disabled:pointer-events-none transition-colors'
             )}
           >
@@ -162,11 +162,11 @@ export default function SignupPage() {
         </form>
 
         {/* Footer link */}
-        <p className="mt-5 text-center text-sm text-okuji-gray-3">
+        <p className="mt-5 text-center text-sm text-muted">
           Already have an account?{' '}
           <Link
             href="/login"
-            className="font-medium text-okuji-teal hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-okuji-teal rounded-sm"
+            className="font-medium text-green hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green rounded-sm"
           >
             Sign in
           </Link>

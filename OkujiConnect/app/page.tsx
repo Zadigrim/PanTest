@@ -78,18 +78,18 @@ function MetricCard({
   href?: string
 }) {
   const inner = (
-    <div className="rounded-panel border border-okuji-gray-2 bg-white p-5 transition-shadow hover:shadow-sm">
-      <p className="text-xs font-medium uppercase tracking-wide text-okuji-gray-3 mb-1">
+    <div className="rounded-panel border border-hairline bg-white p-5 transition-shadow hover:shadow-sm">
+      <p className="text-xs font-medium uppercase tracking-wide text-muted mb-1">
         {label}
       </p>
-      <p className="text-3xl font-bold tabular-nums text-okuji-navy">{value}</p>
-      {sub && <p className="mt-1 text-xs text-okuji-gray-3">{sub}</p>}
+      <p className="text-3xl font-bold tabular-nums text-navy">{value}</p>
+      {sub && <p className="mt-1 text-xs text-muted">{sub}</p>}
     </div>
   )
 
   if (href) {
     return (
-      <Link href={href} className="block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-okuji-teal rounded-panel">
+      <Link href={href} className="block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green rounded-panel">
         {inner}
       </Link>
     )
@@ -110,12 +110,12 @@ function AlertCard({
   onDismiss?: string
 }) {
   return (
-    <div className="flex items-start gap-3 rounded-panel border border-okuji-amber bg-amber-50 px-4 py-3">
+    <div className="flex items-start gap-3 rounded-panel border border-accent bg-amber-50 px-4 py-3">
       <span className="text-lg leading-none mt-0.5 shrink-0" aria-hidden="true">⚠</span>
       <div className="flex-1 min-w-0">
         <Link
           href={href}
-          className="text-sm font-medium text-okuji-navy hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-okuji-teal rounded-sm"
+          className="text-sm font-medium text-navy hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green rounded-sm"
         >
           {message}
         </Link>
@@ -393,13 +393,13 @@ export default async function DashboardPage() {
 
         {/* ── Page header ──────────────────────────────────────────────────── */}
         <div className="mb-8">
-          <h1 className="text-2xl font-bold text-okuji-navy">
+          <h1 className="text-2xl font-bold text-navy">
             {displayName ? `Welcome back, ${displayName}` : 'OkujiConnect'}
           </h1>
-          <p className="mt-1 text-sm text-okuji-gray-3">
+          <p className="mt-1 text-sm text-muted">
             {ROLE_LABELS[activeRole]}
             {roles.length > 1 && (
-              <span className="ml-2 text-okuji-gray-3">
+              <span className="ml-2 text-muted">
                 — {roles.length} roles active
               </span>
             )}
@@ -421,16 +421,16 @@ export default async function DashboardPage() {
 
         {/* ── Zone 2: Headline numbers ─────────────────────────────────────── */}
         {!hasAnyData ? (
-          <div className="mb-8 rounded-panel border border-dashed border-okuji-gray-2 px-6 py-10 text-center">
-            <p className="text-lg font-semibold text-okuji-navy">
+          <div className="mb-8 rounded-panel border border-dashed border-hairline px-6 py-10 text-center">
+            <p className="text-lg font-semibold text-navy">
               Welcome to OkujiConnect.
             </p>
-            <p className="mt-1 text-sm text-okuji-gray-3">
+            <p className="mt-1 text-sm text-muted">
               Start by creating your first passport.
             </p>
             <Link
               href="/design"
-              className="mt-4 inline-flex items-center justify-center rounded-panel bg-okuji-teal px-5 h-9 text-sm font-medium text-white hover:bg-okuji-teal-dk transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-okuji-teal"
+              className="mt-4 inline-flex items-center justify-center rounded-panel bg-green px-5 h-9 text-sm font-medium text-white hover:bg-green transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green"
             >
               Create a passport
             </Link>
@@ -458,7 +458,7 @@ export default async function DashboardPage() {
 
         {/* ── Zone 3: Navigation cards ─────────────────────────────────────── */}
         <section aria-label="Navigation">
-          <h2 className="mb-4 text-xs font-semibold uppercase tracking-wider text-okuji-gray-3">
+          <h2 className="mb-4 text-xs font-semibold uppercase tracking-wider text-muted">
             Sections
           </h2>
 
@@ -480,8 +480,8 @@ export default async function DashboardPage() {
                       : undefined
                   }
                   className={`
-                    block rounded-card border border-okuji-gray-2 p-5
-                    transition-shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-okuji-teal
+                    block rounded-card border border-hairline p-5
+                    transition-shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green
                     ${hasAccess
                       ? 'hover:shadow-md cursor-pointer'
                       : 'opacity-40 cursor-not-allowed pointer-events-none'
@@ -489,17 +489,17 @@ export default async function DashboardPage() {
                   `}
                 >
                   <div className="flex items-start justify-between gap-2">
-                    <p className="font-semibold text-okuji-navy">{card.title}</p>
+                    <p className="font-semibold text-navy">{card.title}</p>
                     {hasPendingAlert && (
                       <span
-                        className="shrink-0 rounded-full bg-okuji-amber px-2 py-0.5 text-xs font-semibold text-white"
+                        className="shrink-0 rounded-full bg-accent px-2 py-0.5 text-xs font-semibold text-white"
                         aria-label="Has pending alerts"
                       >
                         !
                       </span>
                     )}
                   </div>
-                  <p className="mt-1 text-sm text-okuji-gray-3">{card.description}</p>
+                  <p className="mt-1 text-sm text-muted">{card.description}</p>
                 </Link>
               )
             })}

@@ -33,12 +33,12 @@ export function StartBlankButton() {
         type="button"
         onClick={handleClick}
         disabled={creating}
-        className="inline-flex items-center h-10 px-5 rounded-panel bg-okuji-teal text-white text-sm font-medium hover:bg-[#0F6E56] disabled:opacity-50 disabled:pointer-events-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-okuji-teal"
+        className="inline-flex items-center h-10 px-5 rounded-panel bg-green text-white text-sm font-medium hover:bg-[#0F6E56] disabled:opacity-50 disabled:pointer-events-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green"
       >
         {creating ? 'Creating…' : 'Start blank'}
       </button>
       {error && (
-        <p className="text-xs text-okuji-coral" role="alert">
+        <p className="text-xs text-accent" role="alert">
           {error}
         </p>
       )}

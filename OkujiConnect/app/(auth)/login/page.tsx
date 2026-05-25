@@ -70,7 +70,7 @@ function LoginForm() {
         <h1 className="mt-3 font-serif text-2xl font-bold text-white tracking-tight">
           OkujiConnect
         </h1>
-        <p className="mt-1 text-sm text-okuji-gray-3">
+        <p className="mt-1 text-sm text-muted">
           Sign in to your account
         </p>
       </div>
@@ -112,16 +112,16 @@ function LoginForm() {
 
         {/* Divider */}
         <div className="my-5 flex items-center gap-3">
-          <div className="flex-1 border-t border-okuji-gray-2" />
-          <span className="text-xs text-okuji-gray-3">or</span>
-          <div className="flex-1 border-t border-okuji-gray-2" />
+          <div className="flex-1 border-t border-hairline" />
+          <span className="text-xs text-muted">or</span>
+          <div className="flex-1 border-t border-hairline" />
         </div>
 
         {/* Email/password form */}
         <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-5">
           {/* Email */}
           <div className="flex flex-col gap-1.5">
-            <label htmlFor="email" className="text-sm font-medium text-okuji-navy">
+            <label htmlFor="email" className="text-sm font-medium text-navy">
               Email
             </label>
             <input
@@ -132,9 +132,9 @@ function LoginForm() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className={cn(
-                'h-9 rounded-panel border border-okuji-gray-2 bg-okuji-gray-1 px-3 text-sm',
-                'text-okuji-navy placeholder:text-okuji-gray-3',
-                'focus:outline-none focus:ring-2 focus:ring-okuji-teal focus:border-okuji-teal',
+                'h-9 rounded-panel border border-hairline bg-paper px-3 text-sm',
+                'text-navy placeholder:text-muted',
+                'focus:outline-none focus:ring-2 focus:ring-green focus:border-green',
                 'transition-colors'
               )}
               placeholder="you@example.com"
@@ -143,7 +143,7 @@ function LoginForm() {
 
           {/* Password */}
           <div className="flex flex-col gap-1.5">
-            <label htmlFor="password" className="text-sm font-medium text-okuji-navy">
+            <label htmlFor="password" className="text-sm font-medium text-navy">
               Password
             </label>
             <input
@@ -154,9 +154,9 @@ function LoginForm() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className={cn(
-                'h-9 rounded-panel border border-okuji-gray-2 bg-okuji-gray-1 px-3 text-sm',
-                'text-okuji-navy placeholder:text-okuji-gray-3',
-                'focus:outline-none focus:ring-2 focus:ring-okuji-teal focus:border-okuji-teal',
+                'h-9 rounded-panel border border-hairline bg-paper px-3 text-sm',
+                'text-navy placeholder:text-muted',
+                'focus:outline-none focus:ring-2 focus:ring-green focus:border-green',
                 'transition-colors'
               )}
               placeholder="••••••••"
@@ -168,8 +168,8 @@ function LoginForm() {
             type="submit"
             disabled={loading || googleLoading}
             className={cn(
-              'mt-1 h-10 rounded-panel bg-okuji-teal px-4 text-sm font-medium text-white',
-              'hover:bg-[#0F6E56] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-okuji-teal',
+              'mt-1 h-10 rounded-panel bg-green px-4 text-sm font-medium text-white',
+              'hover:bg-[#0F6E56] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green',
               'disabled:opacity-50 disabled:pointer-events-none transition-colors'
             )}
           >
@@ -178,12 +178,12 @@ function LoginForm() {
         </form>
 
         {/* Footer links */}
-        <div className="mt-5 space-y-2 text-center text-sm text-okuji-gray-3">
+        <div className="mt-5 space-y-2 text-center text-sm text-muted">
           <p>
             No account?{' '}
             <Link
               href="/signup"
-              className="font-medium text-okuji-teal hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-okuji-teal rounded-sm"
+              className="font-medium text-green hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green rounded-sm"
             >
               Sign up
             </Link>

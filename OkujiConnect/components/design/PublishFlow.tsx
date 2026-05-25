@@ -71,8 +71,8 @@ export function PublishFlow({ onClose }: Props) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-      <div className="relative z-10 w-full max-w-md rounded-modal border border-okuji-gray-2 bg-white shadow-2xl">
-        <div className="border-b border-okuji-gray-2 px-5 py-4">
+      <div className="relative z-10 w-full max-w-md rounded-modal border border-hairline bg-white shadow-2xl">
+        <div className="border-b border-hairline px-5 py-4">
           <StepIndicator step={step} />
         </div>
 
@@ -134,22 +134,22 @@ function StepIndicator({ step }: { step: Step }) {
           <div
             className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold ${
               i < idx
-                ? 'bg-okuji-teal text-white'
+                ? 'bg-green text-white'
                 : i === idx
-                ? 'bg-okuji-navy text-white'
-                : 'bg-okuji-gray-2 text-okuji-gray-3'
+                ? 'bg-navy text-white'
+                : 'bg-hairline text-muted'
             }`}
           >
             {i < idx ? '✓' : i + 1}
           </div>
           <span
             className={`text-xs ${
-              i === idx ? 'font-semibold text-okuji-navy' : 'text-okuji-gray-3'
+              i === idx ? 'font-semibold text-navy' : 'text-muted'
             }`}
           >
             {label}
           </span>
-          {i < labels.length - 1 && <span className="text-okuji-gray-2">›</span>}
+          {i < labels.length - 1 && <span className="text-hairline">›</span>}
         </div>
       ))}
     </div>
@@ -174,8 +174,8 @@ function ValidateStep({
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="text-base font-semibold text-okuji-navy">Before you publish</h2>
-        <p className="mt-1 text-sm text-okuji-gray-3">
+        <h2 className="text-base font-semibold text-navy">Before you publish</h2>
+        <p className="mt-1 text-sm text-muted">
           {issues.length === 0 ? 'Everything looks good!' : `${issues.length} issue(s) to resolve.`}
         </p>
       </div>
@@ -184,22 +184,22 @@ function ValidateStep({
         <ul className="space-y-2">
           {issues.map((issue) => (
             <li key={issue} className="flex items-start gap-2 text-sm">
-              <span className="mt-0.5 text-okuji-coral">✗</span>
-              <span className="text-okuji-navy">{issue}</span>
+              <span className="mt-0.5 text-accent">✗</span>
+              <span className="text-navy">{issue}</span>
             </li>
           ))}
         </ul>
       ) : (
-        <div className="space-y-1.5 rounded-panel bg-okuji-teal-lt px-4 py-3 text-sm">
-          <div className="flex justify-between text-okuji-teal-dk">
+        <div className="space-y-1.5 rounded-panel bg-cream px-4 py-3 text-sm">
+          <div className="flex justify-between text-green">
             <span>Pages</span>
             <span className="font-semibold">{pageCount}</span>
           </div>
-          <div className="flex justify-between text-okuji-teal-dk">
+          <div className="flex justify-between text-green">
             <span>Stops</span>
             <span className="font-semibold">{stopCount}</span>
           </div>
-          <div className="flex justify-between text-okuji-teal-dk">
+          <div className="flex justify-between text-green">
             <span>Status</span>
             <span className="font-semibold capitalize">{passport?.status}</span>
           </div>
@@ -230,20 +230,20 @@ function SpendStep({
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="text-base font-semibold text-okuji-navy">Spend confirmation</h2>
-        <p className="mt-1 text-sm text-okuji-gray-3">
+        <h2 className="text-base font-semibold text-navy">Spend confirmation</h2>
+        <p className="mt-1 text-sm text-muted">
           You've set the expected spend as{' '}
           <strong>{spendTierLabel(passport.expected_spend_tier)}</strong>.
         </p>
       </div>
 
-      <div className="rounded-panel border border-okuji-gray-2 px-4 py-3 text-sm text-okuji-navy">
+      <div className="rounded-panel border border-hairline px-4 py-3 text-sm text-navy">
         <p>
           By publishing, you confirm that a typical visitor completing all stops will spend
           approximately <strong>{spendTierLabel(passport.expected_spend_tier)}</strong>.
         </p>
         {passport.expected_spend_note && (
-          <p className="mt-2 text-xs text-okuji-gray-3">{passport.expected_spend_note}</p>
+          <p className="mt-2 text-xs text-muted">{passport.expected_spend_note}</p>
         )}
       </div>
 
@@ -275,15 +275,15 @@ function PricingStep({
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="text-base font-semibold text-okuji-navy">Pricing</h2>
-        <p className="mt-1 text-sm text-okuji-gray-3">
+        <h2 className="text-base font-semibold text-navy">Pricing</h2>
+        <p className="mt-1 text-sm text-muted">
           Set a price collectors will pay to download this passport.
         </p>
       </div>
 
       <div className="space-y-2">
         <div className="flex items-center gap-2">
-          <span className="text-lg font-semibold text-okuji-navy">$</span>
+          <span className="text-lg font-semibold text-navy">$</span>
           <input
             type="number"
             min={0}
@@ -292,10 +292,10 @@ function PricingStep({
             onChange={(e) =>
               onChange(Math.round(parseFloat(e.target.value || '0') * 100))
             }
-            className="flex-1 rounded-panel border border-okuji-gray-2 px-3 py-2 text-lg font-semibold focus:outline-none focus:ring-2 focus:ring-okuji-teal"
+            className="flex-1 rounded-panel border border-hairline px-3 py-2 text-lg font-semibold focus:outline-none focus:ring-2 focus:ring-green"
           />
         </div>
-        <p className="text-xs text-okuji-gray-3">Set to $0 for a free passport.</p>
+        <p className="text-xs text-muted">Set to $0 for a free passport.</p>
       </div>
 
       <div className="flex gap-2 pt-2">
@@ -330,13 +330,13 @@ function ConfirmStep({
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="text-base font-semibold text-okuji-navy">Ready to publish?</h2>
-        <p className="mt-1 text-sm text-okuji-gray-3">
+        <h2 className="text-base font-semibold text-navy">Ready to publish?</h2>
+        <p className="mt-1 text-sm text-muted">
           Review the summary below, then click Publish.
         </p>
       </div>
 
-      <div className="rounded-panel border border-okuji-gray-2 divide-y divide-okuji-gray-2 text-sm">
+      <div className="rounded-panel border border-hairline divide-y divide-hairline text-sm">
         {[
           ['Title', passport.title],
           ['Stops', `${stopCount}`],
@@ -353,14 +353,14 @@ function ConfirmStep({
           ],
         ].map(([label, value]) => (
           <div key={label} className="flex justify-between px-4 py-2">
-            <span className="text-okuji-gray-3">{label}</span>
-            <span className="font-medium text-okuji-navy">{value}</span>
+            <span className="text-muted">{label}</span>
+            <span className="font-medium text-navy">{value}</span>
           </div>
         ))}
       </div>
 
       {error && (
-        <p className="rounded-panel bg-okuji-coral/10 px-3 py-2 text-xs text-okuji-coral">
+        <p className="rounded-panel bg-accent/10 px-3 py-2 text-xs text-accent">
           {error}
         </p>
       )}
@@ -371,7 +371,7 @@ function ConfirmStep({
         </Button>
         <Button
           size="sm"
-          className="flex-1 bg-okuji-teal hover:bg-okuji-teal-dk"
+          className="flex-1 bg-green hover:bg-green"
           onClick={onPublish}
           disabled={publishing}
         >
@@ -391,12 +391,12 @@ function PublishedStep({
 }) {
   return (
     <div className="space-y-4 text-center">
-      <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-okuji-teal-lt text-4xl">
+      <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-cream text-4xl">
         🎉
       </div>
       <div>
-        <h2 className="text-base font-semibold text-okuji-navy">Published!</h2>
-        <p className="mt-1 text-sm text-okuji-gray-3">
+        <h2 className="text-base font-semibold text-navy">Published!</h2>
+        <p className="mt-1 text-sm text-muted">
           <strong>{passport.title}</strong> is now live.
         </p>
       </div>

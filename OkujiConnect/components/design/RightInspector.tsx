@@ -59,12 +59,12 @@ export function RightInspector({
     : 'No selection'
 
   return (
-    <aside className="flex w-[280px] shrink-0 flex-col border-l border-okuji-gray-2 bg-white">
-      <div className="border-b border-okuji-gray-2 px-4 py-3">
-        <p className="text-xs font-semibold uppercase tracking-wider text-okuji-gray-3">
+    <aside className="flex w-[280px] shrink-0 flex-col border-l border-hairline bg-white">
+      <div className="border-b border-hairline px-4 py-3">
+        <p className="text-xs font-semibold uppercase tracking-wider text-muted">
           {label}
         </p>
-        <p className="truncate text-sm font-medium text-okuji-navy">{title}</p>
+        <p className="truncate text-sm font-medium text-navy">{title}</p>
       </div>
 
       <div className="flex-1 overflow-y-auto">
@@ -124,9 +124,9 @@ function PhysicalPassportSection({
           type="checkbox"
           checked={stop.print_include_journal ?? true}
           onChange={(e) => void persist({ print_include_journal: e.target.checked })}
-          className="h-4 w-4 rounded accent-okuji-teal"
+          className="h-4 w-4 rounded accent-green"
         />
-        <span className="text-sm text-okuji-navy">Include journal lines for this stop</span>
+        <span className="text-sm text-navy">Include journal lines for this stop</span>
       </label>
     </Section>
   )
@@ -210,7 +210,7 @@ function StampPicker({
       // eslint-disable-next-line @next/next/no-img-element
       <img src={src} alt={asset.name ?? ''} className="h-full w-full object-contain p-0.5" />
     ) : (
-      <span className="text-xs text-okuji-gray-3">?</span>
+      <span className="text-xs text-muted">?</span>
     )
   }
 
@@ -221,7 +221,7 @@ function StampPicker({
         <>
           {myAssets.length > 0 && (
             <div>
-              <Label className="text-xs text-okuji-gray-3">My uploads</Label>
+              <Label className="text-xs text-muted">My uploads</Label>
               <div className="mt-1.5 flex flex-wrap gap-1">
                 {myAssets.map((asset) => (
                   <button
@@ -230,8 +230,8 @@ function StampPicker({
                     title={asset.name ?? ''}
                     className={`flex h-9 w-9 items-center justify-center overflow-hidden rounded-card border transition-colors ${
                       isCustom && stop.stamp_asset_id === asset.id
-                        ? 'border-okuji-teal bg-okuji-teal-lt'
-                        : 'border-okuji-gray-2 hover:border-okuji-teal'
+                        ? 'border-green bg-cream'
+                        : 'border-hairline hover:border-green'
                     }`}
                   >
                     {renderThumb(asset)}
@@ -242,7 +242,7 @@ function StampPicker({
           )}
           {instAssets.length > 0 && (
             <div>
-              <Label className="text-xs text-okuji-gray-3">Institution stamps</Label>
+              <Label className="text-xs text-muted">Institution stamps</Label>
               <div className="mt-1.5 flex flex-wrap gap-1">
                 {instAssets.map((asset) => (
                   <button
@@ -251,8 +251,8 @@ function StampPicker({
                     title={asset.name ?? ''}
                     className={`flex h-9 w-9 items-center justify-center overflow-hidden rounded-card border transition-colors ${
                       isCustom && stop.stamp_asset_id === asset.id
-                        ? 'border-okuji-teal bg-okuji-teal-lt'
-                        : 'border-okuji-gray-2 hover:border-okuji-teal'
+                        ? 'border-green bg-cream'
+                        : 'border-hairline hover:border-green'
                     }`}
                   >
                     {renderThumb(asset)}
@@ -266,17 +266,17 @@ function StampPicker({
 
       {/* Built-in emoji */}
       <div>
-        <Label className="text-xs text-okuji-gray-3">Built-in stamps</Label>
+        <Label className="text-xs text-muted">Built-in stamps</Label>
         <div className="mt-1.5 flex flex-wrap gap-1">
           {STAMP_ICONS.map((icon) => (
             <button
               key={icon}
               onClick={() => selectEmoji(icon)}
               title={icon}
-              className={`h-7 w-7 rounded-card border text-base leading-none transition-colors hover:border-okuji-teal ${
+              className={`h-7 w-7 rounded-card border text-base leading-none transition-colors hover:border-green ${
                 !isCustom && stop.stamp_icon === icon
-                  ? 'border-okuji-teal bg-okuji-teal-lt'
-                  : 'border-okuji-gray-2'
+                  ? 'border-green bg-cream'
+                  : 'border-hairline'
               }`}
             >
               {icon}
@@ -352,29 +352,29 @@ function StopInspector({
               onClick={() => persist({ verification_tier: tier })}
               className={`w-full rounded-card border px-3 py-2 text-left transition-colors ${
                 stop.verification_tier === tier
-                  ? 'border-okuji-teal bg-okuji-teal-lt'
-                  : 'border-okuji-gray-2 hover:border-okuji-teal/40'
+                  ? 'border-green bg-cream'
+                  : 'border-hairline hover:border-green/40'
               }`}
             >
               <div className="flex items-center gap-2">
                 <span
                   className={`text-xs font-bold ${
                     stop.verification_tier === tier
-                      ? 'text-okuji-teal-dk'
-                      : 'text-okuji-gray-3'
+                      ? 'text-green'
+                      : 'text-muted'
                   }`}
                 >
                   T{tier}
                 </span>
                 <span
                   className={`text-sm font-medium ${
-                    stop.verification_tier === tier ? 'text-okuji-teal-dk' : 'text-okuji-navy'
+                    stop.verification_tier === tier ? 'text-green' : 'text-navy'
                   }`}
                 >
                   {label}
                 </span>
               </div>
-              <p className="mt-0.5 text-xs text-okuji-gray-3">{hint}</p>
+              <p className="mt-0.5 text-xs text-muted">{hint}</p>
             </button>
           ))}
         </div>
@@ -433,7 +433,7 @@ function StopInspector({
         </Field>
 
         <div>
-          <Label className="text-xs text-okuji-gray-3">Smudge</Label>
+          <Label className="text-xs text-muted">Smudge</Label>
           <div className="mt-1.5 flex gap-1">
             {SMUDGE_OPTIONS.map((opt) => (
               <button
@@ -441,8 +441,8 @@ function StopInspector({
                 onClick={() => persist({ smudge_intensity: opt })}
                 className={`flex-1 rounded-card border py-1 text-xs capitalize transition-colors ${
                   stop.smudge_intensity === opt
-                    ? 'border-okuji-teal bg-okuji-teal-lt text-okuji-teal-dk font-medium'
-                    : 'border-okuji-gray-2 text-okuji-gray-3 hover:border-okuji-teal/40'
+                    ? 'border-green bg-cream text-green font-medium'
+                    : 'border-hairline text-muted hover:border-green/40'
                 }`}
               >
                 {opt}
@@ -538,7 +538,7 @@ function StopInspector({
                 experience_type: (e.target.value || null) as DesignerStop['experience_type'],
               })
             }
-            className="h-8 w-full rounded-panel border border-okuji-gray-2 px-2 text-sm focus:outline-none focus:ring-2 focus:ring-okuji-teal"
+            className="h-8 w-full rounded-panel border border-hairline px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green"
           >
             <option value="">— None —</option>
             <option value="location">Location visit</option>
@@ -564,7 +564,7 @@ function StopInspector({
             onChange={(e) => updateStop(stop.id, { journal_prompt: e.target.value })}
             onBlur={(e) => persist({ journal_prompt: e.target.value || null })}
             rows={2}
-            className="w-full resize-none rounded-panel border border-okuji-gray-2 px-3 py-2 text-sm text-okuji-navy placeholder:text-okuji-gray-3 focus:outline-none focus:ring-2 focus:ring-okuji-teal"
+            className="w-full resize-none rounded-panel border border-hairline px-3 py-2 text-sm text-navy placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-green"
           />
         </Field>
         <Field label="Classifiers">
@@ -583,8 +583,8 @@ function StopInspector({
                   }}
                   className={`rounded-full border px-2.5 py-0.5 text-xs transition-colors ${
                     active
-                      ? 'border-okuji-teal bg-okuji-teal-lt text-okuji-teal-dk font-medium'
-                      : 'border-okuji-gray-2 text-okuji-gray-3 hover:border-okuji-teal/40'
+                      ? 'border-green bg-cream text-green font-medium'
+                      : 'border-hairline text-muted hover:border-green/40'
                   }`}
                 >
                   {label}
@@ -611,8 +611,8 @@ function StopInspector({
                       }}
                       className={`rounded-card border px-2.5 py-0.5 text-xs transition-colors ${
                         active
-                          ? 'border-okuji-teal bg-okuji-teal-lt text-okuji-teal-dk font-medium'
-                          : 'border-okuji-gray-2 text-okuji-gray-3 hover:border-okuji-teal/40'
+                          ? 'border-green bg-cream text-green font-medium'
+                          : 'border-hairline text-muted hover:border-green/40'
                       }`}
                     >
                       {label}
@@ -637,8 +637,8 @@ function StopInspector({
                       }}
                       className={`rounded-card border px-2.5 py-0.5 text-xs transition-colors ${
                         active
-                          ? 'border-okuji-teal bg-okuji-teal-lt text-okuji-teal-dk font-medium'
-                          : 'border-okuji-gray-2 text-okuji-gray-3 hover:border-okuji-teal/40'
+                          ? 'border-green bg-cream text-green font-medium'
+                          : 'border-hairline text-muted hover:border-green/40'
                       }`}
                     >
                       {label}
@@ -656,7 +656,7 @@ function StopInspector({
       {/* Share with the community — visible when educational classifier is set */}
       {(stop.classifiers ?? []).includes('educational') && (
         <Section title="Share with the community">
-          <p className="text-xs text-okuji-gray-3 leading-relaxed">
+          <p className="text-xs text-muted leading-relaxed">
             When shared, other educators can import this stop into their passports.
             Your name and institution will be credited.
           </p>
@@ -675,19 +675,19 @@ function StopInspector({
                   shared_at: shared ? new Date().toISOString() : null,
                 })
               }}
-              className="mt-0.5 h-4 w-4 rounded accent-okuji-teal"
+              className="mt-0.5 h-4 w-4 rounded accent-green"
             />
-            <span className="text-sm text-okuji-navy">Share this stop</span>
+            <span className="text-sm text-navy">Share this stop</span>
           </label>
           {!creatorInstitutionId && (
-            <p className="text-xs text-okuji-gray-3 leading-relaxed">
+            <p className="text-xs text-muted leading-relaxed">
               Educational stops can only be shared by verified institutional accounts.
             </p>
           )}
         </Section>
       )}
 
-      <div className="border-t border-okuji-gray-2 pt-4">
+      <div className="border-t border-hairline pt-4">
         <Button variant="danger" size="sm" className="w-full" onClick={handleDelete}>
           Delete stop
         </Button>
@@ -757,11 +757,11 @@ function CustomBgPicker({
 
   return (
     <div className="space-y-2">
-      <Label className="text-xs text-okuji-gray-3">Background image</Label>
+      <Label className="text-xs text-muted">Background image</Label>
       {loading ? (
-        <p className="text-xs text-okuji-gray-3">Loading…</p>
+        <p className="text-xs text-muted">Loading…</p>
       ) : assets.length === 0 ? (
-        <p className="text-xs text-okuji-gray-3">No backgrounds uploaded yet.</p>
+        <p className="text-xs text-muted">No backgrounds uploaded yet.</p>
       ) : (
         <div className="grid grid-cols-3 gap-1.5">
           {assets.map((asset) => (
@@ -770,8 +770,8 @@ function CustomBgPicker({
               onClick={() => void persist({ background_image_url: asset.url })}
               className={`relative aspect-video overflow-hidden rounded border-2 transition-colors ${
                 page.background_image_url === asset.url
-                  ? 'border-okuji-teal'
-                  : 'border-transparent hover:border-okuji-teal/40'
+                  ? 'border-green'
+                  : 'border-transparent hover:border-green/40'
               }`}
               title={asset.name ?? ''}
             >
@@ -782,8 +782,8 @@ function CustomBgPicker({
         </div>
       )}
       <label
-        className={`flex cursor-pointer items-center justify-center gap-2 rounded-card border border-okuji-gray-2 px-3 py-2 text-xs transition-colors ${
-          uploading ? 'pointer-events-none opacity-50' : 'text-okuji-gray-3 hover:border-okuji-teal/40'
+        className={`flex cursor-pointer items-center justify-center gap-2 rounded-card border border-hairline px-3 py-2 text-xs transition-colors ${
+          uploading ? 'pointer-events-none opacity-50' : 'text-muted hover:border-green/40'
         }`}
       >
         <input type="file" accept="image/*" className="hidden" onChange={handleUpload} disabled={uploading} />
@@ -810,7 +810,7 @@ function PageInspector({ page }: { page: DesignerPassportPage }) {
   return (
     <div className="space-y-5 p-4">
       {page.page_type === 'information' && (
-        <div className="rounded-card bg-okuji-teal-lt px-3 py-2 text-xs text-okuji-teal-dk">
+        <div className="rounded-card bg-cream px-3 py-2 text-xs text-green">
           📄 Information page — no stamps collected here
         </div>
       )}
@@ -840,7 +840,7 @@ function PageInspector({ page }: { page: DesignerPassportPage }) {
           <select
             value={bg}
             onChange={(e) => void persist({ background_type: e.target.value as BackgroundType })}
-            className="h-8 w-full rounded-panel border border-okuji-gray-2 bg-white px-2 text-sm focus:outline-none focus:ring-2 focus:ring-okuji-teal"
+            className="h-8 w-full rounded-panel border border-hairline bg-white px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green"
           >
             <option value="guilloche">Guilloche</option>
             <option value="grid">Grid</option>
@@ -903,9 +903,9 @@ function PageInspector({ page }: { page: DesignerPassportPage }) {
                   background_opacity: Number((e.target as HTMLInputElement).value),
                 })
               }
-              className="w-full accent-okuji-teal"
+              className="w-full accent-green"
             />
-            <p className="text-xs text-okuji-gray-3">10–100%. Keep low for stamp legibility.</p>
+            <p className="text-xs text-muted">10–100%. Keep low for stamp legibility.</p>
           </Field>
         )}
 
@@ -925,7 +925,7 @@ function PageInspector({ page }: { page: DesignerPassportPage }) {
                 onMouseUp={(e) =>
                   persist({ custom_background_opacity: Number((e.target as HTMLInputElement).value) })
                 }
-                className="w-full accent-okuji-teal"
+                className="w-full accent-green"
               />
             </Field>
             <label className="flex items-center gap-2 cursor-pointer">
@@ -937,9 +937,9 @@ function PageInspector({ page }: { page: DesignerPassportPage }) {
                   updatePage(page.id, { custom_background_opacity: val })
                   void persist({ custom_background_opacity: val })
                 }}
-                className="h-4 w-4 rounded accent-okuji-teal"
+                className="h-4 w-4 rounded accent-green"
               />
-              <span className="text-sm text-okuji-navy">Full color background</span>
+              <span className="text-sm text-navy">Full color background</span>
             </label>
             <CustomBgPicker page={page} persist={persist} />
           </>
@@ -987,7 +987,7 @@ function PassportInspector() {
   if (!passport) {
     return (
       <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
-        <p className="text-sm text-okuji-gray-3">Loading…</p>
+        <p className="text-sm text-muted">Loading…</p>
       </div>
     )
   }
@@ -1017,7 +1017,7 @@ function PassportInspector() {
             onChange={(e) => updatePassport({ description: e.target.value })}
             onBlur={(e) => persist({ description: e.target.value || null })}
             rows={3}
-            className="w-full rounded-panel border border-okuji-gray-2 bg-white px-3 py-2 text-sm text-okuji-navy placeholder:text-okuji-gray-3 focus:outline-none focus:ring-2 focus:ring-okuji-teal resize-none"
+            className="w-full rounded-panel border border-hairline bg-white px-3 py-2 text-sm text-navy placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-green resize-none"
           />
         </Field>
       </Section>
@@ -1030,18 +1030,18 @@ function PassportInspector() {
               onClick={() => persist({ passport_type: value })}
               className={`w-full rounded-card border px-3 py-2 text-left transition-colors ${
                 passport.passport_type === value
-                  ? 'border-okuji-teal bg-okuji-teal-lt'
-                  : 'border-okuji-gray-2 hover:border-okuji-teal/40'
+                  ? 'border-green bg-cream'
+                  : 'border-hairline hover:border-green/40'
               }`}
             >
               <p
                 className={`text-sm font-medium ${
-                  passport.passport_type === value ? 'text-okuji-teal-dk' : 'text-okuji-navy'
+                  passport.passport_type === value ? 'text-green' : 'text-navy'
                 }`}
               >
                 {label}
               </p>
-              <p className="mt-0.5 text-xs text-okuji-gray-3">{hint}</p>
+              <p className="mt-0.5 text-xs text-muted">{hint}</p>
             </button>
           ))}
         </div>
@@ -1054,9 +1054,9 @@ function PassportInspector() {
               type="checkbox"
               checked={passport[field] ?? false}
               onChange={(e) => persist({ [field]: e.target.checked } as Partial<typeof passport>)}
-              className="accent-okuji-teal"
+              className="accent-green"
             />
-            <span className="text-sm text-okuji-navy capitalize">
+            <span className="text-sm text-navy capitalize">
               {field === 'transit_accessible' ? 'Transit accessible' : 'Wheelchair accessible'}
             </span>
           </label>
@@ -1104,13 +1104,13 @@ function ImageElementPicker({
         <img
           src={element.imageUrl}
           alt=""
-          className="w-full rounded border border-okuji-gray-2 object-cover"
+          className="w-full rounded border border-hairline object-cover"
           style={{ maxHeight: 120 }}
         />
       )}
       <label
-        className={`flex cursor-pointer items-center justify-center gap-2 rounded-card border border-okuji-gray-2 px-3 py-2 text-xs transition-colors ${
-          uploading ? 'pointer-events-none opacity-50' : 'text-okuji-gray-3 hover:border-okuji-teal/40'
+        className={`flex cursor-pointer items-center justify-center gap-2 rounded-card border border-hairline px-3 py-2 text-xs transition-colors ${
+          uploading ? 'pointer-events-none opacity-50' : 'text-muted hover:border-green/40'
         }`}
       >
         <input type="file" accept="image/*" className="hidden" onChange={handleUpload} disabled={uploading} />
@@ -1181,7 +1181,7 @@ function ElementInspector({
               onMouseUp={(e) =>
                 void persist({ opacity: Number((e.target as HTMLInputElement).value) } as Partial<DesignerPageElement>)
               }
-              className="w-full accent-okuji-teal"
+              className="w-full accent-green"
             />
           </Field>
         </Section>
@@ -1196,7 +1196,7 @@ function ElementInspector({
               rows={3}
               onChange={(e) => updateElement(pageId, element.id, { content: e.target.value })}
               onBlur={(e) => persist({ content: e.target.value })}
-              className="w-full resize-y rounded-panel border border-okuji-gray-2 bg-okuji-gray-1 px-3 py-1.5 text-sm text-okuji-navy placeholder:text-okuji-gray-3 focus:outline-none focus:ring-2 focus:ring-okuji-teal focus:border-okuji-teal transition-colors"
+              className="w-full resize-y rounded-panel border border-hairline bg-paper px-3 py-1.5 text-sm text-navy placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-green focus:border-green transition-colors"
             />
           </Field>
           <div className="grid grid-cols-2 gap-2">
@@ -1219,7 +1219,7 @@ function ElementInspector({
                 onChange={(e) =>
                   persist({ fontWeight: e.target.value as 'normal' | 'bold' })
                 }
-                className="h-8 w-full rounded-panel border border-okuji-gray-2 px-2 text-sm focus:outline-none focus:ring-2 focus:ring-okuji-teal"
+                className="h-8 w-full rounded-panel border border-hairline px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green"
               >
                 <option value="normal">Normal</option>
                 <option value="bold">Bold</option>
@@ -1234,8 +1234,8 @@ function ElementInspector({
                   onClick={() => persist({ align: a })}
                   className={`flex-1 rounded-card border py-1 text-xs capitalize transition-colors ${
                     (element.align ?? 'left') === a
-                      ? 'border-okuji-teal bg-okuji-teal-lt text-okuji-teal-dk font-medium'
-                      : 'border-okuji-gray-2 text-okuji-gray-3 hover:border-okuji-teal/40'
+                      ? 'border-green bg-cream text-green font-medium'
+                      : 'border-hairline text-muted hover:border-green/40'
                   }`}
                 >
                   {a}
@@ -1247,7 +1247,7 @@ function ElementInspector({
             <select
               value={element.fontFamily ?? 'Arial, sans-serif'}
               onChange={(e) => persist({ fontFamily: e.target.value })}
-              className="h-8 w-full rounded-panel border border-okuji-gray-2 px-2 text-sm focus:outline-none focus:ring-2 focus:ring-okuji-teal"
+              className="h-8 w-full rounded-panel border border-hairline px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green"
             >
               {FONT_OPTIONS.map((f) => (
                 <option key={f.value} value={f.value} style={{ fontFamily: f.value }}>
@@ -1257,7 +1257,7 @@ function ElementInspector({
             </select>
             {/* Live preview */}
             <p
-              className="mt-1.5 truncate text-sm text-okuji-navy"
+              className="mt-1.5 truncate text-sm text-navy"
               style={{ fontFamily: element.fontFamily ?? 'Arial, sans-serif' }}
             >
               The quick brown fox
@@ -1369,7 +1369,7 @@ function ElementInspector({
         )}
       </Section>
 
-      <div className="border-t border-okuji-gray-2 pt-4">
+      <div className="border-t border-hairline pt-4">
         <Button variant="danger" size="sm" className="w-full" onClick={handleDelete}>
           Delete element
         </Button>
@@ -1383,7 +1383,7 @@ function ElementInspector({
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="space-y-3">
-      <p className="text-xs font-semibold uppercase tracking-wider text-okuji-gray-3">
+      <p className="text-xs font-semibold uppercase tracking-wider text-muted">
         {title}
       </p>
       {children}
@@ -1394,7 +1394,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="space-y-1">
-      <Label className="text-xs text-okuji-gray-3">{label}</Label>
+      <Label className="text-xs text-muted">{label}</Label>
       {children}
     </div>
   )

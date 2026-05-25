@@ -66,7 +66,7 @@ export default async function LibraryPage() {
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8">
-      <h1 className="mb-6 font-serif text-2xl font-bold text-okuji-navy">My Library</h1>
+      <h1 className="mb-6 font-serif text-2xl font-bold text-navy">My Library</h1>
 
       {inProgress.length > 0 && (
         <Section title="In Progress">
@@ -109,10 +109,10 @@ export default async function LibraryPage() {
       )}
 
       {(acquisitions ?? []).length === 0 && (
-        <div className="rounded-panel border border-dashed border-okuji-gray-2 px-8 py-16 text-center">
+        <div className="rounded-panel border border-dashed border-hairline px-8 py-16 text-center">
           <p className="text-4xl">📖</p>
-          <p className="mt-3 text-okuji-gray-3">No passports yet.</p>
-          <Link href="/" className="mt-4 inline-block text-sm font-semibold text-okuji-teal hover:underline">
+          <p className="mt-3 text-muted">No passports yet.</p>
+          <Link href="/" className="mt-4 inline-block text-sm font-semibold text-green hover:underline">
             Browse passports →
           </Link>
         </div>
@@ -124,7 +124,7 @@ export default async function LibraryPage() {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="mb-8">
-      <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-okuji-gray-3">{title}</h2>
+      <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">{title}</h2>
       <div className="space-y-3">{children}</div>
     </div>
   )
@@ -145,7 +145,7 @@ function LibraryRow({
   const progress = totalStops > 0 ? stampCount / totalStops : 0
 
   return (
-    <div className="flex items-center gap-4 rounded-panel border border-okuji-gray-2 bg-white p-4 shadow-sm">
+    <div className="flex items-center gap-4 rounded-panel border border-hairline bg-white p-4 shadow-sm">
       <div
         className="flex h-16 w-12 shrink-0 items-center justify-center rounded-card text-2xl"
         style={{ backgroundColor: passport.cover_bg_color ?? '#0D1B2A' }}
@@ -153,19 +153,19 @@ function LibraryRow({
         {passport.cover_emblem ?? '🧭'}
       </div>
       <div className="flex-1 min-w-0">
-        <p className="truncate font-serif font-semibold text-okuji-navy">{passport.title}</p>
+        <p className="truncate font-serif font-semibold text-navy">{passport.title}</p>
         {completed ? (
-          <p className="text-xs text-okuji-teal">
+          <p className="text-xs text-green">
             ✓ Completed · {new Date(acq.acquired_at).toLocaleDateString()}
           </p>
         ) : (
           <>
-            <p className="mt-0.5 text-xs text-okuji-gray-3">
+            <p className="mt-0.5 text-xs text-muted">
               {stampCount} of {totalStops} stops
             </p>
-            <div className="mt-1.5 h-1.5 w-full rounded-full bg-okuji-gray-2">
+            <div className="mt-1.5 h-1.5 w-full rounded-full bg-hairline">
               <div
-                className="h-full rounded-full bg-okuji-teal transition-all"
+                className="h-full rounded-full bg-green transition-all"
                 style={{ width: `${Math.round(progress * 100)}%` }}
               />
             </div>
@@ -175,7 +175,7 @@ function LibraryRow({
       <div className="flex shrink-0 gap-2">
         <Link
           href={`/passport/${passport.id}`}
-          className="rounded-card bg-okuji-teal px-3 py-1.5 text-xs font-semibold text-white hover:bg-okuji-teal-dk transition-colors"
+          className="rounded-card bg-green px-3 py-1.5 text-xs font-semibold text-white hover:bg-green transition-colors"
         >
           {completed ? 'View' : 'Continue →'}
         </Link>

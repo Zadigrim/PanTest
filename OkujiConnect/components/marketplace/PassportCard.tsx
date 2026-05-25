@@ -26,13 +26,13 @@ function StarRating({ value }: { value: number }) {
 
   return (
     <span
-      className="text-okuji-amber"
+      className="text-accent"
       aria-label={`${value.toFixed(1)} out of 5 stars`}
     >
       {'★'.repeat(full)}
       {half ? '½' : ''}
       {'☆'.repeat(empty)}
-      <span className="ml-1 font-medium text-okuji-navy">{value.toFixed(1)}</span>
+      <span className="ml-1 font-medium text-navy">{value.toFixed(1)}</span>
     </span>
   )
 }
@@ -83,9 +83,9 @@ export function PassportCard({ passport, isOwned = false }: PassportCardProps) {
     <Link
       href={`/passport/${id}`}
       className={cn(
-        'group flex flex-col overflow-hidden rounded-card border border-okuji-gray-2',
+        'group flex flex-col overflow-hidden rounded-card border border-hairline',
         'bg-white shadow-sm transition-shadow hover:shadow-md',
-        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-okuji-teal'
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green'
       )}
     >
       {/* ── Cover ─────────────────────────────────────────────────────────── */}
@@ -105,12 +105,12 @@ export function PassportCard({ passport, isOwned = false }: PassportCardProps) {
       <div className="flex flex-1 flex-col gap-2 p-3">
 
         {/* Title */}
-        <h3 className="line-clamp-2 text-sm font-semibold leading-snug text-okuji-navy">
+        <h3 className="line-clamp-2 text-sm font-semibold leading-snug text-navy">
           {title}
         </h3>
 
         {/* Author · stop count */}
-        <p className="text-xs text-okuji-gray-3">
+        <p className="text-xs text-muted">
           {authorName}
           {stop_count > 0 && (
             <>
@@ -135,7 +135,7 @@ export function PassportCard({ passport, isOwned = false }: PassportCardProps) {
           <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs">
             {avgRating !== null && <StarRating value={avgRating} />}
             {completion !== null && (
-              <span className="text-okuji-gray-3">
+              <span className="text-muted">
                 {Math.round(completion * 100)}% complete
               </span>
             )}
@@ -146,8 +146,8 @@ export function PassportCard({ passport, isOwned = false }: PassportCardProps) {
         <div className="flex-1" />
 
         {/* Footer: time + spend + CTA */}
-        <div className="flex items-center justify-between gap-2 border-t border-okuji-gray-2 pt-1">
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-okuji-gray-3">
+        <div className="flex items-center justify-between gap-2 border-t border-hairline pt-1">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted">
             {estimated_hours != null && (
               <span>{formatHours(estimated_hours)}</span>
             )}

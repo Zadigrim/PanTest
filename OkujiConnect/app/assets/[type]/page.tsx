@@ -51,7 +51,7 @@ function isAssetType(value: string): value is AssetType {
 function TabNav({ current }: { current: AssetType }) {
   return (
     <nav
-      className="flex gap-0.5 border-b border-okuji-gray-2 mb-8"
+      className="flex gap-0.5 border-b border-hairline mb-8"
       aria-label="Asset type tabs"
     >
       {ASSET_TYPES.map((type) => (
@@ -61,8 +61,8 @@ function TabNav({ current }: { current: AssetType }) {
           className={cn(
             'px-5 py-2.5 text-sm font-medium rounded-t-panel transition-colors -mb-px',
             current === type
-              ? 'bg-white border border-b-white border-okuji-gray-2 text-okuji-navy'
-              : 'text-okuji-gray-3 hover:text-okuji-navy',
+              ? 'bg-white border border-b-white border-hairline text-navy'
+              : 'text-muted hover:text-navy',
           )}
           aria-current={current === type ? 'page' : undefined}
         >
@@ -98,9 +98,9 @@ function AssetCard({
     asset.institution_id === userInstitutionId
 
   return (
-    <div className="bg-white rounded-panel border border-okuji-gray-2 overflow-hidden group">
+    <div className="bg-white rounded-panel border border-hairline overflow-hidden group">
       {/* Preview area */}
-      <div className="aspect-video bg-okuji-gray-1 flex items-center justify-center">
+      <div className="aspect-video bg-paper flex items-center justify-center">
         {asset.url ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -109,7 +109,7 @@ function AssetCard({
             className="w-full h-full object-cover"
           />
         ) : (
-          <span className="text-3xl text-okuji-gray-2" aria-hidden="true">
+          <span className="text-3xl text-hairline" aria-hidden="true">
             🖼
           </span>
         )}
@@ -117,11 +117,11 @@ function AssetCard({
 
       {/* Footer */}
       <div className="px-3 py-2.5 flex items-center justify-between gap-2">
-        <p className="text-sm font-medium text-okuji-navy truncate">
+        <p className="text-sm font-medium text-navy truncate">
           {asset.name ?? 'Untitled'}
         </p>
         {isShared && (
-          <span className="shrink-0 inline-flex items-center rounded-card bg-okuji-teal-lt px-2 py-0.5 text-xs font-medium text-okuji-teal-dk">
+          <span className="shrink-0 inline-flex items-center rounded-card bg-cream px-2 py-0.5 text-xs font-medium text-green">
             Shared
           </span>
         )}
@@ -136,15 +136,15 @@ function AssetCard({
 
 function EmptyState({ meta }: { meta: (typeof TYPE_META)[AssetType] }) {
   return (
-    <div className="rounded-modal border-2 border-dashed border-okuji-gray-2 py-20 text-center">
+    <div className="rounded-modal border-2 border-dashed border-hairline py-20 text-center">
       <div
-        className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-okuji-gray-1 text-3xl"
+        className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-paper text-3xl"
         aria-hidden="true"
       >
         🖼
       </div>
-      <h2 className="text-base font-semibold text-okuji-navy">{meta.emptyHeading}</h2>
-      <p className="mt-2 text-sm text-okuji-gray-3 max-w-xs mx-auto">{meta.emptyBody}</p>
+      <h2 className="text-base font-semibold text-navy">{meta.emptyHeading}</h2>
+      <p className="mt-2 text-sm text-muted max-w-xs mx-auto">{meta.emptyBody}</p>
     </div>
   )
 }
@@ -210,16 +210,16 @@ export default async function AssetTypePage({ params }: Props) {
   const assetList: AssetRow[] = (assets ?? []) as AssetRow[]
 
   return (
-    <div className="min-h-screen bg-okuji-gray-1">
+    <div className="min-h-screen bg-paper">
       {/* Top bar */}
-      <header className="border-b border-okuji-gray-2 bg-white px-8 py-4">
+      <header className="border-b border-hairline bg-white px-8 py-4">
         <div className="mx-auto flex max-w-6xl items-center justify-between">
           <div className="flex items-center gap-3">
-            <span className="text-xl font-bold text-okuji-navy">Assets</span>
+            <span className="text-xl font-bold text-navy">Assets</span>
           </div>
           <Link
             href="/design"
-            className="text-sm text-okuji-gray-3 hover:text-okuji-navy transition-colors"
+            className="text-sm text-muted hover:text-navy transition-colors"
           >
             ← Back to designer
           </Link>
@@ -232,8 +232,8 @@ export default async function AssetTypePage({ params }: Props) {
         {/* Section header */}
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h2 className="text-lg font-semibold text-okuji-navy">{meta.label}</h2>
-            <p className="text-sm text-okuji-gray-3 mt-0.5">
+            <h2 className="text-lg font-semibold text-navy">{meta.label}</h2>
+            <p className="text-sm text-muted mt-0.5">
               {assetList.length === 0
                 ? 'No assets yet.'
                 : `${assetList.length} asset${assetList.length !== 1 ? 's' : ''}`}

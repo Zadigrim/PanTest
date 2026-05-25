@@ -22,7 +22,7 @@ export function DesktopGate({ children }: Props) {
 
   if (isTooNarrow) {
     return (
-      <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-okuji-navy px-8 text-center">
+      <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-navy px-8 text-center">
         <span className="mb-6 text-5xl" aria-hidden="true">
           🖥️
         </span>

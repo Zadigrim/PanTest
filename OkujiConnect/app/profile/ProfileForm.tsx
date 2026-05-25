@@ -103,15 +103,15 @@ export function ProfileForm({
   }
 
   return (
-    <section className="rounded-panel border border-okuji-gray-2 bg-white p-6">
-      <h2 className="mb-6 text-base font-semibold text-okuji-navy">Profile</h2>
+    <section className="rounded-panel border border-hairline bg-white p-6">
+      <h2 className="mb-6 text-base font-semibold text-navy">Profile</h2>
       <form onSubmit={handleSubmit} className="space-y-5">
         {/* Avatar */}
         <div className="flex items-center gap-5">
           <button
             type="button"
             onClick={() => fileRef.current?.click()}
-            className="group relative flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-okuji-gray-2 bg-okuji-teal hover:border-okuji-teal transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-okuji-teal"
+            className="group relative flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-hairline bg-green hover:border-green transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green"
             aria-label="Change avatar"
           >
             {displaySrc ? (
@@ -133,7 +133,7 @@ export function ProfileForm({
             tabIndex={-1}
             aria-hidden="true"
           />
-          <div className="text-sm text-okuji-gray-3">
+          <div className="text-sm text-muted">
             <p>Click avatar to upload a new photo.</p>
             <p className="text-xs mt-0.5">JPEG, PNG, or WebP · max 5 MB</p>
           </div>
@@ -141,8 +141,8 @@ export function ProfileForm({
 
         {/* Display name */}
         <div className="flex flex-col gap-1.5">
-          <label className="text-sm font-medium text-okuji-navy" htmlFor="display-name">
-            Display name <span className="text-okuji-coral">*</span>
+          <label className="text-sm font-medium text-navy" htmlFor="display-name">
+            Display name <span className="text-accent">*</span>
           </label>
           <input
             id="display-name"
@@ -151,13 +151,13 @@ export function ProfileForm({
             onChange={(e) => setDisplayName(e.target.value)}
             maxLength={64}
             required
-            className="h-9 rounded-panel border border-okuji-gray-2 px-3 text-sm text-okuji-navy focus:outline-none focus:ring-2 focus:ring-okuji-teal focus:border-okuji-teal transition-colors"
+            className="h-9 rounded-panel border border-hairline px-3 text-sm text-navy focus:outline-none focus:ring-2 focus:ring-green focus:border-green transition-colors"
           />
         </div>
 
         {/* Email (read-only) */}
         <div className="flex flex-col gap-1.5">
-          <label className="text-sm font-medium text-okuji-navy" htmlFor="email">
+          <label className="text-sm font-medium text-navy" htmlFor="email">
             Email
           </label>
           <input
@@ -165,13 +165,13 @@ export function ProfileForm({
             type="email"
             value={email}
             readOnly
-            className="h-9 rounded-panel border border-okuji-gray-2 px-3 text-sm text-okuji-gray-3 bg-okuji-gray-1 cursor-not-allowed"
+            className="h-9 rounded-panel border border-hairline px-3 text-sm text-muted bg-paper cursor-not-allowed"
           />
         </div>
 
         {/* Bio */}
         <div className="flex flex-col gap-1.5">
-          <label className="text-sm font-medium text-okuji-navy" htmlFor="bio">
+          <label className="text-sm font-medium text-navy" htmlFor="bio">
             Bio
           </label>
           <textarea
@@ -181,14 +181,14 @@ export function ProfileForm({
             rows={3}
             maxLength={500}
             placeholder="Tell others a little about yourself…"
-            className="rounded-panel border border-okuji-gray-2 px-3 py-2 text-sm text-okuji-navy resize-none focus:outline-none focus:ring-2 focus:ring-okuji-teal focus:border-okuji-teal transition-colors"
+            className="rounded-panel border border-hairline px-3 py-2 text-sm text-navy resize-none focus:outline-none focus:ring-2 focus:ring-green focus:border-green transition-colors"
           />
-          <p className="text-xs text-okuji-gray-3 text-right">{bio.length}/500</p>
+          <p className="text-xs text-muted text-right">{bio.length}/500</p>
         </div>
 
         {/* Website */}
         <div className="flex flex-col gap-1.5">
-          <label className="text-sm font-medium text-okuji-navy" htmlFor="website">
+          <label className="text-sm font-medium text-navy" htmlFor="website">
             Website
           </label>
           <input
@@ -197,17 +197,17 @@ export function ProfileForm({
             value={websiteUrl}
             onChange={(e) => setWebsiteUrl(e.target.value)}
             placeholder="https://example.com"
-            className="h-9 rounded-panel border border-okuji-gray-2 px-3 text-sm text-okuji-navy focus:outline-none focus:ring-2 focus:ring-okuji-teal focus:border-okuji-teal transition-colors"
+            className="h-9 rounded-panel border border-hairline px-3 text-sm text-navy focus:outline-none focus:ring-2 focus:ring-green focus:border-green transition-colors"
           />
         </div>
 
         {error && (
-          <p role="alert" className="text-sm text-okuji-coral">
+          <p role="alert" className="text-sm text-accent">
             {error}
           </p>
         )}
         {success && (
-          <p role="status" className="text-sm text-okuji-teal-dk font-medium">
+          <p role="status" className="text-sm text-green font-medium">
             Profile saved.
           </p>
         )}
@@ -216,7 +216,7 @@ export function ProfileForm({
           <button
             type="submit"
             disabled={saving}
-            className="h-9 px-5 rounded-panel bg-okuji-teal text-white text-sm font-medium hover:bg-okuji-teal-dk disabled:opacity-60 disabled:pointer-events-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-okuji-teal"
+            className="h-9 px-5 rounded-panel bg-green text-white text-sm font-medium hover:bg-green disabled:opacity-60 disabled:pointer-events-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green"
           >
             {saving ? 'Saving…' : 'Save profile'}
           </button>

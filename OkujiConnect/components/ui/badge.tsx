@@ -7,12 +7,12 @@ const badgeVariants = cva(
   {
     variants: {
       variant: {
-        default:    'bg-okuji-gray-2 text-okuji-navy',
-        free:       'bg-okuji-teal-lt text-okuji-teal-dk',
-        accessible: 'bg-okuji-teal-lt text-okuji-teal-dk',
+        default:    'bg-hairline text-navy',
+        free:       'bg-cream text-green',
+        accessible: 'bg-cream text-green',
         certified:  'bg-amber-100 text-amber-800',
         award:      'bg-yellow-100 text-yellow-800',
-        challenge:  'bg-red-100 text-okuji-coral',
+        challenge:  'bg-red-100 text-accent',
       },
     },
     defaultVariants: { variant: 'default' },

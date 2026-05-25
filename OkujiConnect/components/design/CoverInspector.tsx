@@ -124,9 +124,9 @@ export function CoverInspector({ face, panel }: Props) {
   }
 
   return (
-    <aside className="flex w-72 shrink-0 flex-col overflow-y-auto border-l border-okuji-gray-2 bg-white">
-      <div className="border-b border-okuji-gray-2 px-4 py-3">
-        <p className="text-xs font-semibold uppercase tracking-wider text-okuji-gray-3">
+    <aside className="flex w-72 shrink-0 flex-col overflow-y-auto border-l border-hairline bg-white">
+      <div className="border-b border-hairline px-4 py-3">
+        <p className="text-xs font-semibold uppercase tracking-wider text-muted">
           {face === 'outside' ? 'Outside' : 'Inside'} cover —{' '}
           {panel === 'front' ? 'Front panel' : 'Back panel'}
         </p>
@@ -135,12 +135,12 @@ export function CoverInspector({ face, panel }: Props) {
       <div className="flex-1 space-y-5 p-4">
         {/* Selected text element controls */}
         {selectedElement && selectedElement.type === 'text' && (
-          <div className="space-y-3 rounded-card border border-okuji-teal/30 bg-okuji-teal-lt p-3">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-okuji-teal-dk">
+          <div className="space-y-3 rounded-card border border-green/30 bg-cream p-3">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-green">
               Text element
             </p>
             <div className="space-y-1.5">
-              <Label className="text-xs text-okuji-gray-3">Content</Label>
+              <Label className="text-xs text-muted">Content</Label>
               <textarea
                 value={selectedElement.content ?? ''}
                 placeholder="Cover text…"
@@ -149,12 +149,12 @@ export function CoverInspector({ face, panel }: Props) {
                   updateElementLocal(selectedElement.id, { content: e.target.value })
                 }
                 onBlur={(e) => void persistElement(selectedElement.id, { content: e.target.value })}
-                className="w-full resize-y rounded-panel border border-okuji-gray-2 bg-white px-3 py-1.5 text-sm text-okuji-navy placeholder:text-okuji-gray-3 focus:outline-none focus:ring-2 focus:ring-okuji-teal focus:border-okuji-teal transition-colors"
+                className="w-full resize-y rounded-panel border border-hairline bg-white px-3 py-1.5 text-sm text-navy placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-green focus:border-green transition-colors"
               />
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1.5">
-                <Label className="text-xs text-okuji-gray-3">Size (px)</Label>
+                <Label className="text-xs text-muted">Size (px)</Label>
                 <Input
                   type="number"
                   min={8}
@@ -168,7 +168,7 @@ export function CoverInspector({ face, panel }: Props) {
                 />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs text-okuji-gray-3">Weight</Label>
+                <Label className="text-xs text-muted">Weight</Label>
                 <select
                   value={selectedElement.fontWeight ?? 'normal'}
                   onChange={(e) =>
@@ -176,7 +176,7 @@ export function CoverInspector({ face, panel }: Props) {
                       fontWeight: e.target.value as 'normal' | 'bold',
                     })
                   }
-                  className="h-8 w-full rounded-panel border border-okuji-gray-2 px-2 text-sm focus:outline-none focus:ring-2 focus:ring-okuji-teal"
+                  className="h-8 w-full rounded-panel border border-hairline px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green"
                 >
                   <option value="normal">Normal</option>
                   <option value="bold">Bold</option>
@@ -184,7 +184,7 @@ export function CoverInspector({ face, panel }: Props) {
               </div>
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs text-okuji-gray-3">Align</Label>
+              <Label className="text-xs text-muted">Align</Label>
               <div className="flex gap-1">
                 {(['left', 'center', 'right'] as const).map((a) => (
                   <button
@@ -193,8 +193,8 @@ export function CoverInspector({ face, panel }: Props) {
                     onClick={() => void persistElement(selectedElement.id, { align: a })}
                     className={`flex-1 rounded-card border py-1 text-xs capitalize transition-colors ${
                       (selectedElement.align ?? 'left') === a
-                        ? 'border-okuji-teal bg-okuji-teal text-white font-medium'
-                        : 'border-okuji-gray-2 text-okuji-gray-3 hover:border-okuji-teal/40'
+                        ? 'border-green bg-green text-white font-medium'
+                        : 'border-hairline text-muted hover:border-green/40'
                     }`}
                   >
                     {a}
@@ -207,7 +207,7 @@ export function CoverInspector({ face, panel }: Props) {
 
         {/* Background color for selected panel */}
         <div className="space-y-1.5">
-          <Label className="text-xs text-okuji-gray-3">
+          <Label className="text-xs text-muted">
             {isFront ? 'Front' : 'Back'} background color
           </Label>
           <div className="flex gap-2">
@@ -237,12 +237,12 @@ export function CoverInspector({ face, panel }: Props) {
 
         {/* Full-bleed image (spans both panels) */}
         <div className="space-y-2">
-          <Label className="text-xs text-okuji-gray-3">Full-bleed image (both panels)</Label>
+          <Label className="text-xs text-muted">Full-bleed image (both panels)</Label>
 
           {sideData.image_url ? (
             <>
               {/* Preview */}
-              <div className="relative overflow-hidden rounded-card border border-okuji-gray-2">
+              <div className="relative overflow-hidden rounded-card border border-hairline">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={sideData.image_url}
@@ -255,8 +255,8 @@ export function CoverInspector({ face, panel }: Props) {
               {/* Opacity */}
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <Label className="text-xs text-okuji-gray-3">Opacity</Label>
-                  <span className="font-mono text-xs text-okuji-navy">{sideData.image_opacity}%</span>
+                  <Label className="text-xs text-muted">Opacity</Label>
+                  <span className="font-mono text-xs text-navy">{sideData.image_opacity}%</span>
                 </div>
                 <input
                   type="range"
@@ -271,23 +271,23 @@ export function CoverInspector({ face, panel }: Props) {
                   }}
                   onMouseUp={(e) => persist({ image_opacity: parseInt((e.target as HTMLInputElement).value, 10) })}
                   onTouchEnd={(e) => persist({ image_opacity: parseInt((e.target as HTMLInputElement).value, 10) })}
-                  className="h-1.5 w-full cursor-pointer accent-okuji-teal"
+                  className="h-1.5 w-full cursor-pointer accent-green"
                 />
-                <div className="flex justify-between text-[10px] text-okuji-gray-3">
+                <div className="flex justify-between text-[10px] text-muted">
                   <span>10%</span><span>100%</span>
                 </div>
               </div>
 
               {/* Position + scale */}
-              <div className="space-y-2 rounded-card border border-okuji-gray-2 p-3">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-okuji-gray-3">
+              <div className="space-y-2 rounded-card border border-hairline p-3">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted">
                   Position &amp; scale
                 </p>
 
                 {/* X / Y offset */}
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-1">
-                    <label className="text-[10px] text-okuji-gray-3">X offset (px)</label>
+                    <label className="text-[10px] text-muted">X offset (px)</label>
                     <input
                       type="number"
                       value={Math.round((sideData.image_position_x - 0.5) * CANVAS_W)}
@@ -303,11 +303,11 @@ export function CoverInspector({ face, panel }: Props) {
                         const px = 0.5 + parseInt(e.target.value || '0', 10) / CANVAS_W
                         void persist({ image_position_x: Math.max(0, Math.min(1, px)) })
                       }}
-                      className="h-7 w-full rounded-card border border-okuji-gray-2 px-2 font-mono text-xs text-okuji-navy focus:border-okuji-teal focus:outline-none"
+                      className="h-7 w-full rounded-card border border-hairline px-2 font-mono text-xs text-navy focus:border-green focus:outline-none"
                     />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-[10px] text-okuji-gray-3">Y offset (px)</label>
+                    <label className="text-[10px] text-muted">Y offset (px)</label>
                     <input
                       type="number"
                       value={Math.round((sideData.image_position_y - 0.5) * COVER_H)}
@@ -323,7 +323,7 @@ export function CoverInspector({ face, panel }: Props) {
                         const py = 0.5 + parseInt(e.target.value || '0', 10) / COVER_H
                         void persist({ image_position_y: Math.max(0, Math.min(1, py)) })
                       }}
-                      className="h-7 w-full rounded-card border border-okuji-gray-2 px-2 font-mono text-xs text-okuji-navy focus:border-okuji-teal focus:outline-none"
+                      className="h-7 w-full rounded-card border border-hairline px-2 font-mono text-xs text-navy focus:border-green focus:outline-none"
                     />
                   </div>
                 </div>
@@ -331,8 +331,8 @@ export function CoverInspector({ face, panel }: Props) {
                 {/* Scale slider */}
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
-                    <label className="text-[10px] text-okuji-gray-3">Scale</label>
-                    <span className="font-mono text-xs text-okuji-navy">
+                    <label className="text-[10px] text-muted">Scale</label>
+                    <span className="font-mono text-xs text-navy">
                       {Math.round(sideData.image_scale * 100)}%
                     </span>
                   </div>
@@ -355,9 +355,9 @@ export function CoverInspector({ face, panel }: Props) {
                       const scale = parseInt((e.target as HTMLInputElement).value, 10) / 100
                       void persist({ image_scale: scale })
                     }}
-                    className="h-1.5 w-full cursor-pointer accent-okuji-teal"
+                    className="h-1.5 w-full cursor-pointer accent-green"
                   />
-                  <div className="flex justify-between text-[10px] text-okuji-gray-3">
+                  <div className="flex justify-between text-[10px] text-muted">
                     <span>100%</span><span>300%</span>
                   </div>
                 </div>
@@ -367,7 +367,7 @@ export function CoverInspector({ face, panel }: Props) {
                   <button
                     type="button"
                     onClick={() => void persist({ image_position_x: 0.5, image_position_y: 0.5, image_scale: 1 })}
-                    className="flex-1 h-7 rounded-card border border-okuji-gray-2 text-[10px] text-okuji-gray-3 hover:border-okuji-teal hover:text-okuji-teal-dk transition-colors"
+                    className="flex-1 h-7 rounded-card border border-hairline text-[10px] text-muted hover:border-green hover:text-green transition-colors"
                   >
                     Fit width
                   </button>
@@ -377,14 +377,14 @@ export function CoverInspector({ face, panel }: Props) {
                       const heightScale = CANVAS_W / COVER_H
                       void persist({ image_position_x: 0.5, image_position_y: 0.5, image_scale: Math.max(1, heightScale) })
                     }}
-                    className="flex-1 h-7 rounded-card border border-okuji-gray-2 text-[10px] text-okuji-gray-3 hover:border-okuji-teal hover:text-okuji-teal-dk transition-colors"
+                    className="flex-1 h-7 rounded-card border border-hairline text-[10px] text-muted hover:border-green hover:text-green transition-colors"
                   >
                     Fit height
                   </button>
                   <button
                     type="button"
                     onClick={() => void persist({ image_position_x: 0.5, image_position_y: 0.5, image_scale: 1.5 })}
-                    className="flex-1 h-7 rounded-card border border-okuji-gray-2 text-[10px] text-okuji-gray-3 hover:border-okuji-teal hover:text-okuji-teal-dk transition-colors"
+                    className="flex-1 h-7 rounded-card border border-hairline text-[10px] text-muted hover:border-green hover:text-green transition-colors"
                   >
                     Fill canvas
                   </button>
@@ -393,18 +393,18 @@ export function CoverInspector({ face, panel }: Props) {
 
               {/* Remove / Replace buttons */}
               {confirmRemove ? (
-                <div className="rounded-card border border-okuji-coral/40 bg-okuji-coral/5 p-3 space-y-2">
-                  <p className="text-xs text-okuji-coral">Remove this cover image? This cannot be undone.</p>
+                <div className="rounded-card border border-accent/40 bg-accent/5 p-3 space-y-2">
+                  <p className="text-xs text-accent">Remove this cover image? This cannot be undone.</p>
                   <div className="flex gap-2">
                     <button
                       onClick={handleRemoveConfirmed}
-                      className="flex-1 h-7 rounded-card bg-okuji-coral text-white text-xs font-medium hover:bg-red-700 transition-colors"
+                      className="flex-1 h-7 rounded-card bg-accent text-white text-xs font-medium hover:bg-red-700 transition-colors"
                     >
                       Remove
                     </button>
                     <button
                       onClick={() => setConfirmRemove(false)}
-                      className="flex-1 h-7 rounded-card border border-okuji-gray-2 text-xs text-okuji-gray-3 hover:text-okuji-navy transition-colors"
+                      className="flex-1 h-7 rounded-card border border-hairline text-xs text-muted hover:text-navy transition-colors"
                     >
                       Cancel
                     </button>
@@ -414,14 +414,14 @@ export function CoverInspector({ face, panel }: Props) {
                 <div className="flex gap-2">
                   <button
                     onClick={() => setConfirmRemove(true)}
-                    className="flex-1 h-8 rounded-card border border-okuji-gray-2 text-xs text-okuji-gray-3 hover:border-okuji-coral hover:text-okuji-coral transition-colors"
+                    className="flex-1 h-8 rounded-card border border-hairline text-xs text-muted hover:border-accent hover:text-accent transition-colors"
                   >
                     Remove image
                   </button>
                   <button
                     onClick={() => replaceRef.current?.click()}
                     disabled={uploading}
-                    className="flex-1 h-8 rounded-card border border-okuji-gray-2 text-xs text-okuji-navy hover:border-okuji-teal hover:text-okuji-teal-dk transition-colors disabled:opacity-60"
+                    className="flex-1 h-8 rounded-card border border-hairline text-xs text-navy hover:border-green hover:text-green transition-colors disabled:opacity-60"
                   >
                     {uploading ? 'Uploading…' : 'Replace image'}
                   </button>
@@ -443,7 +443,7 @@ export function CoverInspector({ face, panel }: Props) {
                 type="button"
                 onClick={() => fileRef.current?.click()}
                 disabled={uploading}
-                className="flex h-20 w-full items-center justify-center rounded-card border-2 border-dashed border-okuji-gray-2 text-sm text-okuji-gray-3 hover:border-okuji-teal hover:text-okuji-teal-dk transition-colors disabled:opacity-60"
+                className="flex h-20 w-full items-center justify-center rounded-card border-2 border-dashed border-hairline text-sm text-muted hover:border-green hover:text-green transition-colors disabled:opacity-60"
               >
                 {uploading ? 'Uploading…' : '+ Upload cover image'}
               </button>
@@ -460,7 +460,7 @@ export function CoverInspector({ face, panel }: Props) {
           )}
 
           {uploadError && (
-            <p className="text-xs text-okuji-coral">{uploadError}</p>
+            <p className="text-xs text-accent">{uploadError}</p>
           )}
         </div>
 
@@ -468,7 +468,7 @@ export function CoverInspector({ face, panel }: Props) {
         {isFront && face === 'outside' && (
           <>
             <div className="space-y-1.5">
-              <Label className="text-xs text-okuji-gray-3">Emblem (emoji)</Label>
+              <Label className="text-xs text-muted">Emblem (emoji)</Label>
               <Input
                 value={passport.cover_emblem ?? '🧭'}
                 maxLength={4}
@@ -478,7 +478,7 @@ export function CoverInspector({ face, panel }: Props) {
               />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs text-okuji-gray-3">Passport title</Label>
+              <Label className="text-xs text-muted">Passport title</Label>
               <Input
                 value={passport.title}
                 onChange={(e) => updatePassport({ title: e.target.value })}
@@ -489,7 +489,7 @@ export function CoverInspector({ face, panel }: Props) {
           </>
         )}
 
-        <p className="rounded-card bg-okuji-gray-1 px-3 py-2.5 text-xs text-okuji-gray-3 leading-relaxed">
+        <p className="rounded-card bg-paper px-3 py-2.5 text-xs text-muted leading-relaxed">
           The image spans both front and back panels. Click the{' '}
           {panel === 'front' ? 'back' : 'front'} panel on the canvas to edit its background color.
         </p>

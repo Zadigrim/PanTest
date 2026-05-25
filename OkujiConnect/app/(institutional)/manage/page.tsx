@@ -40,21 +40,21 @@ function MetricCard({
   return (
     <div
       className={`bg-white rounded-panel border p-5 ${
-        warn ? 'border-okuji-amber' : 'border-okuji-gray-2'
+        warn ? 'border-accent' : 'border-hairline'
       }`}
     >
-      <p className="text-xs font-medium text-okuji-gray-3 uppercase tracking-wide mb-1">
+      <p className="text-xs font-medium text-muted uppercase tracking-wide mb-1">
         {label}
       </p>
       <p
         className={`text-3xl font-bold tabular-nums ${
-          warn ? 'text-okuji-amber' : 'text-okuji-navy'
+          warn ? 'text-accent' : 'text-navy'
         }`}
       >
         {warn && <span aria-hidden="true">⚠ </span>}
         {value}
       </p>
-      {sub && <p className="text-xs text-okuji-gray-3 mt-1">{sub}</p>}
+      {sub && <p className="text-xs text-muted mt-1">{sub}</p>}
     </div>
   )
 }
@@ -208,22 +208,22 @@ export default async function ManageDashboardPage() {
     <div className="p-8 max-w-6xl">
       {/* Header */}
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-okuji-navy">Dashboard</h1>
-        <p className="text-sm text-okuji-gray-3 mt-1">Last 30 days</p>
+        <h1 className="text-2xl font-bold text-navy">Dashboard</h1>
+        <p className="text-sm text-muted mt-1">Last 30 days</p>
       </div>
 
       {/* Distribution pending global warning */}
       {metrics.distributionPending > 0 && (
         <div
           role="alert"
-          className="mb-6 flex items-start gap-3 bg-okuji-amber/10 border border-okuji-amber rounded-panel p-4"
+          className="mb-6 flex items-start gap-3 bg-accent/10 border border-accent rounded-panel p-4"
         >
           <span className="text-xl leading-none mt-0.5" aria-hidden="true">⚠</span>
           <div>
-            <p className="font-semibold text-okuji-navy text-sm">
+            <p className="font-semibold text-navy text-sm">
               {metrics.distributionPending} prize{metrics.distributionPending !== 1 ? 's' : ''} pending distribution
             </p>
-            <p className="text-xs text-okuji-gray-3 mt-0.5">
+            <p className="text-xs text-muted mt-0.5">
               Review the passport pages below and distribute outstanding prizes.
             </p>
           </div>
@@ -256,27 +256,27 @@ export default async function ManageDashboardPage() {
 
       {/* Passport table */}
       <section>
-        <h2 className="text-base font-semibold text-okuji-navy mb-3">Your passports</h2>
+        <h2 className="text-base font-semibold text-navy mb-3">Your passports</h2>
 
         {passportRows.length === 0 ? (
-          <p className="text-sm text-okuji-gray-3">
+          <p className="text-sm text-muted">
             No passports are linked to your institution yet.
           </p>
         ) : (
-          <div className="bg-white rounded-panel border border-okuji-gray-2 overflow-hidden">
+          <div className="bg-white rounded-panel border border-hairline overflow-hidden">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-okuji-gray-2 bg-okuji-gray-1">
-                  <th className="px-4 py-3 text-left font-medium text-okuji-gray-3">
+                <tr className="border-b border-hairline bg-paper">
+                  <th className="px-4 py-3 text-left font-medium text-muted">
                     Passport name
                   </th>
-                  <th className="px-4 py-3 text-right font-medium text-okuji-gray-3">
+                  <th className="px-4 py-3 text-right font-medium text-muted">
                     Active collectors
                   </th>
-                  <th className="px-4 py-3 text-right font-medium text-okuji-gray-3">
+                  <th className="px-4 py-3 text-right font-medium text-muted">
                     Completions
                   </th>
-                  <th className="px-4 py-3 text-right font-medium text-okuji-gray-3">
+                  <th className="px-4 py-3 text-right font-medium text-muted">
                     Dist. pending
                   </th>
                 </tr>
@@ -285,32 +285,32 @@ export default async function ManageDashboardPage() {
                 {passportRows.map((row, i) => (
                   <tr
                     key={row.id}
-                    className={`border-b border-okuji-gray-2 last:border-0 hover:bg-okuji-gray-1 transition-colors ${
-                      i % 2 === 1 ? 'bg-okuji-gray-1/50' : ''
+                    className={`border-b border-hairline last:border-0 hover:bg-paper transition-colors ${
+                      i % 2 === 1 ? 'bg-paper/50' : ''
                     }`}
                   >
-                    <td className="px-4 py-3 font-medium text-okuji-navy">
+                    <td className="px-4 py-3 font-medium text-navy">
                       <Link
                         href={`/manage/passport/${row.id}`}
-                        className="hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-okuji-teal rounded-sm"
+                        className="hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green rounded-sm"
                       >
                         {row.title}
                       </Link>
                     </td>
-                    <td className="px-4 py-3 text-right tabular-nums text-okuji-navy">
+                    <td className="px-4 py-3 text-right tabular-nums text-navy">
                       {row.activeCollectors}
                     </td>
-                    <td className="px-4 py-3 text-right tabular-nums text-okuji-navy">
+                    <td className="px-4 py-3 text-right tabular-nums text-navy">
                       {row.completions}
                     </td>
                     <td className="px-4 py-3 text-right tabular-nums">
                       {row.distributionPending > 0 ? (
-                        <span className="inline-flex items-center gap-1 text-okuji-amber font-semibold">
+                        <span className="inline-flex items-center gap-1 text-accent font-semibold">
                           <span aria-hidden="true">⚠</span>
                           {row.distributionPending}
                         </span>
                       ) : (
-                        <span className="text-okuji-gray-3">0</span>
+                        <span className="text-muted">0</span>
                       )}
                     </td>
                   </tr>

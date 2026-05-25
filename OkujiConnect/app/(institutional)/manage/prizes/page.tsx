@@ -124,13 +124,13 @@ function PagePrizeForm({
     page.section_title ?? page.section_name ?? `Page ${page.page_order + 1}`
 
   return (
-    <div className="bg-white rounded-panel border border-okuji-gray-2 p-5">
+    <div className="bg-white rounded-panel border border-hairline p-5">
       {/* Page header */}
       <div className="mb-4">
-        <p className="text-xs text-okuji-gray-3 font-medium uppercase tracking-wide">
+        <p className="text-xs text-muted font-medium uppercase tracking-wide">
           {page.passport_title}
         </p>
-        <h3 className="text-sm font-semibold text-okuji-navy mt-0.5">{pageLabel}</h3>
+        <h3 className="text-sm font-semibold text-navy mt-0.5">{pageLabel}</h3>
       </div>
 
       <div className="space-y-4">
@@ -138,7 +138,7 @@ function PagePrizeForm({
         <div className="flex flex-col gap-1.5">
           <label
             htmlFor={`${formId}-desc`}
-            className="text-sm font-medium text-okuji-navy"
+            className="text-sm font-medium text-navy"
           >
             Prize description
           </label>
@@ -151,7 +151,7 @@ function PagePrizeForm({
               setSaved(false)
             }}
             placeholder="e.g. Free coffee coupon, 10% off voucher"
-            className="h-9 rounded-panel border border-okuji-gray-2 bg-okuji-gray-1 px-3 text-sm text-okuji-navy placeholder:text-okuji-gray-3 focus:outline-none focus:ring-2 focus:ring-okuji-teal focus:border-okuji-teal transition-colors"
+            className="h-9 rounded-panel border border-hairline bg-paper px-3 text-sm text-navy placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-green focus:border-green transition-colors"
           />
         </div>
 
@@ -159,13 +159,13 @@ function PagePrizeForm({
         <div className="flex flex-col gap-1.5">
           <label
             htmlFor={`${formId}-value`}
-            className="text-sm font-medium text-okuji-navy"
+            className="text-sm font-medium text-navy"
           >
             Prize value{' '}
-            <span className="font-normal text-okuji-gray-3">(optional, USD)</span>
+            <span className="font-normal text-muted">(optional, USD)</span>
           </label>
           <div className="relative w-44">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-okuji-gray-3 text-sm select-none pointer-events-none">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted text-sm select-none pointer-events-none">
               $
             </span>
             <input
@@ -179,14 +179,14 @@ function PagePrizeForm({
                 setSaved(false)
               }}
               placeholder="0.00"
-              className="h-9 w-full rounded-panel border border-okuji-gray-2 bg-okuji-gray-1 pl-7 pr-3 text-sm text-okuji-navy placeholder:text-okuji-gray-3 focus:outline-none focus:ring-2 focus:ring-okuji-teal focus:border-okuji-teal transition-colors"
+              className="h-9 w-full rounded-panel border border-hairline bg-paper pl-7 pr-3 text-sm text-navy placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-green focus:border-green transition-colors"
             />
           </div>
         </div>
 
         {/* Redeemable at */}
         <fieldset>
-          <legend className="text-sm font-medium text-okuji-navy mb-2">
+          <legend className="text-sm font-medium text-navy mb-2">
             Redeemable at
           </legend>
           <div className="space-y-2">
@@ -201,9 +201,9 @@ function PagePrizeForm({
                   setForm((p) => ({ ...p, location_mode: 'all', selected_stop_ids: [] }))
                   setSaved(false)
                 }}
-                className="accent-okuji-teal"
+                className="accent-green"
               />
-              <span className="text-sm text-okuji-navy">All locations</span>
+              <span className="text-sm text-navy">All locations</span>
             </label>
 
             {/* Specific stops */}
@@ -217,14 +217,14 @@ function PagePrizeForm({
                   setForm((p) => ({ ...p, location_mode: 'specific' }))
                   setSaved(false)
                 }}
-                className="accent-okuji-teal"
+                className="accent-green"
               />
-              <span className="text-sm text-okuji-navy">Specific stops</span>
+              <span className="text-sm text-navy">Specific stops</span>
             </label>
 
             {/* Stop checkboxes (only shown in specific mode) */}
             {form.location_mode === 'specific' && page.stops.length > 0 && (
-              <div className="ml-6 mt-2 space-y-2 border-l-2 border-okuji-gray-2 pl-4">
+              <div className="ml-6 mt-2 space-y-2 border-l-2 border-hairline pl-4">
                 {page.stops.map((stop) => (
                   <label
                     key={stop.id}
@@ -234,16 +234,16 @@ function PagePrizeForm({
                       type="checkbox"
                       checked={form.selected_stop_ids.includes(stop.id)}
                       onChange={() => toggleStop(stop.id)}
-                      className="accent-okuji-teal"
+                      className="accent-green"
                     />
-                    <span className="text-sm text-okuji-navy">{stop.name}</span>
+                    <span className="text-sm text-navy">{stop.name}</span>
                   </label>
                 ))}
               </div>
             )}
 
             {form.location_mode === 'specific' && page.stops.length === 0 && (
-              <p className="ml-6 text-xs text-okuji-gray-3">
+              <p className="ml-6 text-xs text-muted">
                 No stops found on this page.
               </p>
             )}
@@ -256,15 +256,15 @@ function PagePrizeForm({
             type="button"
             onClick={handleSave}
             disabled={isPending}
-            className="inline-flex items-center gap-2 h-9 px-4 rounded-panel text-sm font-medium bg-okuji-teal text-white hover:bg-[#0F6E56] disabled:opacity-50 disabled:pointer-events-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-okuji-teal"
+            className="inline-flex items-center gap-2 h-9 px-4 rounded-panel text-sm font-medium bg-green text-white hover:bg-[#0F6E56] disabled:opacity-50 disabled:pointer-events-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green"
           >
             {isPending ? 'Saving…' : 'Save prize config'}
           </button>
           {saved && (
-            <span className="text-sm text-okuji-teal font-medium">Saved ✓</span>
+            <span className="text-sm text-green font-medium">Saved ✓</span>
           )}
           {saveError && (
-            <span role="alert" className="text-sm text-okuji-coral">
+            <span role="alert" className="text-sm text-accent">
               {saveError}
             </span>
           )}
@@ -400,27 +400,27 @@ export default function PrizesPage() {
   return (
     <div className="p-8 max-w-3xl">
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-okuji-navy">Prize configuration</h1>
-        <p className="text-sm text-okuji-gray-3 mt-1">
+        <h1 className="text-2xl font-bold text-navy">Prize configuration</h1>
+        <p className="text-sm text-muted mt-1">
           Set prizes for each passport page. Changes take effect immediately.
         </p>
       </div>
 
       {loading && (
-        <p className="text-sm text-okuji-gray-3 animate-pulse">Loading…</p>
+        <p className="text-sm text-muted animate-pulse">Loading…</p>
       )}
 
       {loadError && (
         <div
           role="alert"
-          className="bg-okuji-coral/10 border border-okuji-coral rounded-panel p-4 text-okuji-coral text-sm"
+          className="bg-accent/10 border border-accent rounded-panel p-4 text-accent text-sm"
         >
           {loadError}
         </div>
       )}
 
       {!loading && !loadError && pages.length === 0 && (
-        <p className="text-sm text-okuji-gray-3">
+        <p className="text-sm text-muted">
           No passport pages found for your institution.
         </p>
       )}

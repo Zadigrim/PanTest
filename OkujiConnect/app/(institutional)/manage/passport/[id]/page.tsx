@@ -213,11 +213,11 @@ function MarkDistributedButton({
       <button
         onClick={handleClick}
         disabled={isPending}
-        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-panel text-xs font-medium bg-okuji-teal text-white hover:bg-[#0F6E56] disabled:opacity-50 disabled:pointer-events-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-okuji-teal"
+        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-panel text-xs font-medium bg-green text-white hover:bg-[#0F6E56] disabled:opacity-50 disabled:pointer-events-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green"
       >
         {isPending ? 'Saving…' : '✓ Mark distributed'}
       </button>
-      {error && <span className="text-xs text-okuji-coral">{error}</span>}
+      {error && <span className="text-xs text-accent">{error}</span>}
     </div>
   )
 }
@@ -233,20 +233,20 @@ function TokenStatusBadge({
 }) {
   if (token.prize_distributed) {
     return (
-      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-okuji-teal-lt text-okuji-teal">
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-cream text-green">
         Distributed
       </span>
     )
   }
   if (token.redeemed_at) {
     return (
-      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-okuji-amber/20 text-okuji-amber">
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-accent/20 text-accent">
         Redeemed
       </span>
     )
   }
   return (
-    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-okuji-gray-2 text-okuji-gray-3">
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-hairline text-muted">
       Pending
     </span>
   )
@@ -370,7 +370,7 @@ export default function PassportAnalyticsPage() {
   if (loading) {
     return (
       <div className="p-8 flex items-center justify-center min-h-64">
-        <p className="text-okuji-gray-3 text-sm animate-pulse">Loading analytics…</p>
+        <p className="text-muted text-sm animate-pulse">Loading analytics…</p>
       </div>
     )
   }
@@ -380,7 +380,7 @@ export default function PassportAnalyticsPage() {
       <div className="p-8">
         <div
           role="alert"
-          className="bg-okuji-coral/10 border border-okuji-coral rounded-panel p-4 text-okuji-coral text-sm"
+          className="bg-accent/10 border border-accent rounded-panel p-4 text-accent text-sm"
         >
           {loadError}
         </div>
@@ -392,48 +392,48 @@ export default function PassportAnalyticsPage() {
     <div className="p-8 max-w-6xl space-y-10">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-okuji-navy">{passportTitle}</h1>
-        <p className="text-sm text-okuji-gray-3 mt-1">Analytics · Last 30 days</p>
+        <h1 className="text-2xl font-bold text-navy">{passportTitle}</h1>
+        <p className="text-sm text-muted mt-1">Analytics · Last 30 days</p>
       </div>
 
       {/* ── 1. Stop engagement table ─────────────────────────────────────── */}
       <section>
-        <h2 className="text-base font-semibold text-okuji-navy mb-3">Stop engagement</h2>
+        <h2 className="text-base font-semibold text-navy mb-3">Stop engagement</h2>
         {analytics && analytics.stopEngagement.length > 0 ? (
-          <div className="bg-white rounded-panel border border-okuji-gray-2 overflow-x-auto">
+          <div className="bg-white rounded-panel border border-hairline overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-okuji-gray-2 bg-okuji-gray-1">
-                  <th className="px-4 py-3 text-left font-medium text-okuji-gray-3">Stop name</th>
-                  <th className="px-4 py-3 text-right font-medium text-okuji-gray-3">Stamps</th>
-                  <th className="px-4 py-3 text-right font-medium text-okuji-gray-3">Avg dwell</th>
-                  <th className="px-4 py-3 text-right font-medium text-okuji-gray-3">Return visits</th>
-                  <th className="px-4 py-3 text-right font-medium text-okuji-gray-3">Mood rating</th>
+                <tr className="border-b border-hairline bg-paper">
+                  <th className="px-4 py-3 text-left font-medium text-muted">Stop name</th>
+                  <th className="px-4 py-3 text-right font-medium text-muted">Stamps</th>
+                  <th className="px-4 py-3 text-right font-medium text-muted">Avg dwell</th>
+                  <th className="px-4 py-3 text-right font-medium text-muted">Return visits</th>
+                  <th className="px-4 py-3 text-right font-medium text-muted">Mood rating</th>
                 </tr>
               </thead>
               <tbody>
                 {analytics.stopEngagement.map((stop, i) => (
                   <tr
                     key={stop.stopId}
-                    className={`border-b border-okuji-gray-2 last:border-0 ${
-                      i % 2 === 1 ? 'bg-okuji-gray-1/40' : ''
+                    className={`border-b border-hairline last:border-0 ${
+                      i % 2 === 1 ? 'bg-paper/40' : ''
                     }`}
                   >
-                    <td className="px-4 py-3 font-medium text-okuji-navy">{stop.stopName}</td>
-                    <td className="px-4 py-3 text-right tabular-nums text-okuji-navy">
+                    <td className="px-4 py-3 font-medium text-navy">{stop.stopName}</td>
+                    <td className="px-4 py-3 text-right tabular-nums text-navy">
                       {stop.stampCount}
                     </td>
-                    <td className="px-4 py-3 text-right tabular-nums text-okuji-gray-3">
+                    <td className="px-4 py-3 text-right tabular-nums text-muted">
                       {stop.avgPresenceDurationSeconds !== null
                         ? `${Math.round(stop.avgPresenceDurationSeconds / 60)}m`
                         : '—'}
                     </td>
-                    <td className="px-4 py-3 text-right tabular-nums text-okuji-gray-3">
+                    <td className="px-4 py-3 text-right tabular-nums text-muted">
                       {stop.returnVisitRate !== null
                         ? `${Math.round(stop.returnVisitRate * 100)}%`
                         : '—'}
                     </td>
-                    <td className="px-4 py-3 text-right tabular-nums text-okuji-gray-3">
+                    <td className="px-4 py-3 text-right tabular-nums text-muted">
                       {stop.avgMoodRating !== null
                         ? stop.avgMoodRating.toFixed(1)
                         : '—'}
@@ -444,46 +444,46 @@ export default function PassportAnalyticsPage() {
             </table>
           </div>
         ) : (
-          <p className="text-sm text-okuji-gray-3">No stop data available yet.</p>
+          <p className="text-sm text-muted">No stop data available yet.</p>
         )}
       </section>
 
       {/* ── 2. Completions bar chart ─────────────────────────────────────── */}
       <section>
-        <h2 className="text-base font-semibold text-okuji-navy mb-3">Completions per day</h2>
-        <div className="bg-white rounded-panel border border-okuji-gray-2 p-4">
+        <h2 className="text-base font-semibold text-navy mb-3">Completions per day</h2>
+        <div className="bg-white rounded-panel border border-hairline p-4">
           <CompletionsBarChart buckets={dayBuckets} />
-          <p className="text-xs text-okuji-gray-3 mt-2 text-right">Last 30 days</p>
+          <p className="text-xs text-muted mt-2 text-right">Last 30 days</p>
         </div>
       </section>
 
       {/* ── 3. Token redemption log ──────────────────────────────────────── */}
       <section>
-        <h2 className="text-base font-semibold text-okuji-navy mb-3">Token redemption log</h2>
+        <h2 className="text-base font-semibold text-navy mb-3">Token redemption log</h2>
         {tokens.length > 0 ? (
-          <div className="bg-white rounded-panel border border-okuji-gray-2 overflow-x-auto">
+          <div className="bg-white rounded-panel border border-hairline overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-okuji-gray-2 bg-okuji-gray-1">
-                  <th className="px-4 py-3 text-left font-medium text-okuji-gray-3">Token code</th>
-                  <th className="px-4 py-3 text-left font-medium text-okuji-gray-3">Collector</th>
-                  <th className="px-4 py-3 text-left font-medium text-okuji-gray-3">Generated</th>
-                  <th className="px-4 py-3 text-left font-medium text-okuji-gray-3">Status</th>
+                <tr className="border-b border-hairline bg-paper">
+                  <th className="px-4 py-3 text-left font-medium text-muted">Token code</th>
+                  <th className="px-4 py-3 text-left font-medium text-muted">Collector</th>
+                  <th className="px-4 py-3 text-left font-medium text-muted">Generated</th>
+                  <th className="px-4 py-3 text-left font-medium text-muted">Status</th>
                 </tr>
               </thead>
               <tbody>
                 {tokens.map((t, i) => (
                   <tr
                     key={t.id}
-                    className={`border-b border-okuji-gray-2 last:border-0 ${
-                      i % 2 === 1 ? 'bg-okuji-gray-1/40' : ''
+                    className={`border-b border-hairline last:border-0 ${
+                      i % 2 === 1 ? 'bg-paper/40' : ''
                     }`}
                   >
-                    <td className="px-4 py-3 font-mono text-xs text-okuji-navy">{t.token_code}</td>
-                    <td className="px-4 py-3 text-okuji-navy">
-                      {t.collectorName ?? <span className="text-okuji-gray-3 italic">Unknown</span>}
+                    <td className="px-4 py-3 font-mono text-xs text-navy">{t.token_code}</td>
+                    <td className="px-4 py-3 text-navy">
+                      {t.collectorName ?? <span className="text-muted italic">Unknown</span>}
                     </td>
-                    <td className="px-4 py-3 text-okuji-gray-3 tabular-nums text-xs">
+                    <td className="px-4 py-3 text-muted tabular-nums text-xs">
                       {new Date(t.generated_at).toLocaleDateString()}
                     </td>
                     <td className="px-4 py-3">
@@ -495,49 +495,49 @@ export default function PassportAnalyticsPage() {
             </table>
           </div>
         ) : (
-          <p className="text-sm text-okuji-gray-3">No tokens generated yet.</p>
+          <p className="text-sm text-muted">No tokens generated yet.</p>
         )}
       </section>
 
       {/* ── 4. Distribution pending queue ───────────────────────────────── */}
       <section>
         <div className="flex items-center gap-2 mb-3">
-          <h2 className="text-base font-semibold text-okuji-navy">Distribution pending</h2>
+          <h2 className="text-base font-semibold text-navy">Distribution pending</h2>
           {pendingTokens.length > 0 && (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-okuji-amber/20 text-okuji-amber">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-accent/20 text-accent">
               ⚠ {pendingTokens.length}
             </span>
           )}
         </div>
 
         {pendingTokens.length === 0 ? (
-          <p className="text-sm text-okuji-gray-3">
+          <p className="text-sm text-muted">
             No prizes pending distribution — all clear.
           </p>
         ) : (
-          <div className="bg-white rounded-panel border border-okuji-amber overflow-x-auto">
+          <div className="bg-white rounded-panel border border-accent overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-okuji-gray-2 bg-okuji-amber/5">
-                  <th className="px-4 py-3 text-left font-medium text-okuji-gray-3">Token code</th>
-                  <th className="px-4 py-3 text-left font-medium text-okuji-gray-3">Collector</th>
-                  <th className="px-4 py-3 text-left font-medium text-okuji-gray-3">Generated</th>
-                  <th className="px-4 py-3 text-left font-medium text-okuji-gray-3">Action</th>
+                <tr className="border-b border-hairline bg-accent/5">
+                  <th className="px-4 py-3 text-left font-medium text-muted">Token code</th>
+                  <th className="px-4 py-3 text-left font-medium text-muted">Collector</th>
+                  <th className="px-4 py-3 text-left font-medium text-muted">Generated</th>
+                  <th className="px-4 py-3 text-left font-medium text-muted">Action</th>
                 </tr>
               </thead>
               <tbody>
                 {pendingTokens.map((t, i) => (
                   <tr
                     key={t.id}
-                    className={`border-b border-okuji-gray-2 last:border-0 ${
-                      i % 2 === 1 ? 'bg-okuji-gray-1/40' : ''
+                    className={`border-b border-hairline last:border-0 ${
+                      i % 2 === 1 ? 'bg-paper/40' : ''
                     }`}
                   >
-                    <td className="px-4 py-3 font-mono text-xs text-okuji-navy">{t.token_code}</td>
-                    <td className="px-4 py-3 text-okuji-navy">
-                      {t.collectorName ?? <span className="text-okuji-gray-3 italic">Unknown</span>}
+                    <td className="px-4 py-3 font-mono text-xs text-navy">{t.token_code}</td>
+                    <td className="px-4 py-3 text-navy">
+                      {t.collectorName ?? <span className="text-muted italic">Unknown</span>}
                     </td>
-                    <td className="px-4 py-3 text-okuji-gray-3 tabular-nums text-xs">
+                    <td className="px-4 py-3 text-muted tabular-nums text-xs">
                       {new Date(t.generated_at).toLocaleDateString()}
                     </td>
                     <td className="px-4 py-3">

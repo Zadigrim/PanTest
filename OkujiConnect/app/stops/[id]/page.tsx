@@ -24,7 +24,7 @@ export async function generateMetadata({ params }: Props) {
 
 function ClassifierBadge({ label }: { label: string }) {
   return (
-    <span className="inline-flex items-center rounded-card bg-okuji-teal-lt px-2.5 py-0.5 text-xs font-medium text-okuji-teal-dk capitalize">
+    <span className="inline-flex items-center rounded-card bg-cream px-2.5 py-0.5 text-xs font-medium text-green capitalize">
       {label.replace(/_/g, ' ')}
     </span>
   )
@@ -37,10 +37,10 @@ function ClassifierBadge({ label }: { label: string }) {
 function InfoRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-1 sm:flex-row sm:gap-4">
-      <dt className="text-xs font-semibold text-okuji-gray-3 uppercase tracking-wide sm:w-36 shrink-0">
+      <dt className="text-xs font-semibold text-muted uppercase tracking-wide sm:w-36 shrink-0">
         {label}
       </dt>
-      <dd className="text-sm text-okuji-navy">{children}</dd>
+      <dd className="text-sm text-navy">{children}</dd>
     </div>
   )
 }
@@ -124,13 +124,13 @@ export default async function StopDetailPage({ params }: Props) {
     : []
 
   return (
-    <div className="min-h-screen bg-okuji-gray-1">
+    <div className="min-h-screen bg-paper">
       {/* Header */}
-      <header className="border-b border-okuji-gray-2 bg-white px-8 py-4">
+      <header className="border-b border-hairline bg-white px-8 py-4">
         <div className="mx-auto flex max-w-3xl items-center justify-between">
           <Link
             href="/stops"
-            className="text-sm text-okuji-gray-3 hover:text-okuji-navy transition-colors"
+            className="text-sm text-muted hover:text-navy transition-colors"
           >
             ← Back to library
           </Link>
@@ -139,21 +139,21 @@ export default async function StopDetailPage({ params }: Props) {
 
       <main className="mx-auto max-w-3xl px-8 py-10">
         {/* Stop hero */}
-        <div className="bg-white rounded-modal border border-okuji-gray-2 p-8 mb-6">
+        <div className="bg-white rounded-modal border border-hairline p-8 mb-6">
           {/* Icon + name */}
           <div className="flex items-center gap-4 mb-6">
             <div
-              className="flex h-16 w-16 shrink-0 items-center justify-center rounded-panel bg-okuji-gray-1 text-4xl"
+              className="flex h-16 w-16 shrink-0 items-center justify-center rounded-panel bg-paper text-4xl"
               aria-hidden="true"
             >
               {stopData.stamp_icon ?? '📍'}
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-okuji-navy leading-tight">
+              <h1 className="text-2xl font-bold text-navy leading-tight">
                 {stopData.name}
               </h1>
               {location && (
-                <p className="text-sm text-okuji-gray-3 mt-0.5">{location}</p>
+                <p className="text-sm text-muted mt-0.5">{location}</p>
               )}
             </div>
           </div>
@@ -185,7 +185,7 @@ export default async function StopDetailPage({ params }: Props) {
                   {gradeLevels.map((g) => (
                     <span
                       key={g}
-                      className="inline-flex items-center rounded-card bg-okuji-gray-2 px-2 py-0.5 text-xs font-medium text-okuji-navy"
+                      className="inline-flex items-center rounded-card bg-hairline px-2 py-0.5 text-xs font-medium text-navy"
                     >
                       {g}
                     </span>
@@ -200,7 +200,7 @@ export default async function StopDetailPage({ params }: Props) {
                   {subjectAreas.map((s) => (
                     <span
                       key={s}
-                      className="inline-flex items-center rounded-card bg-okuji-gray-2 px-2 py-0.5 text-xs font-medium text-okuji-navy capitalize"
+                      className="inline-flex items-center rounded-card bg-hairline px-2 py-0.5 text-xs font-medium text-navy capitalize"
                     >
                       {s.replace(/_/g, ' ')}
                     </span>
@@ -213,23 +213,23 @@ export default async function StopDetailPage({ params }: Props) {
 
         {/* Stats + attribution */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-          <div className="bg-white rounded-panel border border-okuji-gray-2 p-5">
-            <p className="text-xs font-semibold text-okuji-gray-3 uppercase tracking-wide mb-1">
+          <div className="bg-white rounded-panel border border-hairline p-5">
+            <p className="text-xs font-semibold text-muted uppercase tracking-wide mb-1">
               Acknowledgments
             </p>
-            <p className="text-3xl font-bold tabular-nums text-okuji-navy">
+            <p className="text-3xl font-bold tabular-nums text-navy">
               {acknowledgments}
             </p>
           </div>
-          <div className="bg-white rounded-panel border border-okuji-gray-2 p-5">
-            <p className="text-xs font-semibold text-okuji-gray-3 uppercase tracking-wide mb-1">
+          <div className="bg-white rounded-panel border border-hairline p-5">
+            <p className="text-xs font-semibold text-muted uppercase tracking-wide mb-1">
               Completion rate
             </p>
-            <p className="text-3xl font-bold tabular-nums text-okuji-navy">
+            <p className="text-3xl font-bold tabular-nums text-navy">
               {completionRate !== null ? `${completionRate}%` : '—'}
             </p>
             {acknowledgments > 0 && (
-              <p className="text-xs text-okuji-gray-3 mt-1">
+              <p className="text-xs text-muted mt-1">
                 {completions} of {acknowledgments} completed
               </p>
             )}
@@ -238,8 +238,8 @@ export default async function StopDetailPage({ params }: Props) {
 
         {/* Attribution */}
         {(creatorName ?? institutionName) && (
-          <div className="bg-white rounded-panel border border-okuji-gray-2 px-5 py-4 mb-8">
-            <p className="text-sm text-okuji-gray-3">
+          <div className="bg-white rounded-panel border border-hairline px-5 py-4 mb-8">
+            <p className="text-sm text-muted">
               Created by{creatorName ? ` ${creatorName}` : ''}
               {institutionName ? ` at ${institutionName}` : ''}
             </p>
@@ -247,18 +247,18 @@ export default async function StopDetailPage({ params }: Props) {
         )}
 
         {/* Import CTA */}
-        <div className="bg-okuji-teal/5 border border-okuji-teal-lt rounded-panel p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div className="bg-green/5 border border-cream rounded-panel p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
-            <p className="font-semibold text-okuji-navy text-sm">
+            <p className="font-semibold text-navy text-sm">
               Import into my passport
             </p>
-            <p className="text-xs text-okuji-gray-3 mt-0.5">
+            <p className="text-xs text-muted mt-0.5">
               A copy will be added to a draft passport of your choice.
             </p>
           </div>
           <Link
             href={`/stops?import=${params.id}`}
-            className="shrink-0 inline-flex items-center h-9 px-5 rounded-panel bg-okuji-teal text-white text-sm font-medium hover:bg-[#0F6E56] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-okuji-teal"
+            className="shrink-0 inline-flex items-center h-9 px-5 rounded-panel bg-green text-white text-sm font-medium hover:bg-[#0F6E56] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green"
           >
             Import this stop
           </Link>

@@ -233,7 +233,7 @@ export function ColorPickerInput({ value, onChange, onCommit }: Props) {
       {/* Color swatch — click to open */}
       <button
         type="button"
-        className="h-8 w-8 shrink-0 rounded-card border border-okuji-gray-2 focus:outline-none focus:ring-2 focus:ring-okuji-teal"
+        className="h-8 w-8 shrink-0 rounded-card border border-hairline focus:outline-none focus:ring-2 focus:ring-green"
         style={{ backgroundColor: `#${hex}` }}
         onClick={() => { committedRef.current = false; setOpen((o) => !o) }}
         title={`#${hex} — click to open color picker`}
@@ -244,7 +244,7 @@ export function ColorPickerInput({ value, onChange, onCommit }: Props) {
       {open && (
         <div
           ref={popoverRef}
-          className="absolute right-0 top-10 z-50 w-64 rounded-panel border border-okuji-gray-2 bg-white shadow-xl"
+          className="absolute right-0 top-10 z-50 w-64 rounded-panel border border-hairline bg-white shadow-xl"
           onMouseDown={(e) => e.stopPropagation()}
         >
           {/* Gradient canvas */}
@@ -258,7 +258,7 @@ export function ColorPickerInput({ value, onChange, onCommit }: Props) {
           <div className="space-y-2 p-3">
             {/* Hue slider */}
             <div className="flex items-center gap-2">
-              <span className="w-3 shrink-0 text-[10px] text-okuji-gray-3">H</span>
+              <span className="w-3 shrink-0 text-[10px] text-muted">H</span>
               <input
                 type="range" min={0} max={360} value={h}
                 onChange={(e) => applyHsl(parseInt(e.target.value), s, l)}
@@ -275,7 +275,7 @@ export function ColorPickerInput({ value, onChange, onCommit }: Props) {
               <input
                 type="number" min={0} max={360} value={h}
                 onChange={(e) => applyHsl(parseInt(e.target.value) || 0, s, l)}
-                className="h-6 w-12 rounded border border-okuji-gray-2 px-1 text-center font-mono text-[10px]"
+                className="h-6 w-12 rounded border border-hairline px-1 text-center font-mono text-[10px]"
               />
             </div>
 
@@ -283,7 +283,7 @@ export function ColorPickerInput({ value, onChange, onCommit }: Props) {
             <div className="grid grid-cols-3 gap-1.5">
               {([['R', r, 0], ['G', g, 1], ['B', b, 2]] as [string, number, number][]).map(([lbl, val]) => (
                 <div key={lbl} className="space-y-0.5">
-                  <label className="block text-center text-[10px] text-okuji-gray-3">{lbl}</label>
+                  <label className="block text-center text-[10px] text-muted">{lbl}</label>
                   <input
                     type="number" min={0} max={255} value={val}
                     onChange={(e) => {
@@ -293,7 +293,7 @@ export function ColorPickerInput({ value, onChange, onCommit }: Props) {
                       const nb = lbl === 'B' ? v : b
                       applyRgb(nr, ng, nb)
                     }}
-                    className="h-6 w-full rounded border border-okuji-gray-2 px-1 text-center font-mono text-[10px]"
+                    className="h-6 w-full rounded border border-hairline px-1 text-center font-mono text-[10px]"
                   />
                 </div>
               ))}
@@ -301,28 +301,28 @@ export function ColorPickerInput({ value, onChange, onCommit }: Props) {
 
             {/* Hex field */}
             <div className="flex items-center gap-1.5">
-              <span className="text-xs text-okuji-gray-3">#</span>
+              <span className="text-xs text-muted">#</span>
               <input
                 type="text"
                 value={hexField}
                 maxLength={6}
                 onChange={(e) => applyHex(e.target.value)}
-                className="h-7 flex-1 rounded border border-okuji-gray-2 px-2 font-mono text-sm uppercase text-okuji-navy focus:border-okuji-teal focus:outline-none"
+                className="h-7 flex-1 rounded border border-hairline px-2 font-mono text-sm uppercase text-navy focus:border-green focus:outline-none"
                 placeholder="0D1B2A"
               />
-              <div className="h-7 w-7 shrink-0 rounded border border-okuji-gray-2" style={{ backgroundColor: `#${hex}` }} />
+              <div className="h-7 w-7 shrink-0 rounded border border-hairline" style={{ backgroundColor: `#${hex}` }} />
             </div>
 
             {/* Recent colors */}
             {recentColors.length > 0 && (
               <div>
-                <p className="mb-1 text-[10px] text-okuji-gray-3">Recent colors</p>
+                <p className="mb-1 text-[10px] text-muted">Recent colors</p>
                 <div className="flex flex-wrap gap-1">
                   {recentColors.map((rc) => (
                     <button
                       key={rc}
                       type="button"
-                      className="h-5 w-5 rounded border border-okuji-gray-2 transition-transform hover:scale-110"
+                      className="h-5 w-5 rounded border border-hairline transition-transform hover:scale-110"
                       style={{ backgroundColor: `#${rc}` }}
                       onClick={() => { setHex(rc); setHexField(rc); onChange(rc) }}
                       title={`#${rc}`}
@@ -335,7 +335,7 @@ export function ColorPickerInput({ value, onChange, onCommit }: Props) {
             <button
               type="button"
               onClick={close}
-              className="mt-1 h-7 w-full rounded-card bg-okuji-teal text-xs font-medium text-white hover:bg-okuji-teal-dk transition-colors"
+              className="mt-1 h-7 w-full rounded-card bg-green text-xs font-medium text-white hover:bg-green transition-colors"
             >
               Done
             </button>

@@ -39,34 +39,34 @@ function PageTypePicker({
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="w-96 rounded-panel border border-okuji-gray-2 bg-white p-6 shadow-xl">
-        <h2 className="mb-1 text-base font-semibold text-okuji-navy">What kind of page is this?</h2>
-        <p className="mb-5 text-xs text-okuji-gray-3">Choose a page type to continue.</p>
+      <div className="w-96 rounded-panel border border-hairline bg-white p-6 shadow-xl">
+        <h2 className="mb-1 text-base font-semibold text-navy">What kind of page is this?</h2>
+        <p className="mb-5 text-xs text-muted">Choose a page type to continue.</p>
         <div className="grid grid-cols-2 gap-3">
           <button
             onClick={() => onSelect('stamp')}
-            className="flex flex-col items-start gap-1.5 rounded-panel border-2 border-okuji-gray-2 p-4 text-left transition-colors hover:border-okuji-teal hover:bg-okuji-teal-lt"
+            className="flex flex-col items-start gap-1.5 rounded-panel border-2 border-hairline p-4 text-left transition-colors hover:border-green hover:bg-cream"
           >
             <span className="text-2xl">📮</span>
-            <span className="text-sm font-semibold text-okuji-navy">Stamp page</span>
-            <span className="text-xs text-okuji-gray-3 leading-relaxed">
+            <span className="text-sm font-semibold text-navy">Stamp page</span>
+            <span className="text-xs text-muted leading-relaxed">
               Has location boxes for collecting stamps
             </span>
           </button>
           <button
             onClick={() => onSelect('information')}
-            className="flex flex-col items-start gap-1.5 rounded-panel border-2 border-okuji-gray-2 p-4 text-left transition-colors hover:border-okuji-teal hover:bg-okuji-teal-lt"
+            className="flex flex-col items-start gap-1.5 rounded-panel border-2 border-hairline p-4 text-left transition-colors hover:border-green hover:bg-cream"
           >
             <span className="text-2xl">📄</span>
-            <span className="text-sm font-semibold text-okuji-navy">Information page</span>
-            <span className="text-xs text-okuji-gray-3 leading-relaxed">
+            <span className="text-sm font-semibold text-navy">Information page</span>
+            <span className="text-xs text-muted leading-relaxed">
               Text, images, and decorative elements only
             </span>
           </button>
         </div>
         <button
           onClick={onCancel}
-          className="mt-4 w-full text-xs text-okuji-gray-3 hover:text-okuji-navy transition-colors"
+          className="mt-4 w-full text-xs text-muted hover:text-navy transition-colors"
         >
           Cancel
         </button>
@@ -104,15 +104,15 @@ function SortablePage({
       style={style}
       className={`flex w-full items-center gap-1.5 rounded-card text-sm transition-colors ${
         isActive
-          ? 'bg-okuji-teal-lt font-medium text-okuji-teal-dk'
-          : 'text-okuji-gray-3 hover:bg-okuji-gray-1 hover:text-okuji-navy'
+          ? 'bg-cream font-medium text-green'
+          : 'text-muted hover:bg-paper hover:text-navy'
       }`}
     >
       {/* Drag handle */}
       <button
         {...attributes}
         {...listeners}
-        className="flex-none px-1 py-1.5 cursor-grab active:cursor-grabbing text-okuji-gray-3/50 hover:text-okuji-gray-3 touch-none"
+        className="flex-none px-1 py-1.5 cursor-grab active:cursor-grabbing text-muted/50 hover:text-muted touch-none"
         tabIndex={-1}
         aria-label="Drag to reorder"
       >
@@ -284,20 +284,20 @@ export function LeftPalette() {
         />
       )}
 
-      <aside className="flex w-60 shrink-0 flex-col border-r border-okuji-gray-2 bg-white">
+      <aside className="flex w-60 shrink-0 flex-col border-r border-hairline bg-white">
         {/* Passport meta */}
-        <div className="border-b border-okuji-gray-2 px-4 py-3">
-          <p className="truncate text-xs font-semibold text-okuji-navy">
+        <div className="border-b border-hairline px-4 py-3">
+          <p className="truncate text-xs font-semibold text-navy">
             {passport?.title ?? 'Loading…'}
           </p>
-          <p className="mt-0.5 text-xs text-okuji-gray-3 capitalize">
+          <p className="mt-0.5 text-xs text-muted capitalize">
             {passport?.status ?? 'draft'}
           </p>
         </div>
 
         {/* Pages list — sortable by drag */}
-        <div className="border-b border-okuji-gray-2 px-3 py-2">
-          <p className="mb-1.5 text-xs font-medium uppercase tracking-wider text-okuji-gray-3">
+        <div className="border-b border-hairline px-3 py-2">
+          <p className="mb-1.5 text-xs font-medium uppercase tracking-wider text-muted">
             Pages
           </p>
           <DndContext
@@ -335,8 +335,8 @@ export function LeftPalette() {
 
         {/* Stops — only on stamp pages */}
         {!isInfoPage && (
-          <div className="border-b border-okuji-gray-2 px-3 py-2">
-            <p className="mb-1.5 text-xs font-medium uppercase tracking-wider text-okuji-gray-3">
+          <div className="border-b border-hairline px-3 py-2">
+            <p className="mb-1.5 text-xs font-medium uppercase tracking-wider text-muted">
               Stops
             </p>
             <StopsList />
@@ -354,7 +354,7 @@ export function LeftPalette() {
 
         {/* Page elements */}
         <div className="flex-1 overflow-y-auto px-3 py-2">
-          <p className="mb-1.5 text-xs font-medium uppercase tracking-wider text-okuji-gray-3">
+          <p className="mb-1.5 text-xs font-medium uppercase tracking-wider text-muted">
             {isInfoPage ? 'Content elements' : 'Elements'}
           </p>
           <div className="space-y-1">
@@ -402,7 +402,7 @@ function StopsList() {
 
   if (stops.length === 0) {
     return (
-      <p className="py-3 text-center text-xs text-okuji-gray-3">No stops yet</p>
+      <p className="py-3 text-center text-xs text-muted">No stops yet</p>
     )
   }
 
@@ -414,8 +414,8 @@ function StopsList() {
           onClick={() => setSelectedStop(stop.id)}
           className={`flex w-full items-center gap-2 rounded-card px-3 py-1.5 text-left text-sm transition-colors ${
             stop.id === selectedStopId
-              ? 'bg-okuji-teal-lt font-medium text-okuji-teal-dk'
-              : 'text-okuji-gray-3 hover:bg-okuji-gray-1 hover:text-okuji-navy'
+              ? 'bg-cream font-medium text-green'
+              : 'text-muted hover:bg-paper hover:text-navy'
           }`}
         >
           <span className="text-base leading-none">{stop.stamp_icon ?? '📍'}</span>
@@ -461,8 +461,8 @@ function ElementsList({ pageId }: { pageId: string | null }) {
           onClick={() => setSelectedElement(el.id)}
           className={`flex w-full items-center gap-2 rounded-card px-3 py-1.5 text-left text-sm transition-colors ${
             el.id === selectedElementId
-              ? 'bg-okuji-teal-lt font-medium text-okuji-teal-dk'
-              : 'text-okuji-gray-3 hover:bg-okuji-gray-1 hover:text-okuji-navy'
+              ? 'bg-cream font-medium text-green'
+              : 'text-muted hover:bg-paper hover:text-navy'
           }`}
         >
           <span className="w-4 text-center text-xs font-bold leading-none">

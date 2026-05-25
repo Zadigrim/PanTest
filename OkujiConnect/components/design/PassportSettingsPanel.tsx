@@ -103,12 +103,12 @@ export function PassportSettingsPanel({ onClose }: Props) {
       <div className="absolute inset-0 bg-black/20" onClick={onClose} />
 
       {/* Panel */}
-      <div className="relative z-10 flex h-full w-[400px] flex-col overflow-y-auto border-l border-okuji-gray-2 bg-white shadow-xl">
-        <div className="flex items-center justify-between border-b border-okuji-gray-2 px-5 py-4">
-          <h2 className="text-base font-semibold text-okuji-navy">Passport Settings</h2>
+      <div className="relative z-10 flex h-full w-[400px] flex-col overflow-y-auto border-l border-hairline bg-white shadow-xl">
+        <div className="flex items-center justify-between border-b border-hairline px-5 py-4">
+          <h2 className="text-base font-semibold text-navy">Passport Settings</h2>
           <button
             onClick={onClose}
-            className="text-lg text-okuji-gray-3 hover:text-okuji-navy transition-colors"
+            className="text-lg text-muted hover:text-navy transition-colors"
           >
             ✕
           </button>
@@ -130,11 +130,11 @@ export function PassportSettingsPanel({ onClose }: Props) {
         <div className="flex-1 space-y-6 p-5">
           {/* Basic info */}
           <section className="space-y-3">
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-okuji-gray-3">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-muted">
               Details
             </h3>
             <div className="space-y-1">
-              <Label className="text-xs text-okuji-gray-3">Title</Label>
+              <Label className="text-xs text-muted">Title</Label>
               <Input
                 value={passport.title}
                 onChange={(e) => updatePassport({ title: e.target.value })}
@@ -143,13 +143,13 @@ export function PassportSettingsPanel({ onClose }: Props) {
               />
             </div>
             <div className="space-y-1">
-              <Label className="text-xs text-okuji-gray-3">Description</Label>
+              <Label className="text-xs text-muted">Description</Label>
               <textarea
                 value={passport.description ?? ''}
                 onChange={(e) => updatePassport({ description: e.target.value })}
                 onBlur={(e) => persist({ description: e.target.value })}
                 rows={3}
-                className="w-full resize-none rounded-panel border border-okuji-gray-2 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-okuji-teal"
+                className="w-full resize-none rounded-panel border border-hairline px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green"
                 placeholder="Describe this passport experience…"
               />
             </div>
@@ -157,11 +157,11 @@ export function PassportSettingsPanel({ onClose }: Props) {
 
           {/* Cover */}
           <section className="space-y-3">
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-okuji-gray-3">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-muted">
               Cover
             </h3>
             <div className="space-y-1">
-              <Label className="text-xs text-okuji-gray-3">Emblem (emoji)</Label>
+              <Label className="text-xs text-muted">Emblem (emoji)</Label>
               <Input
                 value={passport.cover_emblem ?? '🧭'}
                 onChange={(e) => updatePassport({ cover_emblem: e.target.value })}
@@ -171,7 +171,7 @@ export function PassportSettingsPanel({ onClose }: Props) {
               />
             </div>
             <div className="space-y-1">
-              <Label className="text-xs text-okuji-gray-3">Paper color (hex, no #)</Label>
+              <Label className="text-xs text-muted">Paper color (hex, no #)</Label>
               <div className="flex gap-2">
                 <Input
                   value={passport.cover_paper_color ?? 'F5F2EC'}
@@ -181,7 +181,7 @@ export function PassportSettingsPanel({ onClose }: Props) {
                   className="h-8 flex-1 font-mono text-sm uppercase"
                 />
                 <div
-                  className="h-8 w-8 shrink-0 rounded-card border border-okuji-gray-2"
+                  className="h-8 w-8 shrink-0 rounded-card border border-hairline"
                   style={{ backgroundColor: `#${passport.cover_paper_color ?? 'F5F2EC'}` }}
                 />
               </div>
@@ -190,7 +190,7 @@ export function PassportSettingsPanel({ onClose }: Props) {
 
           {/* Accessibility */}
           <section className="space-y-3">
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-okuji-gray-3">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-muted">
               Accessibility
             </h3>
             <div className="space-y-2">
@@ -203,9 +203,9 @@ export function PassportSettingsPanel({ onClose }: Props) {
                     type="checkbox"
                     checked={Boolean(passport[key as keyof typeof passport])}
                     onChange={(e) => persist({ [key]: e.target.checked })}
-                    className="h-4 w-4 rounded accent-okuji-teal"
+                    className="h-4 w-4 rounded accent-green"
                   />
-                  <span className="text-sm text-okuji-navy">{label}</span>
+                  <span className="text-sm text-navy">{label}</span>
                 </label>
               ))}
             </div>
@@ -214,7 +214,7 @@ export function PassportSettingsPanel({ onClose }: Props) {
           {/* Print for kids — institutional accounts only */}
           {passport.institution_id && (
             <section className="space-y-3">
-              <h3 className="text-xs font-semibold uppercase tracking-wider text-okuji-gray-3">
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-muted">
                 Print for kids
               </h3>
 
@@ -223,9 +223,9 @@ export function PassportSettingsPanel({ onClose }: Props) {
                   type="checkbox"
                   checked={passport.print_enabled ?? false}
                   onChange={(e) => persist({ print_enabled: e.target.checked })}
-                  className="h-4 w-4 rounded accent-okuji-teal"
+                  className="h-4 w-4 rounded accent-green"
                 />
-                <span className="text-sm text-okuji-navy">
+                <span className="text-sm text-navy">
                   Enable physical passport printing for this passport
                 </span>
               </label>
@@ -233,7 +233,7 @@ export function PassportSettingsPanel({ onClose }: Props) {
               {(passport.print_enabled) && (
                 <>
                   <div className="space-y-1.5 pl-7">
-                    <p className="text-xs font-medium text-okuji-gray-3 uppercase tracking-wide">
+                    <p className="text-xs font-medium text-muted uppercase tracking-wide">
                       Journal prompts
                     </p>
                     {(
@@ -250,9 +250,9 @@ export function PassportSettingsPanel({ onClose }: Props) {
                           value={value}
                           checked={(passport.print_journal_setting ?? 'include_all') === value}
                           onChange={() => persist({ print_journal_setting: value })}
-                          className="accent-okuji-teal"
+                          className="accent-green"
                         />
-                        <span className="text-sm text-okuji-navy">{label}</span>
+                        <span className="text-sm text-navy">{label}</span>
                       </label>
                     ))}
                   </div>
@@ -272,7 +272,7 @@ export function PassportSettingsPanel({ onClose }: Props) {
 
           {/* Spend tier + AI verification */}
           <section className="space-y-3">
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-okuji-gray-3">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-muted">
               Expected Spend
             </h3>
             <div className="grid grid-cols-2 gap-1.5">
@@ -282,8 +282,8 @@ export function PassportSettingsPanel({ onClose }: Props) {
                   onClick={() => persist({ expected_spend_tier: tier.value })}
                   className={`rounded-card border py-2 text-sm transition-colors ${
                     passport.expected_spend_tier === tier.value
-                      ? 'border-okuji-teal bg-okuji-teal-lt font-medium text-okuji-teal-dk'
-                      : 'border-okuji-gray-2 text-okuji-gray-3 hover:border-okuji-teal/40'
+                      ? 'border-green bg-cream font-medium text-green'
+                      : 'border-hairline text-muted hover:border-green/40'
                   }`}
                 >
                   {tier.label}
@@ -292,7 +292,7 @@ export function PassportSettingsPanel({ onClose }: Props) {
             </div>
 
             <div className="space-y-1">
-              <Label className="text-xs text-okuji-gray-3">Spend note (optional)</Label>
+              <Label className="text-xs text-muted">Spend note (optional)</Label>
               <Input
                 value={passport.expected_spend_note ?? ''}
                 placeholder="e.g. Includes one meal"
@@ -313,7 +313,7 @@ export function PassportSettingsPanel({ onClose }: Props) {
             </Button>
 
             {verifyError && (
-              <p className="rounded-panel bg-okuji-coral/10 px-3 py-2 text-xs text-okuji-coral">
+              <p className="rounded-panel bg-accent/10 px-3 py-2 text-xs text-accent">
                 {verifyError}
               </p>
             )}
@@ -323,7 +323,7 @@ export function PassportSettingsPanel({ onClose }: Props) {
             )}
 
             {decision && verifyResult && (
-              <div className="rounded-panel bg-okuji-teal-lt px-3 py-2 text-xs text-okuji-teal-dk">
+              <div className="rounded-panel bg-cream px-3 py-2 text-xs text-green">
                 Decision recorded:{' '}
                 <strong className="capitalize">{decision}</strong>.
                 {decision === 'adjusted'
@@ -353,41 +353,41 @@ function VerifyResultCard({
     <div
       className={`rounded-panel border px-3 py-3 text-sm space-y-2 ${
         result.tier_match
-          ? 'border-okuji-teal bg-okuji-teal-lt'
-          : 'border-okuji-amber bg-okuji-amber/10'
+          ? 'border-green bg-cream'
+          : 'border-accent bg-accent/10'
       }`}
     >
       <div className="flex items-start justify-between gap-2">
         <div>
           <p
             className={`font-semibold ${
-              result.tier_match ? 'text-okuji-teal-dk' : 'text-okuji-amber'
+              result.tier_match ? 'text-green' : 'text-accent'
             }`}
           >
             {result.tier_match ? '✓ Tier confirmed' : '⚠ Tier mismatch'}
           </p>
-          <p className="text-xs text-okuji-gray-3">
+          <p className="text-xs text-muted">
             AI suggests: {spendTierLabel(result.suggested_tier)} ($
             {result.range_low}–${result.range_high})
           </p>
         </div>
       </div>
 
-      <p className="text-xs text-okuji-navy">{result.reasoning}</p>
+      <p className="text-xs text-navy">{result.reasoning}</p>
 
       <button
         onClick={() => setExpanded(!expanded)}
-        className="text-xs text-okuji-teal-dk hover:underline"
+        className="text-xs text-green hover:underline"
       >
         {expanded ? 'Hide' : 'Show'} per-stop breakdown
       </button>
 
       {expanded && result.per_stop.length > 0 && (
-        <div className="space-y-1 border-t border-okuji-gray-2 pt-2">
+        <div className="space-y-1 border-t border-hairline pt-2">
           {result.per_stop.map((s, i) => (
             <div key={i} className="flex items-start justify-between gap-2 text-xs">
-              <span className="text-okuji-navy">{s.name}</span>
-              <span className="shrink-0 text-okuji-gray-3">
+              <span className="text-navy">{s.name}</span>
+              <span className="shrink-0 text-muted">
                 ${s.estimated_low}–${s.estimated_high}
               </span>
             </div>
@@ -395,7 +395,7 @@ function VerifyResultCard({
         </div>
       )}
 
-      <div className="flex gap-2 border-t border-okuji-gray-2 pt-2">
+      <div className="flex gap-2 border-t border-hairline pt-2">
         <Button size="sm" className="flex-1 text-xs" onClick={() => onDecision('accepted')}>
           Accept my tier
         </Button>

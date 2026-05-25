@@ -237,7 +237,7 @@ export function LocationBox({
 
         {/* Location indicator badge */}
         {isSelected && (
-          <div className="absolute -top-5 left-0 whitespace-nowrap rounded-t-sm bg-okuji-teal px-2 py-0.5 text-[10px] font-medium text-white">
+          <div className="absolute -top-5 left-0 whitespace-nowrap rounded-t-sm bg-green px-2 py-0.5 text-[10px] font-medium text-white">
             {stop.name}
           </div>
         )}
@@ -258,7 +258,7 @@ export function LocationBox({
             }}
           />
           <div
-            className="absolute z-30 rounded-full border-2 border-okuji-teal bg-white shadow-sm cursor-grab active:cursor-grabbing"
+            className="absolute z-30 rounded-full border-2 border-green bg-white shadow-sm cursor-grab active:cursor-grabbing"
             style={{
               width: 16, height: 16,
               left: '50%',
@@ -319,7 +319,7 @@ function ResizeHandleEl({
 }) {
   return (
     <div
-      className="absolute z-20 h-2.5 w-2.5 rounded-sm border border-okuji-teal bg-white shadow-sm"
+      className="absolute z-20 h-2.5 w-2.5 rounded-sm border border-green bg-white shadow-sm"
       style={{ ...handle.style, cursor: handle.cursor }}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}

@@ -129,7 +129,7 @@ function ExploreCard({ passport }: { passport: PassportWithDetails }) {
   const outsideData = (passport as any).cover_outside_data as CoverSideData | null | undefined
 
   return (
-    <div className="group flex flex-col overflow-hidden rounded-card border border-okuji-gray-2 bg-white shadow-sm transition-shadow hover:shadow-md">
+    <div className="group flex flex-col overflow-hidden rounded-card border border-hairline bg-white shadow-sm transition-shadow hover:shadow-md">
       {/* Cover thumbnail — full width, 2:3 proportions */}
       <Link href={`/explore/${passport.id}`} className="block">
         <PassportCoverThumbnail
@@ -143,11 +143,11 @@ function ExploreCard({ passport }: { passport: PassportWithDetails }) {
 
       {/* Body */}
       <div className="flex flex-1 flex-col gap-2 p-3">
-        <h3 className="line-clamp-2 text-sm font-semibold leading-snug text-okuji-navy">
+        <h3 className="line-clamp-2 text-sm font-semibold leading-snug text-navy">
           {passport.title}
         </h3>
 
-        <p className="text-xs text-okuji-gray-3">
+        <p className="text-xs text-muted">
           {authorName}
           {passport.stop_count > 0 && (
             <>
@@ -160,14 +160,14 @@ function ExploreCard({ passport }: { passport: PassportWithDetails }) {
         {(avgRating !== null || completion !== null) && (
           <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs">
             {avgRating !== null && (
-              <span className="text-okuji-amber">
+              <span className="text-accent">
                 {'★'.repeat(Math.floor(avgRating))}
                 {'☆'.repeat(5 - Math.ceil(avgRating))}
-                <span className="ml-1 font-medium text-okuji-navy">{avgRating.toFixed(1)}</span>
+                <span className="ml-1 font-medium text-navy">{avgRating.toFixed(1)}</span>
               </span>
             )}
             {completion !== null && (
-              <span className="text-okuji-gray-3">
+              <span className="text-muted">
                 {Math.round(completion * 100)}% complete
               </span>
             )}
@@ -177,8 +177,8 @@ function ExploreCard({ passport }: { passport: PassportWithDetails }) {
         <div className="flex-1" />
 
         {/* Footer */}
-        <div className="flex items-center justify-between gap-2 border-t border-okuji-gray-2 pt-1">
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-okuji-gray-3">
+        <div className="flex items-center justify-between gap-2 border-t border-hairline pt-1">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted">
             {passport.estimated_hours != null && (
               <span>{formatHours(passport.estimated_hours)}</span>
             )}
@@ -189,7 +189,7 @@ function ExploreCard({ passport }: { passport: PassportWithDetails }) {
 
           <Link
             href={`/explore/${passport.id}`}
-            className="shrink-0 rounded-card border border-okuji-gray-2 bg-white px-2.5 py-1 text-xs font-medium text-okuji-navy hover:border-okuji-teal hover:text-okuji-teal transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-okuji-teal"
+            className="shrink-0 rounded-card border border-hairline bg-white px-2.5 py-1 text-xs font-medium text-navy hover:border-green hover:text-green transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green"
             tabIndex={-1}
             aria-hidden="true"
           >
@@ -211,7 +211,7 @@ function Spinner() {
       aria-label="Loading passports"
     >
       <svg
-        className="h-8 w-8 animate-spin text-okuji-teal"
+        className="h-8 w-8 animate-spin text-green"
         viewBox="0 0 24 24"
         fill="none"
         aria-hidden="true"
@@ -310,8 +310,8 @@ export default function ExplorePage() {
         {!loading && !fetchError && passports.length === 0 && (
           <div className="flex flex-col items-center py-24 text-center">
             <span className="text-5xl" aria-hidden="true">🗺️</span>
-            <h2 className="mt-4 text-lg font-semibold text-okuji-navy">No passports yet</h2>
-            <p className="mt-1 text-sm text-okuji-gray-3">
+            <h2 className="mt-4 text-lg font-semibold text-navy">No passports yet</h2>
+            <p className="mt-1 text-sm text-muted">
               Check back soon — creators are building experiences now.
             </p>
           </div>
@@ -320,16 +320,16 @@ export default function ExplorePage() {
         {!loading && !fetchError && passports.length > 0 && filtered.length === 0 && (
           <div className="flex flex-col items-center py-24 text-center">
             <span className="text-5xl" aria-hidden="true">🔍</span>
-            <h2 className="mt-4 text-lg font-semibold text-okuji-navy">
+            <h2 className="mt-4 text-lg font-semibold text-navy">
               No passports match your filters
             </h2>
-            <p className="mt-1 text-sm text-okuji-gray-3">
+            <p className="mt-1 text-sm text-muted">
               Try adjusting the budget, type, or accessibility options.
             </p>
             <button
               type="button"
               onClick={() => setFilters(DEFAULT_FILTERS)}
-              className="mt-4 rounded-panel bg-okuji-teal px-4 py-2 text-sm font-medium text-white hover:bg-okuji-teal-dk transition-colors"
+              className="mt-4 rounded-panel bg-green px-4 py-2 text-sm font-medium text-white hover:bg-green transition-colors"
             >
               Clear filters
             </button>
@@ -338,7 +338,7 @@ export default function ExplorePage() {
 
         {!loading && filtered.length > 0 && (
           <>
-            <p className="mb-4 text-xs text-okuji-gray-3">
+            <p className="mb-4 text-xs text-muted">
               {filtered.length} {filtered.length === 1 ? 'passport' : 'passports'}
             </p>
             <div

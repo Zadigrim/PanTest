@@ -58,15 +58,15 @@ export function CoverPalette({ face }: Props) {
   }
 
   return (
-    <aside className="flex w-60 shrink-0 flex-col border-r border-okuji-gray-2 bg-white">
-      <div className="border-b border-okuji-gray-2 px-4 py-3">
-        <p className="text-xs font-semibold uppercase tracking-wider text-okuji-gray-3">
+    <aside className="flex w-60 shrink-0 flex-col border-r border-hairline bg-white">
+      <div className="border-b border-hairline px-4 py-3">
+        <p className="text-xs font-semibold uppercase tracking-wider text-muted">
           Cover — {face}
         </p>
       </div>
 
       <div className="flex-1 overflow-y-auto px-3 py-2">
-        <p className="mb-1.5 text-xs font-medium uppercase tracking-wider text-okuji-gray-3">
+        <p className="mb-1.5 text-xs font-medium uppercase tracking-wider text-muted">
           Cover elements
         </p>
         <div className="space-y-1">
@@ -99,7 +99,7 @@ export function CoverPalette({ face }: Props) {
           </Button>
         </div>
 
-        <p className="mt-4 text-xs text-okuji-gray-3 leading-relaxed">
+        <p className="mt-4 text-xs text-muted leading-relaxed">
           Click any element on the canvas to select and edit it.
           Text blocks are draggable and resizable.
         </p>

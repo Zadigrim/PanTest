@@ -45,14 +45,14 @@ export default async function ProfilePage() {
   }))
 
   return (
-    <div className="min-h-screen bg-okuji-gray-1">
+    <div className="min-h-screen bg-paper">
       {/* Header */}
-      <header className="border-b border-okuji-gray-2 bg-white px-8 py-4">
+      <header className="border-b border-hairline bg-white px-8 py-4">
         <div className="mx-auto flex max-w-3xl items-center justify-between">
-          <h1 className="text-xl font-bold text-okuji-navy">My Profile</h1>
+          <h1 className="text-xl font-bold text-navy">My Profile</h1>
           <Link
             href="/"
-            className="text-sm text-okuji-gray-3 hover:text-okuji-navy transition-colors"
+            className="text-sm text-muted hover:text-navy transition-colors"
           >
             ← Back to dashboard
           </Link>
@@ -71,13 +71,13 @@ export default async function ProfilePage() {
         />
 
         {/* Roles */}
-        <section className="rounded-panel border border-okuji-gray-2 bg-white p-6">
-          <h2 className="mb-4 text-base font-semibold text-okuji-navy">Roles</h2>
+        <section className="rounded-panel border border-hairline bg-white p-6">
+          <h2 className="mb-4 text-base font-semibold text-navy">Roles</h2>
           <div className="flex flex-wrap gap-2">
             {roleContext.roles.map((role) => (
               <span
                 key={role}
-                className="inline-flex items-center rounded-card bg-okuji-teal-lt px-3 py-1 text-sm font-medium text-okuji-teal-dk"
+                className="inline-flex items-center rounded-card bg-cream px-3 py-1 text-sm font-medium text-green"
               >
                 {ROLE_LABELS[role]}
               </span>
@@ -87,17 +87,17 @@ export default async function ProfilePage() {
 
         {/* Institution memberships */}
         {(roleContext.institutions.length > 0 || employeeInstitutions.length > 0) && (
-          <section className="rounded-panel border border-okuji-gray-2 bg-white p-6">
-            <h2 className="mb-4 text-base font-semibold text-okuji-navy">Institution Memberships</h2>
-            <ul className="divide-y divide-okuji-gray-2">
+          <section className="rounded-panel border border-hairline bg-white p-6">
+            <h2 className="mb-4 text-base font-semibold text-navy">Institution Memberships</h2>
+            <ul className="divide-y divide-hairline">
               {[
                 ...roleContext.institutions.map((i) => ({ id: i.id, name: i.name, institution_type: i.institution_type })),
                 ...employeeInstitutions,
               ].map((inst) => (
                 <li key={inst.id} className="flex items-center justify-between py-3">
-                  <span className="text-sm text-okuji-navy font-medium">{inst.name}</span>
+                  <span className="text-sm text-navy font-medium">{inst.name}</span>
                   {inst.institution_type && (
-                    <span className="text-xs text-okuji-gray-3 capitalize">
+                    <span className="text-xs text-muted capitalize">
                       {inst.institution_type.replace(/_/g, ' ')}
                     </span>
                   )}
@@ -108,38 +108,38 @@ export default async function ProfilePage() {
         )}
 
         {/* Account info */}
-        <section className="rounded-panel border border-okuji-gray-2 bg-white p-6">
-          <h2 className="mb-4 text-base font-semibold text-okuji-navy">Account</h2>
+        <section className="rounded-panel border border-hairline bg-white p-6">
+          <h2 className="mb-4 text-base font-semibold text-navy">Account</h2>
           <dl className="space-y-3">
             <div className="flex items-center justify-between">
-              <dt className="text-sm text-okuji-gray-3">Email</dt>
-              <dd className="text-sm text-okuji-navy">{user.email}</dd>
+              <dt className="text-sm text-muted">Email</dt>
+              <dd className="text-sm text-navy">{user.email}</dd>
             </div>
             <div className="flex items-center justify-between">
-              <dt className="text-sm text-okuji-gray-3">User ID</dt>
-              <dd className="font-mono text-xs text-okuji-gray-3">{user.id}</dd>
+              <dt className="text-sm text-muted">User ID</dt>
+              <dd className="font-mono text-xs text-muted">{user.id}</dd>
             </div>
           </dl>
         </section>
 
         {/* Danger zone */}
-        <section className="rounded-panel border border-okuji-coral/40 bg-white p-6">
-          <h2 className="mb-1 text-base font-semibold text-okuji-coral">Danger Zone</h2>
-          <p className="mb-4 text-sm text-okuji-gray-3">
+        <section className="rounded-panel border border-accent/40 bg-white p-6">
+          <h2 className="mb-1 text-base font-semibold text-accent">Danger Zone</h2>
+          <p className="mb-4 text-sm text-muted">
             Deleting your account is permanent and cannot be undone. All your passports and data
             will be removed.
           </p>
           <button
             type="button"
             disabled
-            className="inline-flex h-9 items-center px-4 rounded-panel border border-okuji-coral text-sm font-medium text-okuji-coral opacity-50 cursor-not-allowed"
+            className="inline-flex h-9 items-center px-4 rounded-panel border border-accent text-sm font-medium text-accent opacity-50 cursor-not-allowed"
             title="Contact support to delete your account"
           >
             Delete account
           </button>
-          <p className="mt-2 text-xs text-okuji-gray-3">
+          <p className="mt-2 text-xs text-muted">
             To delete your account, contact{' '}
-            <span className="text-okuji-navy">nathan.app</span>.
+            <span className="text-navy">nathan.app</span>.
           </p>
         </section>
       </main>

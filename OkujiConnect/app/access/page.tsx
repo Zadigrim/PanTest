@@ -19,7 +19,7 @@ import {
 // ─── Pricing badge ────────────────────────────────────────────────────────────
 
 function PricingBadge({ model, locked }: { model: string; locked?: boolean }) {
-  const colorCls = PRICING_BADGE_COLORS[model as PricingModel] ?? 'bg-okuji-gray-2 text-okuji-gray-3'
+  const colorCls = PRICING_BADGE_COLORS[model as PricingModel] ?? 'bg-hairline text-muted'
   const label = PRICING_MODEL_LABELS[model as PricingModel] ?? model
   return (
     <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${colorCls}`}>
@@ -31,12 +31,12 @@ function PricingBadge({ model, locked }: { model: string; locked?: boolean }) {
 
 // ─── Shared field wrapper ─────────────────────────────────────────────────────
 
-const INPUT_CLS = 'w-full rounded-panel border border-okuji-gray-2 px-3 py-1.5 text-sm text-okuji-navy focus:border-okuji-teal focus:outline-none focus:ring-1 focus:ring-okuji-teal'
+const INPUT_CLS = 'w-full rounded-panel border border-hairline px-3 py-1.5 text-sm text-navy focus:border-green focus:outline-none focus:ring-1 focus:ring-green'
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-1">
-      <label className="text-xs font-medium text-okuji-gray-3">{label}</label>
+      <label className="text-xs font-medium text-muted">{label}</label>
       {children}
     </div>
   )
@@ -161,7 +161,7 @@ function AddInstitutionDialog({
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm" />
         <Dialog.Content className="fixed left-1/2 top-1/2 z-50 max-h-[90vh] w-full max-w-lg -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-modal bg-white p-6 shadow-xl focus:outline-none">
-          <Dialog.Title className="mb-4 text-lg font-bold text-okuji-navy">
+          <Dialog.Title className="mb-4 text-lg font-bold text-navy">
             Add Institution
           </Dialog.Title>
 
@@ -200,27 +200,27 @@ function AddInstitutionDialog({
 
             {/* Admission question for nature/science types */}
             {showAdmission && (
-              <fieldset className="rounded-panel border border-okuji-gray-2 p-3">
-                <legend className="px-1 text-xs font-medium text-okuji-gray-3">Admission</legend>
-                <p className="mb-2 text-xs text-okuji-gray-3">Does this institution charge admission?</p>
+              <fieldset className="rounded-panel border border-hairline p-3">
+                <legend className="px-1 text-xs font-medium text-muted">Admission</legend>
+                <p className="mb-2 text-xs text-muted">Does this institution charge admission?</p>
                 <div className="flex gap-4">
-                  <label className="flex items-center gap-2 text-sm text-okuji-navy">
+                  <label className="flex items-center gap-2 text-sm text-navy">
                     <input
                       type="radio"
                       name={`${formId}-admission`}
                       checked={form.charges_admission}
                       onChange={() => set('charges_admission', true)}
-                      className="accent-okuji-teal"
+                      className="accent-green"
                     />
                     Yes — paid admission
                   </label>
-                  <label className="flex items-center gap-2 text-sm text-okuji-navy">
+                  <label className="flex items-center gap-2 text-sm text-navy">
                     <input
                       type="radio"
                       name={`${formId}-admission`}
                       checked={!form.charges_admission}
                       onChange={() => set('charges_admission', false)}
-                      className="accent-okuji-teal"
+                      className="accent-green"
                     />
                     No — free admission
                   </label>
@@ -239,24 +239,24 @@ function AddInstitutionDialog({
                   onChange={(e) => set('municipality_population', e.target.value)}
                   placeholder="e.g. 12000"
                 />
-                <p className="text-xs text-okuji-gray-3">Under 25,000 → free. Over 25,000 → Community tier.</p>
+                <p className="text-xs text-muted">Under 25,000 → free. Over 25,000 → Community tier.</p>
               </Field>
             )}
 
             {/* Pricing model card */}
             {form.institution_type && (
               <div className={`rounded-panel px-3 py-3 border ${
-                form.pricing_model_locked ? 'border-okuji-amber bg-okuji-amber/10' : 'border-okuji-gray-2 bg-okuji-gray-1'
+                form.pricing_model_locked ? 'border-accent bg-accent/10' : 'border-hairline bg-paper'
               }`}>
                 <div className="flex items-center justify-between">
-                  <p className="text-xs font-medium text-okuji-gray-3">Pricing model</p>
+                  <p className="text-xs font-medium text-muted">Pricing model</p>
                   <PricingBadge model={effectiveModel} locked={form.pricing_model_locked} />
                 </div>
-                <p className="mt-1 text-xs text-okuji-gray-3">
+                <p className="mt-1 text-xs text-muted">
                   {PRICING_MODEL_DESCRIPTIONS[effectiveModel as PricingModel] ?? ''}
                 </p>
                 {form.pricing_model_locked && computedModel !== effectiveModel && (
-                  <p className="mt-1 text-xs text-okuji-amber font-medium">
+                  <p className="mt-1 text-xs text-accent font-medium">
                     Auto-computed would be: {PRICING_MODEL_LABELS[computedModel]}
                   </p>
                 )}
@@ -265,8 +265,8 @@ function AddInstitutionDialog({
 
             {/* Admin override */}
             {isAdmin && form.institution_type && (
-              <div className="rounded-panel border border-okuji-gray-2 p-3">
-                <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-okuji-gray-3">
+              <div className="rounded-panel border border-hairline p-3">
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted">
                   Admin override
                 </p>
                 <div className="flex gap-3 items-end">
@@ -284,10 +284,10 @@ function AddInstitutionDialog({
                       </select>
                     </Field>
                   </div>
-                  <label className="flex items-center gap-2 text-xs text-okuji-navy pb-1.5 whitespace-nowrap">
+                  <label className="flex items-center gap-2 text-xs text-navy pb-1.5 whitespace-nowrap">
                     <input
                       type="checkbox"
-                      className="accent-okuji-teal h-3.5 w-3.5"
+                      className="accent-green h-3.5 w-3.5"
                       checked={form.pricing_model_locked}
                       onChange={(e) => set('pricing_model_locked', e.target.checked)}
                       disabled={!form.pricing_model_override}
@@ -299,8 +299,8 @@ function AddInstitutionDialog({
             )}
 
             {/* Contact */}
-            <div className="border-t border-okuji-gray-2 pt-3">
-              <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-okuji-gray-3">Contact</p>
+            <div className="border-t border-hairline pt-3">
+              <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">Contact</p>
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Contact name">
                   <input className={INPUT_CLS} value={form.contact_name} onChange={(e) => set('contact_name', e.target.value)} placeholder="Jane Smith" />
@@ -312,8 +312,8 @@ function AddInstitutionDialog({
             </div>
 
             {/* Address */}
-            <div className="border-t border-okuji-gray-2 pt-3">
-              <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-okuji-gray-3">Address</p>
+            <div className="border-t border-hairline pt-3">
+              <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">Address</p>
               <Field label="Street">
                 <input className={INPUT_CLS} value={form.address_line1} onChange={(e) => set('address_line1', e.target.value)} placeholder="123 Main St" />
               </Field>
@@ -338,7 +338,7 @@ function AddInstitutionDialog({
             </div>
 
             {/* Internal notes */}
-            <div className="border-t border-okuji-gray-2 pt-3">
+            <div className="border-t border-hairline pt-3">
               <Field label="Internal notes">
                 <textarea
                   className={`${INPUT_CLS} min-h-[72px] resize-y`}
@@ -351,11 +351,11 @@ function AddInstitutionDialog({
 
             {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
 
-            <div className="flex justify-end gap-3 border-t border-okuji-gray-2 pt-4">
+            <div className="flex justify-end gap-3 border-t border-hairline pt-4">
               <Dialog.Close asChild>
                 <button
                   type="button"
-                  className="rounded-panel border border-okuji-gray-2 px-4 py-2 text-sm font-medium text-okuji-gray-3 hover:border-okuji-navy hover:text-okuji-navy transition-colors"
+                  className="rounded-panel border border-hairline px-4 py-2 text-sm font-medium text-muted hover:border-navy hover:text-navy transition-colors"
                 >
                   Cancel
                 </button>
@@ -363,7 +363,7 @@ function AddInstitutionDialog({
               <button
                 type="submit"
                 disabled={isPending}
-                className="rounded-panel bg-okuji-teal px-4 py-2 text-sm font-medium text-white hover:bg-okuji-teal-dk disabled:opacity-50 transition-colors"
+                className="rounded-panel bg-green px-4 py-2 text-sm font-medium text-white hover:bg-green disabled:opacity-50 transition-colors"
               >
                 {isPending ? 'Creating…' : 'Create institution'}
               </button>
@@ -441,7 +441,7 @@ function InstitutionsTab({
         {isAdmin && (
           <button
             onClick={() => setShowAdd(true)}
-            className="rounded-panel bg-okuji-teal px-4 py-2 text-sm font-medium text-white hover:bg-okuji-teal-dk transition-colors"
+            className="rounded-panel bg-green px-4 py-2 text-sm font-medium text-white hover:bg-green transition-colors"
           >
             + Add institution
           </button>
@@ -456,47 +456,47 @@ function InstitutionsTab({
 
       {loading ? (
         <div className="flex items-center justify-center py-16">
-          <svg className="h-7 w-7 animate-spin text-okuji-teal" viewBox="0 0 24 24" fill="none">
+          <svg className="h-7 w-7 animate-spin text-green" viewBox="0 0 24 24" fill="none">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 00-8 8h4z" />
           </svg>
         </div>
       ) : (
         <>
-          <p className="mb-2 text-xs text-okuji-gray-3">
+          <p className="mb-2 text-xs text-muted">
             {filtered.length} {filtered.length === 1 ? 'institution' : 'institutions'}
           </p>
           {filtered.length === 0 ? (
             <div className="flex flex-col items-center py-20 text-center">
-              <p className="text-lg font-semibold text-okuji-navy">No institutions found</p>
-              <p className="mt-1 text-sm text-okuji-gray-3">Try adjusting the search or filters.</p>
+              <p className="text-lg font-semibold text-navy">No institutions found</p>
+              <p className="mt-1 text-sm text-muted">Try adjusting the search or filters.</p>
             </div>
           ) : (
-            <div className="overflow-x-auto rounded-panel border border-okuji-gray-2">
+            <div className="overflow-x-auto rounded-panel border border-hairline">
               <table className="w-full min-w-[640px] text-sm">
                 <thead>
-                  <tr className="border-b border-okuji-gray-2 bg-okuji-gray-1 text-left">
-                    <th className="px-4 py-3 font-medium text-okuji-gray-3">Name</th>
-                    <th className="px-4 py-3 font-medium text-okuji-gray-3">Type</th>
-                    <th className="px-4 py-3 font-medium text-okuji-gray-3">Pricing</th>
-                    <th className="px-4 py-3 font-medium text-okuji-gray-3">City</th>
+                  <tr className="border-b border-hairline bg-paper text-left">
+                    <th className="px-4 py-3 font-medium text-muted">Name</th>
+                    <th className="px-4 py-3 font-medium text-muted">Type</th>
+                    <th className="px-4 py-3 font-medium text-muted">Pricing</th>
+                    <th className="px-4 py-3 font-medium text-muted">City</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filtered.map((inst) => (
                     <tr
                       key={inst.id}
-                      className="border-b border-okuji-gray-2 last:border-0 transition-colors hover:bg-okuji-teal-lt/30"
+                      className="border-b border-hairline last:border-0 transition-colors hover:bg-cream/30"
                     >
                       <td className="px-4 py-3">
                         <Link
                           href={`/access/institutions/${inst.id}`}
-                          className="font-medium text-okuji-navy hover:text-okuji-teal-dk hover:underline"
+                          className="font-medium text-navy hover:text-green hover:underline"
                         >
                           {inst.name}
                         </Link>
                       </td>
-                      <td className="px-4 py-3 text-okuji-gray-3">
+                      <td className="px-4 py-3 text-muted">
                         {inst.institution_type
                           ? (INSTITUTION_TYPE_LABELS[inst.institution_type] ?? inst.institution_type)
                           : <span className="italic">—</span>}
@@ -507,7 +507,7 @@ function InstitutionsTab({
                           locked={(inst as unknown as { pricing_model_locked?: boolean }).pricing_model_locked}
                         />
                       </td>
-                      <td className="px-4 py-3 text-okuji-gray-3">
+                      <td className="px-4 py-3 text-muted">
                         {inst.address_city ?? <span className="italic">—</span>}
                       </td>
                     </tr>
@@ -623,24 +623,24 @@ function UsersTab({ isAdmin }: { isAdmin: boolean }) {
 
         {loading ? (
           <div className="flex items-center justify-center py-16">
-            <svg className="h-7 w-7 animate-spin text-okuji-teal" viewBox="0 0 24 24" fill="none">
+            <svg className="h-7 w-7 animate-spin text-green" viewBox="0 0 24 24" fill="none">
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 00-8 8h4z" />
             </svg>
           </div>
         ) : (
           <>
-            <p className="mb-2 text-xs text-okuji-gray-3">
+            <p className="mb-2 text-xs text-muted">
               {filtered.length} {filtered.length === 1 ? 'user' : 'users'}
             </p>
-            <div className="overflow-x-auto rounded-panel border border-okuji-gray-2">
+            <div className="overflow-x-auto rounded-panel border border-hairline">
               <table className="w-full min-w-[500px] text-sm">
                 <thead>
-                  <tr className="border-b border-okuji-gray-2 bg-okuji-gray-1 text-left">
-                    <th className="px-4 py-3 font-medium text-okuji-gray-3">Name</th>
-                    <th className="px-4 py-3 font-medium text-okuji-gray-3">Role</th>
-                    <th className="px-4 py-3 font-medium text-okuji-gray-3">Institutions</th>
-                    <th className="px-4 py-3 font-medium text-okuji-gray-3">Joined</th>
+                  <tr className="border-b border-hairline bg-paper text-left">
+                    <th className="px-4 py-3 font-medium text-muted">Name</th>
+                    <th className="px-4 py-3 font-medium text-muted">Role</th>
+                    <th className="px-4 py-3 font-medium text-muted">Institutions</th>
+                    <th className="px-4 py-3 font-medium text-muted">Joined</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -648,20 +648,20 @@ function UsersTab({ isAdmin }: { isAdmin: boolean }) {
                     <tr
                       key={u.id}
                       onClick={() => setSelected(u)}
-                      className={`cursor-pointer border-b border-okuji-gray-2 last:border-0 transition-colors hover:bg-okuji-teal-lt/30 ${
-                        selected?.id === u.id ? 'bg-okuji-teal-lt/40' : ''
+                      className={`cursor-pointer border-b border-hairline last:border-0 transition-colors hover:bg-cream/30 ${
+                        selected?.id === u.id ? 'bg-cream/40' : ''
                       }`}
                     >
-                      <td className="px-4 py-3 font-medium text-okuji-navy">
-                        {u.display_name ?? <span className="italic text-okuji-gray-3">No name</span>}
+                      <td className="px-4 py-3 font-medium text-navy">
+                        {u.display_name ?? <span className="italic text-muted">No name</span>}
                       </td>
-                      <td className="px-4 py-3 text-okuji-gray-3 capitalize">{u.role ?? '—'}</td>
-                      <td className="px-4 py-3 text-okuji-gray-3">
+                      <td className="px-4 py-3 text-muted capitalize">{u.role ?? '—'}</td>
+                      <td className="px-4 py-3 text-muted">
                         {u.institutions.length === 0
                           ? <span className="italic">—</span>
                           : u.institutions.map((i) => i.name).join(', ')}
                       </td>
-                      <td className="px-4 py-3 text-okuji-gray-3">
+                      <td className="px-4 py-3 text-muted">
                         {new Date(u.created_at).toLocaleDateString()}
                       </td>
                     </tr>
@@ -674,38 +674,38 @@ function UsersTab({ isAdmin }: { isAdmin: boolean }) {
       </div>
 
       {selected && (
-        <div className="w-72 shrink-0 rounded-panel border border-okuji-gray-2 bg-white p-4">
+        <div className="w-72 shrink-0 rounded-panel border border-hairline bg-white p-4">
           <div className="mb-3 flex items-center justify-between">
-            <h3 className="font-semibold text-okuji-navy">User detail</h3>
+            <h3 className="font-semibold text-navy">User detail</h3>
             <button
               onClick={() => setSelected(null)}
-              className="text-okuji-gray-3 hover:text-okuji-navy text-lg leading-none"
+              className="text-muted hover:text-navy text-lg leading-none"
               aria-label="Close"
             >
               ×
             </button>
           </div>
-          <p className="text-lg font-bold text-okuji-navy">
-            {selected.display_name ?? <span className="italic text-okuji-gray-3">No name</span>}
+          <p className="text-lg font-bold text-navy">
+            {selected.display_name ?? <span className="italic text-muted">No name</span>}
           </p>
-          <p className="mt-0.5 text-xs text-okuji-gray-3 capitalize">{selected.role ?? '—'}</p>
-          <p className="mt-0.5 text-xs text-okuji-gray-3">
+          <p className="mt-0.5 text-xs text-muted capitalize">{selected.role ?? '—'}</p>
+          <p className="mt-0.5 text-xs text-muted">
             Joined {new Date(selected.created_at).toLocaleDateString()}
           </p>
 
-          <div className="mt-4 border-t border-okuji-gray-2 pt-3">
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-okuji-gray-3">
+          <div className="mt-4 border-t border-hairline pt-3">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted">
               Institutions
             </p>
             {selected.institutions.length === 0 ? (
-              <p className="text-sm italic text-okuji-gray-3">No institution memberships</p>
+              <p className="text-sm italic text-muted">No institution memberships</p>
             ) : (
               <ul className="flex flex-col gap-1">
                 {selected.institutions.map((i) => (
                   <li key={i.id}>
                     <Link
                       href={`/access/institutions/${i.id}`}
-                      className="text-sm text-okuji-teal-dk hover:underline"
+                      className="text-sm text-green hover:underline"
                     >
                       {i.name}
                     </Link>
@@ -807,7 +807,7 @@ export default function AccessPage() {
   if (mode === 'loading') {
     return (
       <div className="flex h-[60vh] items-center justify-center">
-        <svg className="h-8 w-8 animate-spin text-okuji-teal" viewBox="0 0 24 24" fill="none">
+        <svg className="h-8 w-8 animate-spin text-green" viewBox="0 0 24 24" fill="none">
           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 00-8 8h4z" />
         </svg>
@@ -819,13 +819,13 @@ export default function AccessPage() {
     return (
       <div className="flex flex-col items-center justify-center py-24 text-center">
         <span className="text-5xl">🔒</span>
-        <h2 className="mt-4 text-lg font-bold text-okuji-navy">Access restricted</h2>
-        <p className="mt-2 text-sm text-okuji-gray-3">
+        <h2 className="mt-4 text-lg font-bold text-navy">Access restricted</h2>
+        <p className="mt-2 text-sm text-muted">
           Access Management is available to institution managers and Okuji admins.
         </p>
         <Link
           href="/"
-          className="mt-6 rounded-panel bg-okuji-teal px-4 py-2 text-sm font-medium text-white hover:bg-okuji-teal-dk transition-colors"
+          className="mt-6 rounded-panel bg-green px-4 py-2 text-sm font-medium text-white hover:bg-green transition-colors"
         >
           Back to Okuji
         </Link>
@@ -836,21 +836,21 @@ export default function AccessPage() {
   return (
     <div className="mx-auto max-w-6xl px-6 py-8">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-okuji-navy">Access Management</h1>
-        <p className="mt-1 text-sm text-okuji-gray-3">
+        <h1 className="text-2xl font-bold text-navy">Access Management</h1>
+        <p className="mt-1 text-sm text-muted">
           {isAdmin
             ? 'Manage all institutions and users on the platform.'
             : 'Manage your institution members and access.'}
         </p>
       </div>
 
-      <div className="mb-6 flex items-center gap-0 border-b border-okuji-gray-2">
+      <div className="mb-6 flex items-center gap-0 border-b border-hairline">
         <button
           onClick={() => setActiveTab('institutions')}
           className={`-mb-px border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
             activeTab === 'institutions'
-              ? 'border-okuji-teal text-okuji-teal-dk'
-              : 'border-transparent text-okuji-gray-3 hover:text-okuji-navy'
+              ? 'border-green text-green'
+              : 'border-transparent text-muted hover:text-navy'
           }`}
         >
           Institutions
@@ -860,8 +860,8 @@ export default function AccessPage() {
             onClick={() => setActiveTab('users')}
             className={`-mb-px border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
               activeTab === 'users'
-                ? 'border-okuji-teal text-okuji-teal-dk'
-                : 'border-transparent text-okuji-gray-3 hover:text-okuji-navy'
+                ? 'border-green text-green'
+                : 'border-transparent text-muted hover:text-navy'
             }`}
           >
             Users

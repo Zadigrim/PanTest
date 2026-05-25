@@ -61,19 +61,19 @@ export function WorkspaceClient({ passport, pages, stops, creatorInstitutionId }
   const isPublished = displayPassport.status === 'published'
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-okuji-gray-1">
+    <div className="flex h-screen flex-col overflow-hidden bg-paper">
       {/* Top bar */}
-      <header className="flex shrink-0 items-center justify-between border-b border-okuji-gray-2 bg-white px-4 py-2">
+      <header className="flex shrink-0 items-center justify-between border-b border-hairline bg-white px-4 py-2">
         <div className="flex items-center gap-3">
           <Link
             href="/design"
-            className="flex items-center gap-1.5 text-sm text-okuji-gray-3 hover:text-okuji-navy transition-colors"
+            className="flex items-center gap-1.5 text-sm text-muted hover:text-navy transition-colors"
           >
             <span className="text-base">←</span>
             My Passports
           </Link>
-          <span className="text-okuji-gray-2">·</span>
-          <span className="max-w-xs truncate text-sm font-semibold text-okuji-navy">
+          <span className="text-hairline">·</span>
+          <span className="max-w-xs truncate text-sm font-semibold text-navy">
             {displayPassport.title}
           </span>
         </div>
@@ -83,10 +83,10 @@ export function WorkspaceClient({ passport, pages, stops, creatorInstitutionId }
           <span
             className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize ${
               displayPassport.status === 'published'
-                ? 'bg-okuji-teal-lt text-okuji-teal-dk'
+                ? 'bg-cream text-green'
                 : displayPassport.status === 'archived'
-                ? 'bg-okuji-amber/15 text-okuji-amber'
-                : 'bg-okuji-gray-2 text-okuji-gray-3'
+                ? 'bg-accent/15 text-accent'
+                : 'bg-hairline text-muted'
             }`}
           >
             {displayPassport.status}
@@ -106,21 +106,21 @@ export function WorkspaceClient({ passport, pages, stops, creatorInstitutionId }
       </header>
 
       {/* Tabs: Cover + Pages */}
-      <div className="flex shrink-0 items-center gap-0 overflow-x-auto border-b border-okuji-gray-2 bg-white px-4">
+      <div className="flex shrink-0 items-center gap-0 overflow-x-auto border-b border-hairline bg-white px-4">
         {/* Cover tab */}
         <button
           onClick={() => setViewMode('cover')}
           className={`shrink-0 whitespace-nowrap border-b-2 px-3 py-2 text-sm transition-colors -mb-px ${
             viewMode === 'cover'
-              ? 'border-okuji-teal font-medium text-okuji-teal-dk'
-              : 'border-transparent text-okuji-gray-3 hover:text-okuji-navy'
+              ? 'border-green font-medium text-green'
+              : 'border-transparent text-muted hover:text-navy'
           }`}
         >
           Cover
         </button>
 
         {/* Divider */}
-        <span className="mx-1 text-okuji-gray-2 select-none">·</span>
+        <span className="mx-1 text-hairline select-none">·</span>
 
         {/* Page tabs */}
         {pageList.map((page, i) => (
@@ -129,15 +129,15 @@ export function WorkspaceClient({ passport, pages, stops, creatorInstitutionId }
             onClick={() => { setViewMode('pages'); setActivePage(page.id) }}
             className={`shrink-0 whitespace-nowrap border-b-2 px-3 py-2 text-sm transition-colors -mb-px ${
               viewMode === 'pages' && page.id === activePageId
-                ? 'border-okuji-teal font-medium text-okuji-teal-dk'
-                : 'border-transparent text-okuji-gray-3 hover:text-okuji-navy'
+                ? 'border-green font-medium text-green'
+                : 'border-transparent text-muted hover:text-navy'
             }`}
           >
             {page.section_title ?? page.section_name ?? `Page ${i + 1}`}
           </button>
         ))}
         {pageList.length === 0 && viewMode === 'pages' && (
-          <span className="px-3 py-2 text-sm italic text-okuji-gray-3/50">
+          <span className="px-3 py-2 text-sm italic text-muted/50">
             Add a page from the left panel
           </span>
         )}
@@ -191,11 +191,11 @@ function SaveIndicator({
   isSaving: boolean
   lastSavedAt: Date | null
 }) {
-  if (isSaving) return <span className="text-xs text-okuji-gray-3">Saving…</span>
-  if (isDirty) return <span className="text-xs text-okuji-amber">Unsaved changes</span>
+  if (isSaving) return <span className="text-xs text-muted">Saving…</span>
+  if (isDirty) return <span className="text-xs text-accent">Unsaved changes</span>
   if (lastSavedAt) {
     return (
-      <span className="text-xs text-okuji-gray-3">
+      <span className="text-xs text-muted">
         Saved{' '}
         {lastSavedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
       </span>

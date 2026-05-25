@@ -118,7 +118,7 @@ export function LineElementBox({
             style={{ pointerEvents: 'auto', overflow: 'visible' }}
           >
             <div
-              className="absolute rounded-full border-2 border-okuji-teal bg-white shadow-sm cursor-crosshair"
+              className="absolute rounded-full border-2 border-green bg-white shadow-sm cursor-crosshair"
               style={{
                 width: HANDLE_R * 4,
                 height: HANDLE_R * 4,
@@ -138,7 +138,7 @@ export function LineElementBox({
             style={{ pointerEvents: 'auto', overflow: 'visible' }}
           >
             <div
-              className="absolute rounded-full border-2 border-okuji-teal bg-white shadow-sm cursor-crosshair"
+              className="absolute rounded-full border-2 border-green bg-white shadow-sm cursor-crosshair"
               style={{
                 width: HANDLE_R * 4,
                 height: HANDLE_R * 4,

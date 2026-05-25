@@ -56,8 +56,8 @@ export function CoverCanvas({ face, onFaceChange, selectedPanel, onPanelChange }
 
   if (!passport) {
     return (
-      <div className="flex flex-1 items-center justify-center bg-okuji-gray-1">
-        <p className="text-sm text-okuji-gray-3">Loading…</p>
+      <div className="flex flex-1 items-center justify-center bg-paper">
+        <p className="text-sm text-muted">Loading…</p>
       </div>
     )
   }
@@ -133,23 +133,23 @@ export function CoverCanvas({ face, onFaceChange, selectedPanel, onPanelChange }
   }
 
   return (
-    <main className="relative flex flex-1 flex-col overflow-hidden bg-okuji-gray-1">
+    <main className="relative flex flex-1 flex-col overflow-hidden bg-paper">
       {/* Face toggle */}
-      <div className="flex shrink-0 items-center justify-center gap-1 border-b border-okuji-gray-2 bg-white py-2">
+      <div className="flex shrink-0 items-center justify-center gap-1 border-b border-hairline bg-white py-2">
         {(['outside', 'inside'] as CoverFace[]).map((f) => (
           <button
             key={f}
             onClick={() => onFaceChange(f)}
             className={`rounded-card px-3 py-1 text-sm font-medium capitalize transition-colors ${
               face === f
-                ? 'bg-okuji-teal text-white'
-                : 'text-okuji-gray-3 hover:text-okuji-navy'
+                ? 'bg-green text-white'
+                : 'text-muted hover:text-navy'
             }`}
           >
             {f}
           </button>
         ))}
-        <span className="ml-3 text-xs text-okuji-gray-3">
+        <span className="ml-3 text-xs text-muted">
           {side.image_url ? 'Drag image to reposition · Click panel to select' : 'Click a half to select it'}
         </span>
       </div>
@@ -241,7 +241,7 @@ export function CoverCanvas({ face, onFaceChange, selectedPanel, onPanelChange }
             {/* Selection ring — back half */}
             {selectedPanel === 'back' && (
               <div
-                className="absolute inset-y-0 left-0 ring-2 ring-inset ring-okuji-teal pointer-events-none"
+                className="absolute inset-y-0 left-0 ring-2 ring-inset ring-green pointer-events-none"
                 style={{ width: COVER_W, zIndex: 11 }}
               />
             )}
@@ -249,7 +249,7 @@ export function CoverCanvas({ face, onFaceChange, selectedPanel, onPanelChange }
             {/* Selection ring — front half */}
             {selectedPanel === 'front' && (
               <div
-                className="absolute inset-y-0 right-0 ring-2 ring-inset ring-okuji-teal pointer-events-none"
+                className="absolute inset-y-0 right-0 ring-2 ring-inset ring-green pointer-events-none"
                 style={{ width: COVER_W, zIndex: 11 }}
               />
             )}
@@ -266,24 +266,24 @@ export function CoverCanvas({ face, onFaceChange, selectedPanel, onPanelChange }
       </div>
 
       {/* Zoom controls */}
-      <div className="absolute bottom-4 right-4 flex items-center gap-1 rounded-card border border-okuji-gray-2 bg-white px-2 py-1 shadow-sm">
+      <div className="absolute bottom-4 right-4 flex items-center gap-1 rounded-card border border-hairline bg-white px-2 py-1 shadow-sm">
         <button
-          className="px-2 py-0.5 text-sm text-okuji-gray-3 hover:text-okuji-navy transition-colors"
+          className="px-2 py-0.5 text-sm text-muted hover:text-navy transition-colors"
           onClick={() => setZoom((z) => Math.max(0.3, parseFloat((z - 0.1).toFixed(1))))}
         >
           −
         </button>
-        <span className="min-w-[3.5rem] text-center text-xs text-okuji-gray-3">
+        <span className="min-w-[3.5rem] text-center text-xs text-muted">
           {Math.round(zoom * 100)}%
         </span>
         <button
-          className="px-2 py-0.5 text-sm text-okuji-gray-3 hover:text-okuji-navy transition-colors"
+          className="px-2 py-0.5 text-sm text-muted hover:text-navy transition-colors"
           onClick={() => setZoom((z) => Math.min(2, parseFloat((z + 0.1).toFixed(1))))}
         >
           +
         </button>
         <button
-          className="ml-1 border-l border-okuji-gray-2 pl-2 text-xs text-okuji-gray-3 hover:text-okuji-navy transition-colors"
+          className="ml-1 border-l border-hairline pl-2 text-xs text-muted hover:text-navy transition-colors"
           onClick={() => setZoom(0.85)}
         >
           Reset

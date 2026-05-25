@@ -32,7 +32,7 @@ export function PrintPassportButton({ passport, compact = false }: Props) {
       {compact ? (
         <button
           onClick={() => setOpen(true)}
-          className="inline-flex items-center gap-1.5 rounded-panel border border-okuji-gray-2 px-2.5 py-1.5 text-xs font-medium text-okuji-gray-3 hover:border-okuji-teal hover:text-okuji-teal transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-okuji-teal"
+          className="inline-flex items-center gap-1.5 rounded-panel border border-hairline px-2.5 py-1.5 text-xs font-medium text-muted hover:border-green hover:text-green transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green"
         >
           <PrinterIcon />
           Print
@@ -40,7 +40,7 @@ export function PrintPassportButton({ passport, compact = false }: Props) {
       ) : (
         <button
           onClick={() => setOpen(true)}
-          className="flex w-full items-center justify-center gap-2 rounded-panel border border-okuji-gray-2 bg-okuji-gray-1 py-2 text-sm font-medium text-okuji-navy hover:border-okuji-teal hover:bg-okuji-teal-lt hover:text-okuji-teal-dk transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-okuji-teal"
+          className="flex w-full items-center justify-center gap-2 rounded-panel border border-hairline bg-paper py-2 text-sm font-medium text-navy hover:border-green hover:bg-cream hover:text-green transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green"
         >
           <PrinterIcon />
           Print for kids…

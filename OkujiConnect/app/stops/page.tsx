@@ -100,9 +100,9 @@ function CheckboxGroup<T extends string>({
             type="checkbox"
             checked={selected.has(item.value)}
             onChange={(e) => onChange(item.value, e.target.checked)}
-            className="accent-okuji-teal w-4 h-4 shrink-0"
+            className="accent-green w-4 h-4 shrink-0"
           />
-          <span className="text-sm text-okuji-navy">{item.label}</span>
+          <span className="text-sm text-navy">{item.label}</span>
         </label>
       ))}
     </div>
@@ -148,7 +148,7 @@ function FilterPanel({
 
   return (
     <aside
-      className="w-full lg:w-[280px] shrink-0 bg-white rounded-panel border border-okuji-gray-2 p-5 self-start sticky top-4"
+      className="w-full lg:w-[280px] shrink-0 bg-white rounded-panel border border-hairline p-5 self-start sticky top-4"
       aria-label="Stop filters"
     >
       {/* Search */}
@@ -160,13 +160,13 @@ function FilterPanel({
           onChange={(e) => onSearchChange(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && onSearch()}
           placeholder="Search stops…"
-          className="flex-1 h-9 rounded-panel border border-okuji-gray-2 bg-okuji-gray-1 px-3 text-sm text-okuji-navy placeholder:text-okuji-gray-3 focus:outline-none focus:ring-2 focus:ring-okuji-teal focus:border-okuji-teal transition-colors"
+          className="flex-1 h-9 rounded-panel border border-hairline bg-paper px-3 text-sm text-navy placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-green focus:border-green transition-colors"
           aria-label="Search stops"
         />
         <button
           type="button"
           onClick={onSearch}
-          className="h-9 px-3 rounded-panel bg-okuji-teal text-white text-sm font-medium hover:bg-[#0F6E56] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-okuji-teal"
+          className="h-9 px-3 rounded-panel bg-green text-white text-sm font-medium hover:bg-[#0F6E56] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green"
         >
           Search
         </button>
@@ -174,7 +174,7 @@ function FilterPanel({
 
       {/* Classifiers */}
       <section className="mb-5">
-        <h3 className="text-xs font-semibold text-okuji-gray-3 uppercase tracking-wide mb-3">
+        <h3 className="text-xs font-semibold text-muted uppercase tracking-wide mb-3">
           Classifiers
         </h3>
         <CheckboxGroup
@@ -186,8 +186,8 @@ function FilterPanel({
 
       {/* Grade level — shown when Educational is checked */}
       {educationalChecked && (
-        <section className="mb-5 pl-3 border-l-2 border-okuji-teal-lt">
-          <h3 className="text-xs font-semibold text-okuji-gray-3 uppercase tracking-wide mb-3">
+        <section className="mb-5 pl-3 border-l-2 border-cream">
+          <h3 className="text-xs font-semibold text-muted uppercase tracking-wide mb-3">
             Grade level
           </h3>
           <CheckboxGroup
@@ -200,8 +200,8 @@ function FilterPanel({
 
       {/* Subject area — shown when Educational is checked */}
       {educationalChecked && (
-        <section className="mb-5 pl-3 border-l-2 border-okuji-teal-lt">
-          <h3 className="text-xs font-semibold text-okuji-gray-3 uppercase tracking-wide mb-3">
+        <section className="mb-5 pl-3 border-l-2 border-cream">
+          <h3 className="text-xs font-semibold text-muted uppercase tracking-wide mb-3">
             Subject area
           </h3>
           <CheckboxGroup
@@ -214,7 +214,7 @@ function FilterPanel({
 
       {/* Institution type */}
       <section className="mb-5">
-        <h3 className="text-xs font-semibold text-okuji-gray-3 uppercase tracking-wide mb-3">
+        <h3 className="text-xs font-semibold text-muted uppercase tracking-wide mb-3">
           Institution type
         </h3>
         <CheckboxGroup
@@ -228,7 +228,7 @@ function FilterPanel({
       <section>
         <h3
           id={sortId}
-          className="text-xs font-semibold text-okuji-gray-3 uppercase tracking-wide mb-3"
+          className="text-xs font-semibold text-muted uppercase tracking-wide mb-3"
         >
           Sort by
         </h3>
@@ -246,9 +246,9 @@ function FilterPanel({
                 value={opt.value}
                 checked={sortBy === opt.value}
                 onChange={() => onSortChange(opt.value)}
-                className="accent-okuji-teal w-4 h-4 shrink-0"
+                className="accent-green w-4 h-4 shrink-0"
               />
-              <span className="text-sm text-okuji-navy">{opt.label}</span>
+              <span className="text-sm text-navy">{opt.label}</span>
             </label>
           ))}
         </div>
@@ -276,21 +276,21 @@ function StopResultCard({
     : null
 
   return (
-    <article className="bg-white rounded-panel border border-okuji-gray-2 p-5 flex flex-col gap-3">
+    <article className="bg-white rounded-panel border border-hairline p-5 flex flex-col gap-3">
       {/* Header */}
       <div className="flex items-start gap-3">
         <div
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-card bg-okuji-gray-1 text-xl"
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-card bg-paper text-xl"
           aria-hidden="true"
         >
           {stop.stamp_icon ?? '📍'}
         </div>
         <div className="min-w-0">
-          <h3 className="font-semibold text-okuji-navy leading-tight truncate">
+          <h3 className="font-semibold text-navy leading-tight truncate">
             {stop.name}
           </h3>
           {location && (
-            <p className="text-xs text-okuji-gray-3 mt-0.5">{location}</p>
+            <p className="text-xs text-muted mt-0.5">{location}</p>
           )}
         </div>
       </div>
@@ -301,13 +301,13 @@ function StopResultCard({
           {stop.classifiers.slice(0, 4).map((c) => (
             <span
               key={c}
-              className="inline-flex items-center rounded-card bg-okuji-teal-lt px-2 py-0.5 text-xs font-medium text-okuji-teal-dk capitalize"
+              className="inline-flex items-center rounded-card bg-cream px-2 py-0.5 text-xs font-medium text-green capitalize"
             >
               {c.replace(/_/g, ' ')}
             </span>
           ))}
           {stop.classifiers.length > 4 && (
-            <span className="inline-flex items-center rounded-card bg-okuji-gray-2 px-2 py-0.5 text-xs font-medium text-okuji-gray-3">
+            <span className="inline-flex items-center rounded-card bg-hairline px-2 py-0.5 text-xs font-medium text-muted">
               +{stop.classifiers.length - 4}
             </span>
           )}
@@ -316,14 +316,14 @@ function StopResultCard({
 
       {/* Learning objective */}
       {truncatedObjective && (
-        <p className="text-sm text-okuji-gray-3 leading-relaxed">{truncatedObjective}</p>
+        <p className="text-sm text-muted leading-relaxed">{truncatedObjective}</p>
       )}
 
       {/* Footer */}
       <div className="mt-auto pt-1 flex items-center justify-between gap-3 flex-wrap">
-        <div className="text-xs text-okuji-gray-3 space-y-0.5">
+        <div className="text-xs text-muted space-y-0.5">
           <p>
-            <span className="tabular-nums font-medium text-okuji-navy">
+            <span className="tabular-nums font-medium text-navy">
               {stop.acknowledgment_count}
             </span>{' '}
             acknowledgments
@@ -338,14 +338,14 @@ function StopResultCard({
         <div className="flex items-center gap-2 shrink-0">
           <Link
             href={`/stops/${stop.id}`}
-            className="inline-flex items-center h-8 px-3 rounded-panel border border-okuji-gray-2 text-xs font-medium text-okuji-navy hover:bg-okuji-gray-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-okuji-teal"
+            className="inline-flex items-center h-8 px-3 rounded-panel border border-hairline text-xs font-medium text-navy hover:bg-paper transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green"
           >
             Preview
           </Link>
           <button
             type="button"
             onClick={() => onImport(stop.id, stop.name)}
-            className="inline-flex items-center h-8 px-3 rounded-panel bg-okuji-teal text-white text-xs font-medium hover:bg-[#0F6E56] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-okuji-teal"
+            className="inline-flex items-center h-8 px-3 rounded-panel bg-green text-white text-xs font-medium hover:bg-[#0F6E56] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green"
           >
             Import
           </button>
@@ -449,26 +449,26 @@ function ImportModal({
       aria-modal="true"
       aria-labelledby="import-modal-title"
     >
-      <div className="w-full max-w-md bg-white rounded-modal shadow-xl border border-okuji-gray-2 p-6">
+      <div className="w-full max-w-md bg-white rounded-modal shadow-xl border border-hairline p-6">
         {success ? (
           <>
-            <h2 id="import-modal-title" className="text-lg font-semibold text-okuji-navy mb-2">
+            <h2 id="import-modal-title" className="text-lg font-semibold text-navy mb-2">
               Stop imported
             </h2>
-            <p className="text-sm text-okuji-gray-3 mb-5">
+            <p className="text-sm text-muted mb-5">
               &ldquo;{state.stopName}&rdquo; has been added to your passport.
             </p>
             <div className="flex gap-3">
               <button
                 type="button"
                 onClick={onClose}
-                className="h-9 px-4 rounded-panel bg-okuji-teal text-white text-sm font-medium hover:bg-[#0F6E56] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-okuji-teal"
+                className="h-9 px-4 rounded-panel bg-green text-white text-sm font-medium hover:bg-[#0F6E56] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green"
               >
                 Done
               </button>
               <Link
                 href="/design"
-                className="h-9 px-4 rounded-panel border border-okuji-gray-2 text-sm font-medium text-okuji-navy hover:bg-okuji-gray-1 transition-colors inline-flex items-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-okuji-teal"
+                className="h-9 px-4 rounded-panel border border-hairline text-sm font-medium text-navy hover:bg-paper transition-colors inline-flex items-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green"
               >
                 Go to designer
               </Link>
@@ -476,27 +476,27 @@ function ImportModal({
           </>
         ) : (
           <>
-            <h2 id="import-modal-title" className="text-lg font-semibold text-okuji-navy mb-1">
+            <h2 id="import-modal-title" className="text-lg font-semibold text-navy mb-1">
               Import this stop
             </h2>
-            <p className="text-sm text-okuji-gray-3 mb-5">
+            <p className="text-sm text-muted mb-5">
               Import &ldquo;{state.stopName}&rdquo; into which passport?
             </p>
 
             {loading ? (
-              <p className="text-sm text-okuji-gray-3 animate-pulse mb-5">
+              <p className="text-sm text-muted animate-pulse mb-5">
                 Loading your passports…
               </p>
             ) : (
               <div className="flex flex-col gap-1.5 mb-5">
-                <label htmlFor={selectId} className="text-sm font-medium text-okuji-navy">
+                <label htmlFor={selectId} className="text-sm font-medium text-navy">
                   Passport
                 </label>
                 <select
                   id={selectId}
                   value={selectedPassportId}
                   onChange={(e) => setSelectedPassportId(e.target.value)}
-                  className="h-9 rounded-panel border border-okuji-gray-2 bg-white px-3 text-sm text-okuji-navy focus:outline-none focus:ring-2 focus:ring-okuji-teal focus:border-okuji-teal"
+                  className="h-9 rounded-panel border border-hairline bg-white px-3 text-sm text-navy focus:outline-none focus:ring-2 focus:ring-green focus:border-green"
                 >
                   {passports.length === 0 && (
                     <option value="" disabled>
@@ -514,7 +514,7 @@ function ImportModal({
             )}
 
             {error && (
-              <p role="alert" className="text-sm text-okuji-coral mb-4">
+              <p role="alert" className="text-sm text-accent mb-4">
                 {error}
               </p>
             )}
@@ -524,7 +524,7 @@ function ImportModal({
                 type="button"
                 onClick={handleImport}
                 disabled={importing || loading}
-                className="h-9 px-4 rounded-panel bg-okuji-teal text-white text-sm font-medium hover:bg-[#0F6E56] disabled:opacity-50 disabled:pointer-events-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-okuji-teal"
+                className="h-9 px-4 rounded-panel bg-green text-white text-sm font-medium hover:bg-[#0F6E56] disabled:opacity-50 disabled:pointer-events-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green"
               >
                 {importing ? 'Importing…' : 'Import stop'}
               </button>
@@ -532,7 +532,7 @@ function ImportModal({
                 type="button"
                 onClick={onClose}
                 disabled={importing}
-                className="h-9 px-4 rounded-panel border border-okuji-gray-2 text-sm font-medium text-okuji-navy hover:bg-okuji-gray-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-okuji-teal"
+                className="h-9 px-4 rounded-panel border border-hairline text-sm font-medium text-navy hover:bg-paper transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green"
               >
                 Cancel
               </button>
@@ -682,19 +682,19 @@ export default function StopsLibraryPage() {
   }
 
   return (
-    <div className="min-h-screen bg-okuji-gray-1">
+    <div className="min-h-screen bg-paper">
       {/* Header */}
-      <header className="border-b border-okuji-gray-2 bg-white px-8 py-4">
+      <header className="border-b border-hairline bg-white px-8 py-4">
         <div className="mx-auto flex max-w-7xl items-center justify-between">
           <div>
-            <h1 className="text-xl font-bold text-okuji-navy">Stop Library</h1>
-            <p className="text-xs text-okuji-gray-3 mt-0.5">
+            <h1 className="text-xl font-bold text-navy">Stop Library</h1>
+            <p className="text-xs text-muted mt-0.5">
               Browse and import educational stops shared by the Okuji community.
             </p>
           </div>
           <Link
             href="/design"
-            className="text-sm text-okuji-gray-3 hover:text-okuji-navy transition-colors"
+            className="text-sm text-muted hover:text-navy transition-colors"
           >
             ← Back to designer
           </Link>
@@ -728,25 +728,25 @@ export default function StopsLibraryPage() {
           <div className="flex-1 min-w-0">
             {loading && (
               <div className="py-20 text-center">
-                <p className="text-sm text-okuji-gray-3 animate-pulse">Loading stops…</p>
+                <p className="text-sm text-muted animate-pulse">Loading stops…</p>
               </div>
             )}
 
             {loadError && (
               <div
                 role="alert"
-                className="bg-okuji-coral/10 border border-okuji-coral rounded-panel p-4 text-okuji-coral text-sm"
+                className="bg-accent/10 border border-accent rounded-panel p-4 text-accent text-sm"
               >
                 {loadError}
               </div>
             )}
 
             {!loading && !loadError && stops.length === 0 && (
-              <div className="py-20 text-center rounded-modal border-2 border-dashed border-okuji-gray-2">
-                <p className="text-base font-semibold text-okuji-navy mb-2">
+              <div className="py-20 text-center rounded-modal border-2 border-dashed border-hairline">
+                <p className="text-base font-semibold text-navy mb-2">
                   No stops found
                 </p>
-                <p className="text-sm text-okuji-gray-3">
+                <p className="text-sm text-muted">
                   Try adjusting your filters or search query.
                 </p>
               </div>
@@ -754,7 +754,7 @@ export default function StopsLibraryPage() {
 
             {!loading && !loadError && stops.length > 0 && (
               <>
-                <p className="text-xs text-okuji-gray-3 mb-4">
+                <p className="text-xs text-muted mb-4">
                   {stops.length} stop{stops.length !== 1 ? 's' : ''}
                 </p>
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">

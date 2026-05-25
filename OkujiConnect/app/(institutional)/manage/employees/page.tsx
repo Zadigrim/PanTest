@@ -54,7 +54,7 @@ function PermissionToggle({
         checked={checked}
         disabled={disabled}
         onChange={(e) => onChange(e.target.checked)}
-        className="accent-okuji-teal w-4 h-4"
+        className="accent-green w-4 h-4"
         aria-label={label}
       />
     </label>
@@ -103,24 +103,24 @@ function EmployeeTableRow({
 
   return (
     <>
-      <tr className="border-b border-okuji-gray-2 last:border-0 hover:bg-okuji-gray-1/40 transition-colors">
+      <tr className="border-b border-hairline last:border-0 hover:bg-paper/40 transition-colors">
         {/* Name / email */}
         <td className="px-4 py-3">
-          <p className="text-sm font-medium text-okuji-navy leading-tight">
+          <p className="text-sm font-medium text-navy leading-tight">
             {employee.displayName ?? (
-              <span className="italic text-okuji-gray-3">No name set</span>
+              <span className="italic text-muted">No name set</span>
             )}
           </p>
           {employee.email && (
-            <p className="text-xs text-okuji-gray-3 truncate max-w-[200px]">
+            <p className="text-xs text-muted truncate max-w-[200px]">
               {employee.email}
             </p>
           )}
         </td>
 
         {/* Role */}
-        <td className="px-4 py-3 text-sm text-okuji-navy">
-          {employee.role_label ?? <span className="text-okuji-gray-3">—</span>}
+        <td className="px-4 py-3 text-sm text-navy">
+          {employee.role_label ?? <span className="text-muted">—</span>}
         </td>
 
         {/* can_verify */}
@@ -160,7 +160,7 @@ function EmployeeTableRow({
           <button
             onClick={handleRemove}
             disabled={removing}
-            className="text-xs text-okuji-coral hover:underline disabled:opacity-50 disabled:pointer-events-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-okuji-coral rounded-sm"
+            className="text-xs text-accent hover:underline disabled:opacity-50 disabled:pointer-events-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent rounded-sm"
           >
             {removing ? 'Removing…' : 'Remove'}
           </button>
@@ -169,9 +169,9 @@ function EmployeeTableRow({
 
       {/* Inline error rows */}
       {(removeError ?? permError) && (
-        <tr className="border-b border-okuji-gray-2">
+        <tr className="border-b border-hairline">
           <td colSpan={6} className="px-4 pb-2">
-            <span role="alert" className="text-xs text-okuji-coral">
+            <span role="alert" className="text-xs text-accent">
               {removeError ?? permError}
             </span>
           </td>
@@ -312,20 +312,20 @@ function AddEmployeeForm({
   return (
     <form
       onSubmit={handleSubmit}
-      className="bg-white rounded-panel border border-okuji-gray-2 p-5"
+      className="bg-white rounded-panel border border-hairline p-5"
       aria-label="Add new employee"
       noValidate
     >
-      <h2 className="text-base font-semibold text-okuji-navy mb-4">Add employee</h2>
+      <h2 className="text-base font-semibold text-navy mb-4">Add employee</h2>
 
       <div className="grid gap-4 sm:grid-cols-2">
         {/* Email */}
         <div className="flex flex-col gap-1.5">
           <label
             htmlFor={`${formId}-email`}
-            className="text-sm font-medium text-okuji-navy"
+            className="text-sm font-medium text-navy"
           >
-            Email address <span className="text-okuji-coral" aria-hidden="true">*</span>
+            Email address <span className="text-accent" aria-hidden="true">*</span>
           </label>
           <input
             id={`${formId}-email`}
@@ -335,7 +335,7 @@ function AddEmployeeForm({
             value={form.email}
             onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))}
             placeholder="employee@example.com"
-            className="h-9 rounded-panel border border-okuji-gray-2 bg-okuji-gray-1 px-3 text-sm text-okuji-navy placeholder:text-okuji-gray-3 focus:outline-none focus:ring-2 focus:ring-okuji-teal focus:border-okuji-teal transition-colors"
+            className="h-9 rounded-panel border border-hairline bg-paper px-3 text-sm text-navy placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-green focus:border-green transition-colors"
           />
         </div>
 
@@ -343,10 +343,10 @@ function AddEmployeeForm({
         <div className="flex flex-col gap-1.5">
           <label
             htmlFor={`${formId}-role`}
-            className="text-sm font-medium text-okuji-navy"
+            className="text-sm font-medium text-navy"
           >
             Role label{' '}
-            <span className="font-normal text-okuji-gray-3">(optional)</span>
+            <span className="font-normal text-muted">(optional)</span>
           </label>
           <input
             id={`${formId}-role`}
@@ -354,14 +354,14 @@ function AddEmployeeForm({
             value={form.role_label}
             onChange={(e) => setForm((p) => ({ ...p, role_label: e.target.value }))}
             placeholder="e.g. Barista, Receptionist"
-            className="h-9 rounded-panel border border-okuji-gray-2 bg-okuji-gray-1 px-3 text-sm text-okuji-navy placeholder:text-okuji-gray-3 focus:outline-none focus:ring-2 focus:ring-okuji-teal focus:border-okuji-teal transition-colors"
+            className="h-9 rounded-panel border border-hairline bg-paper px-3 text-sm text-navy placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-green focus:border-green transition-colors"
           />
         </div>
       </div>
 
       {/* Permissions */}
       <fieldset className="mt-4">
-        <legend className="text-sm font-medium text-okuji-navy mb-2">
+        <legend className="text-sm font-medium text-navy mb-2">
           Permissions
         </legend>
         <div className="flex flex-wrap gap-5">
@@ -370,9 +370,9 @@ function AddEmployeeForm({
               type="checkbox"
               checked={form.can_verify}
               onChange={(e) => setForm((p) => ({ ...p, can_verify: e.target.checked }))}
-              className="accent-okuji-teal w-4 h-4"
+              className="accent-green w-4 h-4"
             />
-            <span className="text-sm text-okuji-navy">Can verify stamps</span>
+            <span className="text-sm text-navy">Can verify stamps</span>
           </label>
 
           <label className="flex items-center gap-2 cursor-pointer">
@@ -382,9 +382,9 @@ function AddEmployeeForm({
               onChange={(e) =>
                 setForm((p) => ({ ...p, can_distribute_prizes: e.target.checked }))
               }
-              className="accent-okuji-teal w-4 h-4"
+              className="accent-green w-4 h-4"
             />
-            <span className="text-sm text-okuji-navy">Can distribute prizes</span>
+            <span className="text-sm text-navy">Can distribute prizes</span>
           </label>
 
           <label
@@ -404,15 +404,15 @@ function AddEmployeeForm({
               onChange={(e) =>
                 setForm((p) => ({ ...p, can_add_extras: e.target.checked }))
               }
-              className="accent-okuji-teal w-4 h-4"
+              className="accent-green w-4 h-4"
             />
-            <span className="text-sm text-okuji-navy">Can add extras</span>
+            <span className="text-sm text-navy">Can add extras</span>
           </label>
         </div>
       </fieldset>
 
       {formError && (
-        <p role="alert" className="mt-3 text-sm text-okuji-coral">
+        <p role="alert" className="mt-3 text-sm text-accent">
           {formError}
         </p>
       )}
@@ -421,7 +421,7 @@ function AddEmployeeForm({
         <button
           type="submit"
           disabled={isPending}
-          className="inline-flex items-center gap-2 h-9 px-4 rounded-panel text-sm font-medium bg-okuji-teal text-white hover:bg-[#0F6E56] disabled:opacity-50 disabled:pointer-events-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-okuji-teal"
+          className="inline-flex items-center gap-2 h-9 px-4 rounded-panel text-sm font-medium bg-green text-white hover:bg-[#0F6E56] disabled:opacity-50 disabled:pointer-events-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green"
         >
           {isPending ? 'Adding…' : 'Add employee'}
         </button>
@@ -587,20 +587,20 @@ export default function EmployeesPage() {
   return (
     <div className="p-8 max-w-5xl">
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-okuji-navy">Employees</h1>
-        <p className="text-sm text-okuji-gray-3 mt-1">
+        <h1 className="text-2xl font-bold text-navy">Employees</h1>
+        <p className="text-sm text-muted mt-1">
           Manage employee access and permissions for your institution.
         </p>
       </div>
 
       {loading && (
-        <p className="text-sm text-okuji-gray-3 animate-pulse">Loading…</p>
+        <p className="text-sm text-muted animate-pulse">Loading…</p>
       )}
 
       {loadError && (
         <div
           role="alert"
-          className="mb-6 bg-okuji-coral/10 border border-okuji-coral rounded-panel p-4 text-okuji-coral text-sm"
+          className="mb-6 bg-accent/10 border border-accent rounded-panel p-4 text-accent text-sm"
         >
           {loadError}
         </div>
@@ -610,39 +610,39 @@ export default function EmployeesPage() {
         <>
           {/* Employee table */}
           <section className="mb-8">
-            <h2 className="text-base font-semibold text-okuji-navy mb-3">
+            <h2 className="text-base font-semibold text-navy mb-3">
               Current employees{' '}
-              <span className="text-sm font-normal text-okuji-gray-3">
+              <span className="text-sm font-normal text-muted">
                 ({employees.length})
               </span>
             </h2>
 
             {employees.length === 0 ? (
-              <p className="text-sm text-okuji-gray-3">
+              <p className="text-sm text-muted">
                 No employees yet. Add the first one below.
               </p>
             ) : (
-              <div className="bg-white rounded-panel border border-okuji-gray-2 overflow-x-auto">
+              <div className="bg-white rounded-panel border border-hairline overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-okuji-gray-2 bg-okuji-gray-1">
-                      <th className="px-4 py-3 text-left font-medium text-okuji-gray-3">
+                    <tr className="border-b border-hairline bg-paper">
+                      <th className="px-4 py-3 text-left font-medium text-muted">
                         Employee
                       </th>
-                      <th className="px-4 py-3 text-left font-medium text-okuji-gray-3">
+                      <th className="px-4 py-3 text-left font-medium text-muted">
                         Role
                       </th>
-                      <th className="px-4 py-3 text-center font-medium text-okuji-gray-3">
+                      <th className="px-4 py-3 text-center font-medium text-muted">
                         Verify
                       </th>
-                      <th className="px-4 py-3 text-center font-medium text-okuji-gray-3">
+                      <th className="px-4 py-3 text-center font-medium text-muted">
                         Distribute
                       </th>
                       <th
                         className={`px-4 py-3 text-center font-medium ${
                           currentCanAddExtras
-                            ? 'text-okuji-gray-3'
-                            : 'text-okuji-gray-2'
+                            ? 'text-muted'
+                            : 'text-hairline'
                         }`}
                         title={
                           !currentCanAddExtras

@@ -162,7 +162,7 @@ export function PageElementBox({
     >
       {/* Selection ring */}
       {isSelected && (
-        <div className="absolute inset-0 rounded-sm ring-2 ring-okuji-teal ring-offset-1 pointer-events-none" />
+        <div className="absolute inset-0 rounded-sm ring-2 ring-green ring-offset-1 pointer-events-none" />
       )}
 
       {/* Text content */}
@@ -178,7 +178,7 @@ export function PageElementBox({
               textAlign:  (element.align ?? 'left') as React.CSSProperties['textAlign'],
             }}
           >
-            <span className={!element.content ? 'italic text-okuji-gray-3/50' : ''}>
+            <span className={!element.content ? 'italic text-muted/50' : ''}>
               {element.content || 'Label text…'}
             </span>
           </div>
@@ -196,7 +196,7 @@ export function PageElementBox({
             draggable={false}
           />
         ) : (
-          <div className="flex h-full w-full items-center justify-center rounded-sm border-2 border-dashed border-okuji-gray-2 bg-okuji-gray-1/50 text-xs text-okuji-gray-3 pointer-events-none">
+          <div className="flex h-full w-full items-center justify-center rounded-sm border-2 border-dashed border-hairline bg-paper/50 text-xs text-muted pointer-events-none">
             No image — set URL in inspector
           </div>
         )
@@ -228,7 +228,7 @@ export function PageElementBox({
 
       {/* Dashed outline when not selected */}
       {!isSelected && (
-        <div className="absolute inset-0 rounded-sm border border-dashed border-okuji-gray-3/30 pointer-events-none" />
+        <div className="absolute inset-0 rounded-sm border border-dashed border-muted/30 pointer-events-none" />
       )}
 
       {/* Rotation handle (text/image only, when selected) */}
@@ -248,7 +248,7 @@ export function PageElementBox({
           />
           {/* Handle circle */}
           <div
-            className="absolute z-30 rounded-full border-2 border-okuji-teal bg-white shadow-sm cursor-grab active:cursor-grabbing"
+            className="absolute z-30 rounded-full border-2 border-green bg-white shadow-sm cursor-grab active:cursor-grabbing"
             style={{
               width: 16, height: 16,
               left: '50%',
@@ -267,7 +267,7 @@ export function PageElementBox({
       {isSelected && supportsResize && RESIZE_HANDLES.map((handle) => (
         <div
           key={handle.id}
-          className="absolute z-20 h-2.5 w-2.5 rounded-sm border border-okuji-teal bg-white shadow-sm"
+          className="absolute z-20 h-2.5 w-2.5 rounded-sm border border-green bg-white shadow-sm"
           style={{ ...handle.style, cursor: handle.cursor }}
           onPointerDown={(e) => startResize(e, handle.id)}
           onPointerMove={handleResizeMove}

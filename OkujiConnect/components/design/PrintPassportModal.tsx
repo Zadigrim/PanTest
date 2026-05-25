@@ -163,13 +163,13 @@ export function PrintPassportModal({ passport, onClose }: PrintPassportModalProp
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
 
       {/* Modal */}
-      <div className="relative z-10 flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-modal border border-okuji-gray-2 bg-white shadow-xl">
+      <div className="relative z-10 flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-modal border border-hairline bg-white shadow-xl">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-okuji-gray-2 px-6 py-4">
-          <h2 className="text-base font-semibold text-okuji-navy">Print Physical Passports</h2>
+        <div className="flex items-center justify-between border-b border-hairline px-6 py-4">
+          <h2 className="text-base font-semibold text-navy">Print Physical Passports</h2>
           <button
             onClick={onClose}
-            className="text-lg text-okuji-gray-3 hover:text-okuji-navy transition-colors"
+            className="text-lg text-muted hover:text-navy transition-colors"
             aria-label="Close"
           >
             ✕
@@ -180,25 +180,25 @@ export function PrintPassportModal({ passport, onClose }: PrintPassportModalProp
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
           {/* Meta */}
           <div className="space-y-0.5">
-            <p className="text-sm text-okuji-navy">
+            <p className="text-sm text-navy">
               <span className="font-medium">Passport:</span> {passport.title}
             </p>
-            <p className="text-sm text-okuji-navy">
+            <p className="text-sm text-navy">
               <span className="font-medium">Institution:</span> {institutionName}
             </p>
           </div>
 
           {/* Stop selection */}
           <section>
-            <p className="mb-2 text-sm font-medium text-okuji-navy">Select stops to include:</p>
+            <p className="mb-2 text-sm font-medium text-navy">Select stops to include:</p>
             {loading && (
-              <p className="text-sm text-okuji-gray-3 animate-pulse">Loading stops…</p>
+              <p className="text-sm text-muted animate-pulse">Loading stops…</p>
             )}
             {loadError && (
-              <p role="alert" className="text-sm text-okuji-coral">{loadError}</p>
+              <p role="alert" className="text-sm text-accent">{loadError}</p>
             )}
             {!loading && !loadError && stops.length === 0 && (
-              <p className="text-sm text-okuji-gray-3">No stops found for this passport.</p>
+              <p className="text-sm text-muted">No stops found for this passport.</p>
             )}
             {!loading && !loadError && stops.length > 0 && (
               <div className="space-y-2">
@@ -208,10 +208,10 @@ export function PrintPassportModal({ passport, onClose }: PrintPassportModalProp
                       type="checkbox"
                       checked={selectedIds.has(stop.id)}
                       onChange={() => toggleStop(stop.id)}
-                      className="h-4 w-4 rounded accent-okuji-teal"
+                      className="h-4 w-4 rounded accent-green"
                     />
-                    <span className="text-sm text-okuji-navy">
-                      <span className="text-okuji-gray-3 mr-1">Stop {i + 1} —</span>
+                    <span className="text-sm text-navy">
+                      <span className="text-muted mr-1">Stop {i + 1} —</span>
                       {stop.name}
                     </span>
                   </label>
@@ -222,7 +222,7 @@ export function PrintPassportModal({ passport, onClose }: PrintPassportModalProp
 
           {/* Copies */}
           <section>
-            <label htmlFor={copiesId} className="mb-1.5 block text-sm font-medium text-okuji-navy">
+            <label htmlFor={copiesId} className="mb-1.5 block text-sm font-medium text-navy">
               Number of copies
             </label>
             <input
@@ -232,14 +232,14 @@ export function PrintPassportModal({ passport, onClose }: PrintPassportModalProp
               max={999}
               value={copies}
               onChange={(e) => setCopies(Math.max(1, parseInt(e.target.value, 10) || 1))}
-              className="h-9 w-28 rounded-panel border border-okuji-gray-2 px-3 text-sm text-okuji-navy focus:outline-none focus:ring-2 focus:ring-okuji-teal"
+              className="h-9 w-28 rounded-panel border border-hairline px-3 text-sm text-navy focus:outline-none focus:ring-2 focus:ring-green"
             />
           </section>
 
           {/* Sheet calculation */}
           {!loading && selectedIds.size > 0 && (
-            <div className="rounded-panel bg-okuji-teal-lt px-4 py-3">
-              <p className="text-sm text-okuji-teal-dk">
+            <div className="rounded-panel bg-cream px-4 py-3">
+              <p className="text-sm text-green">
                 <span className="font-medium">{pagesPerBooklet}</span>{' '}
                 {pagesPerBooklet === 1 ? 'page' : 'pages'} per booklet
                 {' · '}
@@ -249,7 +249,7 @@ export function PrintPassportModal({ passport, onClose }: PrintPassportModalProp
                 <span className="font-medium">{copies}</span>{' '}
                 {copies === 1 ? 'copy' : 'copies'}
               </p>
-              <p className="mt-0.5 text-sm text-okuji-teal-dk/80">
+              <p className="mt-0.5 text-sm text-green/80">
                 = <span className="font-semibold">{totalSheets} sheets total</span> — print double-sided
               </p>
             </div>
@@ -257,7 +257,7 @@ export function PrintPassportModal({ passport, onClose }: PrintPassportModalProp
 
           {/* Journal override */}
           <section>
-            <p className="mb-2 text-sm font-medium text-okuji-navy">Journal lines:</p>
+            <p className="mb-2 text-sm font-medium text-navy">Journal lines:</p>
             <div className="space-y-2">
               {(
                 [
@@ -272,32 +272,32 @@ export function PrintPassportModal({ passport, onClose }: PrintPassportModalProp
                     name="journal_override"
                     checked={journalOverride === value}
                     onChange={() => setJournalOverride(value)}
-                    className="accent-okuji-teal"
+                    className="accent-green"
                   />
-                  <span className="text-sm text-okuji-navy">{label}</span>
+                  <span className="text-sm text-navy">{label}</span>
                 </label>
               ))}
             </div>
           </section>
 
           {genError && (
-            <p role="alert" className="text-sm text-okuji-coral">{genError}</p>
+            <p role="alert" className="text-sm text-accent">{genError}</p>
           )}
         </div>
 
         {/* Footer */}
-        <div className="flex gap-3 border-t border-okuji-gray-2 px-6 py-4">
+        <div className="flex gap-3 border-t border-hairline px-6 py-4">
           <button
             onClick={() => void handleGenerate('preview')}
             disabled={generating || loading || selectedIds.size === 0}
-            className="flex-1 rounded-panel border border-okuji-gray-2 bg-white py-2 text-sm font-medium text-okuji-navy hover:border-okuji-teal hover:text-okuji-teal-dk transition-colors disabled:opacity-50 disabled:pointer-events-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-okuji-teal"
+            className="flex-1 rounded-panel border border-hairline bg-white py-2 text-sm font-medium text-navy hover:border-green hover:text-green transition-colors disabled:opacity-50 disabled:pointer-events-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green"
           >
             {generating ? 'Generating…' : 'Preview PDF'}
           </button>
           <button
             onClick={() => void handleGenerate('download')}
             disabled={generating || loading || selectedIds.size === 0}
-            className="flex-1 rounded-panel bg-okuji-teal py-2 text-sm font-medium text-white hover:bg-okuji-teal-dk transition-colors disabled:opacity-50 disabled:pointer-events-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-okuji-teal"
+            className="flex-1 rounded-panel bg-green py-2 text-sm font-medium text-white hover:bg-green transition-colors disabled:opacity-50 disabled:pointer-events-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green"
           >
             {generating ? 'Generating…' : 'Download PDF'}
           </button>

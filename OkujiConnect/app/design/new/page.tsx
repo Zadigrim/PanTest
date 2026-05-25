@@ -26,20 +26,20 @@ function OptionCard({
     <div
       className={`flex flex-col rounded-modal border p-8 transition-shadow ${
         disabled
-          ? 'border-okuji-gray-2 bg-okuji-gray-1 opacity-60'
-          : 'border-okuji-gray-2 bg-white hover:shadow-md'
+          ? 'border-hairline bg-paper opacity-60'
+          : 'border-hairline bg-white hover:shadow-md'
       }`}
     >
       <h2
         className={`text-lg font-semibold mb-2 ${
-          disabled ? 'text-okuji-gray-3' : 'text-okuji-navy'
+          disabled ? 'text-muted' : 'text-navy'
         }`}
       >
         {title}
       </h2>
-      <p className="text-sm text-okuji-gray-3 leading-relaxed flex-1 mb-6">{description}</p>
+      <p className="text-sm text-muted leading-relaxed flex-1 mb-6">{description}</p>
       {disabled && disabledNote ? (
-        <span className="inline-flex items-center rounded-panel bg-okuji-gray-2 px-4 py-2 text-sm font-medium text-okuji-gray-3 cursor-not-allowed self-start">
+        <span className="inline-flex items-center rounded-panel bg-hairline px-4 py-2 text-sm font-medium text-muted cursor-not-allowed self-start">
           {disabledNote}
         </span>
       ) : (
@@ -63,19 +63,19 @@ export default async function DesignNewPage() {
   if (!user) redirect('/login?next=/design/new')
 
   return (
-    <div className="min-h-screen bg-okuji-gray-1">
+    <div className="min-h-screen bg-paper">
       {/* Top bar */}
-      <header className="border-b border-okuji-gray-2 bg-white px-8 py-4">
+      <header className="border-b border-hairline bg-white px-8 py-4">
         <div className="mx-auto flex max-w-6xl items-center justify-between">
           <div className="flex items-center gap-3">
             <span className="text-2xl" aria-hidden="true">🧭</span>
-            <span className="font-serif text-xl font-bold text-okuji-navy tracking-wide">
+            <span className="font-serif text-xl font-bold text-navy tracking-wide">
               OkujiDesigner
             </span>
           </div>
           <Link
             href="/design"
-            className="text-sm text-okuji-gray-3 hover:text-okuji-navy transition-colors"
+            className="text-sm text-muted hover:text-navy transition-colors"
           >
             ← Back to my passports
           </Link>
@@ -85,8 +85,8 @@ export default async function DesignNewPage() {
       <main className="mx-auto max-w-5xl px-8 py-14">
         {/* Page title */}
         <div className="mb-10 text-center">
-          <h1 className="text-3xl font-bold text-okuji-navy">Start a new passport</h1>
-          <p className="mt-2 text-sm text-okuji-gray-3">
+          <h1 className="text-3xl font-bold text-navy">Start a new passport</h1>
+          <p className="mt-2 text-sm text-muted">
             Choose how you want to begin building your experience.
           </p>
         </div>
@@ -107,7 +107,7 @@ export default async function DesignNewPage() {
             action={
               <Link
                 href="/stops"
-                className="inline-flex items-center h-10 px-5 rounded-panel border border-okuji-teal text-okuji-teal text-sm font-medium hover:bg-okuji-teal-lt transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-okuji-teal self-start"
+                className="inline-flex items-center h-10 px-5 rounded-panel border border-green text-green text-sm font-medium hover:bg-cream transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green self-start"
               >
                 Browse stops
                 <svg

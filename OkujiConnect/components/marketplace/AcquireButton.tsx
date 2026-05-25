@@ -37,8 +37,8 @@ export function AcquireButton({
         href={`/login?next=/passport/${passportId}`}
         className={cn(
           'inline-flex h-11 items-center justify-center rounded-panel px-6 text-sm font-semibold',
-          'bg-okuji-teal text-white hover:bg-[#0F6E56] transition-colors',
-          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-okuji-teal'
+          'bg-green text-white hover:bg-[#0F6E56] transition-colors',
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green'
         )}
       >
         Sign in to start
@@ -53,8 +53,8 @@ export function AcquireButton({
         href="/library"
         className={cn(
           'inline-flex h-11 items-center justify-center rounded-panel px-6 text-sm font-semibold',
-          'border-2 border-okuji-teal bg-white text-okuji-teal hover:bg-okuji-teal-lt transition-colors',
-          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-okuji-teal'
+          'border-2 border-green bg-white text-green hover:bg-cream transition-colors',
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green'
         )}
       >
         Continue collecting →
@@ -141,8 +141,8 @@ export function AcquireButton({
         aria-label={isFree ? `Start ${title}` : `Get ${title}${priceLabel ? ` · ${priceLabel}` : ''}`}
         className={cn(
           'inline-flex h-11 items-center justify-center gap-2 rounded-panel px-6 text-sm font-semibold',
-          'bg-okuji-teal text-white hover:bg-[#0F6E56] transition-colors',
-          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-okuji-teal',
+          'bg-green text-white hover:bg-[#0F6E56] transition-colors',
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green',
           'disabled:pointer-events-none disabled:opacity-50'
         )}
       >

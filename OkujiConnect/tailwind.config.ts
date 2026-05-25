@@ -24,17 +24,6 @@ const config: Config = {
         red: '#9b2335',
         blue: '#2d5a8e',
         navy: '#0d1b2a',
-        // Legacy okuji-* palette — retained during migration to canonical tokens.
-        'okuji-navy':    '#0D1B2A',
-        'okuji-teal':    '#1D9E75',
-        'okuji-teal-dk': '#0F6E56',
-        'okuji-teal-lt': '#E1F5EE',
-        'okuji-amber':   '#EF9F27',
-        'okuji-coral':   '#D85A30',
-        'okuji-purple':  '#7F77DD',
-        'okuji-gray-1':  '#F7F9F8',
-        'okuji-gray-2':  '#E8EEF0',
-        'okuji-gray-3':  '#64748B',
       },
       fontFamily: {
         sans:  ['Inter', 'system-ui', 'sans-serif'],
