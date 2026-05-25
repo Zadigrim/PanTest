@@ -61,7 +61,7 @@ export function useStampVerification() {
     }
 
     setResult(data)
-    return data as { verified: boolean; geohash: string; verificationMethod: string }
+    return data as { verified: boolean; geohash: string; verificationMethod: string; reason?: string }
   }, [])
 
   const reset = useCallback(() => setResult(null), [])

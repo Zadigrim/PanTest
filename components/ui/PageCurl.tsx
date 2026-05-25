@@ -2,11 +2,11 @@
 // The actual curl animation is driven by PassportBook.tsx via Reanimated.
 import React from 'react'
 import { StyleSheet } from 'react-native'
-import Animated, { useAnimatedStyle } from 'react-native-reanimated'
+import Animated, { useAnimatedStyle, type SharedValue } from 'react-native-reanimated'
 import { LinearGradient } from 'expo-linear-gradient'
 
 interface Props {
-  progress: Animated.SharedValue<number> // 0 = closed, 1 = fully open
+  progress: SharedValue<number> // 0 = closed, 1 = fully open
   pageWidth: number
   pageHeight: number
 }
@@ -22,7 +22,7 @@ export function PageCurlShadow({ progress, pageWidth, pageHeight }: Props) {
       pointerEvents="none"
     >
       <LinearGradient
-        colors={['transparent', 'rgba(0,0,0,0.4)', 'transparent']}
+        colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.4)', 'rgba(0,0,0,0)']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 0 }}
         style={StyleSheet.absoluteFill}

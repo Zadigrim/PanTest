@@ -75,7 +75,7 @@ export function PassportPage({
 
       {/* Corner vignette */}
       <LinearGradient
-        colors={['rgba(0,0,0,0.06)', 'transparent', 'transparent', 'rgba(0,0,0,0.06)']}
+        colors={['rgba(0,0,0,0.06)', 'rgba(0,0,0,0)', 'rgba(0,0,0,0)', 'rgba(0,0,0,0.06)']}
         style={StyleSheet.absoluteFill}
         locations={[0, 0.3, 0.7, 1]}
         pointerEvents="none"
@@ -83,7 +83,7 @@ export function PassportPage({
 
       {/* Binding shadow on left edge */}
       <LinearGradient
-        colors={['rgba(0,0,0,0.15)', 'transparent']}
+        colors={['rgba(0,0,0,0.15)', 'rgba(0,0,0,0)']}
         start={{ x: 0, y: 0 }}
         end={{ x: 0.08, y: 0 }}
         style={StyleSheet.absoluteFill}

@@ -54,25 +54,25 @@ export function PassportFrame({ children, bindingSide = 'left' }: Props) {
 
         {/* Inset vignette — top/bottom */}
         <LinearGradient
-          colors={['rgba(0,0,0,0.08)', 'transparent']}
+          colors={['rgba(0,0,0,0.08)', 'rgba(0,0,0,0)']}
           style={styles.insetTop}
           pointerEvents="none"
         />
         <LinearGradient
-          colors={['transparent', 'rgba(0,0,0,0.08)']}
+          colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.08)']}
           style={styles.insetBottom}
           pointerEvents="none"
         />
         {/* Inset vignette — left/right */}
         <LinearGradient
-          colors={['rgba(0,0,0,0.08)', 'transparent']}
+          colors={['rgba(0,0,0,0.08)', 'rgba(0,0,0,0)']}
           start={{ x: 0, y: 0.5 }}
           end={{ x: 1, y: 0.5 }}
           style={styles.insetLeft}
           pointerEvents="none"
         />
         <LinearGradient
-          colors={['transparent', 'rgba(0,0,0,0.08)']}
+          colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.08)']}
           start={{ x: 0, y: 0.5 }}
           end={{ x: 1, y: 0.5 }}
           style={styles.insetRight}
@@ -82,7 +82,7 @@ export function PassportFrame({ children, bindingSide = 'left' }: Props) {
         {/* 8px binding gradient on spine side */}
         {bindingSide === 'left' ? (
           <LinearGradient
-            colors={['rgba(0,0,0,0.30)', 'transparent']}
+            colors={['rgba(0,0,0,0.30)', 'rgba(0,0,0,0)']}
             start={{ x: 0, y: 0.5 }}
             end={{ x: 1, y: 0.5 }}
             style={styles.bindingLeft}
@@ -90,7 +90,7 @@ export function PassportFrame({ children, bindingSide = 'left' }: Props) {
           />
         ) : (
           <LinearGradient
-            colors={['transparent', 'rgba(0,0,0,0.30)']}
+            colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.30)']}
             start={{ x: 0, y: 0.5 }}
             end={{ x: 1, y: 0.5 }}
             style={styles.bindingRight}
