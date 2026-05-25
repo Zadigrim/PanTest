@@ -47,6 +47,7 @@ export interface Passport {
   cover_bg_color: string
   cover_bg_type: CoverBgType
   cover_image_url: string | null
+  cover_thumbnail: string | null
   cover_emblem: string
   illus_type: string
   illus_color: string

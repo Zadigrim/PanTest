@@ -1,6 +1,6 @@
 // Collector's passport book — all acquired passports.
 import React, { useEffect } from 'react'
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native'
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, Image } from 'react-native'
 import { router, useFocusEffect } from 'expo-router'
 import { useCollectorPassports } from '../../hooks/usePassport'
 
@@ -32,9 +32,13 @@ export default function MyPassportsScreen() {
               onPress={() => router.push(`/passport/${passport.id}`)}
               activeOpacity={0.75}
             >
-              <View style={[styles.spine, { backgroundColor: passport.cover_bg_color }]}>
-                <Text style={styles.spineEmblem}>{passport.cover_emblem ?? '🧭'}</Text>
-              </View>
+              {passport.cover_thumbnail ? (
+                <Image source={{ uri: passport.cover_thumbnail }} style={styles.spine} resizeMode="cover" />
+              ) : (
+                <View style={[styles.spine, { backgroundColor: passport.cover_bg_color }]}>
+                  <Text style={styles.spineEmblem}>{passport.cover_emblem ?? '🧭'}</Text>
+                </View>
+              )}
               <View style={styles.rowBody}>
                 <Text style={styles.title}>{passport.title}</Text>
                 {passport.description && (

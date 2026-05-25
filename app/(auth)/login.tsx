@@ -18,7 +18,7 @@ export default function LoginScreen() {
     if (error) {
       Alert.alert('Login failed', error.message)
     } else {
-      router.replace('/(tabs)/')
+      router.replace('/(tabs)/my-passports')
     }
   }
 

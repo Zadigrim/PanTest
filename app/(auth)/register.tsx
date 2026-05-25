@@ -33,7 +33,7 @@ export default function RegisterScreen() {
 
     setLoading(false)
     Alert.alert('Welcome!', 'Your account has been created.', [
-      { text: 'Continue', onPress: () => router.replace('/(tabs)/') },
+      { text: 'Continue', onPress: () => router.replace('/(tabs)/my-passports') },
     ])
   }
 

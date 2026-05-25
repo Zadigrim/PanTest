@@ -4,6 +4,7 @@ import {
   Switch, ScrollView,
 } from 'react-native'
 import { router } from 'expo-router'
+import * as WebBrowser from 'expo-web-browser'
 import { supabase, getCurrentUser } from '../../lib/supabase'
 import { useEmployeeContext } from '../../contexts/EmployeeContext'
 import type { Profile } from '../../types'
@@ -45,12 +46,15 @@ export default function ProfileScreen() {
     ])
   }
 
+  const handleLearnMore = () => {
+    WebBrowser.openBrowserAsync('https://okuji.app')
+  }
+
   if (loading) {
     return <View style={s.centered}><ActivityIndicator color={ACCENT} /></View>
   }
 
-  const isCreator = profile?.role === 'creator' || profile?.role === 'admin'
-  const isEmp     = profile?.role === 'employee' || profile?.role === 'admin' || isEmployee
+  const isEmp = profile?.role === 'employee' || profile?.role === 'admin' || isEmployee
 
   return (
     <ScrollView style={s.container} contentContainerStyle={s.content}>
@@ -65,46 +69,42 @@ export default function ProfileScreen() {
         <Text style={s.role}>{profile?.role ?? 'collector'}</Text>
       </View>
 
-      {/* Workspace cards — shown based on role */}
-      {(isEmp || isCreator) && (
+      {/* Workspace cards — employee terminal only (passport design lives on okuji.app) */}
+      {isEmp && (
         <View style={s.workspaces}>
           <Text style={s.workspacesLabel}>WORKSPACES</Text>
 
-          {isEmp && (
-            <TouchableOpacity
-              style={s.wsCard}
-              onPress={() => router.push('/employee' as any)}
-              activeOpacity={0.75}
-            >
-              <View style={[s.wsIcon, { backgroundColor: ACCENT }]}>
-                <Text style={s.wsIconGlyph}>🏷</Text>
-              </View>
-              <View style={s.wsText}>
-                <Text style={s.wsTitle}>Employee Terminal</Text>
-                <Text style={s.wsSubtitle}>Scan &amp; redeem stamps</Text>
-              </View>
-              <Text style={s.wsArrow}>›</Text>
-            </TouchableOpacity>
-          )}
-
-          {isCreator && (
-            <TouchableOpacity
-              style={s.wsCard}
-              onPress={() => router.push('/designer' as any)}
-              activeOpacity={0.75}
-            >
-              <View style={[s.wsIcon, { backgroundColor: NAVY }]}>
-                <Text style={s.wsIconGlyph}>✏️</Text>
-              </View>
-              <View style={s.wsText}>
-                <Text style={s.wsTitle}>Passport Designer</Text>
-                <Text style={s.wsSubtitle}>Create &amp; publish passports</Text>
-              </View>
-              <Text style={s.wsArrow}>›</Text>
-            </TouchableOpacity>
-          )}
+          <TouchableOpacity
+            style={s.wsCard}
+            onPress={() => router.push('/employee' as any)}
+            activeOpacity={0.75}
+          >
+            <View style={[s.wsIcon, { backgroundColor: ACCENT }]}>
+              <Text style={s.wsIconGlyph}>🏷</Text>
+            </View>
+            <View style={s.wsText}>
+              <Text style={s.wsTitle}>Employee Terminal</Text>
+              <Text style={s.wsSubtitle}>Scan &amp; redeem stamps</Text>
+            </View>
+            <Text style={s.wsArrow}>›</Text>
+          </TouchableOpacity>
         </View>
       )}
+
+      {/* Create your own — marketing link to the web app */}
+      <View style={s.section}>
+        <Text style={s.sectionLabel}>CREATE YOUR OWN PASSPORTS</Text>
+        <Text style={{ fontSize: 14, color: MUTED, marginBottom: 12, lineHeight: 20 }}>
+          Learn how teachers, institutions, and travelers are using Okuji to design their own collections.
+        </Text>
+        <TouchableOpacity
+          onPress={handleLearnMore}
+          activeOpacity={0.8}
+          style={{ backgroundColor: PAPER, borderColor: HAIRLINE, borderWidth: 1, borderRadius: 8, padding: 14, alignItems: 'center' }}
+        >
+          <Text style={{ color: INK, fontWeight: '600' }}>Learn more at okuji.app</Text>
+        </TouchableOpacity>
+      </View>
 
       {/* Employee mode toggle */}
       {isEmployee && (
