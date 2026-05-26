@@ -30,6 +30,7 @@
         "backgroundColor": "#0D1B2A"
       },
       "package": "com.okuji.app",
+      "versionCode": 1,
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.ACCESS_FINE_LOCATION",

@@ -7,7 +7,7 @@ export default function FieldLayout() {
       screenOptions={{
         headerStyle: { backgroundColor: palette.navy },
         headerTintColor: palette.cream,
-        headerTitleStyle: { fontFamily: 'serif', letterSpacing: 0.5 },
+        headerTitleStyle: { fontFamily: 'serif' },
         headerBackTitle: 'Field',
         contentStyle: { backgroundColor: palette.navy },
       }}

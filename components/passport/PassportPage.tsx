@@ -62,12 +62,13 @@ export function PassportPage({
 
       {/* Custom background image */}
       {bgType === 'custom' && !!page.background_image_url && (
-        <Image
-          source={{ uri: page.background_image_url }}
-          style={[StyleSheet.absoluteFill, { opacity: customBgOpacity }]}
-          resizeMode="contain"
-          pointerEvents="none"
-        />
+        <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}>
+          <Image
+            source={{ uri: page.background_image_url }}
+            style={[StyleSheet.absoluteFill, { opacity: customBgOpacity }]}
+            resizeMode="contain"
+          />
+        </View>
       )}
 
       {/* Paper grain */}

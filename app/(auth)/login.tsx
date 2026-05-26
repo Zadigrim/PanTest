@@ -3,8 +3,43 @@ import {
   View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, KeyboardAvoidingView, Platform,
 } from 'react-native'
 import { router } from 'expo-router'
+import { makeRedirectUri } from 'expo-auth-session'
+import * as WebBrowser from 'expo-web-browser'
 import { supabase } from '../../lib/supabase'
 import { palette } from '../../lib/colors'
+
+WebBrowser.maybeCompleteAuthSession()
+
+// Returns to the app via the okuji:// deep link (registered in standalone builds).
+const redirectTo = makeRedirectUri({ scheme: 'okuji', path: 'auth' })
+
+function paramsFromUrl(url: string): Record<string, string> {
+  const out: Record<string, string> = {}
+  const query = url.split('?')[1]?.split('#')[0]
+  const hash = url.includes('#') ? url.split('#')[1] : ''
+  for (const part of [query, hash]) {
+    if (!part) continue
+    for (const kv of part.split('&')) {
+      const [k, v] = kv.split('=')
+      if (k) out[decodeURIComponent(k)] = decodeURIComponent(v ?? '')
+    }
+  }
+  return out
+}
+
+async function completeOAuth(url: string) {
+  const { access_token, refresh_token, code, error_description } = paramsFromUrl(url)
+  if (error_description) throw new Error(error_description)
+  if (code) {
+    const { error } = await supabase.auth.exchangeCodeForSession(code)
+    if (error) throw error
+    return
+  }
+  if (access_token) {
+    const { error } = await supabase.auth.setSession({ access_token, refresh_token })
+    if (error) throw error
+  }
+}
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('')
@@ -16,10 +51,32 @@ export default function LoginScreen() {
     setLoading(true)
     const { error } = await supabase.auth.signInWithPassword({ email, password })
     setLoading(false)
-    if (error) {
-      Alert.alert('Login failed', error.message)
-    } else {
-      router.replace('/(tabs)/my-passports')
+    if (error) Alert.alert('Login failed', error.message)
+    else router.replace('/(tabs)/my-passports')
+  }
+
+  // Requires the Google provider enabled in Supabase Auth, the okuji:// redirect
+  // allow-listed, and a Google OAuth client configured for this build's signing
+  // cert (deferred external setup). Until then this surfaces the error gracefully
+  // rather than crashing.
+  const handleGoogleLogin = async () => {
+    setLoading(true)
+    try {
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo, skipBrowserRedirect: true },
+      })
+      if (error) throw error
+      if (!data?.url) throw new Error('Could not start Google sign-in.')
+      const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo)
+      if (result.type === 'success') {
+        await completeOAuth(result.url)
+        router.replace('/(tabs)/my-passports')
+      }
+    } catch (e) {
+      Alert.alert('Google sign-in', e instanceof Error ? e.message : 'Sign-in failed.')
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -42,6 +99,7 @@ export default function LoginScreen() {
           keyboardType="email-address"
           autoCapitalize="none"
           autoCorrect={false}
+          editable={!loading}
         />
         <TextInput
           style={styles.input}
@@ -50,6 +108,7 @@ export default function LoginScreen() {
           value={password}
           onChangeText={setPassword}
           secureTextEntry
+          editable={!loading}
         />
 
         <TouchableOpacity
@@ -58,6 +117,20 @@ export default function LoginScreen() {
           disabled={loading}
         >
           <Text style={styles.btnText}>{loading ? 'Signing in…' : 'Sign in'}</Text>
+        </TouchableOpacity>
+
+        <View style={styles.dividerRow}>
+          <View style={styles.divider} />
+          <Text style={styles.dividerText}>or continue with</Text>
+          <View style={styles.divider} />
+        </View>
+
+        <TouchableOpacity
+          style={[styles.googleBtn, loading && styles.btnDisabled]}
+          onPress={handleGoogleLogin}
+          disabled={loading}
+        >
+          <Text style={styles.googleBtnText}>Continue with Google</Text>
         </TouchableOpacity>
 
         <TouchableOpacity onPress={() => router.push('/(auth)/register')} style={styles.link}>
@@ -91,6 +164,14 @@ const styles = StyleSheet.create({
   },
   btnDisabled: { opacity: 0.6 },
   btnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
+  dividerRow: { flexDirection: 'row', alignItems: 'center', marginTop: 20, marginBottom: 4 },
+  divider: { flex: 1, height: 1, backgroundColor: '#2a3d52' },
+  dividerText: { color: palette.hairline, fontSize: 12, marginHorizontal: 10 },
+  googleBtn: {
+    backgroundColor: palette.cream, borderRadius: 10, padding: 16,
+    alignItems: 'center', marginTop: 12,
+  },
+  googleBtnText: { color: palette.navy, fontWeight: '700', fontSize: 15 },
   link: { marginTop: 20, alignItems: 'center' },
   linkText: { color: palette.accent, fontSize: 13 },
 })
