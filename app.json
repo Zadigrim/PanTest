@@ -47,7 +47,15 @@
     "plugins": [
       "expo-router",
       "expo-audio",
-      "expo-video"
+      "expo-video",
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "Okuji uses your microphone for voice journal entries.",
+          "speechRecognitionPermission": "Okuji transcribes your voice journal entries on your device — your audio never leaves your phone.",
+          "androidSpeechServicePackages": ["com.google.android.googlequicksearchbox"]
+        }
+      ]
     ],
     "scheme": "okuji",
     "experiments": {
