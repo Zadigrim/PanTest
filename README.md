@@ -93,7 +93,7 @@ A Zustand-backed desktop-only visual editor. Working: page add/reorder (dnd-kit)
 - `app/profile` — edit profile and upload an avatar. The delete-account button is disabled.
 
 ### API routes (`app/api/`)
-Real: `acquire`, `checkout` (Stripe Checkout Session), `webhook/stripe`, `design/create`, `assets/upload`, `institutions[/id]`, `stops/import`, `admin/compute-quality-scores` (admin-only, manual), `analytics/[passportId]`, `notify/completion` (Resend email), `token/validate`, `token/redeem`. Partial or placeholder: `tip` (no real Connect transfer; no callers), `share/render` (returns SVG, not the intended PNG; random token), `auth-debug` and `middleware-debug` (diagnostic endpoints; see Known limitations).
+Real: `acquire`, `checkout` (Stripe Checkout Session), `webhook/stripe`, `design/create`, `assets/upload`, `institutions[/id]`, `stops/import`, `admin/compute-quality-scores` (admin-only, manual), `analytics/[passportId]`, `notify/completion` (Resend email), `token/validate`, `token/redeem`. Partial or placeholder: `tip` (no real Connect transfer; no callers), `share/render` (returns SVG, not the intended PNG; random token).
 
 ## Backend
 
@@ -173,7 +173,6 @@ Build and configuration:
 - `okuji-db/`, `okujiKobo/supabase/`, and `supabase/` contain three overlapping migration sets; the canonical apply order is not determinable from the repo.
 
 Security items to review:
-- `api/auth-debug` and `api/middleware-debug` expose diagnostic data (session state, env-var presence, cookie names/lengths) and have no real authorization.
 - Edge functions perform no caller authentication.
 - `api/employees/lookup` uses the service-role `getUserByEmail` but only checks that the caller is logged in, not that they manage the institution.
 - `okujiKobo/.env.local.example` commits a real-format Supabase URL and an anon JWT rather than placeholders.
