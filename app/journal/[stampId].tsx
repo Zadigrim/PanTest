@@ -43,6 +43,7 @@ export default function JournalScreen() {
     <JournalEntry
       stampId={stampId}
       userId={userId}
+      existingEntryId={existing?.id ?? null}
       existingBody={existing?.body ?? ''}
       existingMood={existing?.mood_rating}
       existingPhotos={existing?.photo_urls ?? []}

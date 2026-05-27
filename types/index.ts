@@ -178,6 +178,24 @@ export interface JournalEntry {
   updated_at: string
 }
 
+export type JournalPhotoStatus = 'pending' | 'uploaded' | 'failed' | 'lost'
+
+export interface JournalPhoto {
+  id: string
+  journal_entry_id: string
+  user_id: string
+  storage_path: string | null
+  status: JournalPhotoStatus
+  original_filename: string | null
+  width_before: number | null
+  height_before: number | null
+  width_after: number | null
+  height_after: number | null
+  byte_size: number | null
+  created_at: string
+  updated_at: string
+}
+
 export interface RedemptionToken {
   id: string
   user_id: string

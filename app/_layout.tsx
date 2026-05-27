@@ -7,6 +7,7 @@ import * as Sentry from '@sentry/react-native'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
 import { EmployeeProvider } from '../contexts/EmployeeContext'
+import { initJournalPhotoSync } from '../lib/journal-photo-queue'
 
 Sentry.init({
   dsn: process.env.EXPO_PUBLIC_SENTRY_DSN,
@@ -49,6 +50,11 @@ export default function RootLayout() {
   useEffect(() => {
     if (!loading) SplashScreen.hideAsync()
   }, [loading])
+
+  // Drive the journal-photo upload queue once authenticated (idempotent).
+  useEffect(() => {
+    if (session) initJournalPhotoSync()
+  }, [session])
 
   if (loading) return null // native splash stays visible
 

@@ -7,6 +7,7 @@ import { router } from 'expo-router'
 import * as WebBrowser from 'expo-web-browser'
 import { supabase, getCurrentUser } from '../../lib/supabase'
 import { useEmployeeContext } from '../../contexts/EmployeeContext'
+import { backfillJournalPhotos } from '../../lib/journal-photo-backfill'
 import type { Profile } from '../../types'
 import { palette } from '../../lib/colors'
 
@@ -21,6 +22,7 @@ const PAPER  = palette.paper
 export default function ProfileScreen() {
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
+  const [backfilling, setBackfilling] = useState(false)
   const { isEmployee, employeeMode, setEmployeeMode } = useEmployeeContext()
 
   useEffect(() => {
@@ -49,6 +51,22 @@ export default function ProfileScreen() {
 
   const handleLearnMore = () => {
     WebBrowser.openBrowserAsync('https://okuji.app')
+  }
+
+  // On-demand only — uploads pre-existing local journal photos to storage so
+  // they survive reinstall/device changes. Never runs automatically.
+  const handleBackupPhotos = async () => {
+    const user = await getCurrentUser()
+    if (!user) return
+    setBackfilling(true)
+    try {
+      const r = await backfillJournalPhotos(user.id)
+      Alert.alert('Journal photos', `Backed up ${r.uploaded} photo(s). ${r.lost} missing, ${r.failed} failed.`)
+    } catch {
+      Alert.alert('Journal photos', 'Backup could not complete. Please try again later.')
+    } finally {
+      setBackfilling(false)
+    }
   }
 
   if (loading) {
@@ -122,6 +140,15 @@ export default function ProfileScreen() {
           </View>
         </View>
       )}
+
+      {/* Journal photo backup (on-demand) */}
+      <View style={s.section}>
+        <Text style={s.sectionLabel}>JOURNAL PHOTOS</Text>
+        <TouchableOpacity style={s.menuRow} onPress={handleBackupPhotos} disabled={backfilling}>
+          <Text style={s.menuRowText}>{backfilling ? 'Backing up…' : 'Back up older journal photos'}</Text>
+          {backfilling && <ActivityIndicator color={ACCENT} />}
+        </TouchableOpacity>
+      </View>
 
       {/* Sign out */}
       <View style={s.section}>
