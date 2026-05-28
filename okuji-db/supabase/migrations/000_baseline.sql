@@ -1,5 +1,5 @@
 -- 000_baseline.sql
--- Panoply complete database baseline — generated 2026-05-06
+-- Okuji complete database baseline — generated 2026-05-06
 -- Represents the full schema as of Blockpoint 3 (migrations 001–011).
 -- Run this file ONLY when setting up a fresh database.
 -- Do NOT run on an existing database that already has these tables.
@@ -396,7 +396,7 @@ CREATE TABLE IF NOT EXISTS public.employee_authorizations (
 
 ALTER TABLE public.employee_authorizations ENABLE ROW LEVEL SECURITY;
 
--- tips — 100% goes to creator; Panoply retains zero
+-- tips — 100% goes to creator; Okuji retains zero
 CREATE TABLE IF NOT EXISTS public.tips (
   id                        uuid DEFAULT gen_random_uuid() PRIMARY KEY,
   from_user_id              uuid REFERENCES public.profiles(id) NOT NULL,

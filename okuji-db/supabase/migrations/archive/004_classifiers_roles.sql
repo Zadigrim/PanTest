@@ -2,7 +2,7 @@
 -- Run after 001, 002, 003 migrations.
 
 -- ─────────────────────────────────────────────
--- PROFILES: connect_roles for PanoplyConnect
+-- PROFILES: connect_roles for okujiKobo
 -- ─────────────────────────────────────────────
 
 ALTER TABLE public.profiles
