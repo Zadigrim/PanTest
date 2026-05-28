@@ -3,6 +3,7 @@ import Link from 'next/link'
 import type { ReactNode } from 'react'
 import { createClient } from '@/lib/supabase/server'
 import type { Institution, EmployeeAuthorization } from '@/lib/supabase/types'
+import AppNav from '@/components/layout/AppNav'
 
 // ---------------------------------------------------------------------------
 // Sidebar nav item
@@ -151,7 +152,9 @@ export default async function ManageLayout({ children }: { children: ReactNode }
 
   if (!authorization) {
     return (
-      <div className="flex min-h-screen bg-paper">
+      <>
+        <AppNav />
+        <div className="flex min-h-[calc(100vh-3.5rem)] bg-paper">
         <aside className="w-60 shrink-0 bg-navy flex flex-col">
           {sidebarHeader}
           <div className="flex-1" />
@@ -175,12 +178,15 @@ export default async function ManageLayout({ children }: { children: ReactNode }
             </Link>
           </div>
         </main>
-      </div>
+        </div>
+      </>
     )
   }
 
   return (
-    <div className="flex min-h-screen bg-paper">
+    <>
+      <AppNav />
+      <div className="flex min-h-[calc(100vh-3.5rem)] bg-paper">
       {/* ── Sidebar ─────────────────────────────────────────── */}
       <aside className="w-60 shrink-0 bg-navy flex flex-col">
         {sidebarHeader}
@@ -297,6 +303,7 @@ export default async function ManageLayout({ children }: { children: ReactNode }
       <main className="flex-1 min-w-0 overflow-auto">
         {children}
       </main>
-    </div>
+      </div>
+    </>
   )
 }
