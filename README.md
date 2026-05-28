@@ -44,7 +44,7 @@ Single Supabase client in `lib/supabase.ts`, reading `EXPO_PUBLIC_SUPABASE_URL` 
 ### Passport, stamp, journal
 - `app/passport/[id].tsx` — the book reader. Loads the passport, pages, stops, and the user's stamps; sends the user back if they do not own the passport. Stamp placement reads momentary GPS (`expo-location`), calls the `verify-stamp` edge function, inserts into `stamps`, then calls `generate-token` if the page is complete.
 - `app/passport/stamp/[stopId].tsx` — standalone/deep-link stamp screen; requires location (unlike the book view). Shows a "visitor code" derived client-side as the first six characters of the user UUID.
-- `app/journal/[stampId].tsx` — upserts `journal_entries`. Journal photos are stored as local device URIs and are not uploaded to storage. `components/journal/VoiceRecorder.tsx` is a non-functional mock: it imports `expo-speech` but never invokes speech-to-text, so it cannot produce a transcript.
+- `app/journal/[stampId].tsx` — upserts `journal_entries`. Journal photos are resized client-side (long edge ≤ 3000px; HEIC uploaded as-is, never transcoded) and uploaded to the private `journal-photos` Supabase Storage bucket via an AsyncStorage-backed offline queue (`lib/journal-photos.ts`, `lib/journal-photo-queue.ts`); per-photo state lives in the `journal_photos` table (`pending` / `uploaded` / `failed` / `lost`), and the entry view renders the local file while the upload is pending and a cached signed URL once uploaded. Legacy `journal_entries.photo_urls` entries can be migrated on demand from Profile → "Back up older journal photos" (`lib/journal-photo-backfill.ts`). `components/journal/VoiceRecorder.tsx` provides on-device speech-to-text via `expo-speech-recognition` with `requiresOnDeviceRecognition: true` — audio is processed on the device, never sent to cloud services, and no audio file is written; if a device cannot do on-device recognition, voice is disabled (the user types instead) rather than silently falling back.
 
 ### Designer (`app/designer/`)
 A working CRUD designer (lists/creates passports, edits sections, cover, theme, pricing, publish, and stop metadata — all real Supabase writes). Two wiring gaps make designer-authored content unusable for GPS stamping:
@@ -99,7 +99,7 @@ Real: `acquire`, `checkout` (Stripe Checkout Session), `webhook/stripe`, `design
 
 Database migrations live in three directories that do not form one coherent lineage. See `okuji-db/MIGRATIONS.md` and `okujiKobo/MIGRATIONS.md`.
 
-- **`supabase/migrations/`** (mobile schema) — `001_initial_schema.sql`, `003_accolades_schema.sql`, `004_stamp_slots.sql`. Uses the PostGIS extension: `stops.target_location` is `geography(Point,4326)`, with a GIST index and the `check_gps_within_radius()` RPC (`ST_DWithin`). Defines mobile-only tables: `proprietors`, `employee_accounts`, `collector_passports`, `redemption_tokens`, `accolades`, `reading_recommendations`, `teacher_notes`, `stamp_slots`. Uses `evidence_tier`. This set is not self-contained (`003` alters `institutions`, which it never creates).
+- **`supabase/migrations/`** (mobile schema) — `001_initial_schema.sql`, `003_accolades_schema.sql`, `004_stamp_slots.sql`, `005_journal_photos.sql`. Uses the PostGIS extension: `stops.target_location` is `geography(Point,4326)`, with a GIST index and the `check_gps_within_radius()` RPC (`ST_DWithin`). Defines mobile-only tables: `proprietors`, `employee_accounts`, `collector_passports`, `redemption_tokens`, `accolades`, `reading_recommendations`, `teacher_notes`, `stamp_slots`, `journal_photos`. Uses `evidence_tier`. This set is not self-contained (`003` alters `institutions`, which it never creates).
 - **`okujiKobo/supabase/migrations/`** (web schema) — `002` through `026`, the real incremental history. No PostGIS (plain `lat`/`lng` + `geohash` text). Uses `institutions`, `acquisitions`, `completion_tokens`, `verification_tier`. `institutions` is never created by a migration — `026_institutions_rls.sql` documents that it was created in the Supabase dashboard, and that RLS on it was off in production until migration 026.
 - **`okuji-db/supabase/migrations/`** — `000_baseline.sql` (an 822-line clean-room consolidation of the web schema 002–011, plus an `institutions` definition), `002_blockpoint5.sql`, `003_blockpoint6.sql`, `004_collector_passport_last_used.sql`, and `archive/` (byte-identical copies of the web 002–011). `MIGRATIONS.md` says to run `000_baseline.sql` only for a fresh database. Note that `004` references mobile-only objects (`collector_passports`, `stamps.collector_passport_id`), so the baseline alone is not sufficient for it.
 
@@ -112,12 +112,15 @@ The web baseline enables RLS on all of its tables, with an admin bypass via `is_
 `is_admin()` / `is_platform_admin()`, `handle_new_user()` (trigger `on_auth_user_created`), `trim_passport_autosaves()`, `touch_collector_passport_last_used()` (mobile-only target), `check_gps_within_radius()` (PostGIS, mobile), `update_updated_at()`.
 
 ### Edge functions (`supabase/functions/`)
-Both run with the service-role key and bypass RLS; neither validates the caller's JWT — they trust the `userId`/`stopId` in the request body.
-- `verify-stamp` — reads the stop, applies tier logic (tier 5 honor/auto; tier 3 GPS-only via the PostGIS RPC; tiers 1–2 GPS + QR; tier 4 employee). It returns a precision-6 geohash and never the precise coordinate. It does not write the stamp; the client does.
-- `generate-token` — confirms every stop on a page is stamped, then inserts a `redemption_tokens` row with a `MCM-XXXX-XX` code and a 30-day expiry.
+Both require a valid Supabase JWT (validated via `supabase.auth.getUser(token)` in the shared `_shared/auth.ts` helper) and derive the caller's `userId` from the JWT; a body `userId`, if present, must match — 403 otherwise. After authentication, each function authorizes that the caller owns the stop's / page's passport via `collector_passports` (403 otherwise), then uses the service-role key for the actual reads/writes. Error responses are generic (`Authentication required` / `Not authorized`); detailed reasons are `console.error`'d server-side only.
+- `verify-stamp` — reads the stop, applies tier logic (tier 5 honor/auto; tier 3 GPS-only via the PostGIS RPC; tiers 1–2 GPS + QR; tier 4 employee). Returns a precision-6 geohash and never the precise coordinate. It does not write the stamp; the client does (under RLS).
+- `generate-token` — confirms every stop on a page is stamped (keyed to the JWT user), then inserts a `redemption_tokens` row with a `MCM-XXXX-XX` code and a 30-day expiry.
 
 ### Storage
-Two public buckets, `design-assets` and `avatars` (defined in the web schema only). The upload policies check the bucket but not folder ownership, so any authenticated user can upload under any path; only the delete policy enforces a per-user folder.
+Three buckets:
+- `design-assets` (**public**; defined in the web schema) — uploads gated only by bucket id; only the delete policy enforces per-user folder ownership.
+- `avatars` (**public**; web schema) — same pattern as `design-assets`.
+- `journal-photos` (**private**; mobile schema, migration `005`) — 5 MB `file_size_limit` backstop. All three policies (insert / select / delete) require `(storage.foldername(name))[1] = auth.uid()::text`, so a user can only read or write under their own user-id folder. Path layout: `{user_id}/{journal_entry_id}/{photo_id}.{ext}`. Display uses short-lived signed URLs cached for one hour in `lib/journal-photos.ts`.
 
 ## Setup
 
@@ -164,7 +167,7 @@ Stubbed, hardcoded, or mocked:
 - Marketplace `passport/[id]` hardcodes institution and quality to null; `explore` hardcodes stop counts, quality scores, and certified status, so those UI elements never populate and related sorts are inert.
 - `manage/analytics` and the designer "templates" option are "coming soon" placeholders.
 - `api/share/render` returns SVG rather than the intended PNG and uses a random share token.
-- Mobile `VoiceRecorder` produces no transcript; `lib/stamp.ts` journal encryption is a no-op scaffold; `computeStampPlacement` and two employee components are unused.
+- `lib/stamp.ts` journal encryption is a no-op scaffold; `computeStampPlacement` and two employee components are unused. Voice transcription requires on-device support (`expo-speech-recognition`'s `requiresOnDeviceRecognition: true`); on devices/locales where the OS on-device model isn't available, voice entry is disabled (the user types instead) — there is no cloud fallback by design. Journal-photo backfill of legacy local URIs is on-demand only (Profile button), not automatic.
 - Profile delete-account is disabled; a placeholder support contact ("nathan.app") appears in mobile `employee/help.tsx` and web `profile`.
 
 Build and configuration:
@@ -173,7 +176,6 @@ Build and configuration:
 - `okuji-db/`, `okujiKobo/supabase/`, and `supabase/` contain three overlapping migration sets; the canonical apply order is not determinable from the repo.
 
 Security items to review:
-- Edge functions perform no caller authentication.
 - `api/employees/lookup` uses the service-role `getUserByEmail` but only checks that the caller is logged in, not that they manage the institution.
 - `okujiKobo/.env.local.example` commits a real-format Supabase URL and an anon JWT rather than placeholders.
 - Storage upload policies do not enforce per-user folders.
