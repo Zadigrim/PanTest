@@ -8,7 +8,7 @@ A monorepo containing two applications and a shared Supabase backend for creatin
 
 - **Mobile app (Okuji)** — React Native + Expo (SDK 54, RN 0.81.5, React 19.1, expo-router 6) at the repo root. The consumer app: browse/acquire passports, place GPS/QR-verified stamps, keep a journal, and two staff modes (employee redemption terminal, field acknowledgment).
 - **okujiKobo (web)** — Next.js 14 (App Router, React 18) in `okujiKobo/`. The creator/institutional platform: a visual passport designer (referred to as OkujiDesigner, implemented inside this app — there is no separate `OkujiDesigner/` directory), a marketplace, institutional management, an employee terminal kiosk, Stripe checkout, and print-to-PDF.
-- **Backend** — Supabase Postgres. Two Deno edge functions (`supabase/functions/`) and SQL migrations spread across three directories (see Backend). The mobile schema uses PostGIS; the web schema does not.
+- **Backend** — Supabase Postgres. Three Deno edge functions (`supabase/functions/`) and SQL migrations spread across three directories (see Backend). The mobile schema uses PostGIS; the web schema does not.
 
 Tech stack summary: Supabase (`@supabase/supabase-js`; `@supabase/ssr` on web), NativeWind/Tailwind, expo-router (mobile) / App Router (web), Stripe (web), Resend (web), Sentry (mobile, partially wired), Vercel Analytics (web).
 
@@ -24,7 +24,7 @@ Data flow for the core loop (verified in code):
 4. When all stops on a page are stamped, the client calls `generate-token`, which inserts a `redemption_tokens` row and returns a `MCM-XXXX-XX` code.
 5. Staff redeem that code in the mobile employee terminal (`app/employee/`) or the web terminal (`okujiKobo/app/(institutional)/terminal`).
 
-A consequence of the two-schema split (see Backend) is that the edge functions are written against the mobile schema (`target_location`, `redemption_tokens`, the `check_gps_within_radius` RPC), and the web Stripe purchase path does not write `collector_passports`, so a passport bought via Stripe on the web does not currently appear in the mobile app through that path.
+A consequence of the two-schema split (see Backend) is that the edge functions are written against the mobile schema (`target_location`, `redemption_tokens`, the `check_gps_within_radius` RPC). The web designer writes plain `lat`/`lng` on stops; migration 008 adds a `BEFORE INSERT/UPDATE` trigger on `stops` that derives `target_location` from those scalars (`ST_SetSRID(ST_MakePoint(lng, lat), 4326)::geography`), so `verify-stamp` sees populated coordinates. The web Stripe purchase path still does not write `collector_passports`, so a passport bought via Stripe on the web does not currently appear in the mobile app through that path.
 
 ## Mobile app (Okuji)
 
@@ -47,9 +47,7 @@ Single Supabase client in `lib/supabase.ts`, reading `EXPO_PUBLIC_SUPABASE_URL` 
 - `app/journal/[stampId].tsx` — upserts `journal_entries`. Journal photos are resized client-side (long edge ≤ 3000px; HEIC uploaded as-is, never transcoded) and uploaded to the private `journal-photos` Supabase Storage bucket via an AsyncStorage-backed offline queue (`lib/journal-photos.ts`, `lib/journal-photo-queue.ts`); per-photo state lives in the `journal_photos` table (`pending` / `uploaded` / `failed` / `lost`), and the entry view renders the local file while the upload is pending and a cached signed URL once uploaded. Legacy `journal_entries.photo_urls` entries can be migrated on demand from Profile → "Back up older journal photos" (`lib/journal-photo-backfill.ts`). `components/journal/VoiceRecorder.tsx` provides on-device speech-to-text via `expo-speech-recognition` with `requiresOnDeviceRecognition: true` — audio is processed on the device, never sent to cloud services, and no audio file is written; if a device cannot do on-device recognition, voice is disabled (the user types instead) rather than silently falling back.
 
 ### Designer (`app/designer/`)
-A working CRUD designer (lists/creates passports, edits sections, cover, theme, pricing, publish, and stop metadata — all real Supabase writes). Two wiring gaps make designer-authored content unusable for GPS stamping:
-- The stop editor never sets a stop's GPS coordinate (`target_location`/lat-lng); the designer map's initial region is hardcoded to New York City.
-- `stamp_slots` are created with `stop_id: null` and never linked to a stop.
+A working CRUD designer (lists/creates passports, edits sections, cover, theme, pricing, publish, and stop metadata — all real Supabase writes). The stop editor has Latitude/Longitude inputs and a "Use my current location" button (`expo-location` via `lib/gps.ts`); on save it writes `target_location` as WKT `POINT(lng lat)`. The pages screen drags each stop's box to `stops.box_x` / `stops.box_y` (migration 007), which the book renderer (`components/passport/DesignerCanvas.tsx`) reads to draw the tap target. QR tokens are server-issued via the `provision-qr-token` edge function (`crypto.getRandomValues`, stored as `stops.qr_code_id`); there is no client-side `Math.random` left in the QR path. The legacy `stamp_slots` table is no longer written by the designer (kept in the schema for backward compatibility). The designer's map still uses a hardcoded NYC initial region.
 
 Pricing fields (`is_free`, `price_cents`) are written but there is no payment integration in mobile, so "paid" passports are acquired for free.
 
@@ -81,7 +79,7 @@ Next.js 14 App Router. `next.config.js` sets `typescript.ignoreBuildErrors: true
 - `terminal/` — a kiosk that scans tokens (dynamic `html5-qrcode` import), validates via `/api/token/validate`, and redeems via `/api/token/redeem`.
 
 ### OkujiDesigner (`app/design/`, `components/design/`)
-A Zustand-backed desktop-only visual editor. Working: page add/reorder (dnd-kit)/delete; stop add/select/delete with box drag/resize; text/image/line elements persisted as a JSON `elements` array on `passport_pages`; a full stop inspector (verification tier/radius, address + lat/lng, stamp picker, `is_shared` toggle); cover designer; 30-second autosave plus Cmd/Ctrl+S; canvas-rendered cover thumbnail; a publish wizard with validation; and PDF export. Stop QR tokens are generated client-side as `OKUJI-<id>-<rand>` with `Math.random` (no server validation). The "use a template" option is disabled ("Templates coming soon").
+A Zustand-backed desktop-only visual editor. Working: page add/reorder (dnd-kit)/delete; stop add/select/delete with box drag/resize; text/image/line elements persisted as a JSON `elements` array on `passport_pages`; a full stop inspector (verification tier/radius, address + lat/lng, stamp picker, `is_shared` toggle); cover designer; 30-second autosave plus Cmd/Ctrl+S; canvas-rendered cover thumbnail; a publish wizard with validation; and PDF export. Stop QR tokens are server-issued via the `provision-qr-token` edge function (`crypto.getRandomValues(16)` → 22-char base64url, stored as `stops.qr_code_id`). The "use a template" option is disabled ("Templates coming soon").
 
 `app/api/passports/[id]/print-pdf/route.tsx` produces a real N-up print booklet via `@react-pdf/renderer` (4 quadrants per 8.5x11 sheet, cut/registration guides, backgrounds and elements rendered, dashed location boxes). The `copies` value is logged to `print_jobs` but does not multiply the output.
 
@@ -99,7 +97,7 @@ Real: `acquire`, `checkout` (Stripe Checkout Session), `webhook/stripe`, `design
 
 Database migrations live in three directories that do not form one coherent lineage. See `okuji-db/MIGRATIONS.md` and `okujiKobo/MIGRATIONS.md`.
 
-- **`supabase/migrations/`** (mobile schema) — `001_initial_schema.sql`, `003_accolades_schema.sql`, `004_stamp_slots.sql`, `005_journal_photos.sql`. Uses the PostGIS extension: `stops.target_location` is `geography(Point,4326)`, with a GIST index and the `check_gps_within_radius()` RPC (`ST_DWithin`). Defines mobile-only tables: `proprietors`, `employee_accounts`, `collector_passports`, `redemption_tokens`, `accolades`, `reading_recommendations`, `teacher_notes`, `stamp_slots`, `journal_photos`. Uses `evidence_tier`. This set is not self-contained (`003` alters `institutions`, which it never creates).
+- **`supabase/migrations/`** (mobile schema) — `001_initial_schema.sql`, `003_accolades_schema.sql`, `004_stamp_slots.sql`, `005_journal_photos.sql`, `006_reissue_stop_qr_tokens.sql`, `007_stop_box_positions.sql`, `008_stop_lat_lng_bridge.sql`. Uses the PostGIS extension: `stops.target_location` is `geography(Point,4326)`, with a GIST index and the `check_gps_within_radius()` RPC (`ST_DWithin`). Migration 007 adds `box_x` / `box_y` / `box_width` / `box_height` on `stops` (the renderer's positioning columns); migration 008 adds `lat` / `lng` scalars plus a trigger that keeps `target_location` in sync, bridging the web designer's writes with what `verify-stamp` reads. Defines mobile-only tables: `proprietors`, `employee_accounts`, `collector_passports`, `redemption_tokens`, `accolades`, `reading_recommendations`, `teacher_notes`, `stamp_slots` (deprecated; positioning moved to `stops.box_*` in 007), `journal_photos`. Uses `evidence_tier`. This set is not self-contained (`003` alters `institutions`, which it never creates).
 - **`okujiKobo/supabase/migrations/`** (web schema) — `002` through `026`, the real incremental history. No PostGIS (plain `lat`/`lng` + `geohash` text). Uses `institutions`, `acquisitions`, `completion_tokens`, `verification_tier`. `institutions` is never created by a migration — `026_institutions_rls.sql` documents that it was created in the Supabase dashboard, and that RLS on it was off in production until migration 026.
 - **`okuji-db/supabase/migrations/`** — `000_baseline.sql` (an 822-line clean-room consolidation of the web schema 002–011, plus an `institutions` definition), `002_blockpoint5.sql`, `003_blockpoint6.sql`, `004_collector_passport_last_used.sql`, and `archive/` (byte-identical copies of the web 002–011). `MIGRATIONS.md` says to run `000_baseline.sql` only for a fresh database. Note that `004` references mobile-only objects (`collector_passports`, `stamps.collector_passport_id`), so the baseline alone is not sufficient for it.
 
@@ -109,12 +107,13 @@ The two schemas model the same concepts with different names: institutions/propr
 The web baseline enables RLS on all of its tables, with an admin bypass via `is_platform_admin()`. Several institution/employee write policies compare `institutions.id = auth.uid()`, which only matches if an institution row is keyed to a user's auth id. The mobile schema enables RLS on its tables with simpler owner-only policies and no admin bypass.
 
 ### Functions and triggers
-`is_admin()` / `is_platform_admin()`, `handle_new_user()` (trigger `on_auth_user_created`), `trim_passport_autosaves()`, `touch_collector_passport_last_used()` (mobile-only target), `check_gps_within_radius()` (PostGIS, mobile), `update_updated_at()`.
+`is_admin()` / `is_platform_admin()`, `handle_new_user()` (trigger `on_auth_user_created`), `trim_passport_autosaves()`, `touch_collector_passport_last_used()` (mobile-only target), `check_gps_within_radius()` (PostGIS, mobile), `update_updated_at()`, `sync_stop_target_location()` (mobile, migration 008 — `BEFORE INSERT OR UPDATE` on `stops` that derives `target_location` from `lat`/`lng` and back-fills `lat`/`lng` from `target_location` on insert).
 
 ### Edge functions (`supabase/functions/`)
-Both require a valid Supabase JWT (validated via `supabase.auth.getUser(token)` in the shared `_shared/auth.ts` helper) and derive the caller's `userId` from the JWT; a body `userId`, if present, must match — 403 otherwise. After authentication, each function authorizes that the caller owns the stop's / page's passport via `collector_passports` (403 otherwise), then uses the service-role key for the actual reads/writes. Error responses are generic (`Authentication required` / `Not authorized`); detailed reasons are `console.error`'d server-side only.
-- `verify-stamp` — reads the stop, applies tier logic (tier 5 honor/auto; tier 3 GPS-only via the PostGIS RPC; tiers 1–2 GPS + QR; tier 4 employee). Returns a precision-6 geohash and never the precise coordinate. It does not write the stamp; the client does (under RLS).
-- `generate-token` — confirms every stop on a page is stamped (keyed to the JWT user), then inserts a `redemption_tokens` row with a `MCM-XXXX-XX` code and a 30-day expiry.
+All three require a valid Supabase JWT (validated via `supabase.auth.getUser(token)` in the shared `_shared/auth.ts` helper) and derive the caller's `userId` from the JWT; a body `userId`, if present, must match — 403 otherwise. Each function then authorizes its specific action and uses the service-role key for the actual reads/writes. Error responses are generic (`Authentication required` / `Not authorized`); detailed reasons are `console.error`'d server-side only.
+- `verify-stamp` — authorizes that the caller owns the stop's passport (via `collector_passports`), reads the stop, applies tier logic (tier 5 honor/auto; tier 3 GPS-only via the PostGIS RPC; tiers 1–2 GPS + QR; tier 4 employee). Returns a precision-6 geohash and never the precise coordinate. It does not write the stamp; the client does (under RLS).
+- `generate-token` — authorizes ownership of the page's passport, confirms every stop on the page is stamped (keyed to the JWT user), then inserts a `redemption_tokens` row with a `MCM-XXXX-XX` code and a 30-day expiry.
+- `provision-qr-token` — authorizes that the caller is the passport's creator (`passports.creator_id`), then writes a `crypto.getRandomValues(16)` → 22-char base64url token into `stops.qr_code_id`. Default returns the existing token; an explicit `{ regenerate: true }` replaces it.
 
 ### Storage
 Three buckets:
@@ -157,7 +156,6 @@ Edge functions receive `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` from the S
 ## Known limitations
 
 Partially implemented:
-- Mobile designer never sets stop GPS coordinates and never links `stamp_slots` to stops, so GPS verification cannot succeed for designer-authored stops.
 - Stripe is test-mode and incompletely wired: `webhook/stripe` records `price_paid_cents: 0` and does not write `collector_passports`; the `tip` route never transfers funds (Stripe Connect onboarding is a TODO); the `CREATOR_SHARE`/`OKUJI_SHARE` revenue split in `lib/stripe/client.ts` is dead code (imported nowhere) and is never applied at checkout.
 - Quality scores are computed only by a manual admin-triggered route (`api/admin/compute-quality-scores`); there is no scheduler.
 - `api/token/validate` location/geofencing is a simplified placeholder that compares an institution id against a list of stop ids.
@@ -179,4 +177,4 @@ Security items to review:
 - `api/employees/lookup` uses the service-role `getUserByEmail` but only checks that the caller is logged in, not that they manage the institution.
 - `okujiKobo/.env.local.example` commits a real-format Supabase URL and an anon JWT rather than placeholders.
 - Storage upload policies do not enforce per-user folders.
-- Designer QR tokens and the share token use `Math.random`, not a cryptographic source.
+- `api/share/render` uses `Math.random` for its share token rather than a cryptographic source. (Stop QR tokens are no longer affected — they're server-issued via `provision-qr-token` using `crypto.getRandomValues`.)
