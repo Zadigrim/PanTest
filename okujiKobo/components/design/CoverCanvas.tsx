@@ -6,9 +6,13 @@ import { PageElementBox } from './PageElementBox'
 import type { CoverSideData, DesignerPageElement } from '@/lib/design/types'
 
 // ── Dimensions ────────────────────────────────────────────────────────────────
-export const COVER_W  = 280   // px per panel
-export const COVER_H  = 392   // px per panel
-export const CANVAS_W = COVER_W * 2  // full canvas — no structural spine gap
+// Cover canvas dimensions — matched to the inside-page artboard (612 × 792)
+// per panel, with 24px of additional vertical bleed to accommodate the fold.
+// Total spread is 1224 × 816 (back panel | spine | front panel side-by-side);
+// the spine is a visual dashed line at x = COVER_W, not a structural gap.
+export const COVER_W  = 612   // px per panel — matches inside-page width
+export const COVER_H  = 816   // px per panel — inside-page height + 24px fold bleed
+export const CANVAS_W = COVER_W * 2  // 1224 px — full unfolded spread
 
 export type CoverFace  = 'outside' | 'inside'
 export type CoverPanel = 'front' | 'back'

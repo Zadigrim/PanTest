@@ -3,11 +3,16 @@
 import { useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { usePassportStore } from '@/lib/design/passport-store'
-import { getSideData } from '@/components/design/CoverCanvas'
+import { getSideData, COVER_W, COVER_H } from '@/components/design/CoverCanvas'
 import type { CoverSideData, DesignerPageElement } from '@/lib/design/types'
 
-const THUMB_W = 280   // front cover panel width
-const THUMB_H = 392   // panel height
+// Thumbnail output stays small for DB storage (cover_thumbnail is a base64
+// PNG embedded in the row). We render to a downscaled canvas but draw with
+// the full design-space coordinate system, then let the canvas transform
+// scale everything down — so element positions/font sizes stay correct
+// regardless of how COVER_W / COVER_H change.
+const THUMB_W = 280
+const THUMB_H = Math.round(THUMB_W * (COVER_H / COVER_W))  // preserves aspect
 const DEBOUNCE_MS = 2000
 
 // ── Canvas compositing ────────────────────────────────────────────────────────
@@ -68,9 +73,16 @@ async function compositeToDataUrl(side: CoverSideData): Promise<string> {
   canvas.height = THUMB_H
   const ctx = canvas.getContext('2d')!
 
+  // Draw in design-space (COVER_W × COVER_H), let the transform handle the
+  // downscale to THUMB_W × THUMB_H. This keeps element coordinates and font
+  // sizes correct without per-element math.
+  const scaleX = THUMB_W / COVER_W
+  const scaleY = THUMB_H / COVER_H
+  ctx.scale(scaleX, scaleY)
+
   // Layer 1: front background
   ctx.fillStyle = `#${side.front_bg}`
-  ctx.fillRect(0, 0, THUMB_W, THUMB_H)
+  ctx.fillRect(0, 0, COVER_W, COVER_H)
 
   // Layer 2: cover image (if any)
   if (side.image_url) {
@@ -79,10 +91,10 @@ async function compositeToDataUrl(side: CoverSideData): Promise<string> {
       img.crossOrigin = 'anonymous'
       img.onload = () => {
         const scale = side.image_scale ?? 1
-        const scaledW = THUMB_W * scale
-        const scaledH = THUMB_H * scale
-        const ox = (THUMB_W - scaledW) * (1 - (side.image_position_x ?? 0.5))
-        const oy = (THUMB_H - scaledH) * (1 - (side.image_position_y ?? 0.5))
+        const scaledW = COVER_W * scale
+        const scaledH = COVER_H * scale
+        const ox = (COVER_W - scaledW) * (1 - (side.image_position_x ?? 0.5))
+        const oy = (COVER_H - scaledH) * (1 - (side.image_position_y ?? 0.5))
 
         ctx.save()
         ctx.globalAlpha = (side.image_opacity ?? 80) / 100
