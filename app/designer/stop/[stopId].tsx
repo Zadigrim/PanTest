@@ -6,6 +6,7 @@ import {
 } from 'react-native'
 import { useLocalSearchParams, router } from 'expo-router'
 import { supabase } from '../../../lib/supabase'
+import { getCurrentLocation } from '../../../lib/gps'
 import { StampArtwork } from '../../../components/stamp/StampArtwork'
 import type { Stop, StampShape, StampSmudge, VerificationType } from '../../../types'
 import { palette } from '../../../lib/colors'
@@ -51,6 +52,11 @@ export default function StopEditorScreen() {
   const [stop, setStop] = useState<Stop | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  // GPS inputs are edit-only: leave blank to keep the stop's existing coords.
+  // On save, if both parse as numbers, target_location is written as WKT.
+  const [latInput, setLatInput] = useState('')
+  const [lngInput, setLngInput] = useState('')
+  const [gpsBusy, setGpsBusy] = useState(false)
 
   useEffect(() => {
     async function load() {
@@ -68,24 +74,31 @@ export default function StopEditorScreen() {
   const save = useCallback(async () => {
     if (!stop) return
     setSaving(true)
-    const { error } = await supabase
-      .from('stops')
-      .update({
-        name: stop.name,
-        year_established: stop.year_established,
-        location_name: stop.location_name,
-        description: stop.description,
-        evidence_tier: stop.evidence_tier,
-        radius_meters: stop.radius_meters,
-        qr_code_id: stop.qr_code_id,
-        stamp_icon: stop.stamp_icon,
-        stamp_color: stop.stamp_color,
-        stamp_shape: stop.stamp_shape,
-        stamp_smudge: stop.stamp_smudge,
-        stamp_rotation_range: stop.stamp_rotation_range,
-        verification_type: stop.verification_type,
-      })
-      .eq('id', stopId)
+
+    const patch: Record<string, unknown> = {
+      name: stop.name,
+      year_established: stop.year_established,
+      location_name: stop.location_name,
+      description: stop.description,
+      evidence_tier: stop.evidence_tier,
+      radius_meters: stop.radius_meters,
+      qr_code_id: stop.qr_code_id,
+      stamp_icon: stop.stamp_icon,
+      stamp_color: stop.stamp_color,
+      stamp_shape: stop.stamp_shape,
+      stamp_smudge: stop.stamp_smudge,
+      stamp_rotation_range: stop.stamp_rotation_range,
+      verification_type: stop.verification_type,
+    }
+
+    // Conditionally include GPS coordinates. WKT POINT(lng lat) — note order.
+    const lat = parseFloat(latInput)
+    const lng = parseFloat(lngInput)
+    if (Number.isFinite(lat) && Number.isFinite(lng)) {
+      patch.target_location = `POINT(${lng} ${lat})`
+    }
+
+    const { error } = await supabase.from('stops').update(patch).eq('id', stopId)
 
     setSaving(false)
     if (error) {
@@ -93,7 +106,19 @@ export default function StopEditorScreen() {
     } else {
       Alert.alert('Saved', '', [{ text: 'OK', onPress: () => router.back() }])
     }
-  }, [stop, stopId])
+  }, [stop, stopId, latInput, lngInput])
+
+  const useCurrentLocation = useCallback(async () => {
+    setGpsBusy(true)
+    const loc = await getCurrentLocation()
+    setGpsBusy(false)
+    if (!loc) {
+      Alert.alert('Location', 'Could not read your location. Make sure location permission is granted.')
+      return
+    }
+    setLatInput(loc.latitude.toFixed(6))
+    setLngInput(loc.longitude.toFixed(6))
+  }, [])
 
   const generateQrId = useCallback(() => {
     const id = 'QR-' + Math.random().toString(36).substring(2, 10).toUpperCase()
@@ -150,6 +175,51 @@ export default function StopEditorScreen() {
           multiline
           numberOfLines={3}
         />
+      </View>
+
+      {/* GPS coordinates — required for GPS-verified stamps (tiers 1–3) */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>GPS coordinates</Text>
+        <Text style={{ fontSize: 12, color: palette.muted, marginBottom: 8 }}>
+          Required for GPS-verified stamps (tiers 1–3). Leave blank to keep existing coordinates.
+        </Text>
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.label}>Latitude</Text>
+            <TextInput
+              style={styles.input}
+              value={latInput}
+              onChangeText={setLatInput}
+              placeholder="45.523064"
+              keyboardType="numbers-and-punctuation"
+              autoCapitalize="none"
+            />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.label}>Longitude</Text>
+            <TextInput
+              style={styles.input}
+              value={lngInput}
+              onChangeText={setLngInput}
+              placeholder="-122.676483"
+              keyboardType="numbers-and-punctuation"
+              autoCapitalize="none"
+            />
+          </View>
+        </View>
+        <TouchableOpacity
+          onPress={useCurrentLocation}
+          disabled={gpsBusy}
+          style={{
+            marginTop: 10, padding: 12, borderRadius: 8,
+            borderWidth: 1, borderColor: palette.hairline,
+            alignItems: 'center', opacity: gpsBusy ? 0.5 : 1,
+          }}
+        >
+          <Text style={{ fontSize: 14, color: palette.navy, fontWeight: '600' }}>
+            {gpsBusy ? 'Reading location…' : '📍 Use my current location'}
+          </Text>
+        </TouchableOpacity>
       </View>
 
       {/* Verification */}
