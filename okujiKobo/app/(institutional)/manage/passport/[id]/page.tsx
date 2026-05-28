@@ -176,6 +176,73 @@ function CompletionsBarChart({ buckets }: { buckets: DayBucket[] }) {
 }
 
 // ---------------------------------------------------------------------------
+// Publish/Unpublish toggle
+// ---------------------------------------------------------------------------
+
+function PublishToggle({
+  passportId,
+  isPublished,
+  onChanged,
+}: {
+  passportId: string
+  isPublished: boolean
+  onChanged: (next: boolean) => void
+}) {
+  const [isPending, startTransition] = useTransition()
+  const [error, setError] = useState<string | null>(null)
+
+  function handleClick() {
+    const next = !isPublished
+    const confirmMsg = next
+      ? 'Republish this passport? It will reappear in the marketplace and new collectors will be able to acquire it.'
+      : "Unpublish this passport?\n\nNew collectors won't be able to acquire it. Existing collectors keep their copy and all their journals and stamps — nothing is deleted. You can republish anytime."
+    if (!window.confirm(confirmMsg)) return
+
+    setError(null)
+    startTransition(async () => {
+      const supabase = createClient()
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error: updateErr } = await (supabase as any)
+        .from('passports')
+        .update({ is_published: next })
+        .eq('id', passportId)
+      if (updateErr) {
+        setError(updateErr.message)
+        return
+      }
+      onChanged(next)
+    })
+  }
+
+  return (
+    <div className="flex flex-col items-end gap-1">
+      <div className="flex items-center gap-2">
+        <span
+          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+            isPublished ? 'bg-cream text-green' : 'bg-hairline text-muted'
+          }`}
+        >
+          {isPublished ? 'Published' : 'Unpublished'}
+        </span>
+        <button
+          type="button"
+          onClick={handleClick}
+          disabled={isPending}
+          className={`inline-flex items-center px-3 py-1.5 rounded-panel text-xs font-medium transition-colors disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green ${
+            isPublished
+              ? 'border border-hairline text-navy hover:bg-paper'
+              : 'bg-green text-white hover:bg-[#0F6E56]'
+          }`}
+        >
+          {isPending ? 'Saving…' : isPublished ? 'Unpublish' : 'Republish'}
+        </button>
+      </div>
+      {error && <span className="text-xs text-accent">{error}</span>}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // "Mark as distributed" button — client action
 // ---------------------------------------------------------------------------
 
@@ -263,6 +330,7 @@ export default function PassportAnalyticsPage() {
   const [analytics, setAnalytics] = useState<AnalyticsResponse | null>(null)
   const [tokens, setTokens] = useState<TokenLogRow[]>([])
   const [passportTitle, setPassportTitle] = useState<string>('')
+  const [isPublished, setIsPublished] = useState<boolean | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -284,13 +352,15 @@ export default function PassportAnalyticsPage() {
       // Token log + collector names via Supabase browser client
       const supabase = createClient()
 
-      // Passport title
-      const { data: passport } = await supabase
+      // Passport title + publish status
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: passport } = await (supabase as any)
         .from('passports')
-        .select('title')
+        .select('title, is_published')
         .eq('id', passportId)
         .single()
       setPassportTitle(passport?.title ?? 'Passport')
+      setIsPublished(passport?.is_published ?? null)
 
       // Completion tokens
       const thirtyDaysAgo = new Date()
@@ -391,9 +461,18 @@ export default function PassportAnalyticsPage() {
   return (
     <div className="p-8 max-w-6xl space-y-10">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-navy">{passportTitle}</h1>
-        <p className="text-sm text-muted mt-1">Analytics · Last 30 days</p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-navy">{passportTitle}</h1>
+          <p className="text-sm text-muted mt-1">Analytics · Last 30 days</p>
+        </div>
+        {isPublished !== null && (
+          <PublishToggle
+            passportId={passportId}
+            isPublished={isPublished}
+            onChanged={setIsPublished}
+          />
+        )}
       </div>
 
       {/* ── 1. Stop engagement table ─────────────────────────────────────── */}
