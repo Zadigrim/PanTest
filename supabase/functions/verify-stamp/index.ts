@@ -1,12 +1,25 @@
 // Called when a collector attempts to stamp a stop.
 // Verifies GPS radius AND/OR QR code match.
 // Returns geohash — never stores precise coordinate.
+//
+// AUTH: requires a valid Supabase JWT. The caller must own the passport that
+// contains the stop (via collector_passports). The userId is derived from the
+// JWT, never from the request body. Error responses are generic; detailed
+// reasons are logged server-side only.
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { extractAndVerifyJWT } from '../_shared/auth.ts'
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
+
+function json(body: unknown, status: number) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+  })
 }
 
 function encodeGeohash(lat: number, lng: number, precision = 6): string {
@@ -15,7 +28,6 @@ function encodeGeohash(lat: number, lng: number, precision = 6): string {
   let minLng = -180, maxLng = 180
   let hash = ''
   let bits = 0
-  let bitsTotal = 0
   let hashValue = 0
   let isEven = true
 
@@ -31,7 +43,6 @@ function encodeGeohash(lat: number, lng: number, precision = 6): string {
     }
     isEven = !isEven
     bits++
-    bitsTotal++
     if (bits === 5) {
       hash += BASE32[hashValue]
       bits = 0
@@ -46,13 +57,27 @@ serve(async (req) => {
     return new Response('ok', { headers: CORS_HEADERS })
   }
 
-  try {
-    const { stopId, latitude, longitude, qrCodeId, stopOpenedAt } = await req.json()
+  const supabaseUrl = Deno.env.get('SUPABASE_URL')!
 
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    )
+  try {
+    // ── Layer 1: authenticate ────────────────────────────────────────────────
+    const auth = await extractAndVerifyJWT(req, supabaseUrl)
+    if ('error' in auth) {
+      return json({ error: 'Authentication required' }, 401)
+    }
+    const userId = auth.user.id
+
+    const { stopId, latitude, longitude, qrCodeId, stopOpenedAt, userId: bodyUserId } = await req.json()
+
+    // Body userId, if present, must match the JWT — never act on a different id.
+    if (bodyUserId && bodyUserId !== userId) {
+      console.error('verify-stamp: body userId does not match JWT user')
+      return json({ error: 'Not authorized' }, 403)
+    }
+
+    // Service-role client for the actual reads (RLS bypass); identity is the
+    // verified userId above.
+    const supabase = createClient(supabaseUrl, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
 
     const { data: stop, error: stopError } = await supabase
       .from('stops')
@@ -61,25 +86,48 @@ serve(async (req) => {
       .single()
 
     if (stopError || !stop) {
-      return new Response(
-        JSON.stringify({ error: 'Stop not found' }),
-        { status: 404, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
-      )
+      return json({ error: 'Stop not found' }, 404)
     }
 
+    // ── Layer 2: authorize — caller must own the stop's passport ─────────────
+    const { data: page } = await supabase
+      .from('passport_pages')
+      .select('passport_id')
+      .eq('id', stop.page_id)
+      .maybeSingle()
+
+    if (!page) {
+      console.error('verify-stamp: stop has no resolvable page/passport', { stopId })
+      return json({ error: 'Not authorized' }, 403)
+    }
+
+    const { data: owned } = await supabase
+      .from('collector_passports')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('passport_id', page.passport_id)
+      .maybeSingle()
+
+    if (!owned) {
+      console.error('verify-stamp: caller does not own passport', { userId, passportId: page.passport_id })
+      return json({ error: 'Not authorized' }, 403)
+    }
+
+    // ── Tier-based verification (unchanged) ──────────────────────────────────
     let gpsVerified = false
     let qrVerified = false
     let verificationMethod = 'gps_only'
 
-    // Use verification_tier (set by designer) if present, fall back to evidence_tier
     const tier = stop.verification_tier ?? stop.evidence_tier ?? 5
 
     // Honor system — no GPS or QR needed
     if (tier === 5) {
-      return new Response(
-        JSON.stringify({ verified: true, geohash: encodeGeohash(latitude || 0, longitude || 0, 6), verificationMethod: 'self_reported', stopOpenedAt }),
-        { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
-      )
+      return json({
+        verified: true,
+        geohash: encodeGeohash(latitude || 0, longitude || 0, 6),
+        verificationMethod: 'self_reported',
+        stopOpenedAt,
+      }, 200)
     }
 
     // GPS verification via PostGIS
@@ -98,7 +146,6 @@ serve(async (req) => {
       qrVerified = qrCodeId === (stop.qr_code_token ?? stop.qr_code_id)
     }
 
-    // Tier logic
     let verified = false
     switch (tier) {
       case 1:
@@ -117,23 +164,14 @@ serve(async (req) => {
     }
 
     if (!verified) {
-      return new Response(
-        JSON.stringify({ verified: false, reason: 'Location not confirmed' }),
-        { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
-      )
+      return json({ verified: false, reason: 'Location not confirmed' }, 200)
     }
 
-    // PRIVACY: Generate geohash (~1.2km at precision 6) — discard precise coordinate
+    // PRIVACY: geohash (~1.2km at precision 6) — discard precise coordinate
     const geohash = encodeGeohash(latitude, longitude, 6)
-
-    return new Response(
-      JSON.stringify({ verified: true, geohash, verificationMethod, stopOpenedAt }),
-      { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
-    )
+    return json({ verified: true, geohash, verificationMethod, stopOpenedAt }, 200)
   } catch (err) {
-    return new Response(
-      JSON.stringify({ error: 'Internal server error' }),
-      { status: 500, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
-    )
+    console.error('verify-stamp: internal error', err)
+    return json({ error: 'Internal server error' }, 500)
   }
 })

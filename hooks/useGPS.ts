@@ -56,7 +56,13 @@ export function useStampVerification() {
     setVerifying(false)
 
     if (error || !data) {
-      setResult({ verified: false, reason: 'Verification failed' })
+      // Surface auth failures coherently rather than a generic error.
+      const status = (error as { context?: { status?: number } } | null)?.context?.status
+      const reason =
+        status === 401 ? 'Please sign in again to stamp.'
+        : status === 403 ? "You don't have access to this passport."
+        : 'Verification failed'
+      setResult({ verified: false, reason })
       return null
     }
 
