@@ -162,7 +162,8 @@ export interface DesignerStop {
   geohash: string | null
   verification_tier: number
   verification_radius_meters: number
-  qr_code_token: string | null
+  qr_code_token: string | null   // legacy column name; the live mobile schema uses qr_code_id
+  qr_code_id: string | null      // canonical column in production; server-issued per stop
   stamp_icon: string
   stamp_color: string
   stamp_rotation_fixed: number | null

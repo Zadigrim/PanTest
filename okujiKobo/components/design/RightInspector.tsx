@@ -316,9 +316,19 @@ function StopInspector({
   }
 
   const handleGenerateQR = async () => {
-    const rand = Math.random().toString(36).slice(2, 8).toUpperCase()
-    const token = `OKUJI-${stop.id.slice(0, 8).toUpperCase()}-${rand}`
-    await persist({ qr_code_token: token })
+    // Server-side provisioning: see supabase/functions/provision-qr-token.
+    // Math.random was predictable; tokens are now crypto.getRandomValues
+    // server-side and stored in stops.qr_code_id (the production column).
+    const { data, error } = await db.functions.invoke('provision-qr-token', {
+      body: { stopId: stop.id, regenerate: !!stop.qr_code_id },
+    })
+    const token = (data as { token?: string } | null)?.token
+    if (error || !token) {
+      console.error('qr-token request failed', error)
+      return
+    }
+    // The function already persisted to the DB; mirror the value locally.
+    updateStop(stop.id, { qr_code_id: token })
   }
 
   return (
@@ -400,7 +410,7 @@ function StopInspector({
         <Section title="QR Code">
           <div className="space-y-1.5">
             <Input
-              value={stop.qr_code_token ?? ''}
+              value={stop.qr_code_id ?? ''}
               readOnly
               placeholder="No token yet"
               className="h-8 font-mono text-xs"

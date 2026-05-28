@@ -95,10 +95,24 @@ export default function StopEditorScreen() {
     }
   }, [stop, stopId])
 
-  const generateQrId = useCallback(() => {
-    const id = 'QR-' + Math.random().toString(36).substring(2, 10).toUpperCase()
-    set('qr_code_id', id)
-  }, [set])
+  const generateQrId = useCallback(async () => {
+    // Server-side provisioning: see supabase/functions/provision-qr-token.
+    // Math.random was predictable; tokens are now generated server-side via
+    // crypto.getRandomValues and persisted to stops.qr_code_id before return.
+    try {
+      const { data, error } = await supabase.functions.invoke('provision-qr-token', {
+        body: { stopId, regenerate: !!stop?.qr_code_id },
+      })
+      const token = (data as { token?: string } | null)?.token
+      if (error || !token) {
+        Alert.alert('QR token', 'Could not generate a token. Please try again.')
+        return
+      }
+      set('qr_code_id', token)
+    } catch {
+      Alert.alert('QR token', 'Could not generate a token. Please try again.')
+    }
+  }, [stopId, stop?.qr_code_id, set])
 
   if (loading || !stop) {
     return <View style={styles.centered}><ActivityIndicator color={palette.accent} /></View>
