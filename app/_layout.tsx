@@ -12,6 +12,9 @@ import { initJournalPhotoSync } from '../lib/journal-photo-queue'
 Sentry.init({
   dsn: process.env.EXPO_PUBLIC_SENTRY_DSN,
   enableNativeFramesTracking: true,
+  // Crash capture is the priority for now; performance tracing is intentionally
+  // off. Flip to a non-zero sample rate when we want spans/transactions.
+  tracesSampleRate: 0,
 })
 
 // Hold the native splash until we've resolved auth state.

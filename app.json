@@ -55,6 +55,14 @@
           "speechRecognitionPermission": "Okuji transcribes your voice journal entries on your device — your audio never leaves your phone.",
           "androidSpeechServicePackages": ["com.google.android.googlequicksearchbox"]
         }
+      ],
+      [
+        "@sentry/react-native/expo",
+        {
+          "url": "https://sentry.io/",
+          "organization": "okuji",
+          "project": "okuji-mobile"
+        }
       ]
     ],
     "scheme": "okuji",
