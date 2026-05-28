@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { usePassportStore } from '@/lib/design/passport-store'
 import { LeftPalette } from './LeftPalette'
 import { Canvas } from './Canvas'
@@ -28,6 +28,7 @@ interface Props {
 }
 
 export function WorkspaceClient({ passport, pages, stops, creatorInstitutionId }: Props) {
+  const router = useRouter()
   const hydrate = usePassportStore((s) => s.hydrate)
   const isDirty = usePassportStore((s) => s.isDirty)
   const isSaving = usePassportStore((s) => s.isSaving)
@@ -40,6 +41,7 @@ export function WorkspaceClient({ passport, pages, stops, creatorInstitutionId }
   const [showSettings, setShowSettings] = useState(false)
   const [showPublish, setShowPublish] = useState(false)
   const [showPrint, setShowPrint] = useState(false)
+  const [navigating, setNavigating] = useState(false)
   const [viewMode, setViewMode] = useState<'cover' | 'pages'>('pages')
   const [coverFace, setCoverFace] = useState<CoverFace>('outside')
   const [coverPanel, setCoverPanel] = useState<CoverPanel>('front')
@@ -60,18 +62,38 @@ export function WorkspaceClient({ passport, pages, stops, creatorInstitutionId }
   const displayPassport = passportState ?? passport
   const isPublished = displayPassport.status === 'published'
 
+  async function handleBack() {
+    if (navigating) return
+    setNavigating(true)
+    try {
+      // Flush any pending edits before leaving — protects against the
+      // 30-second autosave window losing in-flight changes.
+      await saveNow()
+    } catch (err) {
+      console.error('save-before-navigate failed:', err)
+      if (!window.confirm('Your changes could not be saved. Leave anyway?')) {
+        setNavigating(false)
+        return
+      }
+    }
+    router.push('/design')
+  }
+
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-paper">
       {/* Top bar */}
       <header className="flex shrink-0 items-center justify-between border-b border-hairline bg-white px-4 py-2">
         <div className="flex items-center gap-3">
-          <Link
-            href="/design"
-            className="flex items-center gap-1.5 text-sm text-muted hover:text-navy transition-colors"
+          <button
+            type="button"
+            onClick={handleBack}
+            disabled={navigating}
+            className="flex items-center gap-1.5 text-sm text-muted hover:text-navy transition-colors disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green rounded-sm"
+            aria-label="Save and return to My Passports"
           >
             <span className="text-base">←</span>
-            My Passports
-          </Link>
+            {navigating ? 'Saving…' : 'My Passports'}
+          </button>
           <span className="text-hairline">·</span>
           <span className="max-w-xs truncate text-sm font-semibold text-navy">
             {displayPassport.title}
@@ -80,6 +102,15 @@ export function WorkspaceClient({ passport, pages, stops, creatorInstitutionId }
 
         <div className="flex items-center gap-3">
           <SaveIndicator isDirty={isDirty} isSaving={isSaving} lastSavedAt={lastSavedAt} />
+          <Button
+            size="sm"
+            variant={isDirty ? 'default' : 'ghost'}
+            onClick={saveNow}
+            disabled={isSaving || !isDirty}
+            aria-label="Save changes"
+          >
+            {isSaving ? 'Saving…' : 'Save'}
+          </Button>
           <span
             className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize ${
               displayPassport.status === 'published'

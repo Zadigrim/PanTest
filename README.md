@@ -2,7 +2,7 @@
 
 A monorepo containing two applications and a shared Supabase backend for creating, distributing, and collecting "passport" experiences: a React Native (Expo) mobile collector app and a Next.js web platform for creators and institutions.
 
-> Naming note: the product documentation uses "Okuji," but the database SQL is branded "Panoply" throughout (`okuji-db/supabase/migrations/000_baseline.sql`), and the redemption-token prefix is hardcoded `MCM-` (McMenamins) in `supabase/functions/generate-token/index.ts`. These are the same product under different names. This README uses "Okuji."
+> Naming note: the `okuji-db/` directory name is a historical artifact of the project's former "Panoply" brand; all SQL comments and code identifiers now use "Okuji." The redemption-token prefix is configurable per proprietor (`proprietors.token_prefix`; default `OKJ`, with existing McMenamins rows backfilled to `MCM`).
 
 ## What's in this repo
 
@@ -10,7 +10,7 @@ A monorepo containing two applications and a shared Supabase backend for creatin
 - **okujiKobo (web)** — Next.js 14 (App Router, React 18) in `okujiKobo/`. The creator/institutional platform: a visual passport designer (referred to as OkujiDesigner, implemented inside this app — there is no separate `OkujiDesigner/` directory), a marketplace, institutional management, an employee terminal kiosk, Stripe checkout, and print-to-PDF.
 - **Backend** — Supabase Postgres. Three Deno edge functions (`supabase/functions/`) and SQL migrations spread across three directories (see Backend). The mobile schema uses PostGIS; the web schema does not.
 
-Tech stack summary: Supabase (`@supabase/supabase-js`; `@supabase/ssr` on web), NativeWind/Tailwind, expo-router (mobile) / App Router (web), Stripe (web), Resend (web), Sentry (mobile, partially wired), Vercel Analytics (web).
+Tech stack summary: Supabase (`@supabase/supabase-js`; `@supabase/ssr` on web), NativeWind/Tailwind, expo-router (mobile) / App Router (web), Stripe (web), Resend (web), Sentry (mobile, with native crash + source-map upload), Vercel Analytics (web).
 
 ## Architecture
 
@@ -21,7 +21,7 @@ Data flow for the core loop (verified in code):
 1. A creator builds a passport in either the web designer (`okujiKobo/app/design/[id]`) or the mobile designer (`app/designer/`). Both write directly to `passports`, `passport_pages`, and `stops`.
 2. A collector acquires a passport. On web, `okujiKobo/components/marketplace/AcquireButton.tsx` writes both `acquisitions` and `collector_passports`. On mobile, `acquirePassport` writes `collector_passports`.
 3. A collector stamps a stop in the mobile app (`app/passport/[id].tsx` or `app/passport/stamp/[stopId].tsx`). The client takes a momentary GPS reading and calls the `verify-stamp` edge function, then inserts the result into `stamps`.
-4. When all stops on a page are stamped, the client calls `generate-token`, which inserts a `redemption_tokens` row and returns a `MCM-XXXX-XX` code.
+4. When all stops on a page are stamped, the client calls `generate-token`, which inserts a `redemption_tokens` row and returns a `{prefix}-XXXX-XX` code (prefix is per-proprietor; default `OKJ`, McMenamins backfilled to `MCM`).
 5. Staff redeem that code in the mobile employee terminal (`app/employee/`) or the web terminal (`okujiKobo/app/(institutional)/terminal`).
 
 A consequence of the two-schema split (see Backend) is that the edge functions are written against the mobile schema (`target_location`, `redemption_tokens`, the `check_gps_within_radius` RPC). The web designer writes plain `lat`/`lng` on stops; migration 008 adds a `BEFORE INSERT/UPDATE` trigger on `stops` that derives `target_location` from those scalars (`ST_SetSRID(ST_MakePoint(lng, lat), 4326)::geography`), so `verify-stamp` sees populated coordinates. The web Stripe purchase path still does not write `collector_passports`, so a passport bought via Stripe on the web does not currently appear in the mobile app through that path.
@@ -86,19 +86,19 @@ A Zustand-backed desktop-only visual editor. Working: page add/reorder (dnd-kit)
 ### Other surfaces
 - `app/explore` — public catalogue. Stop counts, quality scores, and "certified" status are hardcoded to zero/null/false, so those columns never display and the quality/most-completed sorts are inert.
 - `app/access` — institution and user administration (admin/manager scoped).
-- `app/assets` — browse/upload `design_assets` (tolerates the table not existing).
+- `app/assets` — browse/upload/delete `design_assets`. Hard-delete (storage file + DB row) is gated by the `count_asset_references` RPC, which scans every reference location across drafts and published passports (`passport_pages.background_image_url`, `passport_pages.elements[].imageUrl`, `stops.stamp_asset_id`, `passports.cover_image_url`, and the `cover_outside_data` / `cover_inside_data` JSONB image fields and element arrays). Built-in assets are not deletable. Tolerates the table not existing.
 - `app/stops` — shared-stop library with import.
 - `app/profile` — edit profile and upload an avatar. The delete-account button is disabled.
 
 ### API routes (`app/api/`)
-Real: `acquire`, `checkout` (Stripe Checkout Session), `webhook/stripe`, `design/create`, `assets/upload`, `institutions[/id]`, `stops/import`, `admin/compute-quality-scores` (admin-only, manual), `analytics/[passportId]`, `notify/completion` (Resend email), `token/validate`, `token/redeem`. Partial or placeholder: `tip` (no real Connect transfer; no callers), `share/render` (returns SVG, not the intended PNG; random token).
+Real: `acquire`, `checkout` (Stripe Checkout Session), `webhook/stripe`, `design/create`, `assets/upload`, `assets/[id]` (DELETE; owner-gated, usage-checked hard delete), `institutions[/id]`, `stops/import`, `admin/compute-quality-scores` (admin-only, manual), `analytics/[passportId]`, `notify/completion` (Resend email), `token/validate`, `token/redeem`. Partial or placeholder: `tip` (no real Connect transfer; no callers), `share/render` (returns SVG, not the intended PNG; random token).
 
 ## Backend
 
 Database migrations live in three directories that do not form one coherent lineage. See `okuji-db/MIGRATIONS.md` and `okujiKobo/MIGRATIONS.md`.
 
-- **`supabase/migrations/`** (mobile schema) — `001_initial_schema.sql`, `003_accolades_schema.sql`, `004_stamp_slots.sql`, `005_journal_photos.sql`, `006_reissue_stop_qr_tokens.sql`, `007_stop_box_positions.sql`, `008_stop_lat_lng_bridge.sql`. Uses the PostGIS extension: `stops.target_location` is `geography(Point,4326)`, with a GIST index and the `check_gps_within_radius()` RPC (`ST_DWithin`). Migration 007 adds `box_x` / `box_y` / `box_width` / `box_height` on `stops` (the renderer's positioning columns); migration 008 adds `lat` / `lng` scalars plus a trigger that keeps `target_location` in sync, bridging the web designer's writes with what `verify-stamp` reads. Defines mobile-only tables: `proprietors`, `employee_accounts`, `collector_passports`, `redemption_tokens`, `accolades`, `reading_recommendations`, `teacher_notes`, `stamp_slots` (deprecated; positioning moved to `stops.box_*` in 007), `journal_photos`. Uses `evidence_tier`. This set is not self-contained (`003` alters `institutions`, which it never creates).
-- **`okujiKobo/supabase/migrations/`** (web schema) — `002` through `026`, the real incremental history. No PostGIS (plain `lat`/`lng` + `geohash` text). Uses `institutions`, `acquisitions`, `completion_tokens`, `verification_tier`. `institutions` is never created by a migration — `026_institutions_rls.sql` documents that it was created in the Supabase dashboard, and that RLS on it was off in production until migration 026.
+- **`supabase/migrations/`** (mobile schema) — `001_initial_schema.sql`, `003_accolades_schema.sql`, `004_stamp_slots.sql`, `005_journal_photos.sql`, `006_reissue_stop_qr_tokens.sql`, `007_stop_box_positions.sql`, `008_stop_lat_lng_bridge.sql`, `009_proprietor_token_prefix.sql` (adds `proprietors.token_prefix` with a `^[A-Z0-9]{1,6}$` format check; default `OKJ`, McMenamins rows backfilled to `MCM`), `010_collector_read_after_unpublish.sql` (broadens `pages_read` and `stops_read` to additionally allow SELECT when the caller has a `collector_passports` or `acquisitions` row, so unpublishing a passport does not break the book reader for existing collectors). Uses the PostGIS extension: `stops.target_location` is `geography(Point,4326)`, with a GIST index and the `check_gps_within_radius()` RPC (`ST_DWithin`). Migration 007 adds `box_x` / `box_y` / `box_width` / `box_height` on `stops` (the renderer's positioning columns); migration 008 adds `lat` / `lng` scalars plus a trigger that keeps `target_location` in sync, bridging the web designer's writes with what `verify-stamp` reads. Defines mobile-only tables: `proprietors`, `employee_accounts`, `collector_passports`, `redemption_tokens`, `accolades`, `reading_recommendations`, `teacher_notes`, `stamp_slots` (deprecated; positioning moved to `stops.box_*` in 007), `journal_photos`. Uses `evidence_tier`. This set is not self-contained (`003` alters `institutions`, which it never creates).
+- **`okujiKobo/supabase/migrations/`** (web schema) — `002` through `027`, the real incremental history. Migration `027_asset_usage_check.sql` adds the `count_asset_references` RPC (SECURITY DEFINER) used by the assets hard-delete route. No PostGIS (plain `lat`/`lng` + `geohash` text). Uses `institutions`, `acquisitions`, `completion_tokens`, `verification_tier`. `institutions` is never created by a migration — `026_institutions_rls.sql` documents that it was created in the Supabase dashboard, and that RLS on it was off in production until migration 026.
 - **`okuji-db/supabase/migrations/`** — `000_baseline.sql` (an 822-line clean-room consolidation of the web schema 002–011, plus an `institutions` definition), `002_blockpoint5.sql`, `003_blockpoint6.sql`, `004_collector_passport_last_used.sql`, and `archive/` (byte-identical copies of the web 002–011). `MIGRATIONS.md` says to run `000_baseline.sql` only for a fresh database. Note that `004` references mobile-only objects (`collector_passports`, `stamps.collector_passport_id`), so the baseline alone is not sufficient for it.
 
 The two schemas model the same concepts with different names: institutions/proprietors, acquisitions/collector_passports, completion_tokens/redemption_tokens, employee_authorizations/employee_accounts, verification_tier/evidence_tier, plain lat-lng/PostGIS geography. They were intended to coexist in one Supabase project (the web `002_connect_schema.sql` layers on top of the mobile `001`), but the repo does not contain a single authoritative combined schema. Which schema the live database actually runs needs human confirmation.
@@ -112,7 +112,7 @@ The web baseline enables RLS on all of its tables, with an admin bypass via `is_
 ### Edge functions (`supabase/functions/`)
 All three require a valid Supabase JWT (validated via `supabase.auth.getUser(token)` in the shared `_shared/auth.ts` helper) and derive the caller's `userId` from the JWT; a body `userId`, if present, must match — 403 otherwise. Each function then authorizes its specific action and uses the service-role key for the actual reads/writes. Error responses are generic (`Authentication required` / `Not authorized`); detailed reasons are `console.error`'d server-side only.
 - `verify-stamp` — authorizes that the caller owns the stop's passport (via `collector_passports`), reads the stop, applies tier logic (tier 5 honor/auto; tier 3 GPS-only via the PostGIS RPC; tiers 1–2 GPS + QR; tier 4 employee). Returns a precision-6 geohash and never the precise coordinate. It does not write the stamp; the client does (under RLS).
-- `generate-token` — authorizes ownership of the page's passport, confirms every stop on the page is stamped (keyed to the JWT user), then inserts a `redemption_tokens` row with a `MCM-XXXX-XX` code and a 30-day expiry.
+- `generate-token` — authorizes ownership of the page's passport, confirms every stop on the page is stamped (keyed to the JWT user), then inserts a `redemption_tokens` row with a `{prefix}-XXXX-XX` code and a 30-day expiry. The prefix is looked up per-proprietor (`passport_pages → passports → proprietors.token_prefix`); falls back to `OKJ` when the proprietor row is missing or its prefix value fails the format check.
 - `provision-qr-token` — authorizes that the caller is the passport's creator (`passports.creator_id`), then writes a `crypto.getRandomValues(16)` → 22-char base64url token into `stops.qr_code_id`. Default returns the existing token; an explicit `{ regenerate: true }` replaces it.
 
 ### Storage
@@ -134,7 +134,8 @@ Three buckets:
 ### Environment variables
 Mobile (`.env` locally, or EAS environment variables for builds), all client-exposed:
 - `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY` (required; the app throws without them)
-- `EXPO_PUBLIC_SENTRY_DSN` (optional)
+- `EXPO_PUBLIC_SENTRY_DSN` (optional; enables crash reporting in built apps)
+- `SENTRY_AUTH_TOKEN` (EAS env secret, build-time only; used by the `@sentry/react-native/expo` config plugin to upload source maps during EAS builds)
 
 Web (`okujiKobo/.env.local`; see `okujiKobo/.env.local.example`):
 - Public: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `NEXT_PUBLIC_BASE_URL`
@@ -170,11 +171,9 @@ Stubbed, hardcoded, or mocked:
 
 Build and configuration:
 - Web build sets `typescript.ignoreBuildErrors: true`, so type errors do not fail the build; combined with frequent `(supabase as any)` casts on untyped tables (`collector_passports`, `share_tokens`, `presence_sessions`, `design_assets`, `print_jobs`), schema drift is not caught at build time.
-- Mobile calls `Sentry.init` with `enableNativeFramesTracking: true`, but the `@sentry/react-native` native config plugin has been removed from `app.json`, so native instrumentation is not wired.
 - `okuji-db/`, `okujiKobo/supabase/`, and `supabase/` contain three overlapping migration sets; the canonical apply order is not determinable from the repo.
 
 Security items to review:
 - `api/employees/lookup` uses the service-role `getUserByEmail` but only checks that the caller is logged in, not that they manage the institution.
-- `okujiKobo/.env.local.example` commits a real-format Supabase URL and an anon JWT rather than placeholders.
 - Storage upload policies do not enforce per-user folders.
 - `api/share/render` uses `Math.random` for its share token rather than a cryptographic source. (Stop QR tokens are no longer affected — they're server-issued via `provision-qr-token` using `crypto.getRandomValues`.)
