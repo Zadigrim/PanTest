@@ -1,5 +1,8 @@
 // Called when all stops on a page are stamped.
-// Generates a single-use redemption token (format MCM-XXXX-XX).
+// Generates a single-use redemption token. The prefix is per-proprietor
+// (proprietors.token_prefix) so a non-McMenamins partner's tokens don't start
+// with MCM-. Default prefix is OKJ when the proprietor row is missing or its
+// prefix value fails the format check.
 //
 // AUTH: requires a valid Supabase JWT. The caller must own the passport that
 // contains the page. The userId is derived from the JWT, never from the request
@@ -14,6 +17,9 @@ const CORS_HEADERS = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+const DEFAULT_PREFIX = 'OKJ'
+const PREFIX_RE = /^[A-Z0-9]{1,6}$/
+
 function json(body: unknown, status: number) {
   return new Response(JSON.stringify(body), {
     status,
@@ -21,11 +27,14 @@ function json(body: unknown, status: number) {
   })
 }
 
-function generateTokenCode(): string {
+// Token-code entropy unchanged from the original implementation: 4+2 chars
+// from an ambiguity-trimmed Crockford-style alphabet. The prefix becomes a
+// parameter so per-proprietor configuration is honored at format time.
+function generateTokenCode(prefix: string): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
   const part1 = Array.from({ length: 4 }, () => chars[Math.floor(Math.random() * chars.length)]).join('')
   const part2 = Array.from({ length: 2 }, () => chars[Math.floor(Math.random() * chars.length)]).join('')
-  return `MCM-${part1}-${part2}`
+  return `${prefix}-${part1}-${part2}`
 }
 
 serve(async (req) => {
@@ -113,10 +122,30 @@ serve(async (req) => {
       .eq('id', pageId)
       .single()
 
+    // Per-proprietor prefix: passport_pages -> passports -> proprietors.token_prefix.
+    // Fall back to DEFAULT_PREFIX when the proprietor is unset or its value
+    // somehow fails the format check.
+    let prefix = DEFAULT_PREFIX
+    const { data: passportRow } = await supabase
+      .from('passports')
+      .select('proprietor_id')
+      .eq('id', pageOwner.passport_id)
+      .maybeSingle()
+    if (passportRow?.proprietor_id) {
+      const { data: prop } = await supabase
+        .from('proprietors')
+        .select('token_prefix')
+        .eq('id', passportRow.proprietor_id)
+        .maybeSingle()
+      if (prop?.token_prefix && PREFIX_RE.test(prop.token_prefix)) {
+        prefix = prop.token_prefix
+      }
+    }
+
     const expires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days
 
     for (let attempt = 0; attempt < 2; attempt++) {
-      const tokenCode = generateTokenCode()
+      const tokenCode = generateTokenCode(prefix)
       const { data: token, error } = await supabase
         .from('redemption_tokens')
         .insert({
