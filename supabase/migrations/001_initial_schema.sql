@@ -269,7 +269,7 @@ CREATE POLICY "stamps_own" ON public.stamps
   FOR ALL USING (user_id = auth.uid());
 
 -- Journal entries: users see only their own
--- PRIVACY: Panoply never reads journal content
+-- PRIVACY: Okuji never reads journal content
 CREATE POLICY "journal_own" ON public.journal_entries
   FOR ALL USING (user_id = auth.uid());
 

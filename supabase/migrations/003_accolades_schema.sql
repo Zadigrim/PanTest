@@ -59,7 +59,7 @@ CREATE TABLE IF NOT EXISTS public.reading_recommendations (
 -- ─────────────────────────────────────────────
 -- TEACHER NOTES
 -- Pre-trip prompts and post-trip responses.
--- Composed asynchronously in PanoplyConnect web — not in Expo app.
+-- Composed asynchronously in okujiKobo web — not in Expo app.
 -- ─────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS public.teacher_notes (

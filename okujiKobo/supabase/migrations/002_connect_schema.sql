@@ -1,4 +1,4 @@
--- PanoplyConnect schema additions.
+-- okujiKobo schema additions.
 -- Assumes Expo 001_initial_schema.sql and Designer 002_designer_schema.sql already ran.
 -- The stamps and collector_passports tables already exist; we extend them.
 
@@ -199,7 +199,7 @@ CREATE TABLE IF NOT EXISTS public.employee_authorizations (
 );
 
 -- ─────────────────────────────────────────────
--- TIPS — 100% goes to creator, no Panoply cut
+-- TIPS — 100% goes to creator, no Okuji cut
 -- ─────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.tips (
   id                        uuid DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -211,7 +211,7 @@ CREATE TABLE IF NOT EXISTS public.tips (
   note                      text,
   tipped_at                 timestamptz DEFAULT now()
   -- 100% of tip (minus Stripe processing fee) transfers to creator.
-  -- Panoply retains ZERO. Enforced in /api/tip route.
+  -- Okuji retains ZERO. Enforced in /api/tip route.
 );
 
 -- ─────────────────────────────────────────────
