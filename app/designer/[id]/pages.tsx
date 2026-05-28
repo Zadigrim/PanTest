@@ -1,4 +1,11 @@
-// Designer — Pages route: two-page passport spread + draggable stamp slots.
+// Designer — Pages route: two-page passport spread + draggable stamp boxes.
+//
+// Stamp positions live on the stops table (box_x / box_y / box_width /
+// box_height) — the book renderer (components/passport/DesignerCanvas.tsx)
+// reads them from there. Each stop on the active page has exactly one box;
+// this screen lets the creator drag each stop's box into position on the
+// right-hand spread page. The stamp_slots table (migration 004) is no
+// longer used as the source of truth.
 import React, { useEffect, useState, useCallback } from 'react'
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator,
@@ -16,69 +23,42 @@ const MUTED   = palette.muted
 const ACCENT  = palette.accent
 const HAIRLINE = palette.hairline
 
-interface SlotRecord {
-  id: string
-  page_id: string
-  stop_id: string | null
-  pos_x: number
-  pos_y: number
-  width_pct: number
-  height_pct: number
-  stops?: { name: string } | null
-}
-
 export default function PagesRoute() {
-  const { id } = useLocalSearchParams<{ id: string }>()
-  const { pages, selectedId, selectedType, activeTool, setSelection } = useDesigner()
+  useLocalSearchParams<{ id: string }>() // route param; pages provided via context
+  const { pages, selectedId, selectedType, setSelection } = useDesigner()
   const { pageW, pageH } = useSpreadDimensions()
 
-  const [slots, setSlots] = useState<SlotRecord[]>([])
+  const [stops, setStops] = useState<Stop[]>([])
   const [pageIdx, setPageIdx] = useState(0)
   const [loading, setLoading] = useState(true)
 
   const activePage = pages[pageIdx] ?? null
 
-  const loadSlots = useCallback(async () => {
+  const loadStops = useCallback(async () => {
     if (!activePage) return
+    setLoading(true)
     const { data } = await supabase
-      .from('stamp_slots')
-      .select('*, stops(name)')
+      .from('stops')
+      .select('*')
       .eq('page_id', activePage.id)
-    setSlots((data ?? []) as SlotRecord[])
+      .order('stop_order', { ascending: true })
+    setStops((data ?? []) as Stop[])
     setLoading(false)
   }, [activePage])
 
-  useEffect(() => { setLoading(true); loadSlots() }, [loadSlots])
+  useEffect(() => { void loadStops() }, [loadStops])
 
-  const addSlot = async () => {
-    if (!activePage) return
-    const { data } = await supabase
-      .from('stamp_slots')
-      .insert({
-        page_id: activePage.id,
-        stop_id: null,
-        pos_x: 20 + slots.length * 5,
-        pos_y: 20 + slots.length * 5,
-        width_pct: 40,
-        height_pct: 25,
-      })
-      .select('*, stops(name)')
-      .single()
-    if (data) {
-      setSlots(s => [...s, data as SlotRecord])
-      setSelection(data.id, 'slot')
-    }
-  }
-
-  const moveSlot = useCallback(async (slotId: string, posX: number, posY: number) => {
-    setSlots(s => s.map(sl => sl.id === slotId ? { ...sl, pos_x: posX, pos_y: posY } : sl))
-    await supabase.from('stamp_slots').update({ pos_x: posX, pos_y: posY }).eq('id', slotId)
+  // Drag updates the stop's box position. Optimistic local update + DB write.
+  const moveStopBox = useCallback(async (stopId: string, posX: number, posY: number) => {
+    setStops((curr) =>
+      curr.map((s) => (s.id === stopId ? { ...s, box_x: posX, box_y: posY } : s)),
+    )
+    await supabase.from('stops').update({ box_x: posX, box_y: posY }).eq('id', stopId)
   }, [])
 
   const handleCanvasPress = useCallback(() => {
-    if (activeTool === 'slot') addSlot()
-    else setSelection(null, null)
-  }, [activeTool, addSlot, setSelection])
+    setSelection(null, null)
+  }, [setSelection])
 
   if (pages.length === 0) {
     return (
@@ -91,44 +71,39 @@ export default function PagesRoute() {
   return (
     <View style={s.container}>
       {/* Spread canvas */}
-      <ScrollView
-        contentContainerStyle={s.canvas}
-        showsVerticalScrollIndicator={false}
-      >
+      <ScrollView contentContainerStyle={s.canvas} showsVerticalScrollIndicator={false}>
         <TouchableOpacity activeOpacity={1} onPress={handleCanvasPress}>
           <PassportSpread
-            leftContent={
-              <SectionDividerPreview page={activePage} />
-            }
+            leftContent={<SectionDividerPreview page={activePage} />}
             rightContent={
-              loading
-                ? <ActivityIndicator color={ACCENT} style={{ flex: 1 }} />
-                : (
-                  <View style={{ flex: 1, position: 'relative' }}>
-                    {slots.map(slot => (
-                      <StampSlot
-                        key={slot.id}
-                        slot={{
-                          id: slot.id,
-                          stop_id: slot.stop_id,
-                          stop_name: (slot.stops as any)?.name ?? null,
-                          pos_x: slot.pos_x,
-                          pos_y: slot.pos_y,
-                          width_pct: slot.width_pct,
-                          height_pct: slot.height_pct,
-                        }}
-                        pageW={pageW}
-                        pageH={pageH}
-                        selected={selectedId === slot.id && selectedType === 'slot'}
-                        onSelect={() => setSelection(slot.id, 'slot')}
-                        onMove={moveSlot}
-                      />
-                    ))}
-                    {activeTool === 'slot' && slots.length === 0 && (
-                      <Text style={s.tapHint}>Tap to place a stamp slot</Text>
-                    )}
-                  </View>
-                )
+              loading ? (
+                <ActivityIndicator color={ACCENT} style={{ flex: 1 }} />
+              ) : (
+                <View style={{ flex: 1, position: 'relative' }}>
+                  {stops.length === 0 && (
+                    <Text style={s.tapHint}>Add stops on the Stops tab to position them here.</Text>
+                  )}
+                  {stops.map((stop) => (
+                    <StampSlot
+                      key={stop.id}
+                      slot={{
+                        id: stop.id,
+                        stop_id: stop.id,
+                        stop_name: stop.name,
+                        pos_x: stop.box_x ?? 10,
+                        pos_y: stop.box_y ?? 10,
+                        width_pct: stop.box_width,
+                        height_pct: stop.box_height,
+                      }}
+                      pageW={pageW}
+                      pageH={pageH}
+                      selected={selectedId === stop.id && selectedType === 'slot'}
+                      onSelect={() => setSelection(stop.id, 'slot')}
+                      onMove={moveStopBox}
+                    />
+                  ))}
+                </View>
+              )
             }
           />
         </TouchableOpacity>
@@ -138,7 +113,7 @@ export default function PagesRoute() {
       <View style={s.pagePicker}>
         <TouchableOpacity
           style={[s.pagePickerBtn, pageIdx === 0 && s.pagePickerBtnDisabled]}
-          onPress={() => setPageIdx(i => Math.max(0, i - 1))}
+          onPress={() => setPageIdx((i) => Math.max(0, i - 1))}
           disabled={pageIdx === 0}
         >
           <Text style={s.pagePickerArrow}>‹</Text>
@@ -148,7 +123,7 @@ export default function PagesRoute() {
         </Text>
         <TouchableOpacity
           style={[s.pagePickerBtn, pageIdx >= pages.length - 1 && s.pagePickerBtnDisabled]}
-          onPress={() => setPageIdx(i => Math.min(pages.length - 1, i + 1))}
+          onPress={() => setPageIdx((i) => Math.min(pages.length - 1, i + 1))}
           disabled={pageIdx >= pages.length - 1}
         >
           <Text style={s.pagePickerArrow}>›</Text>
@@ -164,9 +139,7 @@ function SectionDividerPreview({ page }: { page: PassportPage | null }) {
     <View style={div.root}>
       <Text style={div.chapterLabel}>CHAPTER</Text>
       <Text style={div.sectionName}>{page.section_name}</Text>
-      {!!page.section_tagline && (
-        <Text style={div.tagline}>{page.section_tagline}</Text>
-      )}
+      {!!page.section_tagline && <Text style={div.tagline}>{page.section_tagline}</Text>}
       {!!page.prize_description && (
         <View style={div.prizeHint}>
           <Text style={div.prizeLabel}>Prize</Text>
@@ -184,7 +157,7 @@ const s = StyleSheet.create({
   canvas: { alignItems: 'center', paddingVertical: 32, paddingHorizontal: 16 },
   tapHint: {
     position: 'absolute', top: '45%', alignSelf: 'center',
-    fontSize: 10, color: HAIRLINE, fontStyle: 'italic',
+    fontSize: 10, color: HAIRLINE, fontStyle: 'italic', textAlign: 'center', paddingHorizontal: 12,
   },
   pagePicker: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
