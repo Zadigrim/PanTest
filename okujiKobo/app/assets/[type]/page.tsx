@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { cn } from '@/lib/cn'
 import { UploadAssetButton } from '@/components/assets/UploadAssetButton'
+import { DeleteAssetButton } from '@/components/assets/DeleteAssetButton'
 
 // ---------------------------------------------------------------------------
 // Config per asset type
@@ -83,19 +84,25 @@ interface AssetRow {
   name: string | null
   url: string | null
   institution_id: string | null
+  owner_id: string | null
+  is_built_in: boolean | null
 }
 
 function AssetCard({
   asset,
   userInstitutionId,
+  currentUserId,
 }: {
   asset: AssetRow
   userInstitutionId: string | null
+  currentUserId: string
 }) {
   const isShared =
     asset.institution_id !== null &&
     userInstitutionId !== null &&
     asset.institution_id === userInstitutionId
+
+  const canDelete = asset.is_built_in !== true && asset.owner_id === currentUserId
 
   return (
     <div className="bg-white rounded-panel border border-hairline overflow-hidden group">
@@ -120,11 +127,18 @@ function AssetCard({
         <p className="text-sm font-medium text-navy truncate">
           {asset.name ?? 'Untitled'}
         </p>
-        {isShared && (
-          <span className="shrink-0 inline-flex items-center rounded-card bg-cream px-2 py-0.5 text-xs font-medium text-green">
-            Shared
-          </span>
-        )}
+        <div className="flex shrink-0 items-center gap-1.5">
+          {isShared && (
+            <span className="inline-flex items-center rounded-card bg-cream px-2 py-0.5 text-xs font-medium text-green">
+              Shared
+            </span>
+          )}
+          <DeleteAssetButton
+            assetId={asset.id}
+            assetName={asset.name ?? 'Untitled'}
+            canDelete={canDelete}
+          />
+        </div>
       </div>
     </div>
   )
@@ -193,7 +207,7 @@ export default async function AssetTypePage({ params }: Props) {
   const db = supabase as any
   const { data: assets, error: assetsError } = await db
     .from('design_assets')
-    .select('id, name, url, institution_id')
+    .select('id, name, url, institution_id, owner_id, is_built_in')
     .eq('asset_type', meta.dbType)
     .or(
       [
@@ -251,6 +265,7 @@ export default async function AssetTypePage({ params }: Props) {
                 key={asset.id}
                 asset={asset}
                 userInstitutionId={userInstitutionId}
+                currentUserId={user.id}
               />
             ))}
           </div>
