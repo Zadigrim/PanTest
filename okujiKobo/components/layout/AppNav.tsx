@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import Image from 'next/image'
 import { headers } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
 import { detectRoles } from '@/lib/roles'
@@ -75,7 +76,15 @@ export default async function AppNav() {
           )}
           aria-label="okujiKobo home"
         >
-          <span className="text-xl leading-none" aria-hidden="true">🧭</span>
+          <Image
+            src="/okuji-mark.png"
+            alt=""
+            width={24}
+            height={24}
+            className="h-6 w-6"
+            priority
+            aria-hidden="true"
+          />
           <span className="font-serif text-lg font-bold text-white tracking-tight hidden sm:inline">
             Okuji
           </span>
