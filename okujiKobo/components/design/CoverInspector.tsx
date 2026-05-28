@@ -470,7 +470,7 @@ export function CoverInspector({ face, panel }: Props) {
             <div className="space-y-1.5">
               <Label className="text-xs text-muted">Emblem (emoji)</Label>
               <Input
-                value={passport.cover_emblem ?? '🧭'}
+                value={passport.cover_emblem ?? ''}
                 maxLength={4}
                 onChange={(e) => updatePassport({ cover_emblem: e.target.value })}
                 onBlur={(e) => persistPassport({ cover_emblem: e.target.value })}

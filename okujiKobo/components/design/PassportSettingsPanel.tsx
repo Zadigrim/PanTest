@@ -163,7 +163,7 @@ export function PassportSettingsPanel({ onClose }: Props) {
             <div className="space-y-1">
               <Label className="text-xs text-muted">Emblem (emoji)</Label>
               <Input
-                value={passport.cover_emblem ?? '🧭'}
+                value={passport.cover_emblem ?? ''}
                 onChange={(e) => updatePassport({ cover_emblem: e.target.value })}
                 onBlur={(e) => persist({ cover_emblem: e.target.value })}
                 className="h-8 text-lg"
