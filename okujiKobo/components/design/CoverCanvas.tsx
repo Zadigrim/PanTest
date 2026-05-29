@@ -6,13 +6,14 @@ import { PageElementBox } from './PageElementBox'
 import type { CoverSideData, DesignerPageElement } from '@/lib/design/types'
 
 // ── Dimensions ────────────────────────────────────────────────────────────────
-// Cover canvas dimensions — matched to the inside-page artboard (612 × 792)
-// per panel, with 24px of additional vertical bleed to accommodate the fold.
-// Total spread is 1224 × 816 (back panel | spine | front panel side-by-side);
-// the spine is a visual dashed line at x = COVER_W, not a structural gap.
-export const COVER_W  = 612   // px per panel — matches inside-page width
-export const COVER_H  = 816   // px per panel — inside-page height + 24px fold bleed
-export const CANVAS_W = COVER_W * 2  // 1224 px — full unfolded spread
+// Cover canvas dimensions — matched to the inside-page artboard (612 × 792).
+// Each cover panel is exactly the same size as an inside page. The two
+// panels are separated by a 24px spine gutter that represents the physical
+// fold; the gutter is a real gap in the canvas, not just a visual line.
+export const COVER_W  = 612                          // px per panel — matches inside-page
+export const COVER_H  = 792                          // px per panel — matches inside-page
+export const SPINE_W  = 24                           // px gutter between back and front panels
+export const CANVAS_W = COVER_W * 2 + SPINE_W        // 1248 px — full unfolded spread
 
 export type CoverFace  = 'outside' | 'inside'
 export type CoverPanel = 'front' | 'back'
@@ -85,7 +86,8 @@ export function CoverCanvas({ face, onFaceChange, selectedPanel, onPanelChange }
     if (dragRef.current) return
     const rect = e.currentTarget.getBoundingClientRect()
     const x = (e.clientX - rect.left) / zoom
-    onPanelChange(x < COVER_W ? 'back' : 'front')
+    // Spine gutter midpoint splits back from front
+    onPanelChange(x < COVER_W + SPINE_W / 2 ? 'back' : 'front')
   }
 
   // Image drag handlers
@@ -224,11 +226,11 @@ export function CoverCanvas({ face, onFaceChange, selectedPanel, onPanelChange }
               />
             ))}
 
-            {/* Spine fold line */}
+            {/* Spine fold line — centered in the 24px gutter */}
             <div
               className="absolute top-0 bottom-0 pointer-events-none"
               style={{
-                left: COVER_W,
+                left: COVER_W + SPINE_W / 2,
                 width: 0,
                 borderLeft: '1px dashed rgba(255,255,255,0.35)',
                 zIndex: 10,
