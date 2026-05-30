@@ -4,7 +4,7 @@ import { View, ActivityIndicator, StyleSheet, Alert } from 'react-native'
 import { useLocalSearchParams, router } from 'expo-router'
 import { supabase, getCurrentUser } from '../../lib/supabase'
 import { ExperienceVerifier } from '../../components/employee/ExperienceVerifier'
-import { useEmployeeAccount, useRedemption } from '../../hooks/useEmployee'
+import { useRedemption } from '../../hooks/useEmployee'
 import type { Stop } from '../../types'
 import { palette } from '../../lib/colors'
 
@@ -18,7 +18,11 @@ export default function VerifyScreen() {
   const [stop, setStop] = useState<Stop | null>(null)
   const [loading, setLoading] = useState(true)
   const [userId, setUserId] = useState<string | null>(null)
-  const { account } = useEmployeeAccount(userId ?? '')
+  // Stamp verification writes stamps.verifier_id, which FKs profiles,
+  // so we only need userId here — no employee_authorizations lookup.
+  // The _layout-level gate already enforces that this user has a
+  // can_distribute_prizes authorization before they can reach the
+  // verify screen.
   const { verifyExperienceStamp } = useRedemption()
 
   useEffect(() => {

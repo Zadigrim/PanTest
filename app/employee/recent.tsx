@@ -17,8 +17,9 @@ interface Item {
   id: string
   token_code: string
   prize_given: string | null
-  scanned_at: string | null
-  prize_distributed_at: string | null
+  redeemed_at: string | null
+  distribution_logged_at: string | null
+  prize_distributed: boolean
   distribution_pending: boolean
 }
 
@@ -30,21 +31,13 @@ export default function RecentScreen() {
     const user = await getCurrentUser()
     if (!user) { router.replace('/(auth)/login'); return }
 
-    const { data: acct } = await supabase
-      .from('employee_accounts')
-      .select('id')
-      .eq('user_id', user.id)
-      .eq('is_active', true)
-      .single()
-    if (!acct) { setLoading(false); return }
-
     const today = new Date(); today.setHours(0, 0, 0, 0)
     const { data } = await supabase
-      .from('redemption_tokens')
-      .select('id, token_code, prize_given, scanned_at, prize_distributed_at, distribution_pending')
-      .eq('scanned_by_employee', acct.id)
-      .gte('scanned_at', today.toISOString())
-      .order('scanned_at', { ascending: false })
+      .from('completion_tokens')
+      .select('id, token_code, prize_given, redeemed_at, distribution_logged_at, prize_distributed, distribution_pending')
+      .eq('redeemed_by', user.id)
+      .gte('redeemed_at', today.toISOString())
+      .order('redeemed_at', { ascending: false })
       .limit(100)
 
     setItems((data ?? []) as Item[])
@@ -75,9 +68,9 @@ export default function RecentScreen() {
           <Text style={s.emptyText}>No scans today.</Text>
         }
         renderItem={({ item }) => {
-          const dot = item.prize_distributed_at && !item.distribution_pending
+          const dot = item.prize_distributed && !item.distribution_pending
             ? GREEN : item.distribution_pending ? ACCENT : HAIRLINE
-          const status = item.prize_distributed_at && !item.distribution_pending
+          const status = item.prize_distributed && !item.distribution_pending
             ? 'Given'
             : item.distribution_pending ? 'Pending'
             : 'Scanned'
@@ -92,9 +85,9 @@ export default function RecentScreen() {
               </View>
               <View style={{ alignItems: 'flex-end', gap: 3 }}>
                 <Text style={[s.statusChip, { color: dot }]}>{status}</Text>
-                {!!item.scanned_at && (
+                {!!item.redeemed_at && (
                   <Text style={s.time}>
-                    {new Date(item.scanned_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    {new Date(item.redeemed_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </Text>
                 )}
               </View>
