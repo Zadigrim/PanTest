@@ -5,7 +5,6 @@ export type StampSmudge = 'none' | 'light' | 'medium' | 'heavy'
 export type VerificationMethod = 'qr_gps' | 'gps_only' | 'employee' | 'self_reported'
 export type VerificationType = 'witnessed' | 'documented' | 'presence' | 'honor'
 export type InputMethod = 'keyboard' | 'voice' | 'both'
-export type ProprietorTier = 'community' | 'commercial' | 'enterprise'
 export type CoverBgType = 'color' | 'gradient' | 'image'
 
 export interface Profile {
@@ -17,24 +16,6 @@ export interface Profile {
   pro_expires_at: string | null
   created_at: string
   updated_at: string
-}
-
-export interface Proprietor {
-  id: string
-  name: string
-  slug: string
-  logo_url: string | null
-  tier: ProprietorTier
-  created_at: string
-}
-
-export interface EmployeeAccount {
-  id: string
-  user_id: string
-  proprietor_id: string
-  employee_name: string
-  is_active: boolean
-  created_at: string
 }
 
 export interface Passport {
@@ -196,23 +177,25 @@ export interface JournalPhoto {
   updated_at: string
 }
 
-export interface RedemptionToken {
+export interface CompletionToken {
   id: string
   user_id: string
+  passport_id: string
   page_id: string
   token_code: string
-  scanned_at: string | null
-  scanned_by_employee: string | null
-  prize_distributed_at: string | null
-  prize_given: string | null
-  distributed_by: string | null
-  distribution_location_id: string | null
-  extra_gift_card_cents: number | null
-  employee_note: string | null
-  distribution_pending: boolean
-  location_whitelist: string[] | null
+  generated_at: string
   expires_at: string
-  created_at: string
+  redeemed_at: string | null
+  redeemed_by: string | null
+  prize_distributed: boolean
+  distribution_pending: boolean
+  distribution_logged_at: string | null
+  distribution_logged_by: string | null
+  prize_note: string | null
+  prize_given: string | null
+  extra_gift_card_cents: number | null
+  distribution_location_id: string | null
+  location_whitelist: string[] | null
 }
 
 export type StampSlotState = 'dormant' | 'ready' | 'pressing' | 'stamped'

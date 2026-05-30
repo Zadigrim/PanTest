@@ -7,7 +7,7 @@ import {
 } from 'react-native'
 import { CameraView, useCameraPermissions } from 'expo-camera'
 import { router } from 'expo-router'
-import { useEmployeeAccount, useTokenScanner, useRedemption } from '../../hooks/useEmployee'
+import { useEmployeeAuth, useTokenScanner, useRedemption } from '../../hooks/useEmployee'
 import { getCurrentUser } from '../../lib/supabase'
 import { useCounterRefresh } from './_layout'
 import { palette } from '../../lib/colors'
@@ -51,7 +51,7 @@ function CornerBrackets({ size }: { size: number }) {
 
 export default function ScanScreen() {
   const [userId, setUserId] = useState<string | null>(null)
-  const { account, loading: accountLoading } = useEmployeeAccount(userId ?? '')
+  const { auth, loading: authLoading } = useEmployeeAuth(userId ?? '')
   const { scanning, scanToken, error } = useTokenScanner()
   const { recordScan } = useRedemption()
   const { refresh } = useCounterRefresh()
@@ -81,8 +81,8 @@ export default function ScanScreen() {
 
   const handleToken = async (code: string) => {
     const result = await scanToken(code)
-    if (!result || !account) return
-    await recordScan(result.id, account.id)
+    if (!result || !userId) return
+    await recordScan(result.id, userId)
     refresh()
     setScanned(false)
     router.push({ pathname: '/employee/redeem', params: { tokenId: result.id } })
@@ -101,7 +101,7 @@ export default function ScanScreen() {
     handleToken(code)
   }
 
-  if (accountLoading || !userId) {
+  if (authLoading || !userId) {
     return (
       <View style={s.centered}>
         <ActivityIndicator color={ACCENT} />
@@ -109,11 +109,11 @@ export default function ScanScreen() {
     )
   }
 
-  if (!account) {
+  if (!auth) {
     return (
       <View style={s.centered}>
         <Text style={s.noAccountText}>
-          No active employee account found.{'\n'}Contact your manager.
+          No active employee authorization found.{'\n'}Contact your manager.
         </Text>
       </View>
     )

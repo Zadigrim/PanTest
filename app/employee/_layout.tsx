@@ -27,9 +27,10 @@ interface RecentItem {
   id: string
   token_code: string
   prize_given: string | null
-  scanned_at: string | null
+  redeemed_at: string | null
   distribution_pending: boolean
-  prize_distributed_at: string | null
+  distribution_logged_at: string | null
+  prize_distributed: boolean
 }
 
 const NAV = [
@@ -45,7 +46,7 @@ export default function CounterLayout() {
   const isRedeem = pathname.includes('/redeem')
 
   const { employeeAuth } = useEmployeeContext()
-  const [accountId, setAccountId] = useState<string | null>(null)
+  const [userId, setUserId] = useState<string | null>(null)
   const [venueName, setVenueName] = useState('')
   const [stats, setStats] = useState<Stats>({ scans: 0, given: 0, pending: 0 })
   const [recent, setRecent] = useState<RecentItem[]>([])
@@ -53,38 +54,31 @@ export default function CounterLayout() {
   useEffect(() => {
     getCurrentUser().then(u => {
       if (!u) { router.replace('/(auth)/login'); return }
-      supabase
-        .from('employee_accounts')
-        .select('id, proprietors(name)')
-        .eq('user_id', u.id)
-        .eq('is_active', true)
-        .single()
-        .then(({ data }) => {
-          if (!data) return
-          setAccountId(data.id)
-          setVenueName((data as any).proprietors?.name ?? employeeAuth?.institution_name ?? '')
-        })
+      setUserId(u.id)
+      // Venue name comes from the EmployeeContext join (institutions.name).
+      // Falls back to '' until the context hydrates.
+      setVenueName(employeeAuth?.institution_name ?? '')
     })
   }, [employeeAuth?.institution_name])
 
   const loadStats = useCallback(async () => {
-    if (!accountId) return
+    if (!userId) return
     const today = new Date(); today.setHours(0, 0, 0, 0)
     const { data } = await supabase
-      .from('redemption_tokens')
-      .select('id, token_code, prize_given, scanned_at, distribution_pending, prize_distributed_at')
-      .eq('scanned_by_employee', accountId)
-      .gte('scanned_at', today.toISOString())
-      .order('scanned_at', { ascending: false })
+      .from('completion_tokens')
+      .select('id, token_code, prize_given, redeemed_at, distribution_pending, distribution_logged_at, prize_distributed')
+      .eq('redeemed_by', userId)
+      .gte('redeemed_at', today.toISOString())
+      .order('redeemed_at', { ascending: false })
       .limit(50)
     const rows = data ?? []
     setStats({
       scans: rows.length,
-      given: rows.filter(r => r.prize_distributed_at && !r.distribution_pending).length,
+      given: rows.filter(r => r.prize_distributed && !r.distribution_pending).length,
       pending: rows.filter(r => r.distribution_pending).length,
     })
     setRecent(rows.slice(0, 6) as RecentItem[])
-  }, [accountId])
+  }, [userId])
 
   useEffect(() => { loadStats() }, [loadStats])
 
@@ -124,7 +118,7 @@ export default function CounterLayout() {
               {recent.length === 0
                 ? <Text style={s.noRecent}>No scans today</Text>
                 : recent.map(item => {
-                    const dot = item.prize_distributed_at && !item.distribution_pending
+                    const dot = item.prize_distributed && !item.distribution_pending
                       ? GREEN : item.distribution_pending ? ACCENT : HAIRLINE
                     return (
                       <View key={item.id} style={s.recentRow}>
@@ -134,9 +128,9 @@ export default function CounterLayout() {
                           {!!item.prize_given &&
                             <Text style={s.recentPrize} numberOfLines={1}>{item.prize_given}</Text>}
                         </View>
-                        {!!item.scanned_at &&
+                        {!!item.redeemed_at &&
                           <Text style={s.recentTime}>
-                            {new Date(item.scanned_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            {new Date(item.redeemed_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                           </Text>}
                       </View>
                     )

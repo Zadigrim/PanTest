@@ -9,9 +9,9 @@ import {
 import { useLocalSearchParams, router } from 'expo-router'
 import { supabase, getCurrentUser } from '../../lib/supabase'
 import { GiftCardExtra } from '../../components/employee/GiftCardExtra'
-import { useEmployeeAccount, useRedemption } from '../../hooks/useEmployee'
+import { useEmployeeAuth, useRedemption } from '../../hooks/useEmployee'
 import { useCounterRefresh } from './_layout'
-import type { RedemptionToken } from '../../types'
+import type { CompletionToken } from '../../types'
 import { palette } from '../../lib/colors'
 
 const INK    = palette.ink
@@ -21,7 +21,7 @@ const GREEN  = palette.green
 const RED    = palette.red
 const HAIRLINE = palette.hairline
 
-type TokenWithPage = RedemptionToken & {
+type TokenWithPage = CompletionToken & {
   passport_pages?: { section_name: string; prize_description: string | null; passports?: { title: string } }
 }
 
@@ -30,7 +30,7 @@ export default function RedeemScreen() {
   const [token, setToken] = useState<TokenWithPage | null>(null)
   const [loading, setLoading] = useState(true)
   const [userId, setUserId] = useState<string | null>(null)
-  const { account } = useEmployeeAccount(userId ?? '')
+  const { auth } = useEmployeeAuth(userId ?? '')
   const { submitting, recordDistribution } = useRedemption()
   const { refresh } = useCounterRefresh()
   const [giftCardAmount, setGiftCardAmount] = useState<number | null>(null)
@@ -56,7 +56,7 @@ export default function RedeemScreen() {
       setUserId(user.id)
 
       const { data } = await supabase
-        .from('redemption_tokens')
+        .from('completion_tokens')
         .select(`
           *,
           passport_pages (
@@ -75,11 +75,11 @@ export default function RedeemScreen() {
   }, [tokenId])
 
   const complete = useCallback(async (outcome: 'given' | 'pending' | 'refused') => {
-    if (!account || !tokenId) return
+    if (!auth || !tokenId || !userId) return
 
     const success = await recordDistribution({
       tokenId,
-      employeeAccountId: account.id,
+      employeeUserId: userId,
       prizeGiven: prize,
       isPending: outcome === 'pending',
       extraGiftCardCents: giftCardAmount ?? undefined,
@@ -93,9 +93,9 @@ export default function RedeemScreen() {
 
     refresh()
     router.replace('/employee')
-  }, [account, tokenId, giftCardAmount, giftCardNote, recordDistribution, refresh])
+  }, [auth, userId, tokenId, giftCardAmount, giftCardNote, recordDistribution, refresh])
 
-  if (loading || !token || !account) {
+  if (loading || !token || !auth) {
     return (
       <View style={s.centered}>
         <ActivityIndicator color={ACCENT} />

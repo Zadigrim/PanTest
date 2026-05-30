@@ -17,15 +17,19 @@ export function parseQrPayload(raw: string): { stopId: string; qrCodeId: string 
   }
 }
 
+// Per-institution prefix (1-6 chars A-Z/0-9) then -XXXX-XX. The
+// MCM-only regex predated per-institution token_prefix configuration;
+// the canonical generator (supabase/functions/generate-token) emits a
+// prefix from institutions.token_prefix.
 export function isValidTokenFormat(code: string): boolean {
-  return /^MCM-[A-Z0-9]{4}-[A-Z0-9]{2}$/.test(code)
+  return /^[A-Z0-9]{1,6}-[A-Z0-9]{4}-[A-Z0-9]{2}$/.test(code)
 }
 
 export async function lookupToken(tokenCode: string) {
   if (!isValidTokenFormat(tokenCode)) return null
 
   const { data, error } = await supabase
-    .from('redemption_tokens')
+    .from('completion_tokens')
     .select(`
       *,
       passport_pages (
