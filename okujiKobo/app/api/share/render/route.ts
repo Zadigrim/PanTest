@@ -2,6 +2,22 @@ import { NextRequest, NextResponse } from 'next/server'
 import { randomBytes } from 'crypto'
 import { createClient } from '@/lib/supabase/server'
 
+// SEC-06: user-controlled fields (passport title, emblem, bg color,
+// display name) are interpolated into the SVG response below. Without
+// escaping, a creator could put `<script>` or an `onload=` SVG event
+// handler in their passport title and have it execute when a viewer
+// fetches the raw share URL (served as image/svg+xml, same-origin).
+// The long-term fix is moving to @vercel/og or node-canvas per the
+// TODO further down; this is the interim escape-on-interpolation fix.
+function escapeSvg(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
 // Server-side share image generation.
 // Returns a simple SVG for MVP — replace with @vercel/og or canvas for production.
 export async function POST(request: NextRequest) {
@@ -59,10 +75,10 @@ export async function POST(request: NextRequest) {
     .eq('id', user.id)
     .single()
 
-  const bgColor = `#${passport.cover_bg_color ?? '0D1B2A'}`
-  const emblem = passport.cover_emblem ?? '🧭'
-  const name = profile?.display_name ?? 'Collector'
-  const title = passport.title
+  const bgColor = escapeSvg(`#${passport.cover_bg_color ?? '0D1B2A'}`)
+  const emblem = escapeSvg(passport.cover_emblem ?? '🧭')
+  const name = escapeSvg(profile?.display_name ?? 'Collector')
+  const title = escapeSvg(passport.title)
 
   // Generate SVG share image (1080×1080)
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1080" viewBox="0 0 1080 1080">
@@ -73,8 +89,9 @@ export async function POST(request: NextRequest) {
     <text x="980" y="1040" font-size="24" font-family="sans-serif" fill="#FFFFFF80" text-anchor="end">Okuji</text>
   </svg>`
 
-  // In production: use @vercel/og or node-canvas for proper image rendering
-  // TODO: replace SVG with PNG render using canvas or Satori
+  // In production: use @vercel/og or node-canvas for proper image rendering.
+  // TODO: replace SVG with PNG render using canvas or Satori. Until then,
+  // user-controlled fields above are run through escapeSvg() (SEC-06).
 
   // Create a share token — 16 bytes of crypto-random entropy (~128 bits),
   // encoded as 22-char base64url. share_tokens.token is text/unique, so the
