@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { randomBytes } from 'crypto'
 import { createClient } from '@/lib/supabase/server'
 
 // Server-side share image generation.
@@ -12,11 +13,45 @@ export async function POST(request: NextRequest) {
 
   const { data: passport } = await supabase
     .from('passports')
-    .select('title, cover_bg_color, cover_emblem')
+    .select('title, cover_bg_color, cover_emblem, creator_id, proprietor_id, is_published')
     .eq('id', passportId)
-    .single()
+    .single() as {
+      data: {
+        title: string
+        cover_bg_color: string | null
+        cover_emblem: string | null
+        creator_id: string
+        proprietor_id: string | null
+        is_published: boolean
+      } | null
+    }
 
   if (!passport) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  // Authorization: caller must be allowed to read this passport. Branches:
+  //   1. Caller owns the passport (creator_id = auth.uid())
+  //   2. The passport is published (is_published = true)
+  //   3. Caller is a platform admin
+  //   4. Caller is an employee at the passport's proprietor institution
+  // Return 404 (not 403) when no branch matches, so we don't leak existence.
+  let authorized = passport.creator_id === user.id || passport.is_published
+  if (!authorized) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: isAdminRpc } = await (supabase as any).rpc('is_platform_admin')
+    if (isAdminRpc) authorized = true
+  }
+  if (!authorized && passport.proprietor_id) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { count: empCount } = await (supabase as any)
+      .from('employee_authorizations')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', user.id)
+      .eq('institution_id', passport.proprietor_id)
+    if (empCount && empCount > 0) authorized = true
+  }
+  if (!authorized) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  }
 
   const { data: profile } = await supabase
     .from('profiles')
@@ -41,8 +76,10 @@ export async function POST(request: NextRequest) {
   // In production: use @vercel/og or node-canvas for proper image rendering
   // TODO: replace SVG with PNG render using canvas or Satori
 
-  // Create a share token
-  const token = Math.random().toString(36).slice(2, 10).toUpperCase()
+  // Create a share token — 16 bytes of crypto-random entropy (~128 bits),
+  // encoded as 22-char base64url. share_tokens.token is text/unique, so the
+  // existing 8-char Math.random() tokens in the DB remain valid.
+  const token = randomBytes(16).toString('base64url')
   await supabase.from('share_tokens').insert({ user_id: user.id, passport_id: passportId, token })
 
   return new NextResponse(svg, {
