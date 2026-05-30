@@ -1,7 +1,7 @@
 // Called when all stops on a page are stamped.
-// Generates a single-use redemption token. The prefix is per-proprietor
-// (proprietors.token_prefix) so a non-McMenamins partner's tokens don't start
-// with MCM-. Default prefix is OKJ when the proprietor row is missing or its
+// Generates a single-use completion token. The prefix is per-institution
+// (institutions.token_prefix) so a non-McMenamins partner's tokens don't start
+// with MCM-. Default prefix is OKJ when the institution row is missing or its
 // prefix value fails the format check.
 //
 // AUTH: requires a valid Supabase JWT. The caller must own the passport that
@@ -106,7 +106,7 @@ serve(async (req) => {
     }
 
     const { data: existing } = await supabase
-      .from('redemption_tokens')
+      .from('completion_tokens')
       .select('id, token_code')
       .eq('user_id', userId)
       .eq('page_id', pageId)
@@ -122,9 +122,11 @@ serve(async (req) => {
       .eq('id', pageId)
       .single()
 
-    // Per-proprietor prefix: passport_pages -> passports -> proprietors.token_prefix.
-    // Fall back to DEFAULT_PREFIX when the proprietor is unset or its value
-    // somehow fails the format check.
+    // Per-institution prefix: passport_pages -> passports -> institutions.token_prefix.
+    // (passports.proprietor_id is the legacy column name; it FKs institutions.id
+    // since the web schema repoint in 002_connect_schema.sql.) Fall back to
+    // DEFAULT_PREFIX when the institution is unset or its value somehow fails
+    // the format check.
     let prefix = DEFAULT_PREFIX
     const { data: passportRow } = await supabase
       .from('passports')
@@ -132,13 +134,13 @@ serve(async (req) => {
       .eq('id', pageOwner.passport_id)
       .maybeSingle()
     if (passportRow?.proprietor_id) {
-      const { data: prop } = await supabase
-        .from('proprietors')
+      const { data: inst } = await supabase
+        .from('institutions')
         .select('token_prefix')
         .eq('id', passportRow.proprietor_id)
         .maybeSingle()
-      if (prop?.token_prefix && PREFIX_RE.test(prop.token_prefix)) {
-        prefix = prop.token_prefix
+      if (inst?.token_prefix && PREFIX_RE.test(inst.token_prefix)) {
+        prefix = inst.token_prefix
       }
     }
 
@@ -147,9 +149,10 @@ serve(async (req) => {
     for (let attempt = 0; attempt < 2; attempt++) {
       const tokenCode = generateTokenCode(prefix)
       const { data: token, error } = await supabase
-        .from('redemption_tokens')
+        .from('completion_tokens')
         .insert({
           user_id: userId,
+          passport_id: pageOwner.passport_id,
           page_id: pageId,
           token_code: tokenCode,
           location_whitelist: page?.prize_redeemable_location_ids ?? null,
