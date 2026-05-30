@@ -14,6 +14,7 @@
 |---|---|---|
 | 2026-05-30 | `feat/phase-0-security-cluster` (`a38093b`, `c6a0c5e`, `0c2fab4`, `f30d43f`) | SEC-01, SEC-04, SEC-05 (code; migration apply pending), FIX-05 |
 | 2026-05-30 | `feat/phase-0-closeout` (`07108d8`) | SEC-06 |
+| 2026-05-30 | DEC resolution session (docs-only) | DEC-02, DEC-08, DEC-16, DEC-17, DEC-18, DEC-19 resolved. New work item BLD-31 added. Downstream notes added to SEC-03, FIX-02, FIX-06, FIX-07, CLN-01, CLN-06, CLN-07, CLN-08, BLD-05, BLD-29. |
 
 **SEC-05 migration apply status:** `okujiKobo/supabase/migrations/031_design_assets_storage_policy.sql` is committed but NOT yet applied to production. The storage policy is not enforced until the migration runs. Apply with `supabase db push` (or `supabase migration up` per the project's local convention) and verify with `select policyname, cmd, with_check from pg_policies where tablename = 'objects' and policyname = 'design_assets_upload';` — the `with_check` body should include `(storage.foldername(name))[1] = auth.uid()::text`.
 
@@ -28,12 +29,12 @@ Two minor pre-statements to clear up before the inventory:
 
 ## Section 1 — Executive summary
 
-**The gap is large but cleanly partitionable.** 39 distinct work items (4 already closed by the Phase 0 security cluster of 2026-05-30; 1 new item — SEC-06 — surfaced during that work), classified into five types: security fixes (6, of which 3 closed), broken-today implementation fixes (7, of which 1 closed), new infrastructure to build (24), dead-code cleanup (9), and product decisions that must precede implementation (20).
+**The gap is large but cleanly partitionable.** 40 distinct work items (5 already closed by the Phase 0 security cluster + closeout of 2026-05-30; 1 new SEC item — SEC-06 — surfaced during that work and now closed; 1 new BLD item — BLD-31 — added during the 2026-05-30 DEC resolution session), classified into five types: security fixes (6, of which 4 closed), broken-today implementation fixes (7, of which 1 closed), new infrastructure to build (25), dead-code cleanup (9), and product decisions that must precede implementation (20 total — **6 resolved 2026-05-30**, 14 still open).
 
 **Recommended broad sequencing:**
 
 1. **Phase 0 — Pre-beta security and correctness.** Originally 5 SEC + 2 FIX items. **4 closed in the 2026-05-30 cluster** (SEC-01, SEC-04, SEC-05, FIX-05). Remaining: SEC-02 (deferred to Phase 2), SEC-03 (deferred to Phase 1 pending DEC-08), SEC-06 (new, ~0.5 day), FIX-01 (~3-5 days, separate PR), FIX-06 (Phase 1), FIX-07 (Phase 6). **Remaining Phase 0 effort: ~1 week** dominated by FIX-01.
-2. **Phase 1 — Foundational schema and capability infrastructure.** Add the 4 new capability flags, the institution-tier classifier, the `comp_subscriptions` table, the Pro/Studio subscription-state columns. Schema-only (no enforcement yet) so it can ship safely behind the current behavior. **Total ~2 weeks.** Unlocks everything downstream.
+2. **Phase 1 — Foundational schema and capability infrastructure.** Add the 4 new capability flags, the institution-tier classifier, the `comp_subscriptions` table, the Pro/Studio subscription-state columns. Also adds the nullable `last_edited_by` / `last_edited_at` columns on `passports` (lightweight audit trail per DEC-18 resolution) and retires the `can_add_extras` column (per DEC-08 resolution = fold into `can_distribute_prizes`). Schema-only (no enforcement yet) so it can ship safely behind the current behavior. **Total ~2 weeks.** Unlocks everything downstream. **All six previously-blocking DECs are now resolved** (DEC-02, -08, -16, -17, -18, -19); Phase 1 is unblocked. A small successor task — **BLD-31** (1-2 days) — lands between Phase 1 and Phase 2.
 3. **Phase 2 — Institutional capability enforcement.** Wire the new flags into RLS and API routes. Replace the `institutions.id = auth.uid()` manager pattern with `can_manage_employees`. Fix the multi-institution switching UX. **Total ~2-3 weeks.** Required for McMenamins beta.
 4. **Phase 3 — Designer access gating.** Trial-passport limits for Free; private/invite-only mechanism for Pro; public-marketplace gate for Studio + Institution. Implementable as soon as Phase 1 is done. **Total ~2-3 weeks.** Required for ambassador program.
 5. **Phase 4 — Subscription billing.** Pro, Studio, Municipal, Business billing via Stripe. **Total 4-8 weeks. Blocked by deferred Stripe work — do not start until that block lifts.**
@@ -85,10 +86,11 @@ Items are numbered with a type prefix (SEC / BLD / FIX / CLN / DEC) and a sequen
 #### SEC-03 — Enforce `can_add_extras` at the RLS layer
 - **Appendix L:** silent (Appendix L doesn't list `can_add_extras`).
 - **Today:** the API route `okujiKobo/app/api/token/redeem/route.ts:128-135` checks the flag, but the `tokens_employee_update` RLS policy at `okujiKobo/supabase/migrations/012_blockpoint4.sql:394-405` only checks `can_distribute_prizes`. A direct PostgREST call bypasses the API gate.
-- **Type:** SEC. Also depends on DEC-08 (keep, fold, or retire `can_add_extras`).
-- **Effort:** 0.5-1 day once DEC-08 is resolved.
-- **Dependencies:** DEC-08.
+- **Type:** SEC. Was: depends on DEC-08 (keep, fold, or retire `can_add_extras`).
+- **Effort:** 0.5-1 day.
+- **Dependencies:** ~~DEC-08~~ — resolved 2026-05-30.
 - **Risk if deferred:** an employee with API access (not a hypothetical — institutional kiosk apps have anon keys) can attach extras to redemptions without authorization.
+- **DEC-08 resolution (2026-05-30): fold `can_add_extras` into `can_distribute_prizes`.** SEC-03 simplifies to: drop the dead `can_add_extras` check at `route.ts:128-135` and rely on the existing `can_distribute_prizes` RLS gate (which already covers the underlying `tokens` update). The extras path becomes part of the standard prize-distribution authorization — no parallel RLS check is needed. Pairs with the column-retirement migration in Phase 1.
 
 #### SEC-04 — Scope `api/share/render` — **DONE**
 - **Status:** closed in commit `c6a0c5e` on `feat/phase-0-security-cluster` (2026-05-30).
@@ -126,8 +128,9 @@ Items are numbered with a type prefix (SEC / BLD / FIX / CLN / DEC) and a sequen
 - **Today:** `okujiKobo/supabase/migrations/014_blockpoint6.sql:148-156` — the policy is named `emp_auth_self_update` but its USING clause permits only admins, the issuing manager, and institution-acting-as-itself. Misleading name; actual behavior is correct-ish (employee cannot self-update), but the manager-pattern is dead (see DEC-16).
 - **Type:** FIX (rename + clarify) + CLN (drop the dead institution-pattern clause).
 - **Effort:** 1 day.
-- **Dependencies:** DEC-16 (manager mechanism resolution).
+- **Dependencies:** ~~DEC-16~~ — resolved 2026-05-30.
 - **Risk if deferred:** confusion only; not exploitable.
+- **DEC-16 resolution (2026-05-30): retire the `institutions.id = auth.uid()` pattern entirely; `can_manage_employees` is canonical.** With that resolution, FIX-02 is cleanup-only: drop the dead `institution-acting-as-itself` clause from the USING expression, leave the admin + manager clauses, rename to `emp_auth_manager_update`.
 
 #### FIX-03 — Multi-institution switching UX
 - **Appendix L:** L.7 explicitly says role combinations including "Institution employee at one or more institutions with different capability flags at each" are intended and "all combinations are intended."
@@ -151,13 +154,14 @@ Items are numbered with a type prefix (SEC / BLD / FIX / CLN / DEC) and a sequen
 - **Was:** `okujiKobo/app/api/admin/compute-quality-scores/route.ts:86` checked the legacy `profile.role === 'admin'` string.
 - **Resolution:** swapped to the `is_platform_admin()` RPC, matching the pattern in `manage/layout.tsx:81` and `api/institutions/[id]/route.ts:116`.
 
-#### FIX-06 — Change `employee_authorizations` default flag values to `(false, false, false)`
+#### FIX-06 — Change `employee_authorizations` default flag values to `(false, false)`
 - **Appendix L:** L.6 — flags are explicit grants; manager opts in per employee.
 - **Today:** `okujiKobo/supabase/migrations/002_connect_schema.sql:193-195` — `can_verify` defaults to `true`, `can_distribute_prizes` defaults to `true`. Any row inserted without overriding flags is a verifying + distributing employee. UI explicitly overrides but SQL or off-path inserts get the unsafe defaults.
 - **Type:** FIX. Migration-only change.
 - **Effort:** 0.5-1 day (migration + audit any code that relies on the defaults).
 - **Dependencies:** none.
 - **Risk if deferred:** footgun. Any seed script or admin SQL that inserts a row produces a fully-empowered employee.
+- **DEC-08 resolution (2026-05-30): `can_add_extras` folded into `can_distribute_prizes`.** FIX-06 was implicitly a 3-flag default-change (`can_verify`, `can_distribute_prizes`, `can_add_extras`); with `can_add_extras` retired in the same Phase 1 migration, FIX-06 reduces to a 2-flag change (`can_verify`, `can_distribute_prizes` both → `false`).
 
 #### FIX-07 — Replace `.role === 'employee' || .role === 'admin'` in mobile profile screen
 - **Appendix L:** L.7 — admin is `is_platform_admin()`; employee is presence of an `employee_authorizations` row.
@@ -166,6 +170,7 @@ Items are numbered with a type prefix (SEC / BLD / FIX / CLN / DEC) and a sequen
 - **Effort:** 0.5 day.
 - **Dependencies:** none.
 - **Risk if deferred:** confusion only.
+- **DEC-17 resolution (2026-05-30): remove the legacy check; rewire to `EmployeeContext` and `is_platform_admin`.** FIX-07 stays scheduled for Phase 6 as a standalone cleanup (not bundled with FIX-01). Pairs with CLN-01 — same cleanup motion at a different layer.
 
 ### BLD (New infrastructure for the target model)
 
@@ -208,7 +213,8 @@ The bulk of the gap. Grouped here by area for readability; sequencing rules in �
 - **Today:** does not exist. No tier-aware behavior.
 - **Type:** BLD.
 - **Effort:** 2-3 days. Migration + form UI + tier-aware feature gates (mostly trivial: Civic = no billing UI; Municipal/Business = billing UI; Business = custom-branding UI). Backfill: every existing institution gets manually classified.
-- **Dependencies:** DEC-02 (tier assignment mechanism — self-attest vs review vs domain). Until DEC-02 is resolved, default tier should be NULL or `'pending_classification'` and Nathan classifies manually.
+- **Dependencies:** ~~DEC-02~~ — resolved 2026-05-30.
+- **DEC-02 resolution (2026-05-30): manual review by Nathan for all institutional sign-ups in v1.** No tier-assignment-at-signup logic; Nathan sets the tier when creating the institution row through the platform-admin UI. Simplifies BLD-05 — the column is set on creation, never derived. Self-service onboarding deferred until volume justifies (BLD-29).
 
 **B.3 — Subscription state**
 
@@ -367,11 +373,36 @@ The bulk of the gap. Grouped here by area for readability; sequencing rules in �
 
 **B.9 — Other**
 
-#### BLD-29 — Civic institution self-enrollment flow (teacher → school)
+**B.9 — Institutional onboarding**
+
+#### BLD-31 — Institutional request form (light v1)
+- **Appendix L:** L.5 (per the v1 onboarding-model paragraph in the operations doc).
+- **Today:** does not exist. There is no public path for a prospective institution to surface itself; institutions arrive through Nathan's network.
+- **Type:** BLD.
+- **Effort:** 1-2 days.
+- **Dependencies:** none.
+- **Cross-reference:** DEC-02 resolution.
+
+  **Scope (light v1, deliberately minimal):**
+  - A separate page reachable from the consumer sign-up page via a link labeled "Request institutional access."
+  - Form fields: institution name; institution type (dropdown: school / library / museum / nonprofit / municipality / business / other); submitter's name; submitter's role; submitter's work email; free-text description of intended use (500 char limit).
+  - Backed by a single new table `institution_requests` (id, name, type, contact_name, contact_role, contact_email, description, status, created_at, notes, nullable `institution_id` FK once the institution is created).
+  - Status enum: `pending` (just submitted) → `contacted` (Nathan reached out) → `in_progress` (active conversation) → `approved` (institution created) or `declined` (with notes).
+  - Admin UI at `/access/institution-requests`: list view of pending + recent submissions, click for detail, update status via dropdown, add internal notes.
+  - Notifications: email to `nathan@okuji.app` on new submission (functional, not templated). Optional confirmation email to the submitter setting a "we'll be in touch within 2 business days" expectation.
+
+  **Deliberately NOT in v1:** spam protection beyond basic email format validation; automated approval workflow; public status checking for the submitter; file uploads (letterhead, 501c3 documentation); multi-step form; submission-rate analytics; integration with the institution-creation flow beyond the manual `institution_id` FK.
+
+  **Related task (not part of BLD-31 itself, ~5 minutes):** add a line of copy to the consumer sign-up page directing institutions to `nathan@okuji.app`. Recommended phrasing: *"Okuji partners with schools, libraries, museums, parks, towns, and businesses. To explore an institutional partnership, email nathan@okuji.app."*
+
+  **Resist scope creep.** Additional fields and features get added later based on actual usage signal, not anticipation.
+
+#### BLD-29 — Civic institution self-enrollment flow (teacher → school) — **DEFERRED INDEFINITELY**
 - **Appendix L:** L.5 — structural decision locked; workflow design is future work.
 - **Type:** BLD.
 - **Effort:** 2-4 weeks. Enrollment UI, school-verification step (DEC-07), duplicate detection (multiple teachers from the same school), admin-role transition.
 - **Dependencies:** BLD-05, DEC-07.
+- **DEC-02 resolution (2026-05-30): manual review by Nathan for all institutional sign-ups in v1.** Institutions do not self-onboard through a public flow until volume justifies it. BLD-29 stays scheduled in Phase 7 (or beyond) rather than within Phases 0-6. BLD-31 provides the light intake mechanism that handles institutional interest in the meantime.
 
 #### BLD-30 — Multi-institution switcher UX
 - **Appendix L:** L.7.
@@ -386,6 +417,7 @@ The bulk of the gap. Grouped here by area for readability; sequencing rules in �
 - **Type:** CLN + DEC.
 - **Effort:** 1 day.
 - **Dependencies:** DEC-01 (retire or keep as legacy?).
+- **DEC-17 resolution note (2026-05-30):** the mobile profile-screen `.role === 'employee'` check is being removed in FIX-07 (rewired to `EmployeeContext` + `is_platform_admin`). CLN-01 retires the same legacy values at the database CHECK layer — same cleanup motion at a different layer.
 
 #### CLN-02 — Remove `'designer'` from `connect_roles`
 - **Today:** declared but unreachable; no entry path.
@@ -411,20 +443,23 @@ The bulk of the gap. Grouped here by area for readability; sequencing rules in �
 #### CLN-06 — Consolidate the three migration trees
 - **Today:** `supabase/migrations/`, `okuji-db/supabase/migrations/`, `okujiKobo/supabase/migrations/` disagree on `profiles` shape and trigger definitions.
 - **Type:** CLN + DEC.
-- **Effort:** 1-2 weeks. Designate authoritative tree (DEC-19); produce a single greenfield-deploy migration set; align live deployments.
-- **Dependencies:** DEC-19.
+- **Effort:** ~~1-2 weeks~~ → **~1 day** (revised after DEC-19 resolution). Documentation-and-archive task: write a `README.md` at the canonical tree, mark the others as historical, do not modify their contents.
+- **Dependencies:** ~~DEC-19~~ — resolved 2026-05-30.
+- **DEC-19 resolution (2026-05-30): `okujiKobo/supabase/migrations/` is canonical.** The mobile `supabase/migrations/` tree is historical (applied at points in production; no new migrations land there). `okuji-db/supabase/migrations/000_baseline.sql` becomes reference documentation. CLN-06 narrows from a consolidation effort to a documentation task: add `okujiKobo/supabase/migrations/README.md` stating the canonical-tree decision (recommended to land as part of Phase 1's first migration PR), and update the mobile and `okuji-db` trees with a top-of-tree note pointing at the canonical location.
 
 #### CLN-07 — Drop coexisting mobile-baseline RLS policies superseded by web
 - **Today:** `passports_creator_manage` (mobile) coexists with `passports_creator` (web), etc. Union of permissions; not broken but confusing.
 - **Type:** CLN.
 - **Effort:** 2-3 days (audit + drop migration).
 - **Dependencies:** CLN-06.
+- **DEC-19 resolution note (2026-05-30):** with `okujiKobo/supabase/migrations/` confirmed canonical, CLN-07 is unblocked — the redundant mobile-baseline policies can be dropped in a migration in the canonical tree without ambiguity about which side is authoritative.
 
 #### CLN-08 — Drop dead `emp_auth_manager_*` policies
 - **Today:** depend on `institutions.id = auth.uid()` pattern that no code creates.
 - **Type:** CLN.
 - **Effort:** 1 day.
-- **Dependencies:** DEC-16 (manager mechanism), BLD-02 (`can_manage_employees` is the replacement).
+- **Dependencies:** ~~DEC-16~~ — resolved 2026-05-30; BLD-02 (`can_manage_employees` is the replacement).
+- **DEC-16 resolution note (2026-05-30):** the `institutions.id = auth.uid()` manager pattern is retired. CLN-08 is unblocked — drop the dead `emp_auth_manager_*` policies that referenced the UID pattern. The `institutional_manager` branch in `okujiKobo/lib/roles.ts:76-92` is also dead and gets cleaned up in the same Phase 6 pass.
 
 #### CLN-09 — Comment or rename `role_label` for clarity
 - **Today:** free-text display column; readers assume it has authorization meaning.
@@ -435,28 +470,30 @@ The bulk of the gap. Grouped here by area for readability; sequencing rules in �
 
 These are not work items — they are product decisions that must be made before the relevant implementation work can proceed. Surfaced here so the user can resolve them in a separate pass.
 
-| # | Decision |
-|---|---|
-| **DEC-01** | Retire `profiles.role` CHECK values (`creator | employee | admin`), or keep as legacy for mobile compatibility? |
-| **DEC-02** | Institution-tier assignment at sign-up — self-attest, admin manual review, or auto-by-email-domain? Appendix L L.5 silent. |
-| **DEC-03** | Trial-passport limit (3/12) enforcement — database CHECK / trigger, or application-layer counter? |
-| **DEC-04** | Multi-institution switching UX — header dropdown (persistent cookie), separate URLs, switcher modal? |
-| **DEC-05** | Quality-monitoring threshold — what numeric scores or behavioral patterns trigger flag-for-review? Appendix L L.10 open. |
-| **DEC-06** | Religious-institution boundary — faith-based schools, historic religious sites, secular-with-religious-affiliation. Appendix L L.5 + L.10 open; legal review required. |
-| **DEC-07** | Civic-onboarding verification — what confirms a self-enrolling user is a real K-12 employee and the school is real? Appendix L L.10 open. |
-| **DEC-08** | Keep `can_add_extras`, fold into `can_distribute_prizes`, or retire? Appendix L silent. |
-| **DEC-09** | Studio price point (pending ambassador data per L.10). |
-| **DEC-10** | Municipal-tier price tiers by city population (L.10). |
-| **DEC-11** | Heritage Edition print partner (L.10). |
-| **DEC-12** | Pro split into individual vs family tiers, or single tier (L.10). |
-| **DEC-13** | Loyalty grandfather for existing collectors at Pro launch (L.10). |
-| **DEC-14** | Suspension/denial mechanism design (L.10). |
-| **DEC-15** | Finer-grained platform admin roles when team grows (L.7, L.10). |
-| **DEC-16** | Institutional-manager mechanism — replace `institutions.id = auth.uid()` pattern entirely with `can_manage_employees`? (Recommended per Appendix L.6 + L.7.) |
-| **DEC-17** | Should the mobile-only `profile.role === 'employee'` check be removed in favor of `EmployeeContext`? (Companion to CLN-01.) |
-| **DEC-18** | Should institutional employees with `can_design` be able to edit passports owned by their institution? Currently only `creator_id` can. Critical for institutional teams where the creator and the editor are different people. |
-| **DEC-19** | Canonical migration tree for greenfield deploys (CLN-06 prerequisite). |
-| **DEC-20** | Is BLD-23 (separate draft cap) wanted, or is BLD-06's Free 3-passport cap sufficient? |
+**Six DECs were resolved on 2026-05-30.** They remain in this table for traceability; resolutions are summarized inline and detailed in §6.
+
+| # | Decision | Status |
+|---|---|---|
+| **DEC-01** | Retire `profiles.role` CHECK values (`creator | employee | admin`), or keep as legacy for mobile compatibility? | open |
+| **DEC-02** | Institution-tier assignment at sign-up — self-attest, admin manual review, or auto-by-email-domain? Appendix L L.5 silent. | ✅ **resolved 2026-05-30: manual review by Nathan in v1.** No public self-service onboarding; Nathan reviews each inquiry, qualifies, signs terms, and provisions the row. See BLD-31 for the light intake mechanism. |
+| **DEC-03** | Trial-passport limit (3/12) enforcement — database CHECK / trigger, or application-layer counter? | open |
+| **DEC-04** | Multi-institution switching UX — header dropdown (persistent cookie), separate URLs, switcher modal? | open |
+| **DEC-05** | Quality-monitoring threshold — what numeric scores or behavioral patterns trigger flag-for-review? Appendix L L.10 open. | open |
+| **DEC-06** | Religious-institution boundary — faith-based schools, historic religious sites, secular-with-religious-affiliation. Appendix L L.5 + L.10 open; legal review required. | open |
+| **DEC-07** | Civic-onboarding verification — what confirms a self-enrolling user is a real K-12 employee and the school is real? Appendix L L.10 open. | open |
+| **DEC-08** | Keep `can_add_extras`, fold into `can_distribute_prizes`, or retire? Appendix L silent. | ✅ **resolved 2026-05-30: fold into `can_distribute_prizes`.** Anyone trusted to redeem prizes is trusted to add extras. Column retired in Phase 1. Simplifies SEC-03 and FIX-06. |
+| **DEC-09** | Studio price point (pending ambassador data per L.10). | open |
+| **DEC-10** | Municipal-tier price tiers by city population (L.10). | open |
+| **DEC-11** | Heritage Edition print partner (L.10). | open |
+| **DEC-12** | Pro split into individual vs family tiers, or single tier (L.10). | open |
+| **DEC-13** | Loyalty grandfather for existing collectors at Pro launch (L.10). | open |
+| **DEC-14** | Suspension/denial mechanism design (L.10). | open |
+| **DEC-15** | Finer-grained platform admin roles when team grows (L.7, L.10). | open |
+| **DEC-16** | Institutional-manager mechanism — replace `institutions.id = auth.uid()` pattern entirely with `can_manage_employees`? (Recommended per Appendix L.6 + L.7.) | ✅ **resolved 2026-05-30: replace.** The UID pattern is retired; `can_manage_employees` is canonical. Simplifies FIX-02 to cleanup-only; unblocks CLN-08 + `institutional_manager` branch in `lib/roles.ts`. |
+| **DEC-17** | Should the mobile-only `profile.role === 'employee'` check be removed in favor of `EmployeeContext`? (Companion to CLN-01.) | ✅ **resolved 2026-05-30: remove.** Rewire to `EmployeeContext` + `is_platform_admin`. FIX-07 stays Phase 6 (not bundled with FIX-01); pairs with CLN-01 at the database layer. |
+| **DEC-18** | Should institutional employees with `can_design` be able to edit passports owned by their institution? Currently only `creator_id` can. Critical for institutional teams where the creator and the editor are different people. | ✅ **resolved 2026-05-30: yes, when `proprietor_id IS NOT NULL`.** Any employee with `can_design` at the proprietor institution can edit any institution-owned passport. Personal (non-institutional) passports retain strict `creator_id`-only edit rights. RLS update on `passports`, `passport_pages`, `stops`, and related tables (OR the existing `creator_id = auth.uid()` clause with an employment + `can_design` clause, only when `proprietor_id IS NOT NULL`). Schema additions for lightweight audit: nullable `last_edited_by` (uuid) and `last_edited_at` (timestamptz) on `passports`, written by application code on save. Lands in Phase 1 with the rest of the foundational schema. |
+| **DEC-19** | Canonical migration tree for greenfield deploys (CLN-06 prerequisite). | ✅ **resolved 2026-05-30: `okujiKobo/supabase/migrations/` is canonical.** Mobile `supabase/migrations/` is historical; `okuji-db/.../000_baseline.sql` is reference. CLN-06 narrows to a documentation task. A `README.md` recording this should land at the canonical tree as part of Phase 1's first migration PR. |
+| **DEC-20** | Is BLD-23 (separate draft cap) wanted, or is BLD-06's Free 3-passport cap sufficient? | open |
 
 ---
 
@@ -486,15 +523,23 @@ These are not work items — they are product decisions that must be made before
 
 **Goal:** every column, table, and flag that Appendix L's tier system needs exists in the schema, with no enforcement yet. Enforcement comes in subsequent phases without further migrations.
 
-**Items:** BLD-01, BLD-02, BLD-03, BLD-04 (the four new capability flags), BLD-05 (institution tier), BLD-07, BLD-08 (Pro/Studio subscription state), BLD-12 (comp_subscriptions). Resolve SEC-03 once `can_add_extras` decision (DEC-08) is made.
+**Items:** BLD-01, BLD-02, BLD-03, BLD-04 (the four new capability flags), BLD-05 (institution tier — Nathan sets manually per DEC-02), BLD-07, BLD-08 (Pro/Studio subscription state), BLD-12 (comp_subscriptions). Plus three smaller schema items folded in this phase:
+- **`can_add_extras` retirement migration** (per DEC-08 resolution). Drops the column from `employee_authorizations`; SEC-03 closes simultaneously.
+- **`last_edited_by` (uuid, nullable) and `last_edited_at` (timestamptz, nullable) on `passports`** (per DEC-18 resolution). Lightweight audit trail for institution-owned passports edited by employees other than the original creator. Written by application code on save; not enforced by trigger.
+- **RLS expansion on `passports`, `passport_pages`, `stops`** to OR the existing `creator_id = auth.uid()` clause with an institution-employment + `can_design` clause when `proprietor_id IS NOT NULL` (per DEC-18). Personal (non-institutional) passports retain strict creator-only edit rights.
+- **Canonical-tree README** at `okujiKobo/supabase/migrations/README.md` recording the DEC-19 decision. Lands in this phase's first migration PR.
+
+FIX-06 (the default-flag-change migration, now 2 flags after DEC-08) is the natural companion and can land here.
 
 **Rationale:** schema additions are low-risk and cheap. Doing them all in one phase means subsequent feature work is purely application-layer.
 
 **Effort:** ~2 weeks.
 
-**Dependencies:** DEC-08, DEC-16, DEC-02 (default to NULL tier if undecided).
+**Dependencies:** ~~DEC-08~~, ~~DEC-16~~, ~~DEC-02~~ — all resolved 2026-05-30. Phase 1 is unblocked.
 
-**Could move:** BLD-05 could land in Phase 2 if DEC-02 takes time. BLD-12 could land in Phase 3 (it's the ambassador prerequisite, but ambassadors aren't onboarded until Phase 3 anyway).
+**Could move:** BLD-12 could land in Phase 3 (it's the ambassador prerequisite, but ambassadors aren't onboarded until Phase 3 anyway).
+
+**Successor task between Phase 1 and Phase 2:** **BLD-31 — institutional request form (light v1)**, 1-2 days. Provides the consumer-facing intake mechanism that DEC-02 (manual institution review by Nathan) requires. Not gated by Phase 1 schema work, but the operational pattern depends on the platform-admin UI for institution creation that ships in Phase 1; landing BLD-31 first would mean form submissions queue with no admin UI to act on them.
 
 ### Phase 2 — Institutional capability enforcement
 
@@ -560,23 +605,25 @@ These are not work items — they are product decisions that must be made before
 
 **Items:** CLN-01 to CLN-09. FIX-07 (mobile profile screen).
 
+**Scope change (2026-05-30):** CLN-06 narrowed from "consolidate the three migration trees" (1-2 weeks) to a documentation-and-archive task (~1 day) after DEC-19 resolved `okujiKobo/supabase/migrations/` as canonical. The canonical-tree README itself lands in Phase 1's first migration PR; CLN-06 in Phase 6 is the remaining historical-marker work on the mobile and `okuji-db` trees.
+
 **Rationale:** pure hygiene. No behavioral change. Doing this earlier is fine but the work has no urgency. Doing it after the new features land means there's less unwinding to do.
 
-**Effort:** ~1-2 weeks.
+**Effort:** ~1 week (was 1-2 weeks before CLN-06 narrowed).
 
-**Dependencies:** DEC-01, DEC-16, DEC-17, DEC-19, BLD-02 (the new mechanism CLN-08 retires).
+**Dependencies:** ~~DEC-01~~ (still open), ~~DEC-16~~ ✅, ~~DEC-17~~ ✅, ~~DEC-19~~ ✅, BLD-02 (the new mechanism CLN-08 retires). Only DEC-01 still blocks any Phase 6 item — specifically CLN-01.
 
 ### Phase 7 — Pro consumer features (post-beta)
 
 **Goal:** Pro becomes worth $5/mo for collectors.
 
-**Items:** BLD-16 to BLD-21. Real consumer-product work; substantial.
+**Items:** BLD-16 to BLD-21. Real consumer-product work; substantial. **BLD-29 (Civic self-enrollment) also lives here or beyond** — deferred indefinitely per DEC-02; revisit when institutional volume justifies automated onboarding.
 
 **Rationale:** for the institutional beta and the ambassador program, Pro consumer features are not required. They make Pro attractive when it launches publicly. Defer until the institutional model is stable.
 
 **Effort:** months. Each feature is multi-week.
 
-**Dependencies:** BLD-07, plus the relevant DECs (DEC-11 Heritage partner, DEC-12 Pro split).
+**Dependencies:** BLD-07, plus the relevant DECs (DEC-11 Heritage partner, DEC-12 Pro split). BLD-29 also depends on DEC-07.
 
 ---
 
@@ -590,11 +637,11 @@ Cell meaning: row depends on column. ✅ = strict prerequisite; ◐ = soft (can 
 |---|---|
 | SEC-01 | (optional ◐ BLD-02 for the proper gate; admin-only is fine for Phase 0) |
 | SEC-02 | (optional ◐ BLD-02 + BLD-04; admin-only Phase 0) |
-| SEC-03 | DEC-08 |
+| SEC-03 | ~~DEC-08~~ ✅ — unblocked. Closes alongside the `can_add_extras` retirement migration in Phase 1. |
 | SEC-04, SEC-05 | none |
-| FIX-01 to FIX-07 | none individually; FIX-02 ◐ DEC-16; FIX-03 ◐ DEC-04; FIX-04 ◐ BLD-30 |
+| FIX-01 to FIX-07 | none individually; FIX-02 ◐ ~~DEC-16~~ ✅; FIX-03 ◐ DEC-04; FIX-04 ◐ BLD-30; FIX-06 simplifies post-DEC-08 (2-flag change); FIX-07 unblocked by DEC-17 ✅ |
 | BLD-01..04 | (capability flags — schema-only; enforcement depends on the gating phase) |
-| BLD-05 | DEC-02 (or NULL-default) |
+| BLD-05 | ~~DEC-02~~ ✅ — Nathan sets the column on manual provisioning. |
 | BLD-07, BLD-08 | none |
 | BLD-12 | BLD-07, BLD-08 |
 | BLD-06 | BLD-07, BLD-08, BLD-01, DEC-03, DEC-20 |
@@ -612,13 +659,14 @@ Cell meaning: row depends on column. ✅ = strict prerequisite; ◐ = soft (can 
 | BLD-26 | deferred Stripe, BLD-05, BLD-04 |
 | BLD-27 | deferred Stripe, BLD-08 |
 | BLD-16..21 | BLD-07 + DECs |
-| BLD-29 | BLD-05, DEC-07 |
+| BLD-29 | BLD-05, DEC-07 — **also: deferred indefinitely per DEC-02 ✅** |
 | BLD-30 | DEC-04 |
+| **BLD-31** | none. Could land before Phase 1 standalone, but the locked sequence is "after Phase 1, before Phase 2" so the admin UI for institution creation exists when requests arrive. |
 | CLN-01 | DEC-01 |
 | CLN-04 | none (touches many policy bodies) |
-| CLN-06 | DEC-19 |
-| CLN-07 | CLN-06 |
-| CLN-08 | DEC-16, BLD-02 |
+| CLN-06 | ~~DEC-19~~ ✅ — narrows to a documentation task (~1 day). |
+| CLN-07 | CLN-06 — unblocked by DEC-19 ✅. |
+| CLN-08 | ~~DEC-16~~ ✅, BLD-02. |
 | CLN-02, CLN-03, CLN-05, CLN-09 | none |
 
 ---
@@ -687,7 +735,8 @@ Total **incremental** work on top of 5.1: **about 6-8 weeks** (was 3-4 weeks bef
 **Conjoining 5.1, 5.2, and 5.3:** the minimum to onboard McMenamins AND 10-20 ambassadors is:
 
 - Phase 0 complete (~2 weeks).
-- Phase 1 complete (~2 weeks).
+- Phase 1 complete (~2 weeks; includes the `can_add_extras` retirement, `last_edited_by`/`last_edited_at` columns, and the canonical-tree README per DEC-08/-18/-19 resolutions).
+- BLD-31 (institutional request form, ~1-2 days) between Phase 1 and Phase 2.
 - Phase 2 complete (~2-3 weeks).
 - A trimmed Phase 3: BLD-10, BLD-09 (optional), BLD-24, BLD-22 schema (~2 weeks; BLD-22 schema-only adds ~1 day).
 - BLD-13 (creator analytics dashboard, now in critical path): +2-3 weeks.
@@ -705,15 +754,22 @@ This assumes the DECs in §6 are resolved in parallel — they're not engineerin
 
 The 20 DEC items from Section 2, restated as a checklist. Each one is a small product question that the engineering work cannot legitimately answer.
 
-**Foundational (resolve before Phase 1):**
+### Resolved (2026-05-30)
 
-- DEC-01: retire or keep the legacy `profiles.role` values?
-- DEC-02: how is institution tier assigned at sign-up?
-- DEC-08: keep, fold, or retire `can_add_extras`?
-- DEC-16: institutional-manager mechanism — `can_manage_employees` replaces the `institutions.id = auth.uid()` pattern?
-- DEC-17: remove the legacy mobile `profile.role === 'employee'` check?
-- DEC-18: can institutional employees with `can_design` edit institution-owned passports?
-- DEC-19: canonical migration tree for greenfield deploys?
+The six Phase-1-blocking DECs were resolved in the 2026-05-30 product conversation. Resolutions are summarized here; details and downstream impact are in §2 (the DEC table and the affected SEC/FIX/BLD/CLN entries).
+
+- ✅ **DEC-02** — *Institution-tier assignment at sign-up:* **manual review by Nathan in v1.** No public self-service onboarding flow. Nathan personally qualifies each inquiry, agrees on terms (signed contract for paying tiers; lighter acknowledgment for Civic), and provisions the institution through the platform-admin UI. BLD-31 provides the light intake mechanism (Section 2, B.9). BLD-29 (Civic self-enrollment) deferred indefinitely until institutional volume justifies automation.
+- ✅ **DEC-08** — *Keep `can_add_extras`, fold, or retire:* **fold into `can_distribute_prizes`.** Anyone trusted to redeem prizes is trusted to add extras (bonus gift-card value). Column retired in Phase 1's first migration. Simplifies SEC-03 (drop the dead API check; existing `can_distribute_prizes` RLS suffices) and FIX-06 (default-flag change becomes 2-flag, not 3).
+- ✅ **DEC-16** — *Institutional-manager mechanism:* **replace `institutions.id = auth.uid()` entirely with `can_manage_employees`.** The UID pattern is dead code unreachable through any UI; retired in favor of Appendix L's capability-flag model. Simplifies FIX-02 to cleanup-only (drop the dead UID clause from the policy's USING expression); unblocks CLN-08 (drop dead `emp_auth_manager_*` policies) and the `institutional_manager` branch cleanup in `okujiKobo/lib/roles.ts:76-92`.
+- ✅ **DEC-17** — *Remove the legacy mobile `profile.role === 'employee'` check:* **remove.** Rewire to `EmployeeContext` + `is_platform_admin`. FIX-07 stays scheduled for Phase 6 as standalone cleanup, not bundled with FIX-01. Same cleanup motion as CLN-01 at a different layer.
+- ✅ **DEC-18** — *Can institutional employees with `can_design` edit institution-owned passports:* **yes, when `proprietor_id IS NOT NULL`.** The institution owns the work product collectively; `can_design` is the trust gate. Personal (non-institutional) passports retain strict `creator_id`-only edit semantics. RLS update on `passports`, `passport_pages`, `stops`, and related tables in Phase 1: OR the existing `creator_id = auth.uid()` clause with an institution-employment + `can_design` clause, gated on `proprietor_id IS NOT NULL`. Schema additions: nullable `last_edited_by` (uuid) and `last_edited_at` (timestamptz) on `passports`, written by application code on save — lightweight audit trail without a full audit-log feature.
+- ✅ **DEC-19** — *Canonical migration tree for greenfield deploys:* **`okujiKobo/supabase/migrations/` is canonical.** Mobile `supabase/migrations/` is historical (applied at points in production; no new migrations land there). `okuji-db/supabase/migrations/000_baseline.sql` becomes reference documentation. CLN-06 narrows from a 1-2 week consolidation effort to a ~1 day documentation-and-archive task. A README at the canonical tree records this and lands as part of Phase 1's first migration PR.
+
+### Open (14 remaining)
+
+**Foundational (still resolve before related Phase 1 items, but none block Phase 1 anymore — DEC-01 is Phase 6 only):**
+
+- DEC-01: retire or keep the legacy `profiles.role` values? (blocks CLN-01 only)
 
 **Affecting Phase 2 / 3:**
 
@@ -794,7 +850,7 @@ Phase 6 is hygiene. The codebase is not broken without it; it is just confusing.
 | L.2 (Collector / Free) | BLD-06 (trial limits); no other gating |
 | L.3 (Okuji Pro) | BLD-07, BLD-09, BLD-16–21, BLD-25 |
 | L.4 (Okuji Studio) | BLD-08, BLD-10, BLD-11, BLD-13, BLD-14, BLD-15, BLD-22, BLD-23, BLD-24, BLD-25, BLD-27, BLD-28 |
-| L.5 (Institution / tiers) | BLD-05, BLD-11, BLD-26, BLD-29 |
+| L.5 (Institution / tiers) | BLD-05, BLD-11, BLD-26, BLD-29, BLD-31 |
 | L.6 (Capability flags) | BLD-01, BLD-02, BLD-03, BLD-04, FIX-06; CLN-08; SEC-01..03 (enforcement) |
 | L.7 (Owner + role combinations) | FIX-03, FIX-04, BLD-30; CLN-04 |
 | L.8 (Ambassador comps) | BLD-12 |
