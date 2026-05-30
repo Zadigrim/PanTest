@@ -8,6 +8,14 @@
 
 **This document is not code.** No migrations, no schema, no RLS — only a plan.
 
+## Progress log
+
+| Date | Branch / commit | Items closed |
+|---|---|---|
+| 2026-05-30 | `feat/phase-0-security-cluster` (`a38093b`, `c6a0c5e`, `0c2fab4`, `f30d43f`) | SEC-01, SEC-04, SEC-05, FIX-05 |
+
+Items still open in Phase 0 after that cluster: SEC-02 (deferred to Phase 2), SEC-03 (deferred to Phase 1 pending DEC-08), FIX-01 (separate PR), FIX-06 (Phase 1), FIX-07 (Phase 6). New item surfaced during SEC-04 implementation: **SEC-06 — SVG injection in `api/share/render`** (interpolated passport title and display name into unescaped SVG markup; flagged as a follow-up; see §2).
+
 Two minor pre-statements to clear up before the inventory:
 
 - **Appendix L is silent on `can_add_extras`.** The current code has this flag (`employee_authorizations.can_add_extras`); Appendix L lists `can_design / can_verify / can_distribute_prizes / can_manage_employees / can_view_analytics / can_manage_billing` and does not mention `can_add_extras`. I treat this as a DEC (keep, fold into `can_distribute_prizes`, or retire), not a silent omission.
@@ -17,11 +25,11 @@ Two minor pre-statements to clear up before the inventory:
 
 ## Section 1 — Executive summary
 
-**The gap is large but cleanly partitionable.** 38 distinct work items, classified into five types: security fixes (5), broken-today implementation fixes (7), new infrastructure to build (24 — but most are quick schema-and-policy additions), dead-code cleanup (9), and product decisions that must precede implementation (19).
+**The gap is large but cleanly partitionable.** 39 distinct work items (4 already closed by the Phase 0 security cluster of 2026-05-30; 1 new item — SEC-06 — surfaced during that work), classified into five types: security fixes (6, of which 3 closed), broken-today implementation fixes (7, of which 1 closed), new infrastructure to build (24), dead-code cleanup (9), and product decisions that must precede implementation (20).
 
 **Recommended broad sequencing:**
 
-1. **Phase 0 — Pre-beta security and correctness.** 5 SEC items + 2 FIX items that affect the system as it exists today. **Total ~2-3 weeks.** Hard blocker for any external beta exposure.
+1. **Phase 0 — Pre-beta security and correctness.** Originally 5 SEC + 2 FIX items. **4 closed in the 2026-05-30 cluster** (SEC-01, SEC-04, SEC-05, FIX-05). Remaining: SEC-02 (deferred to Phase 2), SEC-03 (deferred to Phase 1 pending DEC-08), SEC-06 (new, ~0.5 day), FIX-01 (~3-5 days, separate PR), FIX-06 (Phase 1), FIX-07 (Phase 6). **Remaining Phase 0 effort: ~1 week** dominated by FIX-01.
 2. **Phase 1 — Foundational schema and capability infrastructure.** Add the 4 new capability flags, the institution-tier classifier, the `comp_subscriptions` table, the Pro/Studio subscription-state columns. Schema-only (no enforcement yet) so it can ship safely behind the current behavior. **Total ~2 weeks.** Unlocks everything downstream.
 3. **Phase 2 — Institutional capability enforcement.** Wire the new flags into RLS and API routes. Replace the `institutions.id = auth.uid()` manager pattern with `can_manage_employees`. Fix the multi-institution switching UX. **Total ~2-3 weeks.** Required for McMenamins beta.
 4. **Phase 3 — Designer access gating.** Trial-passport limits for Free; private/invite-only mechanism for Pro; public-marketplace gate for Studio + Institution. Implementable as soon as Phase 1 is done. **Total ~2-3 weeks.** Required for ambassador program.
@@ -56,13 +64,12 @@ Items are numbered with a type prefix (SEC / BLD / FIX / CLN / DEC) and a sequen
 
 ### SEC (Security and authorization gaps that exist today)
 
-#### SEC-01 — Restrict `api/employees/lookup` to scoped callers
+#### SEC-01 — Restrict `api/employees/lookup` to scoped callers — **DONE**
+- **Status:** closed in commit `a38093b` on `feat/phase-0-security-cluster` (2026-05-30).
 - **Appendix L:** L.5 implies institutional managers add employees; L.6 lists `can_manage_employees`.
-- **Today:** `okujiKobo/app/api/employees/lookup/route.ts:14-30` requires only `getUser()`. Any signed-in user can probe arbitrary email addresses and learn whether they have an Okuji account, plus the internal UID.
-- **Type:** SEC.
-- **Effort:** 1-2 days. Either restrict to platform admins + users who hold `can_manage_employees` somewhere, OR replace with an invite-by-email flow that doesn't reveal existence.
-- **Dependencies:** ideally after BLD-02 (`can_manage_employees`) lands so the gate is meaningful, but a temporary "platform-admin-only" gate is a valid Phase 0 fix.
-- **Risk if deferred:** an authenticated user can build an email-existence database. Real privacy harm.
+- **Was:** `okujiKobo/app/api/employees/lookup/route.ts:14-30` required only `getUser()`. Public email-enumeration oracle.
+- **Resolution:** added a gate requiring the caller to be a platform admin OR hold at least one `employee_authorizations` row. Closes the public oracle while keeping `/manage/employees` and `/access/institutions/[id]` add-staff flows working for non-admin institutional managers.
+- **Phase 2 follow-up:** tighten further to require `can_manage_employees` at the *target* institution once BLD-02 lands.
 
 #### SEC-02 — Tighten `api/institutions/[id]` PATCH
 - **Appendix L:** L.6 — institution metadata edits should require `can_manage_billing` or `can_manage_employees` depending on field; "any employee" is too permissive.
@@ -80,21 +87,26 @@ Items are numbered with a type prefix (SEC / BLD / FIX / CLN / DEC) and a sequen
 - **Dependencies:** DEC-08.
 - **Risk if deferred:** an employee with API access (not a hypothetical — institutional kiosk apps have anon keys) can attach extras to redemptions without authorization.
 
-#### SEC-04 — Scope `api/share/render`
-- **Appendix L:** silent. Reasonable inference: share images should be generatable only for passports the caller can read (i.e., owned, employed-at, or published).
-- **Today:** `okujiKobo/app/api/share/render/route.ts:6` accepts any passport id, generates a share image, and writes a `share_tokens` row. Token uses `Math.random()`.
-- **Type:** SEC.
-- **Effort:** 1 day. Check publish status or ownership; replace `Math.random` with `crypto.getRandomValues`.
-- **Dependencies:** none.
-- **Risk if deferred:** any signed-in user can mint share artifacts for unpublished drafts.
+#### SEC-04 — Scope `api/share/render` — **DONE**
+- **Status:** closed in commit `c6a0c5e` on `feat/phase-0-security-cluster` (2026-05-30).
+- **Appendix L:** silent. Reasonable inference: share images should be generatable only for passports the caller can read.
+- **Was:** `okujiKobo/app/api/share/render/route.ts:6` accepted any passport id; `Math.random()` token.
+- **Resolution:** added 4-branch authorization (owner / published / platform admin / employee at proprietor); returns 404 on no-match (not 403) to avoid leaking existence. Replaced `Math.random()` with `crypto.randomBytes(16).toString('base64url')` — 22-char tokens, ~128 bits of entropy. Existing 8-char tokens in the DB remain valid (`share_tokens.token` is `text/unique`).
 
-#### SEC-05 — Tighten `design-assets` storage upload policy
+#### SEC-05 — Tighten `design-assets` storage upload policy — **DONE**
+- **Status:** closed in commit `0c2fab4` on `feat/phase-0-security-cluster` (2026-05-30).
 - **Appendix L:** silent. Assets should belong to the owner; cross-user writes are unintended.
-- **Today:** `okuji-db/supabase/migrations/000_baseline.sql:768-781` — insert policy checks only `bucket_id = 'design-assets'`. Delete policy enforces folder ownership, but insert does not. Application code is correct; direct storage API call could write into another user's folder.
+- **Was:** baseline insert policy checked only `bucket_id = 'design-assets'`; delete policy enforced folder ownership but insert did not.
+- **Resolution:** migration `okujiKobo/supabase/migrations/031_design_assets_storage_policy.sql` drops + recreates `design_assets_upload` with the folder check `(storage.foldername(name))[1] = auth.uid()::text`, matching the existing delete-policy pattern.
+
+#### SEC-06 — Escape user input in `api/share/render` SVG output — **NEW**
+- **Surfaced:** during SEC-04 implementation (2026-05-30).
+- **Appendix L:** silent.
+- **Today:** `okujiKobo/app/api/share/render/route.ts:36-37` interpolates `passport.title` and `profile.display_name` directly into SVG markup with no escaping. A creator could craft a title that contains `<script>` or SVG-event handlers; when a viewer fetches the share image directly (served as `image/svg+xml`), the payload runs in the SVG's origin context.
 - **Type:** SEC.
-- **Effort:** 0.5-1 day (single policy update).
-- **Dependencies:** none.
-- **Risk if deferred:** cross-user storage write (the row in `design_assets` would still need `owner_id = user.id`, so the harm is bounded, but the folder structure becomes corruptible).
+- **Effort:** 0.5 day. HTML-escape both fields before interpolation (`&lt;`, `&gt;`, `&amp;`, `"`, `'`). Better: replace the SVG-via-template-string approach with `@vercel/og` or `node-canvas` per the existing TODO at `route.ts:42`.
+- **Dependencies:** none. Independent fix.
+- **Risk if deferred:** authenticated XSS in share artifacts. Bounded by who views the raw SVG URL (vs the URL embedded in an `<img>` tag, which is safe), but real.
 
 ### FIX (Existing implementation broken or misaligned)
 
@@ -130,13 +142,11 @@ Items are numbered with a type prefix (SEC / BLD / FIX / CLN / DEC) and a sequen
 - **Dependencies:** BLD-30 (or, if BLD-30 deferred, fall back to ORDER BY created_at and remember last-chosen via cookie).
 - **Risk if deferred:** confusing admin UX with multiple institutions, but no harm.
 
-#### FIX-05 — Replace `profile.role === 'admin'` check in `api/admin/compute-quality-scores`
+#### FIX-05 — Replace `profile.role === 'admin'` check in `api/admin/compute-quality-scores` — **DONE**
+- **Status:** closed in commit `f30d43f` on `feat/phase-0-security-cluster` (2026-05-30).
 - **Appendix L:** L.7 — admin is `is_platform_admin()`.
-- **Today:** `okujiKobo/app/api/admin/compute-quality-scores/route.ts:86` checks the legacy `profile.role === 'admin'` string. Refuses real platform admins whose `profiles.role` is the default `'collector'`.
-- **Type:** FIX.
-- **Effort:** 0.5 day.
-- **Dependencies:** none.
-- **Risk if deferred:** quality-score recomputation is admin-only and currently usable by nobody. Low impact; trivially fixed.
+- **Was:** `okujiKobo/app/api/admin/compute-quality-scores/route.ts:86` checked the legacy `profile.role === 'admin'` string.
+- **Resolution:** swapped to the `is_platform_admin()` RPC, matching the pattern in `manage/layout.tsx:81` and `api/institutions/[id]/route.ts:116`.
 
 #### FIX-06 — Change `employee_authorizations` default flag values to `(false, false, false)`
 - **Appendix L:** L.6 — flags are explicit grants; manager opts in per employee.
@@ -453,11 +463,17 @@ These are not work items — they are product decisions that must be made before
 
 **Goal:** the system as it exists today does not leak data or silently malfunction for institutional partners.
 
-**Items:** SEC-01, SEC-02 (with admin-only fallback), SEC-04, SEC-05, FIX-01, FIX-05, FIX-06. SEC-03 deferred to Phase 1 because it depends on DEC-08 + BLD changes.
+**Originally:** SEC-01, SEC-02 (with admin-only fallback), SEC-04, SEC-05, FIX-01, FIX-05, FIX-06. SEC-03 deferred to Phase 1.
+
+**Status (2026-05-30):**
+- ✅ **Closed:** SEC-01, SEC-04, SEC-05, FIX-05 — security cluster PR on `feat/phase-0-security-cluster`.
+- 🆕 **Surfaced:** SEC-06 (SVG injection in `api/share/render`) — found during SEC-04 implementation.
+- ⏳ **Open in Phase 0:** SEC-06 (~0.5 day, no deps), FIX-01 (~3-5 days, no deps — the silent mobile-terminal bug).
+- ↪︎ **Punted out of Phase 0:** SEC-02 (Phase 2), SEC-03 (Phase 1), FIX-06 (Phase 1), FIX-07 (Phase 6).
+
+**Remaining Phase 0 effort:** about **1 week** dominated by FIX-01. SEC-06 is a half-day patch that can land standalone or be folded into a near-term PR touching `api/share/render`.
 
 **Rationale:** SEC items affect the system AS IT IS — they are not about future features. FIX-01 is a silent production bug. FIX-05 and FIX-06 are quick wins that close confusion / footgun risk.
-
-**Effort:** ~2-3 weeks.
 
 **Dependencies:** none external. DEC-08 can hang until Phase 1.
 
@@ -610,14 +626,15 @@ The most actionable section.
 
 These are non-negotiable for any beta exposure, McMenamins or not:
 
-- **SEC-01** — close the email-enumeration oracle. Any signed-in user can probe email existence today.
-- **SEC-04** — scope share-render. Currently usable to mint share artifacts for unpublished drafts.
-- **SEC-05** — tighten the design-assets upload policy.
-- **FIX-01** — migrate the mobile employee terminal. Currently silently broken for any user provisioned via the canonical web flow.
+- ✅ **SEC-01** — closed (`a38093b`, 2026-05-30). Email-enumeration oracle gated.
+- ✅ **SEC-04** — closed (`c6a0c5e`, 2026-05-30). Share-render authorization + token entropy.
+- ✅ **SEC-05** — closed (`0c2fab4`, 2026-05-30). Storage policy enforces per-user folders. **Migration not yet applied — apply `031_design_assets_storage_policy.sql` before exposing to external users.**
+- ⏳ **SEC-06** — open (new, ~0.5 day). SVG injection in share/render.
+- ⏳ **FIX-01** — open (~3-5 days). Migrate mobile employee terminal to `employee_authorizations`.
 
-These four items are **Phase 0**. About **1-2 weeks** total.
+Originally estimated 1-2 weeks; about **1 week of effort remains** to clear this row.
 
-SEC-02 (institution PATCH gate) and SEC-03 (can_add_extras at RLS) can land in Phase 0 or Phase 1 — they are not "external user can exploit from day 1" risks the way SEC-01 is, but they are real and should not slip past Phase 1.
+SEC-02 (institution PATCH gate) and SEC-03 (can_add_extras at RLS) can land in Phase 0 or Phase 1 — they are not "external user can exploit from day 1" risks the way SEC-01 was, but they are real and should not slip past Phase 1.
 
 ### 5.2 — What MUST be done before McMenamins specifically
 
@@ -778,11 +795,11 @@ Phase 6 is hygiene. The codebase is not broken without it; it is just confusing.
 
 | Synthesis gap # | Work item |
 |---|---|
-| Gap 1 (api/employees/lookup leak) | SEC-01 |
+| Gap 1 (api/employees/lookup leak) | SEC-01 ✅ |
 | Gap 2 (institutions PATCH gate) | SEC-02 |
 | Gap 3 (can_add_extras API-only) | SEC-03 + DEC-08 |
-| Gap 4 (share/render scope) | SEC-04 |
-| Gap 5 (storage policy) | SEC-05 |
+| Gap 4 (share/render scope) | SEC-04 ✅ + SEC-06 (XSS follow-up) |
+| Gap 5 (storage policy) | SEC-05 ✅ |
 | Gap 6 (institutions RLS bug — fixed in migration 026) | none (already fixed) |
 | Gap 7 (unreachable role values) | CLN-01 + DEC-01 |
 | Gap 8 ('designer' role unreachable) | CLN-02 |
@@ -793,7 +810,7 @@ Phase 6 is hygiene. The codebase is not broken without it; it is just confusing.
 | Gap 13 (Design Certified scaffolding) | CLN-03 (or fold into BLD-24) |
 | Gap 14 (three migration trees) | DEC-19 + CLN-06 |
 | Gap 15 (mobile/web RLS policies coexist) | CLN-07 |
-| Gap 16 (three admin tests) | FIX-05 + CLN-04 + DEC-17 |
+| Gap 16 (three admin tests) | FIX-05 ✅ + CLN-04 + DEC-17 |
 | Gap 17 (inconsistent capability checks) | BLD-01..04 (the missing flags) + Phase 2 (the missing enforcement) |
 | Gap 18 (web/mobile employee disagree) | covered by BLD-01..04 enforcement + DEC-17 |
 | Gap 19 (no invitation flow) | resolved by SEC-01's replacement design; partial |
