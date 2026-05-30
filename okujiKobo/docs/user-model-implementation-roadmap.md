@@ -12,9 +12,12 @@
 
 | Date | Branch / commit | Items closed |
 |---|---|---|
-| 2026-05-30 | `feat/phase-0-security-cluster` (`a38093b`, `c6a0c5e`, `0c2fab4`, `f30d43f`) | SEC-01, SEC-04, SEC-05, FIX-05 |
+| 2026-05-30 | `feat/phase-0-security-cluster` (`a38093b`, `c6a0c5e`, `0c2fab4`, `f30d43f`) | SEC-01, SEC-04, SEC-05 (code; migration apply pending), FIX-05 |
+| 2026-05-30 | `feat/phase-0-closeout` (`07108d8`) | SEC-06 |
 
-Items still open in Phase 0 after that cluster: SEC-02 (deferred to Phase 2), SEC-03 (deferred to Phase 1 pending DEC-08), FIX-01 (separate PR), FIX-06 (Phase 1), FIX-07 (Phase 6). New item surfaced during SEC-04 implementation: **SEC-06 — SVG injection in `api/share/render`** (interpolated passport title and display name into unescaped SVG markup; flagged as a follow-up; see §2).
+**SEC-05 migration apply status:** `okujiKobo/supabase/migrations/031_design_assets_storage_policy.sql` is committed but NOT yet applied to production. The storage policy is not enforced until the migration runs. Apply with `supabase db push` (or `supabase migration up` per the project's local convention) and verify with `select policyname, cmd, with_check from pg_policies where tablename = 'objects' and policyname = 'design_assets_upload';` — the `with_check` body should include `(storage.foldername(name))[1] = auth.uid()::text`.
+
+Items still open in Phase 0 after these two PRs: FIX-01 (separate PR — mobile employee terminal migration). Items punted out of Phase 0: SEC-02 (Phase 2), SEC-03 (Phase 1, pending DEC-08), FIX-06 (Phase 1), FIX-07 (Phase 6). Phase 0 is otherwise closed.
 
 Two minor pre-statements to clear up before the inventory:
 
@@ -537,17 +540,19 @@ These are not work items — they are product decisions that must be made before
 
 ### Phase 5 — Quality and analytics
 
-**Goal:** Studio creators see their performance; quality issues are detectable and reviewable.
+**Goal:** quality issues are detectable and reviewable at scale.
 
-**Items:** BLD-13 (creator analytics), BLD-14 (ratings), BLD-15 (quality monitoring), BLD-28 (pre-publish review).
+**Scope change (2026-05-30):** BLD-13 (creator analytics dashboard) and BLD-14 (1-5 star ratings) were pulled forward into the pre-beta critical path — see §5.3 and §5.5 for rationale. They retain the BLD-13 / BLD-14 identifiers; they are no longer Phase 5 items. Phase 5 is now BLD-15 + BLD-28 only.
 
-**Rationale:** none of these are required for ambassadors to be productive. Nathan can manually review and engage with the first 10-20 ambassadors. Automated quality monitoring is a scale concern, not a beta concern.
+**Items:** BLD-15 (reactive quality monitoring), BLD-28 (optional pre-publish review).
 
-**Effort:** ~4-6 weeks.
+**Rationale:** neither is required for ambassadors to be productive — Nathan can manually review and engage with the first 10-20 ambassadors. Automated quality monitoring is a scale concern, not a beta concern. With BLD-13 and BLD-14 now landing pre-beta, BLD-15 has its dependencies in place earlier, but the work itself can still wait until the ambassador cohort gives signal on what flagging thresholds are useful.
 
-**Dependencies:** Phase 1 (Studio state), Phase 3 (Studio publishing is happening), DEC-05.
+**Effort:** ~3-4 weeks (was ~4-6 weeks before BLD-13 and BLD-14 moved out).
 
-**Could move:** BLD-13 could land earlier; ambassadors would appreciate the dashboard. BLD-14 (ratings) likewise. BLD-15 (quality monitoring) and BLD-28 (pre-publish review) can wait until the ambassador cohort gives signal on what they actually need.
+**Dependencies:** Phase 1 (Studio state), Phase 3 (Studio publishing is happening), BLD-13, BLD-14 (now pre-beta), DEC-05.
+
+**Could move:** BLD-15 and BLD-28 can wait until the ambassador cohort gives signal on what they actually need.
 
 ### Phase 6 — Schema cleanup and consolidation
 
@@ -662,17 +667,19 @@ Per L.8, the ambassador program is 10-20 comped Studio subscriptions. Ambassador
 - **BLD-10** — public marketplace gate (so publishing actually means something).
 - **BLD-09** — invite-only mechanism if any ambassador wants private testing first (optional for launch).
 - **BLD-24** — Studio creator badge (so ambassadors are visible to collectors as the curated tier).
-- **BLD-22** — premium asset library (deferrable; ambassadors won't care for the first month, but it's a Studio differentiator).
+- **BLD-22 schema only** — the `tier_required` column on `design_assets` and the picker-side gating. The *curatorial* work in BLD-22 (selecting and uploading the actual premium asset set) stays deferred; the column needs to exist pre-beta so the gate is wired and assets can be tagged later without a schema change.
+- **BLD-13** — creator analytics dashboard. Pulled forward from Phase 5: ambassadors using Studio without per-passport analytics produce thin pricing signal. The dashboard is the artifact that lets ambassadors evaluate whether Studio is worth paying for once comps end.
+- **BLD-14** — 1-5 star collector ratings. Pulled forward from Phase 5: ratings are the second axis (after acquisitions/completions) by which an ambassador can judge passport quality and the rest of us can judge ambassador quality.
 
-Total **incremental** work on top of 5.1: **about 3-4 weeks**. Notably, this does NOT require Phase 4 (billing) — comped subscriptions sidestep payment entirely.
+Total **incremental** work on top of 5.1: **about 6-8 weeks** (was 3-4 weeks before BLD-13, BLD-14, and BLD-22 schema were pulled in). Notably, this does NOT require Phase 4 (billing) — comped subscriptions sidestep payment entirely.
 
 ### 5.4 — What can be deferred until AFTER beta
 
 - All Phase 4 (Stripe billing) — depends on deferred work anyway.
-- All Phase 5 quality automation. Manual review of 10-20 ambassadors is tractable.
+- BLD-15 (reactive quality monitoring) and BLD-28 (pre-publish review) — the remaining Phase 5 quality-automation items. Manual review of 10-20 ambassadors is tractable.
 - All Phase 6 schema cleanup. No behavioral impact.
 - All Phase 7 Pro consumer features. Pro doesn't launch as a public consumer tier until after the institutional beta proves the model.
-- BLD-13 (analytics dashboard) is debatable — ambassadors will appreciate it, but they can survive on raw queries from Nathan for the first month.
+- BLD-22 *curatorial* work (producing the actual premium asset set). The schema lands pre-beta per 5.3; the curated assets can ship a few weeks after ambassador onboarding.
 - BLD-29 (Civic onboarding workflow) — not until a Civic-tier institution actually shows up. Beta is McMenamins + ambassadors; no Civic onboarding until after.
 
 ### 5.5 — Beta-ready milestone
@@ -682,10 +689,13 @@ Total **incremental** work on top of 5.1: **about 3-4 weeks**. Notably, this doe
 - Phase 0 complete (~2 weeks).
 - Phase 1 complete (~2 weeks).
 - Phase 2 complete (~2-3 weeks).
-- A trimmed Phase 3: BLD-10, BLD-09 (optional), BLD-24, BLD-22 (~2 weeks).
-- BLD-13 (analytics dashboard, deferred-but-recommended): +2 weeks.
+- A trimmed Phase 3: BLD-10, BLD-09 (optional), BLD-24, BLD-22 schema (~2 weeks; BLD-22 schema-only adds ~1 day).
+- BLD-13 (creator analytics dashboard, now in critical path): +2-3 weeks.
+- BLD-14 (1-5 star ratings, now in critical path): +1-2 weeks.
 
-**Total: about 8-12 working weeks of focused work** for the safest, most defensible beta.
+**Total: about 11-16 working weeks of focused work** (revised from 8-12) for the safest, most defensible beta.
+
+**Why BLD-13, BLD-14, and BLD-22 schema were pulled in:** the ambassador program is the *pricing instrument* — its job is to put Studio in front of 10-20 real creators so we can see whether the value justifies the price before charging anyone. Ambassadors using a Studio that has no analytics dashboard and no rating mechanism produce thin signal. They can tell us anecdotally whether they like Studio, but we cannot answer "do passports made with the curated assets perform measurably better?" or "do top-rated passports cluster on a particular creator?" without BLD-13 and BLD-14. BLD-22's schema column is required for the asset-tier gate to be wired into the picker; without it, the Studio differentiator on the asset library is invisible to ambassadors. Curation can follow.
 
 This assumes the DECs in §6 are resolved in parallel — they're not engineering work but they block engineering work.
 
