@@ -12,11 +12,29 @@ function createServiceClient() {
 }
 
 export async function POST(request: NextRequest) {
-  // Require a logged-in session — only institutional managers should call this.
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  // Phase 0 gate: caller must be a platform admin OR hold any employee
+  // authorization. This closes the public email-enumeration oracle while
+  // keeping the /manage/employees and /access/institutions/[id] add-staff
+  // flows working for non-admin institutional managers. Phase 2 (BLD-02)
+  // tightens this further to require can_manage_employees at the target
+  // institution.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: isAdminRpc } = await (supabase as any).rpc('is_platform_admin')
+  if (!isAdminRpc) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { count: empCount } = await (supabase as any)
+      .from('employee_authorizations')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', user.id)
+    if (!empCount || empCount === 0) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
   }
 
   const body = await request.json().catch(() => null)
