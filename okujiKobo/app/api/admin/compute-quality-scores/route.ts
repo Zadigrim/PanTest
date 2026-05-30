@@ -76,15 +76,15 @@ export async function POST(_request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  // Confirm admin role on profile
-  const { data: profile, error: profileError } = await sessionClient
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single()
-
-  if (profileError || !profile || profile.role !== 'admin') {
-    return NextResponse.json({ error: 'Forbidden: admin role required' }, { status: 403 })
+  // Confirm platform admin via the canonical RPC. The previous check on
+  // profiles.role === 'admin' was the legacy mobile-schema role string,
+  // which no code path writes; real platform admins have
+  // profiles.is_platform_admin = true and profiles.role = 'collector' by
+  // default. The old check refused real admins.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: isAdminRpc } = await (sessionClient as any).rpc('is_platform_admin')
+  if (!isAdminRpc) {
+    return NextResponse.json({ error: 'Forbidden: platform admin required' }, { status: 403 })
   }
 
   // Use service-role client for bulk data access
