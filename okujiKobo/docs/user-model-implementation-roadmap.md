@@ -15,10 +15,11 @@
 | 2026-05-30 | `feat/phase-0-security-cluster` (`a38093b`, `c6a0c5e`, `0c2fab4`, `f30d43f`) | SEC-01, SEC-04, SEC-05 (code; migration apply pending), FIX-05 |
 | 2026-05-30 | `feat/phase-0-closeout` (`07108d8`) | SEC-06 |
 | 2026-05-30 | DEC resolution session (docs-only) | DEC-02, DEC-08, DEC-16, DEC-17, DEC-18, DEC-19 resolved. New work item BLD-31 added. Downstream notes added to SEC-03, FIX-02, FIX-06, FIX-07, CLN-01, CLN-06, CLN-07, CLN-08, BLD-05, BLD-29. |
+| 2026-05-30 | `feat/fix-01-mobile-terminal-unification` (`898725c`, `c171025`, screens, `09ece7d`, roadmap) | FIX-01. Three legacy tables retired in migration 032 (`redemption_tokens`, `employee_accounts`, `proprietors`) — work that was scheduled for Phase 6 cleanup, pulled forward because they were FK-coupled to the FIX-01 migration. Discovery-surfaced parallel-tables item (proposed as FIX-08) absorbed into this PR. Mobile dead-code cleanup: `components/employee/PrizeDistribution.tsx` and `TokenScanner.tsx` deleted; legacy types (`RedemptionToken`, `EmployeeAccount`, `Proprietor`, `ProprietorTier`) removed. |
 
 **SEC-05 migration apply status:** `okujiKobo/supabase/migrations/031_design_assets_storage_policy.sql` is committed but NOT yet applied to production. The storage policy is not enforced until the migration runs. Apply with `supabase db push` (or `supabase migration up` per the project's local convention) and verify with `select policyname, cmd, with_check from pg_policies where tablename = 'objects' and policyname = 'design_assets_upload';` — the `with_check` body should include `(storage.foldername(name))[1] = auth.uid()::text`.
 
-Items still open in Phase 0 after these two PRs: FIX-01 (separate PR — mobile employee terminal migration). Items punted out of Phase 0: SEC-02 (Phase 2), SEC-03 (Phase 1, pending DEC-08), FIX-06 (Phase 1), FIX-07 (Phase 6). Phase 0 is otherwise closed.
+Phase 0 status after the 2026-05-30 PRs: **fully closed in code.** Items reclassified out of Phase 0 (not closed, just moved to a more honest phase): SEC-02 → Phase 2, SEC-03 → Phase 1 (closes alongside the `can_add_extras` retirement migration and the API check drop), FIX-06 → Phase 1, FIX-07 → Phase 6. Operational tail: apply migration `031_design_assets_storage_policy.sql` and `032_unify_redemption_into_completion_tokens.sql` and redeploy the `generate-token` edge function before exposing to external users.
 
 Two minor pre-statements to clear up before the inventory:
 
@@ -29,11 +30,11 @@ Two minor pre-statements to clear up before the inventory:
 
 ## Section 1 — Executive summary
 
-**The gap is large but cleanly partitionable.** 40 distinct work items (5 already closed by the Phase 0 security cluster + closeout of 2026-05-30; 1 new SEC item — SEC-06 — surfaced during that work and now closed; 1 new BLD item — BLD-31 — added during the 2026-05-30 DEC resolution session), classified into five types: security fixes (6, of which 4 closed), broken-today implementation fixes (7, of which 1 closed), new infrastructure to build (25), dead-code cleanup (9), and product decisions that must precede implementation (20 total — **6 resolved 2026-05-30**, 14 still open).
+**The gap is large but cleanly partitionable.** 40 distinct work items (5 closed by the Phase 0 security cluster + closeout of 2026-05-30; SEC-06 surfaced during that work and closed; FIX-01 closed in the mobile-terminal unification PR of 2026-05-30, which also retired three legacy tables that had been scheduled for Phase 6 cleanup; BLD-31 added during the 2026-05-30 DEC resolution session). Classified into five types: security fixes (6, of which 4 closed), broken-today implementation fixes (7, of which 2 closed), new infrastructure to build (25), dead-code cleanup (9 — but two table retirements pulled forward into FIX-01), and product decisions that must precede implementation (20 total — **6 resolved 2026-05-30**, 14 still open).
 
 **Recommended broad sequencing:**
 
-1. **Phase 0 — Pre-beta security and correctness.** Originally 5 SEC + 2 FIX items. **4 closed in the 2026-05-30 cluster** (SEC-01, SEC-04, SEC-05, FIX-05). Remaining: SEC-02 (deferred to Phase 2), SEC-03 (deferred to Phase 1 pending DEC-08), SEC-06 (new, ~0.5 day), FIX-01 (~3-5 days, separate PR), FIX-06 (Phase 1), FIX-07 (Phase 6). **Remaining Phase 0 effort: ~1 week** dominated by FIX-01.
+1. **Phase 0 — Pre-beta security and correctness — DONE.** Originally 5 SEC + 2 FIX items. Closed: SEC-01, SEC-04, SEC-05, SEC-06, FIX-01, FIX-05. Items reclassified out of Phase 0 (not closed, just moved): SEC-02 → Phase 2, SEC-03 → Phase 1 (closes when the `can_add_extras` retirement migration runs and `okujiKobo/app/api/token/redeem/route.ts:128-135` is updated), FIX-06 → Phase 1, FIX-07 → Phase 6. **Operational follow-up: apply migrations 031 and 032 to production.**
 2. **Phase 1 — Foundational schema and capability infrastructure.** Add the 4 new capability flags, the institution-tier classifier, the `comp_subscriptions` table, the Pro/Studio subscription-state columns. Also adds the nullable `last_edited_by` / `last_edited_at` columns on `passports` (lightweight audit trail per DEC-18 resolution) and retires the `can_add_extras` column (per DEC-08 resolution = fold into `can_distribute_prizes`). Schema-only (no enforcement yet) so it can ship safely behind the current behavior. **Total ~2 weeks.** Unlocks everything downstream. **All six previously-blocking DECs are now resolved** (DEC-02, -08, -16, -17, -18, -19); Phase 1 is unblocked. A small successor task — **BLD-31** (1-2 days) — lands between Phase 1 and Phase 2.
 3. **Phase 2 — Institutional capability enforcement.** Wire the new flags into RLS and API routes. Replace the `institutions.id = auth.uid()` manager pattern with `can_manage_employees`. Fix the multi-institution switching UX. **Total ~2-3 weeks.** Required for McMenamins beta.
 4. **Phase 3 — Designer access gating.** Trial-passport limits for Free; private/invite-only mechanism for Pro; public-marketplace gate for Studio + Institution. Implementable as soon as Phase 1 is done. **Total ~2-3 weeks.** Required for ambassador program.
@@ -115,13 +116,17 @@ Items are numbered with a type prefix (SEC / BLD / FIX / CLN / DEC) and a sequen
 
 ### FIX (Existing implementation broken or misaligned)
 
-#### FIX-01 — Migrate mobile employee terminal to `employee_authorizations`
+#### FIX-01 — Migrate mobile employee terminal to canonical schema — **DONE**
+- **Status:** closed in branch `feat/fix-01-mobile-terminal-unification` (2026-05-30). Commits: migration `898725c`, hook + types `c171025`, employee screens `[scr]`, edge function `09ece7d`, roadmap `[this]`.
 - **Appendix L:** L.6 — `employee_authorizations` is the authority.
-- **Today:** `app/employee/_layout.tsx:57-66` and `hooks/useEmployee.ts:6-25` query `employee_accounts` (pre-Connect schema). Field tab uses the new schema. Two parallel notions of employee status exist on mobile.
-- **Type:** FIX. **Silently broken in production** if the live database doesn't have `employee_accounts` rows for current employees.
-- **Effort:** 3-5 days. Need to: rewrite the terminal data layer, verify token-redemption flows, test against McMenamins data if any.
-- **Dependencies:** none.
-- **Risk if deferred:** the mobile employee terminal does not work for users provisioned via the web `/manage/employees` UI. Any beta institution adding employees through the canonical flow will hit "No active employee account found."
+- **Was:** `app/employee/_layout.tsx`, `app/employee/recent.tsx`, and `hooks/useEmployee.ts` queried the pre-Connect `employee_accounts` table. **Discovery surfaced a second silent break** the synthesis doc had missed: the mobile terminal also operated on `redemption_tokens` while the entire web stack operated on `completion_tokens` — two parallel tables, no rename linking them. Mobile-generated tokens never reached the web admin UI and vice versa.
+- **Resolution:** rebuilt onto the canonical schema in a single migration (`032_unify_redemption_into_completion_tokens.sql`) plus mobile code, edge function, and types updates. The migration retires three legacy tables at once (`redemption_tokens`, `employee_accounts`, `proprietors`) because they're tightly coupled FKs; partial retirement would have created new dead references. The user authorized full retirement on the grounds that no serious users exist yet. Detail:
+  - **Token schema unified.** `completion_tokens` gained the five mobile-UI columns (`prize_given`, `extra_gift_card_cents`, `distribution_location_id`, `location_whitelist`, `expires_at`) and absorbed any existing `redemption_tokens` rows, mapping legacy `employee_accounts.id` actor references to the underlying `profiles.id` via lookup. The canonical actor column `redeemed_by` / `distribution_logged_by` already FK'd `profiles(id)` — store the human, not the row.
+  - **Mobile terminal gate is `can_distribute_prizes`.** Deviated from the original FIX-01 plan (which suggested `can_verify` to match `EmployeeContext`) because the canonical RLS at `012_blockpoint4.sql:394-405` requires `can_distribute_prizes` for any UPDATE to `completion_tokens` — including the redeemed_at write that the scan step performs. A `can_verify`-only gate would have produced silent UPDATE failures at every button click.
+  - **Per-institution token prefix** moved from `proprietors.token_prefix` to `institutions.token_prefix`; `generate-token` edge function reads from the canonical source.
+  - **Dead code retired:** `components/employee/PrizeDistribution.tsx` and `components/employee/TokenScanner.tsx` had zero importers; the `RedemptionToken`, `EmployeeAccount`, `Proprietor`, and `ProprietorTier` TypeScript types were removed; `lib/qr.ts` token-format regex relaxed from MCM-only to any 1-6 char A-Z/0-9 prefix (per migration 009's per-institution scheme that the mobile validator never caught up to).
+- **Scope absorbed:** the "FIX-08 (parallel token tables)" item surfaced in the discovery phase was folded into this PR rather than created as a separate item. `redemption_tokens`, `employee_accounts`, `proprietors` retirements happen here instead of in Phase 6 CLN work.
+- **Phase 0 status:** with FIX-01 closed, **Phase 0 is fully closed** modulo the SEC-05 migration production-apply.
 
 #### FIX-02 — Rename or fix `emp_auth_self_update` policy
 - **Appendix L:** L.6 — only managers (`can_manage_employees`) and platform admins should modify capability flags. An employee should not self-update their flags.
@@ -499,25 +504,22 @@ These are not work items — they are product decisions that must be made before
 
 ## Section 3 — Recommended sequencing
 
-### Phase 0 — Pre-beta security and correctness
+### Phase 0 — Pre-beta security and correctness — **DONE**
 
 **Goal:** the system as it exists today does not leak data or silently malfunction for institutional partners.
 
 **Originally:** SEC-01, SEC-02 (with admin-only fallback), SEC-04, SEC-05, FIX-01, FIX-05, FIX-06. SEC-03 deferred to Phase 1.
 
-**Status (2026-05-30):**
-- ✅ **Closed:** SEC-01, SEC-04, SEC-05, FIX-05 — security cluster PR on `feat/phase-0-security-cluster`.
-- 🆕 **Surfaced:** SEC-06 (SVG injection in `api/share/render`) — found during SEC-04 implementation.
-- ⏳ **Open in Phase 0:** SEC-06 (~0.5 day, no deps), FIX-01 (~3-5 days, no deps — the silent mobile-terminal bug).
-- ↪︎ **Punted out of Phase 0:** SEC-02 (Phase 2), SEC-03 (Phase 1), FIX-06 (Phase 1), FIX-07 (Phase 6).
+**Final status (2026-05-30):**
+- ✅ **Closed in code:** SEC-01, SEC-04, SEC-05 (`feat/phase-0-security-cluster`); SEC-06 (`feat/phase-0-closeout`); FIX-01 (`feat/fix-01-mobile-terminal-unification`); FIX-05 (security cluster).
+- ↪︎ **Reclassified out of Phase 0** (not closed; intentionally moved): SEC-02 → Phase 2 (admin-only fallback never proved necessary at beta scale); SEC-03 → Phase 1 (closes alongside the `can_add_extras` retirement migration + a one-line drop of the API check at `okujiKobo/app/api/token/redeem/route.ts:128-135`); FIX-06 → Phase 1 (folded with other migration work); FIX-07 → Phase 6 (paired with CLN-01 at the database layer).
+- 🎁 **Pulled forward into FIX-01's PR (was scheduled for Phase 6 CLN):** retirement of three legacy tables (`redemption_tokens`, `employee_accounts`, `proprietors`) plus deletion of `components/employee/PrizeDistribution.tsx` + `TokenScanner.tsx`. They were tightly FK-coupled to FIX-01's migration; partial retirement would have created new dead references.
 
-**Remaining Phase 0 effort:** about **1 week** dominated by FIX-01. SEC-06 is a half-day patch that can land standalone or be folded into a near-term PR touching `api/share/render`.
+**Operational tail:** apply migrations `031_design_assets_storage_policy.sql` and `032_unify_redemption_into_completion_tokens.sql` to production. After migration 032, confirm via `psql` that `redemption_tokens`, `employee_accounts`, and `proprietors` no longer exist and that `institutions.token_prefix` is populated for any McMenamins-historical rows. The `generate-token` edge function needs a redeploy because the mobile-Supabase function tree has not been the canonical source per DEC-19 — its updated copy lives in this PR's branch and ships when the function is deployed.
 
-**Rationale:** SEC items affect the system AS IT IS — they are not about future features. FIX-01 is a silent production bug. FIX-05 and FIX-06 are quick wins that close confusion / footgun risk.
+**Rationale:** SEC items affect the system AS IT IS — they are not about future features. FIX-01 was a silent production break.
 
-**Dependencies:** none external. DEC-08 can hang until Phase 1.
-
-**Could move:** FIX-06 (defaults change) could land in Phase 1 with other migration work, but the value of doing it early is the low cost and the elimination of a footgun.
+**Dependencies:** none external.
 
 ### Phase 1 — Foundational schema and capability infrastructure
 
@@ -603,13 +605,16 @@ FIX-06 (the default-flag-change migration, now 2 flags after DEC-08) is the natu
 
 **Goal:** the codebase no longer contains misleading dead paths.
 
-**Items:** CLN-01 to CLN-09. FIX-07 (mobile profile screen).
+**Items:** CLN-01, CLN-02, CLN-03, CLN-04, CLN-05, CLN-08, CLN-09. FIX-07 (mobile profile screen).
 
-**Scope change (2026-05-30):** CLN-06 narrowed from "consolidate the three migration trees" (1-2 weeks) to a documentation-and-archive task (~1 day) after DEC-19 resolved `okujiKobo/supabase/migrations/` as canonical. The canonical-tree README itself lands in Phase 1's first migration PR; CLN-06 in Phase 6 is the remaining historical-marker work on the mobile and `okuji-db` trees.
+**Scope changes (2026-05-30):**
+- CLN-06 narrowed from "consolidate the three migration trees" (1-2 weeks) to a documentation-and-archive task (~1 day) after DEC-19 resolved `okujiKobo/supabase/migrations/` as canonical. The canonical-tree README itself lands in Phase 1's first migration PR; CLN-06 in Phase 6 is the remaining historical-marker work on the mobile and `okuji-db` trees.
+- CLN-07 (drop redundant mobile-baseline RLS policies) **largely obsoleted by FIX-01's migration 032** — `redemption_tokens`, `employee_accounts`, and `proprietors` (along with their RLS policies) were dropped in 032. A residual sweep for any remaining mobile-only policies on tables that still exist may be useful but the bulk of the work landed early.
+- The dead-component cleanup for `components/employee/PrizeDistribution.tsx` and `TokenScanner.tsx` also landed in FIX-01.
 
-**Rationale:** pure hygiene. No behavioral change. Doing this earlier is fine but the work has no urgency. Doing it after the new features land means there's less unwinding to do.
+**Rationale:** pure hygiene. No behavioral change.
 
-**Effort:** ~1 week (was 1-2 weeks before CLN-06 narrowed).
+**Effort:** ~3-5 days (was ~1 week before CLN-06 narrowed and the FIX-01 retirements landed).
 
 **Dependencies:** ~~DEC-01~~ (still open), ~~DEC-16~~ ✅, ~~DEC-17~~ ✅, ~~DEC-19~~ ✅, BLD-02 (the new mechanism CLN-08 retires). Only DEC-01 still blocks any Phase 6 item — specifically CLN-01.
 
@@ -639,7 +644,7 @@ Cell meaning: row depends on column. ✅ = strict prerequisite; ◐ = soft (can 
 | SEC-02 | (optional ◐ BLD-02 + BLD-04; admin-only Phase 0) |
 | SEC-03 | ~~DEC-08~~ ✅ — unblocked. Closes alongside the `can_add_extras` retirement migration in Phase 1. |
 | SEC-04, SEC-05 | none |
-| FIX-01 to FIX-07 | none individually; FIX-02 ◐ ~~DEC-16~~ ✅; FIX-03 ◐ DEC-04; FIX-04 ◐ BLD-30; FIX-06 simplifies post-DEC-08 (2-flag change); FIX-07 unblocked by DEC-17 ✅ |
+| FIX-01 to FIX-07 | FIX-01 ✅ closed 2026-05-30 (also retired redemption_tokens, employee_accounts, proprietors); FIX-05 ✅ closed; rest unchanged: FIX-02 ◐ ~~DEC-16~~ ✅; FIX-03 ◐ DEC-04; FIX-04 ◐ BLD-30; FIX-06 simplifies post-DEC-08 (2-flag change); FIX-07 unblocked by DEC-17 ✅ |
 | BLD-01..04 | (capability flags — schema-only; enforcement depends on the gating phase) |
 | BLD-05 | ~~DEC-02~~ ✅ — Nathan sets the column on manual provisioning. |
 | BLD-07, BLD-08 | none |
@@ -665,7 +670,7 @@ Cell meaning: row depends on column. ✅ = strict prerequisite; ◐ = soft (can 
 | CLN-01 | DEC-01 |
 | CLN-04 | none (touches many policy bodies) |
 | CLN-06 | ~~DEC-19~~ ✅ — narrows to a documentation task (~1 day). |
-| CLN-07 | CLN-06 — unblocked by DEC-19 ✅. |
+| CLN-07 | CLN-06 — unblocked by DEC-19 ✅; largely obsoleted by FIX-01's migration 032 (the bulk of the mobile-baseline policies attached to tables that no longer exist). |
 | CLN-08 | ~~DEC-16~~ ✅, BLD-02. |
 | CLN-02, CLN-03, CLN-05, CLN-09 | none |
 
@@ -681,11 +686,11 @@ These are non-negotiable for any beta exposure, McMenamins or not:
 
 - ✅ **SEC-01** — closed (`a38093b`, 2026-05-30). Email-enumeration oracle gated.
 - ✅ **SEC-04** — closed (`c6a0c5e`, 2026-05-30). Share-render authorization + token entropy.
-- ✅ **SEC-05** — closed (`0c2fab4`, 2026-05-30). Storage policy enforces per-user folders. **Migration not yet applied — apply `031_design_assets_storage_policy.sql` before exposing to external users.**
-- ⏳ **SEC-06** — open (new, ~0.5 day). SVG injection in share/render.
-- ⏳ **FIX-01** — open (~3-5 days). Migrate mobile employee terminal to `employee_authorizations`.
+- ✅ **SEC-05** — closed (`0c2fab4`, 2026-05-30). Storage policy enforces per-user folders. **Migration apply pending — run `031_design_assets_storage_policy.sql` before exposing to external users.**
+- ✅ **SEC-06** — closed (`07108d8`, 2026-05-30). SVG inputs escaped.
+- ✅ **FIX-01** — closed (`feat/fix-01-mobile-terminal-unification`, 2026-05-30). Mobile terminal on canonical schema; three legacy tables retired; parallel-tables silent break absorbed. **Migration apply pending — run `032_unify_redemption_into_completion_tokens.sql` and redeploy the `generate-token` edge function before exposing to external users.**
 
-Originally estimated 1-2 weeks; about **1 week of effort remains** to clear this row.
+All five items in this critical-path row are closed in code. The row is gated on two migration applies + one edge-function redeploy as operational work.
 
 SEC-02 (institution PATCH gate) and SEC-03 (can_add_extras at RLS) can land in Phase 0 or Phase 1 — they are not "external user can exploit from day 1" risks the way SEC-01 was, but they are real and should not slip past Phase 1.
 
@@ -872,7 +877,7 @@ Phase 6 is hygiene. The codebase is not broken without it; it is just confusing.
 | Gap 9 (manager pattern unreachable) | DEC-16 + CLN-08 |
 | Gap 10 (emp_auth_self_update misnamed) | FIX-02 |
 | Gap 11 (institutions_admin_read redundant) | CLN-05 |
-| Gap 12 (mobile terminal wrong table) | FIX-01 |
+| Gap 12 (mobile terminal wrong table) | FIX-01 ✅ |
 | Gap 13 (Design Certified scaffolding) | CLN-03 (or fold into BLD-24) |
 | Gap 14 (three migration trees) | DEC-19 + CLN-06 |
 | Gap 15 (mobile/web RLS policies coexist) | CLN-07 |
