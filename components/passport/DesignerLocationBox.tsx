@@ -1,9 +1,9 @@
 // Absolutely-positioned stamp box that mirrors the designer's location box placement.
-// Uses measure() for absolute screen coords so StampPressInteraction works correctly.
+// Uses measure() for absolute screen coords so StampGestureInteraction works correctly.
 import React, { useRef, useCallback } from 'react'
 import { View, LayoutRectangle } from 'react-native'
 import { StampSlot } from './StampSlot'
-import { StampPressInteraction } from '../stamp/StampPressInteraction'
+import { StampGestureInteraction } from '../stamp/StampGestureInteraction'
 import type { Stop, Stamp, StampSlotState, StampPlacement } from '../../types'
 
 interface Props {
@@ -56,7 +56,7 @@ export function DesignerLocationBox({
       <StampSlot stop={stop} state={slotState} stamp={stamp} width={boxW} height={boxH} />
 
       {(slotState === 'ready' || slotState === 'pressing') && boxLayout.width > 0 && (
-        <StampPressInteraction
+        <StampGestureInteraction
           stop={stop}
           slotState={slotState}
           boxLayout={boxLayout}
