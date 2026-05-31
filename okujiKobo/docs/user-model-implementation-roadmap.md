@@ -16,10 +16,11 @@
 | 2026-05-30 | `feat/phase-0-closeout` (`07108d8`) | SEC-06 |
 | 2026-05-30 | DEC resolution session (docs-only) | DEC-02, DEC-08, DEC-16, DEC-17, DEC-18, DEC-19 resolved. New work item BLD-31 added. Downstream notes added to SEC-03, FIX-02, FIX-06, FIX-07, CLN-01, CLN-06, CLN-07, CLN-08, BLD-05, BLD-29. |
 | 2026-05-30 | `feat/fix-01-mobile-terminal-unification` (`898725c`, `c171025`, screens, `09ece7d`, roadmap) | FIX-01. Three legacy tables retired in migration 032 (`redemption_tokens`, `employee_accounts`, `proprietors`) — work that was scheduled for Phase 6 cleanup, pulled forward because they were FK-coupled to the FIX-01 migration. Discovery-surfaced parallel-tables item (proposed as FIX-08) absorbed into this PR. Mobile dead-code cleanup: `components/employee/PrizeDistribution.tsx` and `TokenScanner.tsx` deleted; legacy types (`RedemptionToken`, `EmployeeAccount`, `Proprietor`, `ProprietorTier`) removed. |
+| 2026-05-30 | `feat/phase-1-foundational-schema` (migrations + can_add_extras retirement + comp admin UI + roadmap) | **Phase 1 closed in code.** BLD-01..05, BLD-07, BLD-08, BLD-12, FIX-06, SEC-03, DEC-18 audit + RLS expansion, DEC-19 README. Six migrations 033-038. Comp admin UI at `/access/comp-subscriptions`. `can_add_extras` retired across 7 application files. Three discovery-time decisions: DEC-18 RLS expansion extended to `print_jobs` + `design_assets` (institutional artifacts survive turnover); `last_edited_by` uses a trigger (1 file) instead of app-layer writes at 19 sites; comp ↔ profile sync uses a trigger. |
 
 **SEC-05 migration apply status:** `okujiKobo/supabase/migrations/031_design_assets_storage_policy.sql` is committed but NOT yet applied to production. The storage policy is not enforced until the migration runs. Apply with `supabase db push` (or `supabase migration up` per the project's local convention) and verify with `select policyname, cmd, with_check from pg_policies where tablename = 'objects' and policyname = 'design_assets_upload';` — the `with_check` body should include `(storage.foldername(name))[1] = auth.uid()::text`.
 
-Phase 0 status after the 2026-05-30 PRs: **fully closed in code.** Items reclassified out of Phase 0 (not closed, just moved to a more honest phase): SEC-02 → Phase 2, SEC-03 → Phase 1 (closes alongside the `can_add_extras` retirement migration and the API check drop), FIX-06 → Phase 1, FIX-07 → Phase 6. Operational tail: apply migration `031_design_assets_storage_policy.sql` and `032_unify_redemption_into_completion_tokens.sql` and redeploy the `generate-token` edge function before exposing to external users.
+Phase 0 status after the 2026-05-30 PRs: **fully closed in code.** Items reclassified out of Phase 0 (not closed, just moved to a more honest phase): SEC-02 → Phase 2. SEC-03 and FIX-06 closed in the Phase 1 PR. FIX-07 → Phase 6. Operational tail (Phase 0 + Phase 1): apply migrations `031`, `032`, and `033`-`038` in order; redeploy the `generate-token` edge function. Phase 1 also closed in code as of the same date.
 
 Two minor pre-statements to clear up before the inventory:
 
@@ -30,12 +31,12 @@ Two minor pre-statements to clear up before the inventory:
 
 ## Section 1 — Executive summary
 
-**The gap is large but cleanly partitionable.** 40 distinct work items (5 closed by the Phase 0 security cluster + closeout of 2026-05-30; SEC-06 surfaced during that work and closed; FIX-01 closed in the mobile-terminal unification PR of 2026-05-30, which also retired three legacy tables that had been scheduled for Phase 6 cleanup; BLD-31 added during the 2026-05-30 DEC resolution session). Classified into five types: security fixes (6, of which 4 closed), broken-today implementation fixes (7, of which 2 closed), new infrastructure to build (25), dead-code cleanup (9 — but two table retirements pulled forward into FIX-01), and product decisions that must precede implementation (20 total — **6 resolved 2026-05-30**, 14 still open).
+**The gap is large but cleanly partitionable.** 40 distinct work items. Status as of 2026-05-30: Phase 0 and Phase 1 both closed in code. Security fixes (6, of which **5 closed** — SEC-01, SEC-03, SEC-04, SEC-05, SEC-06). Broken-today implementation fixes (7, of which **3 closed** — FIX-01, FIX-05, FIX-06). New infrastructure (25, of which **9 closed** — BLD-01..05, BLD-07, BLD-08, BLD-12, plus the canonical-tree README). Dead-code cleanup (9 — plus two table retirements pulled forward into FIX-01). Product decisions (20 total — **6 resolved 2026-05-30**, 14 still open).
 
 **Recommended broad sequencing:**
 
 1. **Phase 0 — Pre-beta security and correctness — DONE.** Originally 5 SEC + 2 FIX items. Closed: SEC-01, SEC-04, SEC-05, SEC-06, FIX-01, FIX-05. Items reclassified out of Phase 0 (not closed, just moved): SEC-02 → Phase 2, SEC-03 → Phase 1 (closes when the `can_add_extras` retirement migration runs and `okujiKobo/app/api/token/redeem/route.ts:128-135` is updated), FIX-06 → Phase 1, FIX-07 → Phase 6. **Operational follow-up: apply migrations 031 and 032 to production.**
-2. **Phase 1 — Foundational schema and capability infrastructure.** Add the 4 new capability flags, the institution-tier classifier, the `comp_subscriptions` table, the Pro/Studio subscription-state columns. Also adds the nullable `last_edited_by` / `last_edited_at` columns on `passports` (lightweight audit trail per DEC-18 resolution) and retires the `can_add_extras` column (per DEC-08 resolution = fold into `can_distribute_prizes`). Schema-only (no enforcement yet) so it can ship safely behind the current behavior. **Total ~2 weeks.** Unlocks everything downstream. **All six previously-blocking DECs are now resolved** (DEC-02, -08, -16, -17, -18, -19); Phase 1 is unblocked. A small successor task — **BLD-31** (1-2 days) — lands between Phase 1 and Phase 2.
+2. **Phase 1 — Foundational schema and capability infrastructure — DONE.** Six migrations (`033`–`038`) shipped on `feat/phase-1-foundational-schema` (2026-05-30). The four new capability flag columns exist on `employee_authorizations` (BLD-01..04); `institutions.tier` exists with CHECK + manual-classification semantics (BLD-05, DEC-02); Pro/Studio subscription state on `profiles` (BLD-07, BLD-08); `comp_subscriptions` table with the `sync_comp_to_profile` trigger that keeps `profiles.{pro,studio}_status` derived (BLD-12); `last_edited_by` / `last_edited_at` on `passports` plus a `BEFORE UPDATE` trigger that sets them automatically (DEC-18 audit); RLS on `passports`, `passport_pages`, `stops`, `passport_autosaves`, `print_jobs`, `design_assets` expanded to allow can_design employees at the owning institution (DEC-18). `can_add_extras` retired across schema + 7 application files (DEC-08 fold, SEC-03 closure). FIX-06 default change to `(false, false)` shipped in the same migration. Comp admin UI lives at `/access/comp-subscriptions`. Canonical-tree README added per DEC-19. **A small successor task — BLD-31 (1-2 days) — lands between Phase 1 and Phase 2.**
 3. **Phase 2 — Institutional capability enforcement.** Wire the new flags into RLS and API routes. Replace the `institutions.id = auth.uid()` manager pattern with `can_manage_employees`. Fix the multi-institution switching UX. **Total ~2-3 weeks.** Required for McMenamins beta.
 4. **Phase 3 — Designer access gating.** Trial-passport limits for Free; private/invite-only mechanism for Pro; public-marketplace gate for Studio + Institution. Implementable as soon as Phase 1 is done. **Total ~2-3 weeks.** Required for ambassador program.
 5. **Phase 4 — Subscription billing.** Pro, Studio, Municipal, Business billing via Stripe. **Total 4-8 weeks. Blocked by deferred Stripe work — do not start until that block lifts.**
@@ -84,14 +85,9 @@ Items are numbered with a type prefix (SEC / BLD / FIX / CLN / DEC) and a sequen
 - **Dependencies:** BLD-02 + BLD-04 (the flags must exist first); can ship as Phase 0 fix gated on `is_platform_admin()` only until those land.
 - **Risk if deferred:** a verifying employee can rename or reconfigure their institution.
 
-#### SEC-03 — Enforce `can_add_extras` at the RLS layer
-- **Appendix L:** silent (Appendix L doesn't list `can_add_extras`).
-- **Today:** the API route `okujiKobo/app/api/token/redeem/route.ts:128-135` checks the flag, but the `tokens_employee_update` RLS policy at `okujiKobo/supabase/migrations/012_blockpoint4.sql:394-405` only checks `can_distribute_prizes`. A direct PostgREST call bypasses the API gate.
-- **Type:** SEC. Was: depends on DEC-08 (keep, fold, or retire `can_add_extras`).
-- **Effort:** 0.5-1 day.
-- **Dependencies:** ~~DEC-08~~ — resolved 2026-05-30.
-- **Risk if deferred:** an employee with API access (not a hypothetical — institutional kiosk apps have anon keys) can attach extras to redemptions without authorization.
-- **DEC-08 resolution (2026-05-30): fold `can_add_extras` into `can_distribute_prizes`.** SEC-03 simplifies to: drop the dead `can_add_extras` check at `route.ts:128-135` and rely on the existing `can_distribute_prizes` RLS gate (which already covers the underlying `tokens` update). The extras path becomes part of the standard prize-distribution authorization — no parallel RLS check is needed. Pairs with the column-retirement migration in Phase 1.
+#### SEC-03 — Enforce `can_add_extras` at the RLS layer — **DONE**
+- **Status:** closed in the Phase 1 PR `feat/phase-1-foundational-schema` (2026-05-30) alongside migration 033's `can_add_extras` column drop.
+- **Resolution:** the dead `can_add_extras` API check at `okujiKobo/app/api/token/redeem/route.ts` was removed. The existing `tokens_employee_update` RLS policy (gates on `can_distribute_prizes`) covers the extras path now that extras are no longer a separate authorization concept per DEC-08. 7 application files updated to remove the column and its UI surfaces.
 
 #### SEC-04 — Scope `api/share/render` — **DONE**
 - **Status:** closed in commit `c6a0c5e` on `feat/phase-0-security-cluster` (2026-05-30).
@@ -159,14 +155,9 @@ Items are numbered with a type prefix (SEC / BLD / FIX / CLN / DEC) and a sequen
 - **Was:** `okujiKobo/app/api/admin/compute-quality-scores/route.ts:86` checked the legacy `profile.role === 'admin'` string.
 - **Resolution:** swapped to the `is_platform_admin()` RPC, matching the pattern in `manage/layout.tsx:81` and `api/institutions/[id]/route.ts:116`.
 
-#### FIX-06 — Change `employee_authorizations` default flag values to `(false, false)`
-- **Appendix L:** L.6 — flags are explicit grants; manager opts in per employee.
-- **Today:** `okujiKobo/supabase/migrations/002_connect_schema.sql:193-195` — `can_verify` defaults to `true`, `can_distribute_prizes` defaults to `true`. Any row inserted without overriding flags is a verifying + distributing employee. UI explicitly overrides but SQL or off-path inserts get the unsafe defaults.
-- **Type:** FIX. Migration-only change.
-- **Effort:** 0.5-1 day (migration + audit any code that relies on the defaults).
-- **Dependencies:** none.
-- **Risk if deferred:** footgun. Any seed script or admin SQL that inserts a row produces a fully-empowered employee.
-- **DEC-08 resolution (2026-05-30): `can_add_extras` folded into `can_distribute_prizes`.** FIX-06 was implicitly a 3-flag default-change (`can_verify`, `can_distribute_prizes`, `can_add_extras`); with `can_add_extras` retired in the same Phase 1 migration, FIX-06 reduces to a 2-flag change (`can_verify`, `can_distribute_prizes` both → `false`).
+#### FIX-06 — Change `employee_authorizations` default flag values to `(false, false)` — **DONE**
+- **Status:** closed in the Phase 1 PR `feat/phase-1-foundational-schema` (2026-05-30) via migration 033 alongside the BLD-01..04 capability flag additions and the `can_add_extras` retirement.
+- **Resolution:** `can_verify` and `can_distribute_prizes` defaults flipped from `true` to `false`. Existing rows retain their current values. Audit pass on both INSERT sites (`access/institutions/[id]/page.tsx` and `(institutional)/manage/employees/page.tsx`) confirmed neither relied on the previous defaults.
 
 #### FIX-07 — Replace `.role === 'employee' || .role === 'admin'` in mobile profile screen
 - **Appendix L:** L.7 — admin is `is_platform_admin()`; employee is presence of an `employee_authorizations` row.
@@ -183,28 +174,32 @@ The bulk of the gap. Grouped here by area for readability; sequencing rules in �
 
 **B.1 — Capability flags (new columns on `employee_authorizations`)**
 
-#### BLD-01 — Add `can_design` flag
+#### BLD-01 — Add `can_design` flag — **SCHEMA DONE (Phase 1)**
+- **Status:** column added in migration 033 (2026-05-30) with default `false`. Enforcement in `api/design/create` is Phase 2. RLS expansion that already uses this flag is migration 038.
 - **Appendix L:** L.6 — gates designing under the institution's name. L.9 — institutional employee path requires this.
 - **Today:** does not exist. `okujiKobo/app/api/design/create/route.ts:10-49` checks only `getUser()`.
 - **Type:** BLD.
 - **Effort:** 1 day for the migration + form UI checkbox; 0.5 day for the API gate enforcement (Phase 2).
 - **Dependencies:** none for the schema; the gate enforcement depends on BLD-06 (trial limits decision for Free) and DEC-03 (DB vs app enforcement).
 
-#### BLD-02 — Add `can_manage_employees` flag
+#### BLD-02 — Add `can_manage_employees` flag — **SCHEMA DONE (Phase 1)**
+- **Status:** column added in migration 033 (2026-05-30) with default `false`. Enforcement at `/manage/employees` and `api/employees/lookup` is Phase 2.
 - **Appendix L:** L.6.
 - **Today:** does not exist. The `/manage/employees` UI is gated only on "have any institution membership."
 - **Type:** BLD.
 - **Effort:** 1 day schema + UI; 1-2 days for migration of existing employees (audit: should `authorized_by` employees be auto-granted? Likely yes).
 - **Dependencies:** DEC-16 (manager mechanism). Also unblocks SEC-01 and SEC-02.
 
-#### BLD-03 — Add `can_view_analytics` flag
+#### BLD-03 — Add `can_view_analytics` flag — **SCHEMA DONE (Phase 1)**
+- **Status:** column added in migration 033 (2026-05-30) with default `false`. Enforcement at `api/analytics/[passportId]` is Phase 2.
 - **Appendix L:** L.6.
 - **Today:** does not exist. `okujiKobo/app/api/analytics/[passportId]/route.ts:94-107` allows any employee.
 - **Type:** BLD.
 - **Effort:** 1 day schema + UI + route gate.
 - **Dependencies:** none for schema; enforcement is just the API gate.
 
-#### BLD-04 — Add `can_manage_billing` flag
+#### BLD-04 — Add `can_manage_billing` flag — **SCHEMA DONE (Phase 1)**
+- **Status:** column added in migration 033 (2026-05-30) with default `false`. Enforcement deferred to Phase 4 (billing UI doesn't exist to gate yet).
 - **Appendix L:** L.6.
 - **Today:** does not exist; no billing UI to gate.
 - **Type:** BLD.
@@ -213,7 +208,8 @@ The bulk of the gap. Grouped here by area for readability; sequencing rules in �
 
 **B.2 — Institution tier classification**
 
-#### BLD-05 — Add `tier` column on `institutions`
+#### BLD-05 — Add `tier` column on `institutions` — **SCHEMA DONE (Phase 1)**
+- **Status:** column added in migration 034 (2026-05-30) with CHECK (`'civic'|'municipal'|'business'|'pending'`), default `'pending'`. Per DEC-02, Nathan classifies institutions manually post-migration through the platform-admin UI. No auto-classification.
 - **Appendix L:** L.5 — Civic / Municipal / Business sub-tiers.
 - **Today:** does not exist. No tier-aware behavior.
 - **Type:** BLD.
@@ -223,21 +219,24 @@ The bulk of the gap. Grouped here by area for readability; sequencing rules in �
 
 **B.3 — Subscription state**
 
-#### BLD-07 — Add Pro subscription state
+#### BLD-07 — Add Pro subscription state — **SCHEMA DONE (Phase 1)**
+- **Status:** `pro_status`, `pro_source`, and the carried-forward `pro_expires_at` exist on `profiles` as of migration 035 (2026-05-30). `comp_subscriptions` writes here via the trigger in 036. Capability detection in `lib/roles.ts` is Phase 2; paid integration is Phase 4 (BLD-25).
 - **Appendix L:** L.3.
 - **Today:** does not exist. `profiles.pro_expires_at` column exists (web schema) but unused.
 - **Type:** BLD.
 - **Effort:** 2-3 days for schema (status column, expires_at, source = 'paid' | 'comp'), capability detection in `lib/roles.ts`, basic UI badge.
 - **Dependencies:** none for the state model; actual payment integration is BLD-25.
 
-#### BLD-08 — Add Studio subscription state
+#### BLD-08 — Add Studio subscription state — **SCHEMA DONE (Phase 1)**
+- **Status:** `studio_status`, `studio_source`, `studio_expires_at` exist on `profiles` as of migration 035 (2026-05-30). Mirror of BLD-07. Capability detection in `lib/roles.ts` is Phase 2.
 - **Appendix L:** L.4.
 - **Today:** does not exist.
 - **Type:** BLD.
 - **Effort:** 2-3 days. Same shape as BLD-07.
 - **Dependencies:** none for the state model. Critical to BLD-12 (comps) — the comp subscription writes here.
 
-#### BLD-12 — `comp_subscriptions` table + admin grant UI
+#### BLD-12 — `comp_subscriptions` table + admin grant UI — **DONE**
+- **Status:** closed in the Phase 1 PR `feat/phase-1-foundational-schema` (2026-05-30). Migration 036 ships the table with admin-only RLS and the `sync_comp_to_profile` trigger. Admin UI at `/access/comp-subscriptions` provides grant + revoke. Comp grants automatically propagate to `profiles.{pro,studio}_status` via the trigger.
 - **Appendix L:** L.8 — ambassador program prerequisite.
 - **Today:** does not exist.
 - **Type:** BLD.
@@ -521,27 +520,32 @@ These are not work items — they are product decisions that must be made before
 
 **Dependencies:** none external.
 
-### Phase 1 — Foundational schema and capability infrastructure
+### Phase 1 — Foundational schema and capability infrastructure — **DONE**
 
 **Goal:** every column, table, and flag that Appendix L's tier system needs exists in the schema, with no enforcement yet. Enforcement comes in subsequent phases without further migrations.
 
-**Items:** BLD-01, BLD-02, BLD-03, BLD-04 (the four new capability flags), BLD-05 (institution tier — Nathan sets manually per DEC-02), BLD-07, BLD-08 (Pro/Studio subscription state), BLD-12 (comp_subscriptions). Plus three smaller schema items folded in this phase:
-- **`can_add_extras` retirement migration** (per DEC-08 resolution). Drops the column from `employee_authorizations`; SEC-03 closes simultaneously.
-- **`last_edited_by` (uuid, nullable) and `last_edited_at` (timestamptz, nullable) on `passports`** (per DEC-18 resolution). Lightweight audit trail for institution-owned passports edited by employees other than the original creator. Written by application code on save; not enforced by trigger.
-- **RLS expansion on `passports`, `passport_pages`, `stops`** to OR the existing `creator_id = auth.uid()` clause with an institution-employment + `can_design` clause when `proprietor_id IS NOT NULL` (per DEC-18). Personal (non-institutional) passports retain strict creator-only edit rights.
-- **Canonical-tree README** at `okujiKobo/supabase/migrations/README.md` recording the DEC-19 decision. Lands in this phase's first migration PR.
+**Status (2026-05-30):** all items shipped on `feat/phase-1-foundational-schema`. Migrations `033` through `038`. Comp admin UI at `/access/comp-subscriptions`. Canonical-tree README at `okujiKobo/supabase/migrations/README.md`.
 
-FIX-06 (the default-flag-change migration, now 2 flags after DEC-08) is the natural companion and can land here.
+**Items shipped:**
+- ✅ **BLD-01..04** — `can_design`, `can_manage_employees`, `can_view_analytics`, `can_manage_billing` on `employee_authorizations`; all default `false` (migration 033).
+- ✅ **BLD-05** — `institutions.tier` with CHECK constraint `('civic'|'municipal'|'business'|'pending')`, default `'pending'` (migration 034). Per DEC-02, Nathan sets tier manually through the platform-admin UI.
+- ✅ **BLD-07, BLD-08** — `pro_status`, `pro_source`, `pro_expires_at` (carried), `studio_status`, `studio_source`, `studio_expires_at` on `profiles` (migration 035).
+- ✅ **BLD-12** — `comp_subscriptions` table + admin-only RLS + `sync_comp_to_profile` trigger that keeps `profiles.{pro,studio}_status` derived (migration 036). Comp admin UI at `/access/comp-subscriptions`.
+- ✅ **DEC-18 audit** — `last_edited_by` / `last_edited_at` on `passports` + `BEFORE UPDATE` trigger that sets them from `auth.uid()` and `now()` (migration 037). **Trigger-based, deviating from the original plan's app-layer instruction** — justified by discovery surfacing ~19 passport UPDATE call sites including many direct PostgREST client calls. Service-role API routes (tip arrival, acquire arrival, completion notification, admin recompute) produce `last_edited_by = NULL` since `auth.uid()` is null under service role, which is the desired semantic for system-driven derived-counter updates.
+- ✅ **DEC-18 RLS expansion** — `passports`, `passport_pages`, `stops`, `passport_autosaves`, `print_jobs`, `design_assets` (migration 038). Allows employees with `can_design` at the owning institution to edit/delete. Scoped to `proprietor_id`/`institution_id IS NOT NULL` so personal content retains strict owner-only semantics.
+- ✅ **DEC-08 / SEC-03 closure** — `can_add_extras` column dropped (migration 033). API check at `okujiKobo/app/api/token/redeem/route.ts` removed. UI surfaces cleaned across 7 files: institutional terminal extras section now gates on `can_distribute_prizes`; manage-employees and institution-detail grids drop the Extras column entirely.
+- ✅ **FIX-06** — `can_verify` and `can_distribute_prizes` defaults flipped from `true` to `false` (migration 033). 2-flag default per the DEC-08 fold.
+- ✅ **DEC-19 README** — `okujiKobo/supabase/migrations/README.md` records the canonical-tree decision.
 
-**Rationale:** schema additions are low-risk and cheap. Doing them all in one phase means subsequent feature work is purely application-layer.
+**Decisions made during implementation:**
+- DEC-18 RLS expansion includes `print_jobs` and `design_assets` (α path from discovery) — institutional artifacts should survive employee turnover.
+- `last_edited_by` mechanism: trigger (deviation from prompt's app-layer instruction; justified by discovery).
+- Comp ↔ profile sync: trigger.
+- can_add_extras UI columns: deleted entirely; the extras-section conditional on the terminal now uses `can_distribute_prizes` (same trust gate).
 
-**Effort:** ~2 weeks.
+**Operational follow-up:** apply migrations 033-038 to production in order. After applying, the comp admin UI at `/access/comp-subscriptions` is live for platform admins. Existing institutions appear with `tier = 'pending'` — Nathan classifies them post-migration.
 
-**Dependencies:** ~~DEC-08~~, ~~DEC-16~~, ~~DEC-02~~ — all resolved 2026-05-30. Phase 1 is unblocked.
-
-**Could move:** BLD-12 could land in Phase 3 (it's the ambassador prerequisite, but ambassadors aren't onboarded until Phase 3 anyway).
-
-**Successor task between Phase 1 and Phase 2:** **BLD-31 — institutional request form (light v1)**, 1-2 days. Provides the consumer-facing intake mechanism that DEC-02 (manual institution review by Nathan) requires. Not gated by Phase 1 schema work, but the operational pattern depends on the platform-admin UI for institution creation that ships in Phase 1; landing BLD-31 first would mean form submissions queue with no admin UI to act on them.
+**Successor task between Phase 1 and Phase 2:** **BLD-31 — institutional request form (light v1)**, 1-2 days. Provides the consumer-facing intake mechanism that DEC-02 (manual institution review by Nathan) requires.
 
 ### Phase 2 — Institutional capability enforcement
 
@@ -642,13 +646,13 @@ Cell meaning: row depends on column. ✅ = strict prerequisite; ◐ = soft (can 
 |---|---|
 | SEC-01 | (optional ◐ BLD-02 for the proper gate; admin-only is fine for Phase 0) |
 | SEC-02 | (optional ◐ BLD-02 + BLD-04; admin-only Phase 0) |
-| SEC-03 | ~~DEC-08~~ ✅ — unblocked. Closes alongside the `can_add_extras` retirement migration in Phase 1. |
+| SEC-03 | ✅ closed 2026-05-30 in Phase 1 PR (migration 033 dropped the column; API check removed). |
 | SEC-04, SEC-05 | none |
 | FIX-01 to FIX-07 | FIX-01 ✅ closed 2026-05-30 (also retired redemption_tokens, employee_accounts, proprietors); FIX-05 ✅ closed; rest unchanged: FIX-02 ◐ ~~DEC-16~~ ✅; FIX-03 ◐ DEC-04; FIX-04 ◐ BLD-30; FIX-06 simplifies post-DEC-08 (2-flag change); FIX-07 unblocked by DEC-17 ✅ |
-| BLD-01..04 | (capability flags — schema-only; enforcement depends on the gating phase) |
-| BLD-05 | ~~DEC-02~~ ✅ — Nathan sets the column on manual provisioning. |
-| BLD-07, BLD-08 | none |
-| BLD-12 | BLD-07, BLD-08 |
+| BLD-01..04 | ✅ schema shipped 2026-05-30 (migration 033). Enforcement depends on the gating phase. |
+| BLD-05 | ✅ shipped 2026-05-30 (migration 034). Nathan sets the column on manual provisioning per DEC-02. |
+| BLD-07, BLD-08 | ✅ shipped 2026-05-30 (migration 035). |
+| BLD-12 | ✅ shipped 2026-05-30 (migration 036 + admin UI). BLD-07, BLD-08 prerequisites met. |
 | BLD-06 | BLD-07, BLD-08, BLD-01, DEC-03, DEC-20 |
 | BLD-09 | BLD-07 |
 | BLD-10 | BLD-08, BLD-01, BLD-09 |
@@ -868,7 +872,7 @@ Phase 6 is hygiene. The codebase is not broken without it; it is just confusing.
 |---|---|
 | Gap 1 (api/employees/lookup leak) | SEC-01 ✅ |
 | Gap 2 (institutions PATCH gate) | SEC-02 |
-| Gap 3 (can_add_extras API-only) | SEC-03 + DEC-08 |
+| Gap 3 (can_add_extras API-only) | SEC-03 ✅ + DEC-08 ✅ |
 | Gap 4 (share/render scope) | SEC-04 ✅ + SEC-06 (XSS follow-up) |
 | Gap 5 (storage policy) | SEC-05 ✅ |
 | Gap 6 (institutions RLS bug — fixed in migration 026) | none (already fixed) |
