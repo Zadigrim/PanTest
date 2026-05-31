@@ -597,7 +597,26 @@ interface MemberRow {
   role_label: string | null
   can_verify: boolean
   can_distribute_prizes: boolean
+  // Provisioning-convenience flags (migration 033, Phase 1). These
+  // exist as columns and are settable here, but are NOT yet enforced
+  // anywhere in routes or RLS. SEC-02 / Phase 2 wires the gates.
+  // Setting a flag records intent; it does not yet grant capability.
+  can_design: boolean
+  can_manage_employees: boolean
+  can_view_analytics: boolean
+  can_manage_billing: boolean
 }
+
+// The complete set of flag fields exposed by the row editor. Used as
+// the union type for the onPermChange callback so both sites (this
+// page's MembersSection and /manage/employees) can share the shape.
+type MemberFlagField =
+  | 'can_verify'
+  | 'can_distribute_prizes'
+  | 'can_design'
+  | 'can_manage_employees'
+  | 'can_view_analytics'
+  | 'can_manage_billing'
 
 function AddMemberForm({
   institutionId,
@@ -615,6 +634,11 @@ function AddMemberForm({
   const [roleLabel, setRoleLabel] = useState('')
   const [canVerify, setCanVerify] = useState(false)
   const [canPrizes, setCanPrizes] = useState(false)
+  // Provisioning-convenience flags. See MemberRow type comment.
+  const [canDesign, setCanDesign] = useState(false)
+  const [canManageEmployees, setCanManageEmployees] = useState(false)
+  const [canViewAnalytics, setCanViewAnalytics] = useState(false)
+  const [canManageBilling, setCanManageBilling] = useState(false)
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -661,6 +685,10 @@ function AddMemberForm({
           role_label: roleLabel.trim() || null,
           can_verify: canVerify,
           can_distribute_prizes: canPrizes,
+          can_design: canDesign,
+          can_manage_employees: canManageEmployees,
+          can_view_analytics: canViewAnalytics,
+          can_manage_billing: canManageBilling,
           authorized_by: currentUserId,
         })
         .select('id')
@@ -681,9 +709,15 @@ function AddMemberForm({
         role_label: roleLabel.trim() || null,
         can_verify: canVerify,
         can_distribute_prizes: canPrizes,
+        can_design: canDesign,
+        can_manage_employees: canManageEmployees,
+        can_view_analytics: canViewAnalytics,
+        can_manage_billing: canManageBilling,
       })
       setEmail(''); setRoleLabel('')
       setCanVerify(false); setCanPrizes(false)
+      setCanDesign(false); setCanManageEmployees(false)
+      setCanViewAnalytics(false); setCanManageBilling(false)
     })
   }
 
@@ -709,9 +743,18 @@ function AddMemberForm({
           />
         </Field>
       </div>
-      <div className="mt-3 flex flex-wrap items-center gap-4">
+      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
         <PermCheck label="Can verify" checked={canVerify} onChange={setCanVerify} />
         <PermCheck label="Can distribute prizes" checked={canPrizes} onChange={setCanPrizes} />
+        <PermCheck label="Can design" checked={canDesign} onChange={setCanDesign} />
+        <PermCheck label="Can manage employees" checked={canManageEmployees} onChange={setCanManageEmployees} />
+        <PermCheck label="Can view analytics" checked={canViewAnalytics} onChange={setCanViewAnalytics} />
+        <PermCheck label="Can manage billing" checked={canManageBilling} onChange={setCanManageBilling} />
+      </div>
+      <p className="mt-2 text-xs italic text-muted">
+        Provisioning-convenience flags. Recording intent only — Phase 2 will wire enforcement.
+      </p>
+      <div className="mt-3 flex">
         <div className="flex-1" />
         <button
           type="submit"
@@ -761,7 +804,9 @@ function MembersSection({
       const { data, error: fetchErr } = await supabase
         .from('employee_authorizations')
         .select(`
-          id, user_id, role_label, can_verify, can_distribute_prizes,
+          id, user_id, role_label,
+          can_verify, can_distribute_prizes,
+          can_design, can_manage_employees, can_view_analytics, can_manage_billing,
           profile:profiles!user_id(display_name)
         `)
         .eq('institution_id', institutionId)
@@ -779,6 +824,10 @@ function MembersSection({
         role_label: string | null
         can_verify: boolean | null
         can_distribute_prizes: boolean | null
+        can_design: boolean | null
+        can_manage_employees: boolean | null
+        can_view_analytics: boolean | null
+        can_manage_billing: boolean | null
         profile: { display_name: string | null } | null
       }
 
@@ -789,6 +838,10 @@ function MembersSection({
         role_label: row.role_label,
         can_verify: row.can_verify ?? false,
         can_distribute_prizes: row.can_distribute_prizes ?? false,
+        can_design: row.can_design ?? false,
+        can_manage_employees: row.can_manage_employees ?? false,
+        can_view_analytics: row.can_view_analytics ?? false,
+        can_manage_billing: row.can_manage_billing ?? false,
       })))
       setLoading(false)
     })()
@@ -796,7 +849,7 @@ function MembersSection({
 
   async function handlePermChange(
     authzId: string,
-    field: 'can_verify' | 'can_distribute_prizes',
+    field: MemberFlagField,
     value: boolean
   ) {
     setPermErrors((e) => ({ ...e, [authzId]: '' }))
@@ -845,8 +898,12 @@ function MembersSection({
                   <tr className="border-b border-hairline bg-paper text-left">
                     <th className="px-4 py-2.5 font-medium text-muted">Name</th>
                     <th className="px-4 py-2.5 font-medium text-muted">Role</th>
-                    <th className="px-4 py-2.5 text-center font-medium text-muted">Verify</th>
-                    <th className="px-4 py-2.5 text-center font-medium text-muted">Prizes</th>
+                    <th className="px-4 py-2.5 text-center font-medium text-muted" title="Can verify stamps">Verify</th>
+                    <th className="px-4 py-2.5 text-center font-medium text-muted" title="Can distribute prizes">Prizes</th>
+                    <th className="px-4 py-2.5 text-center font-medium text-muted" title="Can design (provisioning only)">Design</th>
+                    <th className="px-4 py-2.5 text-center font-medium text-muted" title="Can manage employees (provisioning only)">Manage</th>
+                    <th className="px-4 py-2.5 text-center font-medium text-muted" title="Can view analytics (provisioning only)">Analytics</th>
+                    <th className="px-4 py-2.5 text-center font-medium text-muted" title="Can manage billing (provisioning only)">Billing</th>
                     <th className="px-4 py-2.5" />
                   </tr>
                 </thead>
@@ -888,7 +945,7 @@ function MemberRow({
 }: {
   member: MemberRow
   canManage: boolean
-  onPermChange: (id: string, field: 'can_verify' | 'can_distribute_prizes', value: boolean) => void
+  onPermChange: (id: string, field: MemberFlagField, value: boolean) => void
   onRemove: (id: string) => void
   permError: string | null
 }) {
@@ -932,6 +989,49 @@ function MemberRow({
             aria-label={`Can distribute prizes: ${member.displayName}`}
           />
         </td>
+        {/* Provisioning-convenience flag cells (migration 033). These
+            checkboxes record intent for SEC-02 / Phase 2 enforcement;
+            they do NOT yet grant capability in any route or RLS. */}
+        <td className="px-4 py-3 text-center">
+          <input
+            type="checkbox"
+            className="accent-green h-4 w-4"
+            checked={member.can_design}
+            disabled={!canManage}
+            onChange={(e) => onPermChange(member.authzId, 'can_design', e.target.checked)}
+            aria-label={`Can design (provisioning): ${member.displayName}`}
+          />
+        </td>
+        <td className="px-4 py-3 text-center">
+          <input
+            type="checkbox"
+            className="accent-green h-4 w-4"
+            checked={member.can_manage_employees}
+            disabled={!canManage}
+            onChange={(e) => onPermChange(member.authzId, 'can_manage_employees', e.target.checked)}
+            aria-label={`Can manage employees (provisioning): ${member.displayName}`}
+          />
+        </td>
+        <td className="px-4 py-3 text-center">
+          <input
+            type="checkbox"
+            className="accent-green h-4 w-4"
+            checked={member.can_view_analytics}
+            disabled={!canManage}
+            onChange={(e) => onPermChange(member.authzId, 'can_view_analytics', e.target.checked)}
+            aria-label={`Can view analytics (provisioning): ${member.displayName}`}
+          />
+        </td>
+        <td className="px-4 py-3 text-center">
+          <input
+            type="checkbox"
+            className="accent-green h-4 w-4"
+            checked={member.can_manage_billing}
+            disabled={!canManage}
+            onChange={(e) => onPermChange(member.authzId, 'can_manage_billing', e.target.checked)}
+            aria-label={`Can manage billing (provisioning): ${member.displayName}`}
+          />
+        </td>
         <td className="px-4 py-3 text-right">
           {canManage && (
             <button
@@ -946,7 +1046,7 @@ function MemberRow({
       </tr>
       {permError && (
         <tr className="border-b border-hairline">
-          <td colSpan={6} className="px-4 pb-2">
+          <td colSpan={9} className="px-4 pb-2">
             <span role="alert" className="text-xs text-red-600">{permError}</span>
           </td>
         </tr>
