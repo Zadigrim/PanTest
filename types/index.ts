@@ -38,8 +38,28 @@ export interface Passport {
   is_free: boolean
   price_cents: number
   is_demo: boolean
+  // Designer-built cover spreads (jsonb on passports). Each is a full
+  // 1248×792 spread = back-panel(612) + spine(24) + front-panel(612).
+  // Mobile renders ONE 612-wide half per cover page; see
+  // components/passport/CoverPanel.tsx.
+  cover_outside_data: CoverSideData | null
+  cover_inside_data: CoverSideData | null
   created_at: string
   updated_at: string
+}
+
+// Mirrors the designer's CoverSideData (okujiKobo/lib/design/types.ts).
+// One CoverSideData per spread side (outside / inside). Elements coords
+// are in the 1248×792 spread space.
+export interface CoverSideData {
+  front_bg: string
+  back_bg: string
+  image_url: string | null
+  image_opacity: number
+  image_position_x: number
+  image_position_y: number
+  image_scale: number
+  elements: PageDesignerElement[]
 }
 
 // ── Designer element types (mirror of okujiKobo lib/design/types.ts) ────
@@ -113,6 +133,14 @@ export interface Stop {
   stamp_rotation_fixed: number | null
   stamp_rotation_range: number
   stamp_smudge: StampSmudge
+  // Custom-asset stamp identity. When stamp_type === 'custom_asset' the
+  // renderer should load stamp_asset.url and use it as the stamp image
+  // instead of stamp_icon + stamp_shape. When stamp_type === 'emoji'
+  // (default), the icon-and-shape path is used.
+  stamp_asset_id: string | null
+  stamp_type: 'emoji' | 'custom_asset'
+  // Optional join, populated by usePassport when stamp_type is custom.
+  stamp_asset?: { url: string | null } | null
   box_x: number | null
   box_y: number | null
   box_width: number
