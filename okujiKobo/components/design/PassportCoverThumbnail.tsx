@@ -70,23 +70,49 @@ export function PassportCoverThumbnail({ title, typeIcon, outsideData, coverThum
     </span>
   )
 
-  // For the two designed-cover render paths (pre-composited thumbnail
-  // and raw image_url), the source might be either:
-  //   - A panel-aspect thumbnail (~280×362), composited from cover_outside
-  //     data with front_bg + image + elements.
-  //   - A spread-aspect uploaded image (~1248×792 or similar wide ratio).
+  // Render priority for designed covers:
   //
-  // Card slot aspect is the front-panel ratio (612:792 ≈ 0.773:1,
-  // paddingBottom 129.41%). object-cover + object-position:right pins
-  // the source's right edge to the card's right edge and crops overflow
-  // from the left. For a panel-aspect source this fills cleanly (no
-  // overflow). For a spread-aspect source the left ~half (back cover)
-  // is cropped out and the right ~half (front cover) fills the card.
-  // Net visible portion in both cases: the front cover panel.
-  const spreadCropClass = 'absolute inset-0 w-full h-full object-cover'
-  const spreadCropStyle: React.CSSProperties = { objectPosition: 'right top' }
+  //   1. If image_url is set, render the RAW spread image via
+  //      object-cover + object-position:right. The raw image preserves
+  //      the spread's natural 1248×792 aspect; the right-edge crop
+  //      shows exactly the front-panel half. This is the reliable path.
+  //
+  //   2. If only cover_thumbnail is set (text-only covers, no uploaded
+  //      image), fall back to the pre-composited thumbnail.
+  //
+  //   3. Otherwise, procedural SVG fallback.
+  //
+  // The previous version of this component preferred cover_thumbnail
+  // unconditionally. That surfaced a separate bug in useCoverThumbnail's
+  // compositeToDataUrl: when a creator uploads a 1248×792 spread,
+  // compositeToDataUrl draws it at size (612, 792) on the panel-sized
+  // canvas, which horizontally squishes the spread to half its native
+  // width. The resulting thumbnail shows a compressed version of the
+  // FULL spread, not the front panel — so my object-cover crop applied
+  // to the thumbnail just rendered the compressed-full-spread cleanly,
+  // not the front panel. Preferring image_url avoids the buggy
+  // composition path entirely for image-bearing covers.
 
-  // Prefer pre-composited thumbnail (includes text elements, correct image transforms)
+  if (imageUrl) {
+    return (
+      <div
+        className="relative w-full overflow-hidden"
+        style={{ paddingBottom: FRONT_PANEL_PADDING_BOTTOM, backgroundColor: `#${frontBg}` }}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={imageUrl}
+          alt={`${title} cover`}
+          className="absolute inset-0 w-full h-full object-cover"
+          style={{ objectPosition: 'right top', opacity: imageOpacity / 100 }}
+        />
+        {badge}
+      </div>
+    )
+  }
+
+  // Text-only cover (no uploaded image). The pre-composited thumbnail
+  // captures the front_bg + text elements at the panel aspect.
   if (coverThumbnail) {
     return (
       <div
@@ -97,29 +123,22 @@ export function PassportCoverThumbnail({ title, typeIcon, outsideData, coverThum
         <img
           src={coverThumbnail}
           alt={`${title} cover`}
-          className={spreadCropClass}
-          style={spreadCropStyle}
+          className="absolute inset-0 w-full h-full object-cover"
+          style={{ objectPosition: 'right top' }}
         />
         {badge}
       </div>
     )
   }
 
+  // Designed cover with no image and no thumbnail — render the
+  // front-panel background color as a solid block.
   if (hasDesignedCover) {
     return (
       <div
         className="relative w-full overflow-hidden"
         style={{ paddingBottom: FRONT_PANEL_PADDING_BOTTOM, backgroundColor: `#${frontBg}` }}
       >
-        {imageUrl && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={imageUrl}
-            alt=""
-            className={spreadCropClass}
-            style={{ ...spreadCropStyle, opacity: imageOpacity / 100 }}
-          />
-        )}
         {badge}
       </div>
     )
