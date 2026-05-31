@@ -464,7 +464,6 @@ interface MemberRow {
   role_label: string | null
   can_verify: boolean
   can_distribute_prizes: boolean
-  can_add_extras: boolean
 }
 
 function AddMemberForm({
@@ -483,7 +482,6 @@ function AddMemberForm({
   const [roleLabel, setRoleLabel] = useState('')
   const [canVerify, setCanVerify] = useState(false)
   const [canPrizes, setCanPrizes] = useState(false)
-  const [canExtras, setCanExtras] = useState(false)
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -530,7 +528,6 @@ function AddMemberForm({
           role_label: roleLabel.trim() || null,
           can_verify: canVerify,
           can_distribute_prizes: canPrizes,
-          can_add_extras: canExtras,
           authorized_by: currentUserId,
         })
         .select('id')
@@ -551,10 +548,9 @@ function AddMemberForm({
         role_label: roleLabel.trim() || null,
         can_verify: canVerify,
         can_distribute_prizes: canPrizes,
-        can_add_extras: canExtras,
       })
       setEmail(''); setRoleLabel('')
-      setCanVerify(false); setCanPrizes(false); setCanExtras(false)
+      setCanVerify(false); setCanPrizes(false)
     })
   }
 
@@ -583,7 +579,6 @@ function AddMemberForm({
       <div className="mt-3 flex flex-wrap items-center gap-4">
         <PermCheck label="Can verify" checked={canVerify} onChange={setCanVerify} />
         <PermCheck label="Can distribute prizes" checked={canPrizes} onChange={setCanPrizes} />
-        <PermCheck label="Can add extras" checked={canExtras} onChange={setCanExtras} />
         <div className="flex-1" />
         <button
           type="submit"
@@ -633,7 +628,7 @@ function MembersSection({
       const { data, error: fetchErr } = await supabase
         .from('employee_authorizations')
         .select(`
-          id, user_id, role_label, can_verify, can_distribute_prizes, can_add_extras,
+          id, user_id, role_label, can_verify, can_distribute_prizes,
           profile:profiles!user_id(display_name)
         `)
         .eq('institution_id', institutionId)
@@ -651,7 +646,6 @@ function MembersSection({
         role_label: string | null
         can_verify: boolean | null
         can_distribute_prizes: boolean | null
-        can_add_extras: boolean | null
         profile: { display_name: string | null } | null
       }
 
@@ -662,7 +656,6 @@ function MembersSection({
         role_label: row.role_label,
         can_verify: row.can_verify ?? false,
         can_distribute_prizes: row.can_distribute_prizes ?? false,
-        can_add_extras: row.can_add_extras ?? false,
       })))
       setLoading(false)
     })()
@@ -670,7 +663,7 @@ function MembersSection({
 
   async function handlePermChange(
     authzId: string,
-    field: 'can_verify' | 'can_distribute_prizes' | 'can_add_extras',
+    field: 'can_verify' | 'can_distribute_prizes',
     value: boolean
   ) {
     setPermErrors((e) => ({ ...e, [authzId]: '' }))
@@ -721,7 +714,6 @@ function MembersSection({
                     <th className="px-4 py-2.5 font-medium text-muted">Role</th>
                     <th className="px-4 py-2.5 text-center font-medium text-muted">Verify</th>
                     <th className="px-4 py-2.5 text-center font-medium text-muted">Prizes</th>
-                    <th className="px-4 py-2.5 text-center font-medium text-muted">Extras</th>
                     <th className="px-4 py-2.5" />
                   </tr>
                 </thead>
@@ -763,7 +755,7 @@ function MemberRow({
 }: {
   member: MemberRow
   canManage: boolean
-  onPermChange: (id: string, field: 'can_verify' | 'can_distribute_prizes' | 'can_add_extras', value: boolean) => void
+  onPermChange: (id: string, field: 'can_verify' | 'can_distribute_prizes', value: boolean) => void
   onRemove: (id: string) => void
   permError: string | null
 }) {
@@ -805,16 +797,6 @@ function MemberRow({
             disabled={!canManage}
             onChange={(e) => onPermChange(member.authzId, 'can_distribute_prizes', e.target.checked)}
             aria-label={`Can distribute prizes: ${member.displayName}`}
-          />
-        </td>
-        <td className="px-4 py-3 text-center">
-          <input
-            type="checkbox"
-            className="accent-green h-4 w-4"
-            checked={member.can_add_extras}
-            disabled={!canManage}
-            onChange={(e) => onPermChange(member.authzId, 'can_add_extras', e.target.checked)}
-            aria-label={`Can add extras: ${member.displayName}`}
           />
         </td>
         <td className="px-4 py-3 text-right">

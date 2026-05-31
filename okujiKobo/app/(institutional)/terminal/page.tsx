@@ -38,7 +38,6 @@ interface CurrentEmployee {
   displayName: string | null
   can_verify: boolean
   can_distribute_prizes: boolean
-  can_add_extras: boolean
 }
 
 // ---------------------------------------------------------------------------
@@ -375,11 +374,15 @@ function VerifyScreen({
 
 function DistributeScreen({
   payload,
-  canAddExtras,
+  canDistributePrizes,
   onComplete,
 }: {
   payload: ValidateSuccessPayload
-  canAddExtras: boolean
+  // Per DEC-08, the legacy can_add_extras flag was folded into
+  // can_distribute_prizes — anyone trusted to redeem is trusted to add
+  // bonus gift-card value. Gating the extras UI on can_distribute_prizes
+  // matches the RLS that the underlying API route enforces.
+  canDistributePrizes: boolean
   onComplete: () => void
 }) {
   const [loading, setLoading] = useState(false)
@@ -487,8 +490,8 @@ function DistributeScreen({
         </p>
       </div>
 
-      {/* Extra gift card (only if can_add_extras) */}
-      {canAddExtras && (
+      {/* Extra gift card — gated on can_distribute_prizes per DEC-08 fold */}
+      {canDistributePrizes && (
         <div className="mb-6 bg-white/5 rounded-panel px-5 py-4">
           <label className="flex items-center gap-3 cursor-pointer mb-4">
             <input
@@ -666,7 +669,7 @@ export default function TerminalPage() {
       const { data: authz } = await supabase
         .from('employee_authorizations')
         .select(
-          'institution_id, role_label, can_verify, can_distribute_prizes, can_add_extras',
+          'institution_id, role_label, can_verify, can_distribute_prizes',
         )
         .eq('user_id', user.id)
         .eq('can_verify', true)
@@ -678,7 +681,6 @@ export default function TerminalPage() {
             | 'role_label'
             | 'can_verify'
             | 'can_distribute_prizes'
-            | 'can_add_extras'
           >
         >()
 
@@ -698,7 +700,6 @@ export default function TerminalPage() {
         displayName: profile?.display_name ?? null,
         can_verify: authz.can_verify ?? false,
         can_distribute_prizes: authz.can_distribute_prizes ?? false,
-        can_add_extras: authz.can_add_extras ?? false,
       })
       setScreen('scan')
     }
@@ -819,7 +820,7 @@ export default function TerminalPage() {
     return (
       <DistributeScreen
         payload={validatePayload}
-        canAddExtras={employee?.can_add_extras ?? false}
+        canDistributePrizes={employee?.can_distribute_prizes ?? false}
         onComplete={() => setScreen('success')}
       />
     )

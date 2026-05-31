@@ -16,7 +16,6 @@ interface EmployeeRow {
   role_label: string | null
   can_verify: boolean
   can_distribute_prizes: boolean
-  can_add_extras: boolean
 }
 
 interface AddEmployeeFormState {
@@ -24,7 +23,6 @@ interface AddEmployeeFormState {
   role_label: string
   can_verify: boolean
   can_distribute_prizes: boolean
-  can_add_extras: boolean
 }
 
 // ---------------------------------------------------------------------------
@@ -67,16 +65,14 @@ function PermissionToggle({
 
 function EmployeeTableRow({
   employee,
-  currentCanAddExtras,
   onPermissionChange,
   onRemove,
   permError,
 }: {
   employee: EmployeeRow
-  currentCanAddExtras: boolean
   onPermissionChange: (
     authzId: string,
-    field: 'can_verify' | 'can_distribute_prizes' | 'can_add_extras',
+    field: 'can_verify' | 'can_distribute_prizes',
     value: boolean,
   ) => unknown
   onRemove: (authzId: string) => void
@@ -145,16 +141,6 @@ function EmployeeTableRow({
           />
         </td>
 
-        {/* can_add_extras — only editable if current user has can_add_extras */}
-        <td className="px-4 py-3 text-center">
-          <PermissionToggle
-            label={`can_add_extras for ${employee.displayName ?? employee.userId}`}
-            checked={employee.can_add_extras}
-            disabled={!currentCanAddExtras}
-            onChange={(v) => onPermissionChange(employee.authzId, 'can_add_extras', v)}
-          />
-        </td>
-
         {/* Remove */}
         <td className="px-4 py-3 text-right">
           <button
@@ -188,12 +174,10 @@ function EmployeeTableRow({
 function AddEmployeeForm({
   institutionId,
   currentUserId,
-  currentCanAddExtras,
   onAdded,
 }: {
   institutionId: string
   currentUserId: string
-  currentCanAddExtras: boolean
   onAdded: (employee: EmployeeRow) => void
 }) {
   const formId = useId()
@@ -205,7 +189,6 @@ function AddEmployeeForm({
     role_label: '',
     can_verify: false,
     can_distribute_prizes: false,
-    can_add_extras: false,
   })
 
   function handleSubmit(e: FormEvent) {
@@ -269,7 +252,6 @@ function AddEmployeeForm({
           role_label: form.role_label.trim() || null,
           can_verify: form.can_verify,
           can_distribute_prizes: form.can_distribute_prizes,
-          can_add_extras: currentCanAddExtras ? form.can_add_extras : false,
           authorized_by: currentUserId,
         })
         .select('id')
@@ -295,7 +277,6 @@ function AddEmployeeForm({
         role_label: form.role_label.trim() || null,
         can_verify: form.can_verify,
         can_distribute_prizes: form.can_distribute_prizes,
-        can_add_extras: currentCanAddExtras ? form.can_add_extras : false,
       })
 
       // Reset form
@@ -304,7 +285,6 @@ function AddEmployeeForm({
         role_label: '',
         can_verify: false,
         can_distribute_prizes: false,
-        can_add_extras: false,
       })
     })
   }
@@ -387,27 +367,6 @@ function AddEmployeeForm({
             <span className="text-sm text-navy">Can distribute prizes</span>
           </label>
 
-          <label
-            className={`flex items-center gap-2 ${
-              !currentCanAddExtras ? 'opacity-40 pointer-events-none' : 'cursor-pointer'
-            }`}
-            title={
-              !currentCanAddExtras
-                ? 'You need can_add_extras permission to grant this'
-                : undefined
-            }
-          >
-            <input
-              type="checkbox"
-              checked={form.can_add_extras}
-              disabled={!currentCanAddExtras}
-              onChange={(e) =>
-                setForm((p) => ({ ...p, can_add_extras: e.target.checked }))
-              }
-              className="accent-green w-4 h-4"
-            />
-            <span className="text-sm text-navy">Can add extras</span>
-          </label>
         </div>
       </fieldset>
 
@@ -438,7 +397,6 @@ export default function EmployeesPage() {
   const [employees, setEmployees] = useState<EmployeeRow[]>([])
   const [institutionId, setInstitutionId] = useState<string | null>(null)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
-  const [currentCanAddExtras, setCurrentCanAddExtras] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [permissionErrors, setPermissionErrors] = useState<Map<string, string>>(new Map())
@@ -465,7 +423,6 @@ export default function EmployeesPage() {
         const isPlatformAdmin = isAdminRpc === true
 
         let instId: string
-        let canAddExtras: boolean
 
         if (isPlatformAdmin) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -476,26 +433,23 @@ export default function EmployeesPage() {
             .single()
           if (!firstInst?.id) throw new Error('No institutions found')
           instId = firstInst.id
-          canAddExtras = true
         } else {
           const { data: myAuthz, error: myAuthzErr } = await supabase
             .from('employee_authorizations')
-            .select('institution_id, can_add_extras')
+            .select('institution_id')
             .eq('user_id', user.id)
             .limit(1)
             .single()
           if (myAuthzErr || !myAuthz) throw new Error('No institutional authorization found')
           instId = myAuthz.institution_id
-          canAddExtras = myAuthz.can_add_extras ?? false
         }
 
         setInstitutionId(instId)
-        setCurrentCanAddExtras(canAddExtras)
 
         // All employees for this institution
         const { data: authzRows, error: authzFetchErr } = await supabase
           .from('employee_authorizations')
-          .select('id, user_id, role_label, can_verify, can_distribute_prizes, can_add_extras')
+          .select('id, user_id, role_label, can_verify, can_distribute_prizes')
           .eq('institution_id', instId)
           .order('authorized_at', { ascending: true })
         if (authzFetchErr) throw new Error(authzFetchErr.message)
@@ -519,7 +473,7 @@ export default function EmployeesPage() {
           (
             r: Pick<
               EmployeeAuthorization,
-              'id' | 'user_id' | 'role_label' | 'can_verify' | 'can_distribute_prizes' | 'can_add_extras'
+              'id' | 'user_id' | 'role_label' | 'can_verify' | 'can_distribute_prizes'
             >,
           ) => ({
             authzId: r.id,
@@ -530,7 +484,6 @@ export default function EmployeesPage() {
             role_label: r.role_label,
             can_verify: r.can_verify ?? false,
             can_distribute_prizes: r.can_distribute_prizes ?? false,
-            can_add_extras: r.can_add_extras ?? false,
           }),
         )
 
@@ -548,7 +501,7 @@ export default function EmployeesPage() {
   // Permission toggle — optimistic update, revert on error
   async function handlePermissionChange(
     authzId: string,
-    field: 'can_verify' | 'can_distribute_prizes' | 'can_add_extras',
+    field: 'can_verify' | 'can_distribute_prizes',
     value: boolean,
   ) {
     // Optimistic
@@ -638,20 +591,6 @@ export default function EmployeesPage() {
                       <th className="px-4 py-3 text-center font-medium text-muted">
                         Distribute
                       </th>
-                      <th
-                        className={`px-4 py-3 text-center font-medium ${
-                          currentCanAddExtras
-                            ? 'text-muted'
-                            : 'text-hairline'
-                        }`}
-                        title={
-                          !currentCanAddExtras
-                            ? 'You cannot manage this permission'
-                            : undefined
-                        }
-                      >
-                        Extras
-                      </th>
                       <th className="px-4 py-3 w-20" />
                     </tr>
                   </thead>
@@ -660,7 +599,6 @@ export default function EmployeesPage() {
                       <EmployeeTableRow
                         key={emp.authzId}
                         employee={emp}
-                        currentCanAddExtras={currentCanAddExtras}
                         onPermissionChange={handlePermissionChange}
                         onRemove={handleRemove}
                         permError={permissionErrors.get(emp.authzId) ?? null}
@@ -677,7 +615,6 @@ export default function EmployeesPage() {
             <AddEmployeeForm
               institutionId={institutionId}
               currentUserId={currentUserId}
-              currentCanAddExtras={currentCanAddExtras}
               onAdded={handleAdded}
             />
           )}

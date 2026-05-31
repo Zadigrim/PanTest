@@ -74,7 +74,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   // Verify employee authorization for this institution
   const { data: authorization, error: authzError } = await supabase
     .from('employee_authorizations')
-    .select('id, can_verify, can_distribute_prizes, can_add_extras')
+    .select('id, can_verify, can_distribute_prizes')
     .eq('user_id', user.id)
     .eq('institution_id', passport.proprietor_id)
     .eq('can_verify', true)
@@ -125,14 +125,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
   }
 
-  // Extra gift card handling
+  // Extra gift card handling — per DEC-08, the capability is folded into
+  // can_distribute_prizes (anyone trusted to redeem is trusted to add
+  // extras). The RLS on completion_tokens already gates UPDATE on
+  // can_distribute_prizes, so this branch needs no additional check —
+  // if the UPDATE above succeeded, the caller is authorized.
   if (extraGiftCardCents !== undefined && extraGiftCardCents > 0) {
-    if (!authorization.can_add_extras) {
-      return NextResponse.json(
-        { error: 'Not authorized to add gift card extras' },
-        { status: 403 },
-      )
-    }
     // The extra amount is logged in prize_note (handled above via buildPrizeNote).
     // A separate ledger / gift-card issuance system would be triggered here.
     // TODO: integrate gift card issuance flow when available.

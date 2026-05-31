@@ -213,7 +213,6 @@ export interface EmployeeAuthorization {
   institution_id: string
   can_verify: boolean
   can_distribute_prizes: boolean
-  can_add_extras: boolean
   institution_name?: string
   institution_type?: string
   catalog_url?: string | null

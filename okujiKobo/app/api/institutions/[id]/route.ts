@@ -15,10 +15,12 @@ export async function PATCH(
   const { data: isAdmin } = await (supabase as any).rpc('is_platform_admin')
 
   // Non-admins can only update if they are an employee of this institution.
+  // (SEC-02 will tighten this further in Phase 2 to require can_manage_billing
+  // or can_manage_employees depending on which field is being changed.)
   if (!isAdmin) {
     const { data: auth } = await supabase
       .from('employee_authorizations')
-      .select('can_add_extras')
+      .select('id')
       .eq('institution_id', id)
       .eq('user_id', user.id)
       .maybeSingle()
