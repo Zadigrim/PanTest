@@ -60,13 +60,39 @@ interface PropertiesForm {
   address_state: string
   address_zip: string
   internal_notes: string
+  // tier is the org-category axis (Appendix L). A future pricing model
+  // will consume tier as ONE input — tier AFFECTS pricing but does NOT
+  // determine it. Civic ≈ free; Municipal pricing is a function of
+  // municipality_population; Business pricing is a function of
+  // annual_revenue and marketing_spend. The pricing model is
+  // deliberately deferred until real deal data exists. tier is recorded
+  // manually for now.
+  tier: 'civic' | 'municipal' | 'business' | 'pending'
+  // 1-6 chars, [A-Z0-9]. DB enforces via CHECK. UI normalizes input.
+  token_prefix: string
+  // Captured-only Business inputs (migration 041). Surfaced only when
+  // tier === 'business' in the UI.
+  annual_revenue: string
+  marketing_spend: string
 }
+
+const TOKEN_PREFIX_RE = /^[A-Z0-9]{1,6}$/
+const TIER_OPTIONS: { value: PropertiesForm['tier']; label: string }[] = [
+  { value: 'pending', label: 'Pending (unclassified)' },
+  { value: 'civic', label: 'Civic' },
+  { value: 'municipal', label: 'Municipal' },
+  { value: 'business', label: 'Business' },
+]
 
 function formFromInstitution(inst: Institution): PropertiesForm {
   const raw = inst as unknown as {
     municipality_population?: number | null
     pricing_model_locked?: boolean
     pricing_model_override_by?: string | null
+    tier?: PropertiesForm['tier']
+    token_prefix?: string
+    annual_revenue?: number | null
+    marketing_spend?: number | null
   }
   return {
     name: inst.name,
@@ -84,6 +110,10 @@ function formFromInstitution(inst: Institution): PropertiesForm {
     address_state: inst.address_state ?? '',
     address_zip: inst.address_zip ?? '',
     internal_notes: inst.internal_notes ?? '',
+    tier: raw.tier ?? 'pending',
+    token_prefix: raw.token_prefix ?? 'OKJ',
+    annual_revenue: raw.annual_revenue != null ? String(raw.annual_revenue) : '',
+    marketing_spend: raw.marketing_spend != null ? String(raw.marketing_spend) : '',
   }
 }
 
@@ -122,6 +152,28 @@ function PropertiesSection({
 
   function handleSave() {
     setError(null)
+    // token_prefix: client-side guard mirroring the DB CHECK
+    // (1-6 chars, [A-Z0-9]). The CHECK is still the final guard.
+    const trimmedPrefix = form.token_prefix.trim().toUpperCase()
+    if (trimmedPrefix && !TOKEN_PREFIX_RE.test(trimmedPrefix)) {
+      setError('Token prefix must be 1-6 uppercase letters or digits.')
+      return
+    }
+    const annualRevParsed = form.annual_revenue.trim() === ''
+      ? null
+      : parseInt(form.annual_revenue, 10)
+    const marketingParsed = form.marketing_spend.trim() === ''
+      ? null
+      : parseInt(form.marketing_spend, 10)
+    if (annualRevParsed !== null && (!Number.isFinite(annualRevParsed) || annualRevParsed < 0)) {
+      setError('Annual revenue must be a non-negative whole number.')
+      return
+    }
+    if (marketingParsed !== null && (!Number.isFinite(marketingParsed) || marketingParsed < 0)) {
+      setError('Marketing spend must be a non-negative whole number.')
+      return
+    }
+
     startTransition(async () => {
       const res = await fetch(`/api/institutions/${institution.id}`, {
         method: 'PATCH',
@@ -144,6 +196,16 @@ function PropertiesSection({
           address_state: form.address_state.trim() || null,
           address_zip: form.address_zip.trim() || null,
           internal_notes: form.internal_notes.trim() || null,
+          // tier, token_prefix, and the business inputs are independent
+          // of pricing_model. See API route comments for the future-
+          // pricing relationship.
+          tier: form.tier,
+          token_prefix: trimmedPrefix || null,
+          // annual_revenue + marketing_spend are only meaningful for
+          // Business; on other tiers we explicitly null them out so
+          // stale data doesn't outlive a tier change.
+          annual_revenue: form.tier === 'business' ? annualRevParsed : null,
+          marketing_spend: form.tier === 'business' ? marketingParsed : null,
         }),
       })
 
@@ -189,6 +251,29 @@ function PropertiesSection({
             onChange={(e) => set('name', e.target.value)}
             disabled={!editing}
           />
+        </Field>
+
+        {/* Tier — Appendix L org-category axis. Set manually by an
+            admin; not computed. See PropertiesForm comment for the
+            future tier-affects-pricing relationship. */}
+        <Field label="Tier (Appendix L)">
+          {editing ? (
+            <select
+              className={INPUT_CLS}
+              value={form.tier}
+              onChange={(e) => set('tier', e.target.value as PropertiesForm['tier'])}
+            >
+              {TIER_OPTIONS.map((t) => (
+                <option key={t.value} value={t.value}>{t.label}</option>
+              ))}
+            </select>
+          ) : (
+            <input
+              className={INPUT_CLS}
+              value={TIER_OPTIONS.find((t) => t.value === form.tier)?.label ?? form.tier}
+              disabled
+            />
+          )}
         </Field>
 
         <Field label="Type">
@@ -347,6 +432,54 @@ function PropertiesSection({
             disabled={!editing}
           />
         </Field>
+
+        {/* Token prefix — per-institution prefix on generated redemption
+            codes (migration 032). 1-6 chars, uppercase letters / digits.
+            DB CHECK enforces; UI normalizes to uppercase. */}
+        <Field label="Token prefix">
+          <input
+            className={`${INPUT_CLS} font-mono tracking-wider uppercase`}
+            value={form.token_prefix}
+            onChange={(e) => set('token_prefix', e.target.value.toUpperCase().slice(0, 6))}
+            disabled={!editing}
+            placeholder="OKJ"
+            maxLength={6}
+          />
+        </Field>
+
+        {/* Business-tier inputs (migration 041). Captured-only — no
+            computation. Surfaced only when tier === 'business' so they
+            don't clutter Civic/Municipal forms. handleSave nulls these
+            out on save for non-Business tiers to avoid stale data
+            outliving a tier change. */}
+        {form.tier === 'business' && (
+          <>
+            <Field label="Annual revenue (USD)">
+              <input
+                className={INPUT_CLS}
+                type="number"
+                min={0}
+                step={1000}
+                value={form.annual_revenue}
+                onChange={(e) => set('annual_revenue', e.target.value)}
+                disabled={!editing}
+                placeholder="0"
+              />
+            </Field>
+            <Field label="Marketing spend (USD/year)">
+              <input
+                className={INPUT_CLS}
+                type="number"
+                min={0}
+                step={1000}
+                value={form.marketing_spend}
+                onChange={(e) => set('marketing_spend', e.target.value)}
+                disabled={!editing}
+                placeholder="0"
+              />
+            </Field>
+          </>
+        )}
 
         {/* Contact */}
         <div className="sm:col-span-2 border-t border-hairline pt-4">
