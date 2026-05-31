@@ -1,4 +1,26 @@
 // SVG stamp renderer with shape, color, icon, smudge filter.
+//
+// Two appearance models supported simultaneously:
+//
+//   Legacy (pre-gesture): driven by the stop's discrete stamp_smudge enum
+//   (none / light / medium / heavy). Rendered as a single stamp with an
+//   isotropic FeDisplacementMap filter scaled by the enum.
+//
+//   Gesture-derived (migration 040): scalar saturation + directional smudge
+//   (smudge_dx, smudge_dy, smudge_intensity). Renders the stamp with
+//   opacity = saturation, plus directional ghost copies offset along
+//   the smudge vector with declining opacity — a motion-blur style trail
+//   that scales with smudge_intensity. The FeDisplacementMap filter is
+//   ALSO applied (using a continuous scale derived from smudge_intensity)
+//   so the ghost copies still pick up the noisy edge.
+//
+// Passing any gesture-derived prop (saturation, smudgeDx, smudgeDy, or
+// smudgeIntensity) switches the renderer into gesture mode for that
+// instance. When all are absent, the legacy discrete model is used.
+//
+// Patent posture preserved: the renderer doesn't claim contact-area
+// scaling. It just renders what the gesture component or the legacy stop
+// enum tells it to render.
 import React from 'react'
 import { View } from 'react-native'
 import Svg, { Circle, Rect, Path, Text as SvgText, Defs, Filter, FeTurbulence, FeDisplacementMap } from 'react-native-svg'
@@ -8,18 +30,64 @@ interface Props {
   stop: Pick<Stop, 'stamp_icon' | 'stamp_color' | 'stamp_shape' | 'stamp_smudge'>
   size: number
   rotationDeg?: number
-  smudge?: Stop['stamp_smudge']
   ghost?: boolean
+  // Gesture-derived appearance. When ANY of these is provided (not
+  // undefined), the renderer switches into gesture mode and ignores
+  // stop.stamp_smudge. saturation defaults to 1 in gesture mode if
+  // omitted; smudge components default to no-smear if omitted.
+  saturation?: number | null
+  smudgeDx?: number | null
+  smudgeDy?: number | null
+  smudgeIntensity?: number | null
 }
 
-function smudgeScale(smudge: Stop['stamp_smudge']): number {
+function legacySmudgeScale(smudge: Stop['stamp_smudge']): number {
   return { none: 0, light: 2, medium: 5, heavy: 10 }[smudge] ?? 0
 }
 
-export function StampArtwork({ stop, size, rotationDeg = 0, ghost = false }: Props) {
-  const filterId = `smudge-${stop.stamp_smudge}`
-  const scale = smudgeScale(stop.stamp_smudge)
-  const opacity = ghost ? 0.3 : 1
+// Maps continuous smudge intensity to the displacement filter scale.
+// Mapping bottoms out at 0 (crisp) and tops out around 12 (heavier than
+// the legacy 'heavy' to give the gesture room to express).
+function gestureSmudgeScale(intensity: number): number {
+  return Math.max(0, Math.min(intensity, 1)) * 12
+}
+
+// Trail step count (and per-step offset and opacity attenuation).
+// Tuned so a high-intensity smudge gives a clearly readable motion-blur,
+// but a low-intensity one is barely visible. Capped at 4 ghosts so the
+// rendering cost stays bounded.
+function trailSteps(intensity: number): number {
+  if (intensity <= 0.05) return 0
+  return Math.min(4, Math.ceil(intensity * 5))
+}
+
+export function StampArtwork({
+  stop,
+  size,
+  rotationDeg = 0,
+  ghost = false,
+  saturation,
+  smudgeDx,
+  smudgeDy,
+  smudgeIntensity,
+}: Props) {
+  const isGestureMode =
+    saturation != null || smudgeDx != null || smudgeDy != null || smudgeIntensity != null
+
+  const effectiveSaturation = isGestureMode ? (saturation ?? 1) : 1
+  const effectiveSmudgeIntensity = isGestureMode ? (smudgeIntensity ?? 0) : 0
+  const effectiveSmudgeDx = isGestureMode ? (smudgeDx ?? 0) : 0
+  const effectiveSmudgeDy = isGestureMode ? (smudgeDy ?? 0) : 0
+
+  const displacementScale = isGestureMode
+    ? gestureSmudgeScale(effectiveSmudgeIntensity)
+    : legacySmudgeScale(stop.stamp_smudge)
+
+  const filterId = isGestureMode
+    ? `smudge-gesture-${effectiveSmudgeIntensity.toFixed(2)}`
+    : `smudge-${stop.stamp_smudge}`
+
+  const opacity = ghost ? 0.3 : effectiveSaturation
   const color = ghost ? stop.stamp_color + '80' : stop.stamp_color
 
   const shapeEl = () => {
@@ -46,32 +114,67 @@ export function StampArtwork({ stop, size, rotationDeg = 0, ghost = false }: Pro
 
   // Filter primitives are undefined on the web SVG renderer
   const filterSupported = !!Filter && !!FeTurbulence && !!FeDisplacementMap
-  const useFilter = filterSupported && scale > 0
+  const useFilter = filterSupported && displacementScale > 0
+
+  // Single stamp body — used both for the primary stamp and the trail
+  // ghosts. Factored to a render function so we don't repeat the SVG tree.
+  const stampBody = (filterRef: string | null, opacityOverride?: number) => (
+    <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} opacity={opacityOverride ?? 1}>
+      {useFilter && filterRef && (
+        <Defs>
+          <Filter id={filterRef} x="-10%" y="-10%" width="120%" height="120%">
+            <FeTurbulence type="turbulence" baseFrequency="0.65" numOctaves="3" seed="2" />
+            <FeDisplacementMap in="SourceGraphic" scale={displacementScale} xChannelSelector="R" yChannelSelector="G" />
+          </Filter>
+        </Defs>
+      )}
+      <Svg width={size} height={size} filter={useFilter && filterRef ? `url(#${filterRef})` : undefined}>
+        {shapeEl()}
+        <SvgText
+          x={size / 2}
+          y={size / 2 + size * 0.12}
+          fontSize={size * 0.38}
+          textAnchor="middle"
+          fill={ghost ? color : stop.stamp_color}
+        >
+          {stop.stamp_icon}
+        </SvgText>
+      </Svg>
+    </Svg>
+  )
+
+  // Directional ghost trail. Each step is the stamp body offset along
+  // the smudge direction with declining opacity. The trail is rendered
+  // BEHIND the primary stamp so the primary reads clearly.
+  const steps = isGestureMode ? trailSteps(effectiveSmudgeIntensity) : 0
+  const stepOffsetPx = size * 0.12 * effectiveSmudgeIntensity
+  const ghostNodes: React.ReactNode[] = []
+  for (let i = 1; i <= steps; i++) {
+    const t = i / (steps + 1) // 0..1 within trail
+    const offsetX = effectiveSmudgeDx * stepOffsetPx * i
+    const offsetY = effectiveSmudgeDy * stepOffsetPx * i
+    const trailOpacity = (1 - t) * 0.45 // back ghosts more transparent
+    ghostNodes.push(
+      <View
+        key={`trail-${i}`}
+        style={{
+          position: 'absolute',
+          left: offsetX,
+          top: offsetY,
+          width: size,
+          height: size,
+        }}
+        pointerEvents="none"
+      >
+        {stampBody(`${filterId}-trail-${i}`, trailOpacity)}
+      </View>,
+    )
+  }
 
   return (
     <View style={{ width: size, height: size, transform: [{ rotate: `${rotationDeg}deg` }], opacity }}>
-      <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-        {useFilter && (
-          <Defs>
-            <Filter id={filterId} x="-10%" y="-10%" width="120%" height="120%">
-              <FeTurbulence type="turbulence" baseFrequency="0.65" numOctaves="3" seed="2" />
-              <FeDisplacementMap in="SourceGraphic" scale={scale} xChannelSelector="R" yChannelSelector="G" />
-            </Filter>
-          </Defs>
-        )}
-        <Svg width={size} height={size} filter={useFilter ? `url(#${filterId})` : undefined}>
-          {shapeEl()}
-          <SvgText
-            x={size / 2}
-            y={size / 2 + size * 0.12}
-            fontSize={size * 0.38}
-            textAnchor="middle"
-            fill={ghost ? color : stop.stamp_color}
-          >
-            {stop.stamp_icon}
-          </SvgText>
-        </Svg>
-      </Svg>
+      {ghostNodes}
+      {stampBody(filterId)}
     </View>
   )
 }
