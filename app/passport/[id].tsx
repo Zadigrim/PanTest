@@ -19,6 +19,7 @@ import { SectionDivider } from '../../components/passport/SectionDivider'
 import { PassportPage } from '../../components/passport/PassportPage'
 import { ExitVisa } from '../../components/passport/ExitVisa'
 import { StampingOverlay } from '../../components/passport/StampingOverlay'
+import { PostStampCaptureSheet } from '../../components/passport/PostStampCaptureSheet'
 
 import type { StampPlacement, StampSlotState, Stop, CollectorPassport, Stamp } from '../../types'
 import { palette } from '../../lib/colors'
@@ -50,6 +51,9 @@ export default function PassportScreen() {
   const [stampingStop, setStampingStop] = useState<{ pageId: string; stop: Stop } | null>(null)
   const [isAdmin, setIsAdmin] = useState(false)
   const [togglingDemo, setTogglingDemo] = useState(false)
+  // Post-stamp capture surface state. stampId is the just-placed stamp;
+  // redemptionCode is non-null when the stamp completed a section.
+  const [captureSheet, setCaptureSheet] = useState<{ stampId: string; redemptionCode: string | null } | null>(null)
 
   const { checkLocation } = useGPS()
   const { verify } = useStampVerification()
@@ -129,7 +133,10 @@ export default function PassportScreen() {
       setSlotStates(initial)
     }
     if (!loading) init()
-  }, [loading, id, pages, stops])
+    // passport?.is_demo intentionally in deps: an admin flipping demo on
+    // for a passport they don't own re-runs init to auto-acquire. The
+    // SELECTs and INSERT inside init are idempotent on subsequent runs.
+  }, [loading, id, pages, stops, passport?.is_demo])
 
   // ── stamp handlers ─────────────────────────────────────────────────────────
   const handlePressStart = useCallback((pageId: string, stopId: string) => {
@@ -222,27 +229,24 @@ export default function PassportScreen() {
       [pageId]: { ...prev[pageId], [stopId]: 'stamped' },
     }))
 
+    // Per Part 4: replace the post-stamp Alert with a unified capture
+    // surface. The sheet renders inline over the passport page and
+    // offers voice + photo independently; both, either, or neither.
+    // The page-completion token (when present) surfaces as a banner
+    // above the journal primitives inside the sheet so it isn't dropped.
+    let redemptionCode: string | null = null
     const isComplete = await checkPageComplete(pageId, userId)
     if (isComplete) {
       try {
         const token = await generateTokenForPage(pageId, userId)
-        Alert.alert(
-          '★ Section Complete!',
-          `Redemption code: ${token.token_code}\n\nShow this to claim your prize.`,
-          [
-            { text: 'Journal', onPress: () => router.push(`/journal/${stampData.id}`) },
-            { text: 'Done' },
-          ],
-        )
+        redemptionCode = token.token_code
       } catch {
-        Alert.alert('Section complete!', 'All stops stamped.')
+        // Fall through — sheet still opens, just without the token banner.
+        // Completing-the-page itself is a database-side concept, so the
+        // missing token doesn't affect stamp state.
       }
-    } else {
-      Alert.alert('Stamped!', 'Add a journal entry?', [
-        { text: 'Yes', onPress: () => router.push(`/journal/${stampData.id}`) },
-        { text: 'Skip' },
-      ])
     }
+    setCaptureSheet({ stampId: stampData.id, redemptionCode })
   }, [userId, collectorPassport, isDemo, checkLocation, verify, handlePressCancel])
 
   // BLD-32: admin-only toggle for passports.is_demo. Reload the passport
@@ -420,6 +424,17 @@ export default function PassportScreen() {
           stop={stampingStop.stop}
           onStamp={handleOverlayStamp}
           onCancel={handleOverlayCancel}
+        />
+      )}
+
+      {/* Post-stamp capture surface — replaces the previous Alert.
+          Voice + photo are independently optional. */}
+      {userId && (
+        <PostStampCaptureSheet
+          stampId={captureSheet?.stampId ?? null}
+          redemptionCode={captureSheet?.redemptionCode ?? null}
+          userId={userId}
+          onClose={() => setCaptureSheet(null)}
         />
       )}
 
