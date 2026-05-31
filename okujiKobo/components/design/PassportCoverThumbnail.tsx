@@ -1,4 +1,4 @@
-import type { CoverSideData } from '@/lib/design/types'
+import { resolveCoverImage, type CoverResolverInput } from '@/lib/cover/resolve'
 
 // Front-cover panel ratio = 612:792 = ~0.7727:1 (portrait). The cover
 // SPREAD is 1248×792 (back panel 612 + spine 24 + front panel 612);
@@ -9,12 +9,11 @@ const FRONT_PANEL_PADDING_BOTTOM = `${(792 / 612) * 100}%`
 interface Props {
   title: string
   typeIcon: string
-  outsideData?: CoverSideData | null
-  /** Pre-composited thumbnail from canvas (base64 data-URI). Snapshot of
-   *  the FULL spread (1248×792 aspect, downscaled to ~280×178 in
-   *  useCoverThumbnail). Render-time crop shows only the right half. */
+  // Cover-source fields. Pass these directly from the passport row.
+  // The resolver in lib/cover/resolve.ts decides which to render.
+  outsideData?: CoverResolverInput['cover_outside_data']
+  coverImageUrl?: string | null
   coverThumbnail?: string | null
-  /** Legacy fallback: hex without # */
   fallbackBg?: string | null
 }
 
@@ -54,11 +53,20 @@ function defaultThumbnailSvg(title: string): string {
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
 }
 
-export function PassportCoverThumbnail({ title, typeIcon, outsideData, coverThumbnail, fallbackBg }: Props) {
-  const frontBg = outsideData?.front_bg ?? fallbackBg ?? '0D1B2A'
-  const imageUrl = outsideData?.image_url ?? null
-  const imageOpacity = outsideData?.image_opacity ?? 80
-  const hasDesignedCover = outsideData && (outsideData.image_url || outsideData.front_bg !== '0D1B2A')
+export function PassportCoverThumbnail({
+  title,
+  typeIcon,
+  outsideData,
+  coverImageUrl,
+  coverThumbnail,
+  fallbackBg,
+}: Props) {
+  const resolved = resolveCoverImage({
+    cover_outside_data: outsideData,
+    cover_image_url: coverImageUrl ?? null,
+    cover_thumbnail: coverThumbnail ?? null,
+    cover_bg_color: fallbackBg ?? null,
+  })
 
   const badge = (
     <span
@@ -70,80 +78,28 @@ export function PassportCoverThumbnail({ title, typeIcon, outsideData, coverThum
     </span>
   )
 
-  // Render priority for designed covers:
-  //
-  //   1. If image_url is set, render the RAW spread image via
-  //      object-cover + object-position:right. The raw image preserves
-  //      the spread's natural 1248×792 aspect; the right-edge crop
-  //      shows exactly the front-panel half. This is the reliable path.
-  //
-  //   2. If only cover_thumbnail is set (text-only covers, no uploaded
-  //      image), fall back to the pre-composited thumbnail.
-  //
-  //   3. Otherwise, procedural SVG fallback.
-  //
-  // The previous version of this component preferred cover_thumbnail
-  // unconditionally. That surfaced a separate bug in useCoverThumbnail's
-  // compositeToDataUrl: when a creator uploads a 1248×792 spread,
-  // compositeToDataUrl draws it at size (612, 792) on the panel-sized
-  // canvas, which horizontally squishes the spread to half its native
-  // width. The resulting thumbnail shows a compressed version of the
-  // FULL spread, not the front panel — so my object-cover crop applied
-  // to the thumbnail just rendered the compressed-full-spread cleanly,
-  // not the front panel. Preferring image_url avoids the buggy
-  // composition path entirely for image-bearing covers.
-
-  if (imageUrl) {
+  // Resolved cover image (any of cover_outside_data.image_url,
+  // cover_image_url legacy field, or cover_thumbnail).
+  if (resolved) {
+    const objectPosition = resolved.crop === 'right-panel' ? 'right top' : 'center center'
     return (
       <div
         className="relative w-full overflow-hidden"
-        style={{ paddingBottom: FRONT_PANEL_PADDING_BOTTOM, backgroundColor: `#${frontBg}` }}
+        style={{ paddingBottom: FRONT_PANEL_PADDING_BOTTOM, backgroundColor: `#${resolved.bgColor}` }}
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src={imageUrl}
+          src={resolved.url}
           alt={`${title} cover`}
           className="absolute inset-0 w-full h-full object-cover"
-          style={{ objectPosition: 'right top', opacity: imageOpacity / 100 }}
+          style={{ objectPosition, opacity: resolved.opacity }}
         />
         {badge}
       </div>
     )
   }
 
-  // Text-only cover (no uploaded image). The pre-composited thumbnail
-  // captures the front_bg + text elements at the panel aspect.
-  if (coverThumbnail) {
-    return (
-      <div
-        className="relative w-full overflow-hidden"
-        style={{ paddingBottom: FRONT_PANEL_PADDING_BOTTOM }}
-      >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={coverThumbnail}
-          alt={`${title} cover`}
-          className="absolute inset-0 w-full h-full object-cover"
-          style={{ objectPosition: 'right top' }}
-        />
-        {badge}
-      </div>
-    )
-  }
-
-  // Designed cover with no image and no thumbnail — render the
-  // front-panel background color as a solid block.
-  if (hasDesignedCover) {
-    return (
-      <div
-        className="relative w-full overflow-hidden"
-        style={{ paddingBottom: FRONT_PANEL_PADDING_BOTTOM, backgroundColor: `#${frontBg}` }}
-      >
-        {badge}
-      </div>
-    )
-  }
-
+  // No image anywhere — procedural SVG.
   return (
     <div
       className="relative w-full overflow-hidden"

@@ -119,6 +119,9 @@ export interface DesignerPassport {
   cover_outside_data: CoverSideData | null
   cover_inside_data: CoverSideData | null
   cover_thumbnail: string | null
+  // Legacy top-level cover image. Predates cover_outside_data; some
+  // passports have their cover ONLY here. Resolver picks it up second.
+  cover_image_url: string | null
   created_at: string
   updated_at: string
   published_at: string | null

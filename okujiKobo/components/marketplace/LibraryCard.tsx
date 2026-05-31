@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { cn } from '@/lib/cn'
 import { Button } from '@/components/ui/button'
+import { resolveCoverImage, type CoverResolverInput } from '@/lib/cover/resolve'
 import type { Acquisition, Passport } from '@/lib/supabase/types'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -104,19 +105,28 @@ function StatePill({ state }: { state: ProgressState }) {
 interface CoverProps {
   bgColor: string | null
   emblem: string | null
-  imageUrl: string | null
+  resolverInput: CoverResolverInput
 }
 
-function Cover({ bgColor, emblem, imageUrl }: CoverProps) {
-  if (imageUrl) {
+function Cover({ bgColor, emblem, resolverInput }: CoverProps) {
+  const resolved = resolveCoverImage(resolverInput)
+  if (resolved) {
+    const objectPosition = resolved.crop === 'right-panel' ? 'right top' : 'center center'
     return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
-        src={imageUrl}
-        alt=""
+      <div
+        className="h-full w-full"
+        style={{ backgroundColor: `#${resolved.bgColor}` }}
         aria-hidden="true"
-        className="h-full w-full object-cover"
-      />
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={resolved.url}
+          alt=""
+          aria-hidden="true"
+          className="h-full w-full object-cover"
+          style={{ objectPosition, opacity: resolved.opacity }}
+        />
+      </div>
     )
   }
   return (
@@ -169,7 +179,16 @@ export function LibraryCard({
         tabIndex={-1}
         aria-hidden="true"
       >
-        <Cover bgColor={cover_bg_color} emblem={cover_emblem} imageUrl={cover_image_url ?? null} />
+        <Cover
+          bgColor={cover_bg_color}
+          emblem={cover_emblem}
+          resolverInput={{
+            cover_outside_data: (passport as unknown as { cover_outside_data?: CoverResolverInput['cover_outside_data'] }).cover_outside_data ?? null,
+            cover_image_url: cover_image_url ?? null,
+            cover_thumbnail: (passport as unknown as { cover_thumbnail?: string | null }).cover_thumbnail ?? null,
+            cover_bg_color: cover_bg_color ?? null,
+          }}
+        />
       </Link>
 
       {/* ── Main content ──────────────────────────────────────────────────── */}
