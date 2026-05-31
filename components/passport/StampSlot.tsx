@@ -78,26 +78,39 @@ export function StampSlot({ stop, state, stamp, width, height }: Props) {
         </Animated.View>
       )}
 
-      {/* Stamped state */}
-      {isStamped && stamp && (
-        <View
-          style={[
-            styles.stampedContainer,
-            {
-              left: `${stamp.stamp_pos_x ?? 50}%` as any,
-              top: `${stamp.stamp_pos_y ?? 50}%` as any,
-              transform: [{ translateX: -Math.min(width, height) * 0.35 }, { translateY: -Math.min(width, height) * 0.35 }],
-            },
-          ]}
-        >
-          <StampArtwork
-            stop={stop}
-            size={Math.min(width, height) * 0.7}
-            rotationDeg={stamp.rotation_deg}
-            smudge={stop.stamp_smudge}
-          />
-        </View>
-      )}
+      {/* Stamped state. Stamp size: use the gesture-recorded
+          contact_size_px when present (migration 040), otherwise fall
+          back to the legacy 70% of the smaller slot dimension so
+          pre-040 stamps render exactly as before. Same for the
+          gesture-derived appearance fields below. */}
+      {isStamped && stamp && (() => {
+        const stampSize = stamp.contact_size_px ?? Math.min(width, height) * 0.7
+        return (
+          <View
+            style={[
+              styles.stampedContainer,
+              {
+                left: `${stamp.stamp_pos_x ?? 50}%` as any,
+                top: `${stamp.stamp_pos_y ?? 50}%` as any,
+                transform: [
+                  { translateX: -stampSize / 2 },
+                  { translateY: -stampSize / 2 },
+                ],
+              },
+            ]}
+          >
+            <StampArtwork
+              stop={stop}
+              size={stampSize}
+              rotationDeg={stamp.rotation_deg}
+              saturation={stamp.saturation}
+              smudgeDx={stamp.smudge_dx}
+              smudgeDy={stamp.smudge_dy}
+              smudgeIntensity={stamp.smudge_intensity}
+            />
+          </View>
+        )
+      })()}
     </View>
   )
 }

@@ -21,7 +21,7 @@
 // time with no clipping. The render layer (StampSlot / StampCanvas) is
 // responsible for the edges-free part — see those components.
 
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { View, StyleSheet, PanResponder, type LayoutRectangle, type GestureResponderEvent, type PanResponderGestureState } from 'react-native'
 import { StampArtwork } from './StampArtwork'
 import { computeStampPlacement } from '../../lib/stamp'
@@ -286,23 +286,22 @@ export function StampGestureInteraction({
     onPressCancel()
   }, [cleanup, onPressCancel])
 
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => slotState === 'ready',
-      onMoveShouldSetPanResponder: () => slotState === 'pressing',
-      onPanResponderGrant: handleGrant,
-      onPanResponderMove: handleMove,
-      onPanResponderRelease: handleRelease,
-      onPanResponderTerminate: handleTerminate,
-    }),
-  ).current
-
-  // Refresh PanResponder handlers when callbacks change (PanResponder
-  // captures the closure at construction time; we re-bind by mutating).
-  panResponder.panHandlers.onResponderGrant = handleGrant
-  panResponder.panHandlers.onResponderMove = handleMove
-  panResponder.panHandlers.onResponderRelease = handleRelease
-  panResponder.panHandlers.onResponderTerminate = handleTerminate
+  // PanResponder.create captures its callbacks at construction time, so
+  // a useRef-wrapped instance would freeze stale closures. useMemo keyed
+  // on the input callbacks gives a fresh PanResponder whenever the
+  // closure-relevant deps change. Reconstruction is cheap and infrequent.
+  const panResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => slotState === 'ready',
+        onMoveShouldSetPanResponder: () => slotState === 'pressing',
+        onPanResponderGrant: handleGrant,
+        onPanResponderMove: handleMove,
+        onPanResponderRelease: handleRelease,
+        onPanResponderTerminate: handleTerminate,
+      }),
+    [slotState, handleGrant, handleMove, handleRelease, handleTerminate],
+  )
 
   const showPreview = preview.active && slotState === 'pressing'
   // Preview size: linear interp by the eased progress (matches what
