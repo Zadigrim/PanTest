@@ -176,8 +176,8 @@ export function StampGestureInteraction({
     cleanup()
 
     if (!placement) {
-      // Touch start was outside the box. Silent no-op consistent with the
-      // legacy StampPressInteraction behavior.
+      // Touch start was outside the box. Silent no-op — center-within-box
+      // rule enforced by computeStampPlacement().
       onPressCancel()
       return
     }
