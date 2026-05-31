@@ -37,6 +37,7 @@ export interface Passport {
   is_published: boolean
   is_free: boolean
   price_cents: number
+  is_demo: boolean
   created_at: string
   updated_at: string
 }

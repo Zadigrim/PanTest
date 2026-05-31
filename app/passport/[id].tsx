@@ -2,7 +2,7 @@
 // Page sequence: Cover → InsideCover → TOC → [SectionDivider + StopsPage + ExitVisa] × N
 import React, { useEffect, useCallback, useState, useMemo, useRef } from 'react'
 import {
-  View, ActivityIndicator, StyleSheet, Alert, useWindowDimensions,
+  View, Text, TouchableOpacity, ActivityIndicator, StyleSheet, Alert, useWindowDimensions,
 } from 'react-native'
 import { useLocalSearchParams, router } from 'expo-router'
 import { supabase, getCurrentUser } from '../../lib/supabase'
@@ -19,9 +19,18 @@ import { SectionDivider } from '../../components/passport/SectionDivider'
 import { PassportPage } from '../../components/passport/PassportPage'
 import { ExitVisa } from '../../components/passport/ExitVisa'
 import { StampingOverlay } from '../../components/passport/StampingOverlay'
+import { PostStampCaptureSheet } from '../../components/passport/PostStampCaptureSheet'
 
 import type { StampPlacement, StampSlotState, Stop, CollectorPassport, Stamp } from '../../types'
 import { palette } from '../../lib/colors'
+
+// BLD-32: a passport.is_demo + viewer-is-platform-admin pair. Activates the
+// stamp-flow bypass and renders the persistent banner. Non-admins viewing
+// a demo passport see normal behavior (no bypass, no banner) — the flag is
+// an admin-only override, not a relaxation of the public access model.
+function useDemoMode(passportIsDemo: boolean | undefined, isAdmin: boolean) {
+  return Boolean(isAdmin && passportIsDemo)
+}
 
 function defaultPlacement(): StampPlacement {
   return { posX: 50, posY: 50, contactSizePx: 80, rotationDeg: Math.random() * 30 - 15 }
@@ -33,17 +42,24 @@ export default function PassportScreen() {
   const pageW = sw * 0.82
   const pageH = sh * 0.96
 
-  const { passport, pages, stops, loading } = usePassport(id)
+  const { passport, pages, stops, loading, reload: reloadPassport } = usePassport(id)
   const [stamps, setStamps] = useState<Record<string, Record<string, Stamp>>>({})
   const [slotStates, setSlotStates] = useState<Record<string, Record<string, StampSlotState>>>({})
   const [collectorPassport, setCollectorPassport] = useState<CollectorPassport | null>(null)
   const [userId, setUserId] = useState<string | null>(null)
   const [bearerName, setBearerName] = useState<string>('')
   const [stampingStop, setStampingStop] = useState<{ pageId: string; stop: Stop } | null>(null)
+  const [isAdmin, setIsAdmin] = useState(false)
+  const [togglingDemo, setTogglingDemo] = useState(false)
+  // Post-stamp capture surface state. stampId is the just-placed stamp;
+  // redemptionCode is non-null when the stamp completed a section.
+  const [captureSheet, setCaptureSheet] = useState<{ stampId: string; redemptionCode: string | null } | null>(null)
 
   const { checkLocation } = useGPS()
   const { verify } = useStampVerification()
   const flipperRef = useRef<PageFlipperHandle>(null)
+
+  const isDemo = useDemoMode(passport?.is_demo, isAdmin)
 
   // ── init: auth + collector passport + existing stamps ──────────────────────
   useEffect(() => {
@@ -51,6 +67,11 @@ export default function PassportScreen() {
       const user = await getCurrentUser()
       if (!user) { router.replace('/(auth)/login'); return }
       setUserId(user.id)
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const adminResult = await (supabase as any).rpc('is_platform_admin')
+      const callerIsAdmin = adminResult?.data === true
+      setIsAdmin(callerIsAdmin)
 
       const [cpResult, profileResult] = await Promise.all([
         supabase
@@ -66,8 +87,26 @@ export default function PassportScreen() {
           .single(),
       ])
 
-      if (!cpResult.data) { router.back(); return }
-      setCollectorPassport(cpResult.data)
+      let cp = cpResult.data
+      if (!cp) {
+        // BLD-32: platform admin viewing a demo passport without owning a
+        // collector_passports row gets one auto-created. The acquisition
+        // gate is one of the constraints demo mode explicitly bypasses
+        // per the locked spec. The row is a real row (untagged) and gets
+        // truncated alongside the demo passport pre-launch.
+        if (callerIsAdmin && passport?.is_demo) {
+          const { data: newCp } = await supabase
+            .from('collector_passports')
+            .insert({ user_id: user.id, passport_id: id })
+            .select()
+            .single()
+          if (!newCp) { router.back(); return }
+          cp = newCp
+        } else {
+          router.back(); return
+        }
+      }
+      setCollectorPassport(cp)
       setBearerName(profileResult.data?.display_name ?? '')
 
       const { data: allStamps } = await supabase
@@ -94,7 +133,10 @@ export default function PassportScreen() {
       setSlotStates(initial)
     }
     if (!loading) init()
-  }, [loading, id, pages, stops])
+    // passport?.is_demo intentionally in deps: an admin flipping demo on
+    // for a passport they don't own re-runs init to auto-acquire. The
+    // SELECTs and INSERT inside init are idempotent on subsequent runs.
+  }, [loading, id, pages, stops, passport?.is_demo])
 
   // ── stamp handlers ─────────────────────────────────────────────────────────
   const handlePressStart = useCallback((pageId: string, stopId: string) => {
@@ -123,23 +165,35 @@ export default function PassportScreen() {
   ) => {
     if (!userId || !collectorPassport) return
 
-    const location = await checkLocation()
     const stopOpenedAt = new Date().toISOString()
 
-    const result = await verify({
-      stopId,
-      latitude: location?.latitude ?? 0,
-      longitude: location?.longitude ?? 0,
-      stopOpenedAt,
-    })
+    // BLD-32: in demo mode, skip GPS check + verify. The stamp INSERT is
+    // unchanged structurally; verification_method is recorded as
+    // 'self_reported' so the row isn't claiming GPS verification it didn't
+    // do, but is otherwise indistinguishable from a real self-reported
+    // stamp (no is_demo_data tag per the locked spec). Demo passports get
+    // TRUNCATEd pre-launch.
+    let verifiedGeohash: string | null = null
+    let verificationMethod: string = 'self_reported'
+    if (!isDemo) {
+      const location = await checkLocation()
+      const result = await verify({
+        stopId,
+        latitude: location?.latitude ?? 0,
+        longitude: location?.longitude ?? 0,
+        stopOpenedAt,
+      })
 
-    if (!result?.verified) {
-      Alert.alert(
-        'Not quite there',
-        result?.reason ?? 'You need to be at the location to stamp.',
-      )
-      handlePressCancel(pageId, stopId)
-      return
+      if (!result?.verified) {
+        Alert.alert(
+          'Not quite there',
+          result?.reason ?? 'You need to be at the location to stamp.',
+        )
+        handlePressCancel(pageId, stopId)
+        return
+      }
+      verifiedGeohash = result.geohash
+      verificationMethod = result.verificationMethod
     }
 
     const { data: stampData, error } = await supabase
@@ -148,12 +202,12 @@ export default function PassportScreen() {
         user_id: userId,
         stop_id: stopId,
         collector_passport_id: collectorPassport.id,
-        geohash: result.geohash,
+        geohash: verifiedGeohash,
         stamp_pos_x: placement.posX,
         stamp_pos_y: placement.posY,
         contact_size_px: placement.contactSizePx,
         rotation_deg: placement.rotationDeg,
-        verification_method: result.verificationMethod,
+        verification_method: verificationMethod,
         stop_opened_at: stopOpenedAt,
         verified_at: new Date().toISOString(),
       })
@@ -175,28 +229,43 @@ export default function PassportScreen() {
       [pageId]: { ...prev[pageId], [stopId]: 'stamped' },
     }))
 
+    // Per Part 4: replace the post-stamp Alert with a unified capture
+    // surface. The sheet renders inline over the passport page and
+    // offers voice + photo independently; both, either, or neither.
+    // The page-completion token (when present) surfaces as a banner
+    // above the journal primitives inside the sheet so it isn't dropped.
+    let redemptionCode: string | null = null
     const isComplete = await checkPageComplete(pageId, userId)
     if (isComplete) {
       try {
         const token = await generateTokenForPage(pageId, userId)
-        Alert.alert(
-          '★ Section Complete!',
-          `Redemption code: ${token.token_code}\n\nShow this to claim your prize.`,
-          [
-            { text: 'Journal', onPress: () => router.push(`/journal/${stampData.id}`) },
-            { text: 'Done' },
-          ],
-        )
+        redemptionCode = token.token_code
       } catch {
-        Alert.alert('Section complete!', 'All stops stamped.')
+        // Fall through — sheet still opens, just without the token banner.
+        // Completing-the-page itself is a database-side concept, so the
+        // missing token doesn't affect stamp state.
       }
-    } else {
-      Alert.alert('Stamped!', 'Add a journal entry?', [
-        { text: 'Yes', onPress: () => router.push(`/journal/${stampData.id}`) },
-        { text: 'Skip' },
-      ])
     }
-  }, [userId, collectorPassport, checkLocation, verify, handlePressCancel])
+    setCaptureSheet({ stampId: stampData.id, redemptionCode })
+  }, [userId, collectorPassport, isDemo, checkLocation, verify, handlePressCancel])
+
+  // BLD-32: admin-only toggle for passports.is_demo. Reload the passport
+  // via the usePassport hook so isDemo derives off the new value.
+  const handleToggleDemo = useCallback(async () => {
+    if (!passport || togglingDemo) return
+    setTogglingDemo(true)
+    const next = !passport.is_demo
+    const { error } = await supabase
+      .from('passports')
+      .update({ is_demo: next })
+      .eq('id', passport.id)
+    if (error) {
+      Alert.alert('Demo mode', error.message)
+    } else {
+      await reloadPassport()
+    }
+    setTogglingDemo(false)
+  }, [passport, togglingDemo, reloadPassport])
 
   // ── overlay callbacks ──────────────────────────────────────────────────────
   const handleOverlayStamp = useCallback(() => {
@@ -357,6 +426,39 @@ export default function PassportScreen() {
           onCancel={handleOverlayCancel}
         />
       )}
+
+      {/* Post-stamp capture surface — replaces the previous Alert.
+          Voice + photo are independently optional. */}
+      {userId && (
+        <PostStampCaptureSheet
+          stampId={captureSheet?.stampId ?? null}
+          redemptionCode={captureSheet?.redemptionCode ?? null}
+          userId={userId}
+          onClose={() => setCaptureSheet(null)}
+        />
+      )}
+
+      {/* BLD-32 demo banner + admin toggle. The banner is intentionally
+          obtrusive — demo stamps must never be mistaken for real ones.
+          The toggle is admin-only and visible whether demo is on or off so
+          an admin can flip it from inside the passport view itself. */}
+      {isDemo && (
+        <View pointerEvents="none" style={styles.demoBanner}>
+          <Text style={styles.demoBannerText}>DEMO MODE — constraints bypassed</Text>
+        </View>
+      )}
+      {isAdmin && (
+        <TouchableOpacity
+          onPress={handleToggleDemo}
+          disabled={togglingDemo}
+          style={[styles.demoTogglePill, isDemo && styles.demoTogglePillActive]}
+          accessibilityLabel={isDemo ? 'Turn demo mode off' : 'Turn demo mode on'}
+        >
+          <Text style={[styles.demoToggleText, isDemo && styles.demoToggleTextActive]}>
+            {togglingDemo ? '…' : isDemo ? 'DEMO: ON' : 'DEMO: OFF'}
+          </Text>
+        </TouchableOpacity>
+      )}
     </View>
   )
 }
@@ -373,5 +475,46 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#2a1f12',
+  },
+  // ── BLD-32 demo mode overlay ─────────────────────────────────────────────
+  demoBanner: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    paddingTop: 44, // clear the status bar
+    paddingBottom: 8,
+    backgroundColor: '#C0392B',
+    alignItems: 'center',
+  },
+  demoBannerText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 1.5,
+  },
+  demoTogglePill: {
+    position: 'absolute',
+    top: 48,
+    right: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.3)',
+  },
+  demoTogglePillActive: {
+    backgroundColor: '#fff',
+    borderColor: '#fff',
+  },
+  demoToggleText: {
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 1,
+    color: 'rgba(255,255,255,0.85)',
+  },
+  demoToggleTextActive: {
+    color: '#C0392B',
   },
 })
