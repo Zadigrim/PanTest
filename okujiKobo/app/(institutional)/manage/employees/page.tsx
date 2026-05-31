@@ -16,13 +16,35 @@ interface EmployeeRow {
   role_label: string | null
   can_verify: boolean
   can_distribute_prizes: boolean
+  // Provisioning-convenience flags (migration 033, Phase 1). These
+  // exist as columns and are settable here, but are NOT yet enforced
+  // anywhere in routes or RLS. SEC-02 / Phase 2 wires the gates.
+  // Setting a flag records intent; it does not yet grant capability.
+  can_design: boolean
+  can_manage_employees: boolean
+  can_view_analytics: boolean
+  can_manage_billing: boolean
 }
+
+// Mirrors MemberFlagField in /access/institutions/[id]/page.tsx — the
+// two roster UIs share the set of flag columns they edit.
+type EmployeeFlagField =
+  | 'can_verify'
+  | 'can_distribute_prizes'
+  | 'can_design'
+  | 'can_manage_employees'
+  | 'can_view_analytics'
+  | 'can_manage_billing'
 
 interface AddEmployeeFormState {
   email: string
   role_label: string
   can_verify: boolean
   can_distribute_prizes: boolean
+  can_design: boolean
+  can_manage_employees: boolean
+  can_view_analytics: boolean
+  can_manage_billing: boolean
 }
 
 // ---------------------------------------------------------------------------
@@ -72,7 +94,7 @@ function EmployeeTableRow({
   employee: EmployeeRow
   onPermissionChange: (
     authzId: string,
-    field: 'can_verify' | 'can_distribute_prizes',
+    field: EmployeeFlagField,
     value: boolean,
   ) => unknown
   onRemove: (authzId: string) => void
@@ -141,6 +163,42 @@ function EmployeeTableRow({
           />
         </td>
 
+        {/* Provisioning-convenience flags (migration 033). These
+            checkboxes record intent for SEC-02 / Phase 2 enforcement;
+            they do NOT yet grant capability in any route or RLS. */}
+        <td className="px-4 py-3 text-center">
+          <PermissionToggle
+            label={`can_design (provisioning) for ${employee.displayName ?? employee.userId}`}
+            checked={employee.can_design}
+            disabled={false}
+            onChange={(v) => onPermissionChange(employee.authzId, 'can_design', v)}
+          />
+        </td>
+        <td className="px-4 py-3 text-center">
+          <PermissionToggle
+            label={`can_manage_employees (provisioning) for ${employee.displayName ?? employee.userId}`}
+            checked={employee.can_manage_employees}
+            disabled={false}
+            onChange={(v) => onPermissionChange(employee.authzId, 'can_manage_employees', v)}
+          />
+        </td>
+        <td className="px-4 py-3 text-center">
+          <PermissionToggle
+            label={`can_view_analytics (provisioning) for ${employee.displayName ?? employee.userId}`}
+            checked={employee.can_view_analytics}
+            disabled={false}
+            onChange={(v) => onPermissionChange(employee.authzId, 'can_view_analytics', v)}
+          />
+        </td>
+        <td className="px-4 py-3 text-center">
+          <PermissionToggle
+            label={`can_manage_billing (provisioning) for ${employee.displayName ?? employee.userId}`}
+            checked={employee.can_manage_billing}
+            disabled={false}
+            onChange={(v) => onPermissionChange(employee.authzId, 'can_manage_billing', v)}
+          />
+        </td>
+
         {/* Remove */}
         <td className="px-4 py-3 text-right">
           <button
@@ -156,7 +214,7 @@ function EmployeeTableRow({
       {/* Inline error rows */}
       {(removeError ?? permError) && (
         <tr className="border-b border-hairline">
-          <td colSpan={6} className="px-4 pb-2">
+          <td colSpan={9} className="px-4 pb-2">
             <span role="alert" className="text-xs text-accent">
               {removeError ?? permError}
             </span>
@@ -189,6 +247,10 @@ function AddEmployeeForm({
     role_label: '',
     can_verify: false,
     can_distribute_prizes: false,
+    can_design: false,
+    can_manage_employees: false,
+    can_view_analytics: false,
+    can_manage_billing: false,
   })
 
   function handleSubmit(e: FormEvent) {
@@ -252,6 +314,10 @@ function AddEmployeeForm({
           role_label: form.role_label.trim() || null,
           can_verify: form.can_verify,
           can_distribute_prizes: form.can_distribute_prizes,
+          can_design: form.can_design,
+          can_manage_employees: form.can_manage_employees,
+          can_view_analytics: form.can_view_analytics,
+          can_manage_billing: form.can_manage_billing,
           authorized_by: currentUserId,
         })
         .select('id')
@@ -277,6 +343,10 @@ function AddEmployeeForm({
         role_label: form.role_label.trim() || null,
         can_verify: form.can_verify,
         can_distribute_prizes: form.can_distribute_prizes,
+        can_design: form.can_design,
+        can_manage_employees: form.can_manage_employees,
+        can_view_analytics: form.can_view_analytics,
+        can_manage_billing: form.can_manage_billing,
       })
 
       // Reset form
@@ -285,6 +355,10 @@ function AddEmployeeForm({
         role_label: '',
         can_verify: false,
         can_distribute_prizes: false,
+        can_design: false,
+        can_manage_employees: false,
+        can_view_analytics: false,
+        can_manage_billing: false,
       })
     })
   }
@@ -367,7 +441,52 @@ function AddEmployeeForm({
             <span className="text-sm text-navy">Can distribute prizes</span>
           </label>
 
+          {/* Provisioning-convenience flags. Recording intent only —
+              Phase 2 / SEC-02 will wire enforcement. */}
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={form.can_design}
+              onChange={(e) => setForm((p) => ({ ...p, can_design: e.target.checked }))}
+              className="accent-green w-4 h-4"
+            />
+            <span className="text-sm text-navy">Can design</span>
+          </label>
+
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={form.can_manage_employees}
+              onChange={(e) => setForm((p) => ({ ...p, can_manage_employees: e.target.checked }))}
+              className="accent-green w-4 h-4"
+            />
+            <span className="text-sm text-navy">Can manage employees</span>
+          </label>
+
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={form.can_view_analytics}
+              onChange={(e) => setForm((p) => ({ ...p, can_view_analytics: e.target.checked }))}
+              className="accent-green w-4 h-4"
+            />
+            <span className="text-sm text-navy">Can view analytics</span>
+          </label>
+
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={form.can_manage_billing}
+              onChange={(e) => setForm((p) => ({ ...p, can_manage_billing: e.target.checked }))}
+              className="accent-green w-4 h-4"
+            />
+            <span className="text-sm text-navy">Can manage billing</span>
+          </label>
+
         </div>
+        <p className="mt-2 text-xs italic text-muted">
+          The last four flags are provisioning-convenience only — Phase 2 will wire enforcement.
+        </p>
       </fieldset>
 
       {formError && (
@@ -446,10 +565,15 @@ export default function EmployeesPage() {
 
         setInstitutionId(instId)
 
-        // All employees for this institution
+        // All employees for this institution. Includes the four
+        // provisioning-convenience flags (migration 033) so the roster
+        // reflects what's been recorded for SEC-02 / Phase 2.
         const { data: authzRows, error: authzFetchErr } = await supabase
           .from('employee_authorizations')
-          .select('id, user_id, role_label, can_verify, can_distribute_prizes')
+          .select(
+            'id, user_id, role_label, can_verify, can_distribute_prizes,' +
+            ' can_design, can_manage_employees, can_view_analytics, can_manage_billing',
+          )
           .eq('institution_id', instId)
           .order('authorized_at', { ascending: true })
         if (authzFetchErr) throw new Error(authzFetchErr.message)
@@ -473,7 +597,15 @@ export default function EmployeesPage() {
           (
             r: Pick<
               EmployeeAuthorization,
-              'id' | 'user_id' | 'role_label' | 'can_verify' | 'can_distribute_prizes'
+              | 'id'
+              | 'user_id'
+              | 'role_label'
+              | 'can_verify'
+              | 'can_distribute_prizes'
+              | 'can_design'
+              | 'can_manage_employees'
+              | 'can_view_analytics'
+              | 'can_manage_billing'
             >,
           ) => ({
             authzId: r.id,
@@ -484,6 +616,10 @@ export default function EmployeesPage() {
             role_label: r.role_label,
             can_verify: r.can_verify ?? false,
             can_distribute_prizes: r.can_distribute_prizes ?? false,
+            can_design: r.can_design ?? false,
+            can_manage_employees: r.can_manage_employees ?? false,
+            can_view_analytics: r.can_view_analytics ?? false,
+            can_manage_billing: r.can_manage_billing ?? false,
           }),
         )
 
@@ -498,10 +634,12 @@ export default function EmployeesPage() {
     load()
   }, [])
 
-  // Permission toggle — optimistic update, revert on error
+  // Permission toggle — optimistic update, revert on error. Same
+  // function handles all flag columns; the PostgREST UPDATE just sets
+  // whichever key was passed in.
   async function handlePermissionChange(
     authzId: string,
-    field: 'can_verify' | 'can_distribute_prizes',
+    field: EmployeeFlagField,
     value: boolean,
   ) {
     // Optimistic
@@ -585,11 +723,23 @@ export default function EmployeesPage() {
                       <th className="px-4 py-3 text-left font-medium text-muted">
                         Role
                       </th>
-                      <th className="px-4 py-3 text-center font-medium text-muted">
+                      <th className="px-4 py-3 text-center font-medium text-muted" title="Can verify stamps">
                         Verify
                       </th>
-                      <th className="px-4 py-3 text-center font-medium text-muted">
+                      <th className="px-4 py-3 text-center font-medium text-muted" title="Can distribute prizes">
                         Distribute
+                      </th>
+                      <th className="px-4 py-3 text-center font-medium text-muted" title="Can design (provisioning only — Phase 2)">
+                        Design
+                      </th>
+                      <th className="px-4 py-3 text-center font-medium text-muted" title="Can manage employees (provisioning only — Phase 2)">
+                        Manage
+                      </th>
+                      <th className="px-4 py-3 text-center font-medium text-muted" title="Can view analytics (provisioning only — Phase 2)">
+                        Analytics
+                      </th>
+                      <th className="px-4 py-3 text-center font-medium text-muted" title="Can manage billing (provisioning only — Phase 2)">
+                        Billing
                       </th>
                       <th className="px-4 py-3 w-20" />
                     </tr>
