@@ -17,6 +17,7 @@
 | 2026-05-30 | DEC resolution session (docs-only) | DEC-02, DEC-08, DEC-16, DEC-17, DEC-18, DEC-19 resolved. New work item BLD-31 added. Downstream notes added to SEC-03, FIX-02, FIX-06, FIX-07, CLN-01, CLN-06, CLN-07, CLN-08, BLD-05, BLD-29. |
 | 2026-05-30 | `feat/fix-01-mobile-terminal-unification` (`898725c`, `c171025`, screens, `09ece7d`, roadmap) | FIX-01. Three legacy tables retired in migration 032 (`redemption_tokens`, `employee_accounts`, `proprietors`) — work that was scheduled for Phase 6 cleanup, pulled forward because they were FK-coupled to the FIX-01 migration. Discovery-surfaced parallel-tables item (proposed as FIX-08) absorbed into this PR. Mobile dead-code cleanup: `components/employee/PrizeDistribution.tsx` and `TokenScanner.tsx` deleted; legacy types (`RedemptionToken`, `EmployeeAccount`, `Proprietor`, `ProprietorTier`) removed. |
 | 2026-05-30 | `feat/phase-1-foundational-schema` (migrations + can_add_extras retirement + comp admin UI + roadmap) | **Phase 1 closed in code.** BLD-01..05, BLD-07, BLD-08, BLD-12, FIX-06, SEC-03, DEC-18 audit + RLS expansion, DEC-19 README. Six migrations 033-038. Comp admin UI at `/access/comp-subscriptions`. `can_add_extras` retired across 7 application files. Three discovery-time decisions: DEC-18 RLS expansion extended to `print_jobs` + `design_assets` (institutional artifacts survive turnover); `last_edited_by` uses a trigger (1 file) instead of app-layer writes at 19 sites; comp ↔ profile sync uses a trigger. |
+| 2026-05-30 | `feat/bld-32-33-demo-mode-voice-camera` (mobile + migration 039 + roadmap) | **BLD-32** (per-passport demo mode: migration `039_passports_is_demo.sql`, banner + bypass + admin toggle in `app/passport/[id].tsx`); **BLD-33** (30 s voice recording cap with `continuous: true` switch); live camera capture path in `components/journal/JournalEntry.tsx` via `ImagePicker.launchCameraAsync`; unified post-stamp capture surface (`components/passport/PostStampCaptureSheet.tsx`) replacing the previous Alert in Flow A. Standalone `/journal/[stampId]` modal route untouched. Flow B (QR/deep-link stamp route) untouched. |
 
 **SEC-05 migration apply status:** `okujiKobo/supabase/migrations/031_design_assets_storage_policy.sql` is committed but NOT yet applied to production. The storage policy is not enforced until the migration runs. Apply with `supabase db push` (or `supabase migration up` per the project's local convention) and verify with `select policyname, cmd, with_check from pg_policies where tablename = 'objects' and policyname = 'design_assets_upload';` — the `with_check` body should include `(storage.foldername(name))[1] = auth.uid()::text`.
 
@@ -31,7 +32,7 @@ Two minor pre-statements to clear up before the inventory:
 
 ## Section 1 — Executive summary
 
-**The gap is large but cleanly partitionable.** 40 distinct work items. Status as of 2026-05-30: Phase 0 and Phase 1 both closed in code. Security fixes (6, of which **5 closed** — SEC-01, SEC-03, SEC-04, SEC-05, SEC-06). Broken-today implementation fixes (7, of which **3 closed** — FIX-01, FIX-05, FIX-06). New infrastructure (25, of which **9 closed** — BLD-01..05, BLD-07, BLD-08, BLD-12, plus the canonical-tree README). Dead-code cleanup (9 — plus two table retirements pulled forward into FIX-01). Product decisions (20 total — **6 resolved 2026-05-30**, 14 still open).
+**The gap is large but cleanly partitionable.** 42 distinct work items (BLD-32 and BLD-33 added 2026-05-30 alongside the demo-mode + voice-cap PR). Status as of 2026-05-30: Phase 0 and Phase 1 both closed in code. Security fixes (6, of which **5 closed** — SEC-01, SEC-03, SEC-04, SEC-05, SEC-06). Broken-today implementation fixes (7, of which **3 closed** — FIX-01, FIX-05, FIX-06). New infrastructure (27, of which **11 closed** — BLD-01..05, BLD-07, BLD-08, BLD-12, BLD-32, BLD-33, plus the canonical-tree README). Dead-code cleanup (9 — plus two table retirements pulled forward into FIX-01). Product decisions (20 total — **6 resolved 2026-05-30**, 14 still open).
 
 **Recommended broad sequencing:**
 
@@ -413,6 +414,26 @@ The bulk of the gap. Grouped here by area for readability; sequencing rules in �
 - **Type:** BLD (overlaps with FIX-03 — that is the bug; this is the proper feature).
 - **Effort:** 3-5 days web + 2-3 days mobile.
 - **Dependencies:** DEC-04.
+
+**B.10 — Operational and mobile UX**
+
+#### BLD-32 — Per-passport demo mode — **DONE**
+- **Status:** closed in `feat/bld-32-33-demo-mode-voice-camera` (2026-05-30). Migration `039_passports_is_demo.sql` adds `passports.is_demo`; mobile `app/passport/[id].tsx` implements admin detection, banner, bypass, and an admin-only toggle pill.
+- **Appendix L:** silent. Operational tooling, not a tier capability.
+- **Today:** does not exist. Running a demo of the stamp flow at a venue requires either physically standing at each stop or hand-crafting fake stamp rows in SQL — neither is acceptable for a sales conversation.
+- **Resolution:** single boolean `passports.is_demo` flag. When a platform admin views a passport with `is_demo = true`, the stamp flow bypasses GPS verification, the acquisition gate (auto-creates a `collector_passports` row for the admin if needed), stop ordering, and capability flags. A persistent red banner ("DEMO MODE — constraints bypassed") and an admin-only toggle pill render on the passport view. Non-admins viewing the same passport get normal behavior (no bypass, no banner) — the flag is an admin-only override, not a relaxation of the public access model.
+- **No is_demo_data tagging on stamps / journal_entries / journal_photos** per locked spec — the deployment plan is to `TRUNCATE` demo passports + their `collector_passports` + dependent rows before going live. Demo stamps are recorded with `verification_method = 'self_reported'` (existing enum value; honest about the lack of GPS verification) and `geohash = NULL`.
+
+#### BLD-33 — Voice journal 30-second cap — **DONE**
+- **Status:** closed in `feat/bld-32-33-demo-mode-voice-camera` (2026-05-30). `components/journal/VoiceRecorder.tsx` switches to `continuous: true` and enforces a hard 30 s cap via setTimeout that calls `ExpoSpeechRecognitionModule.stop()`.
+- **Appendix L:** silent. Operational guardrail.
+- **Today:** the voice recorder had no duration cap. `continuous: false` would end recognition at the first natural pause but allowed indefinite re-starts.
+- **Resolution:** `MAX_RECORDING_MS = 30_000` enforced by a JS timer started on `start()` and cleared on the `end` / `error` events and on unmount. `continuous: true` is the coupled change — the previous `continuous: false` would have truncated a reflective 30-second entry the moment the user breathed. A minimal countdown ("Listening… 23s left") replaces the static hint. No waveform, no three-state mic UI per scope guards.
+
+#### Related: live camera capture in journaling + unified post-stamp capture surface
+Not separately numbered — shipped alongside BLD-32 / BLD-33:
+- `components/journal/JournalEntry.tsx` adds `addFromCamera` via `ImagePicker.launchCameraAsync` (same asset shape, same enqueue pipeline as the existing library picker). UI now offers two side-by-side buttons: "📷 Take photo" and "🖼 Choose existing". Either, both, or neither.
+- `components/passport/PostStampCaptureSheet.tsx` replaces the previous post-stamp Alert in Flow A. Thin Modal wrapper around `<JournalEntry>`; voice + photo are independently optional. Page-completion redemption token displayed as a navy banner above the journal primitives when present. The standalone `/journal/[stampId]` modal route is untouched (it remains the read-existing path).
 
 ### CLN (Cleanup, dead code, redundancy)
 
