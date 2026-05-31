@@ -3,7 +3,7 @@
 import React from 'react'
 import { View, Text, Image, StyleSheet } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
-import Svg, { Defs, Pattern, Path, Rect } from 'react-native-svg'
+import Svg, { Defs, Pattern, Path, Rect, Filter, FeTurbulence, FeColorMatrix } from 'react-native-svg'
 import { GuillocheBackground } from '../ui/GuillocheBackground'
 import { DesignerCanvas } from './DesignerCanvas'
 import type { Passport, PassportPage as PassportPageType, Stop, Stamp, StampSlotState, StampPlacement } from '../../types'
@@ -39,13 +39,21 @@ export function PassportPage({
   const scale = width / ARTBOARD_W
   const artboardH = 792 * scale
 
-  // Background settings — prefer per-page designer values, fall back to passport-level
-  const paperColor = page.paper_color ? `#${page.paper_color}` : `#${passport.paper_color ?? 'F5F2EC'}`
+  // Background resolution — aligned with okujiKobo's PageBackground.tsx so
+  // a page looks the same on both surfaces.
+  //   paper_color: page-level only; literal 'F5F2EC' fallback. (Designer
+  //     never inherits a passport-level paper_color; mobile used to, which
+  //     drifted rendered color.)
+  //   background_opacity: 10..100 stored, clamped if missing, divided by 100
+  //     for opacity. Default 100 (NOT 11) — matches web. The legacy mobile
+  //     11% default came from passport.illus_opacity, which the web side
+  //     ignores; pages with no per-page opacity were rendering nearly
+  //     transparent on mobile vs opaque on web.
+  const paperColor = `#${page.paper_color ?? 'F5F2EC'}`
   const bgType = page.background_type ?? 'guilloche'
-  const bgColor = page.background_color ? `#${page.background_color}` : `#${passport.illus_color ?? '0D1B2A'}`
-  const bgOpacity = page.background_opacity != null
-    ? page.background_opacity / 100
-    : (passport.illus_opacity ?? 0.11)
+  const bgColor = `#${page.background_color ?? '0D1B2A'}`
+  const bgOpacityPct = Math.min(100, Math.max(10, page.background_opacity ?? 100))
+  const bgOpacity = bgOpacityPct / 100
   const customBgOpacity = (page.custom_background_opacity ?? 100) / 100
 
   return (
@@ -71,8 +79,24 @@ export function PassportPage({
         </View>
       )}
 
-      {/* Paper grain */}
-      <View style={styles.grain} pointerEvents="none" />
+      {/* Paper grain — SVG fractal noise to match the web designer's
+          feTurbulence treatment (PageBackground.tsx). Same baseFrequency,
+          saturated to 0, painted at 4% opacity. Visual parity with web,
+          not pixel-identical. Replaces the legacy flat 2.5% black overlay. */}
+      <Svg
+        style={StyleSheet.absoluteFill}
+        pointerEvents="none"
+        width="100%"
+        height="100%"
+      >
+        <Defs>
+          <Filter id="paper-grain">
+            <FeTurbulence type="fractalNoise" baseFrequency="0.65" numOctaves="3" stitchTiles="stitch" />
+            <FeColorMatrix type="saturate" values="0" />
+          </Filter>
+        </Defs>
+        <Rect width="100%" height="100%" filter="url(#paper-grain)" opacity={0.04} />
+      </Svg>
 
       {/* Corner vignette */}
       <LinearGradient

@@ -1,10 +1,21 @@
-// Passport book cover — deep green (#2E7D4D), left spine accent, top-right red ribbon tab.
-// Tap anywhere to open (triggers onOpen).
+// Passport book cover. Two render paths:
+//
+//   - Designed cover (preferred): renders the FRONT panel (x=636..1248) of
+//     passport.cover_outside_data via CoverPanel. This is the designer's
+//     actual cover artwork as built in okujiKobo. Mobile shows one
+//     612-wide page; CoverPanel does the spread→panel clipping.
+//   - Procedural fallback: deep green ceremonial cover with emblem +
+//     title + brand. Used when cover_outside_data is null (legacy
+//     passports that pre-dated the designer cover feature, or
+//     passports where the creator hasn't designed the cover yet).
+//
+// Tap anywhere to open (triggers onOpen) in either path.
 import React from 'react'
 import {
   View, Text, StyleSheet, TouchableOpacity, useWindowDimensions,
 } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
+import { CoverPanel } from './CoverPanel'
 import type { Passport } from '../../types'
 import { palette } from '../../lib/colors'
 
@@ -24,6 +35,26 @@ export function BookCover({ passport, onOpen }: Props) {
   const pageW = sw * 0.82
   const pageH = sh * 0.96
 
+  // Designed cover path: CoverPanel renders the front face (right half
+  // of the 1248-wide outside spread) at page size.
+  if (passport.cover_outside_data) {
+    return (
+      <TouchableOpacity
+        style={[styles.cover, { width: pageW, height: pageH }]}
+        onPress={onOpen}
+        activeOpacity={0.92}
+      >
+        <CoverPanel
+          data={passport.cover_outside_data}
+          half="front"
+          pageWidth={pageW}
+          pageHeight={pageH}
+        />
+      </TouchableOpacity>
+    )
+  }
+
+  // Procedural fallback (no designed cover yet).
   return (
     <TouchableOpacity
       style={[styles.cover, { width: pageW, height: pageH, backgroundColor: COVER_GREEN }]}

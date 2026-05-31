@@ -32,9 +32,13 @@ export function usePassport(passportId: string) {
       .order('page_order')
 
     const pageIds = (pagesData ?? []).map((p) => p.id)
+    // Join the design_assets row for any stop that has a custom-asset
+    // stamp, so the renderer can pull the actual artwork URL without a
+    // second fetch per stop. Stops with stamp_type='emoji' get
+    // stamp_asset = null and fall back to the icon-and-shape path.
     const { data: stopsData } = await supabase
       .from('stops')
-      .select('*')
+      .select('*, stamp_asset:design_assets!stamp_asset_id(url)')
       .in('page_id', pageIds)
       .order('stop_order')
 

@@ -1,6 +1,17 @@
-// SVG stamp renderer with shape, color, icon, smudge filter.
+// Stamp renderer with two artwork modes + two appearance models.
 //
-// Two appearance models supported simultaneously:
+// Artwork modes (REQ 2 — fidelity to the designer's choice):
+//
+//   Default ('emoji' or null stamp_type): SVG shape (circle/rect/hexagon/
+//   badge) drawn in stop.stamp_color with stop.stamp_icon centered inside.
+//   The historical renderer.
+//
+//   Custom asset (stamp_type='custom_asset' AND stamp_asset.url present):
+//   the designer's uploaded stamp image is rendered as an <Image>, sized to
+//   the stamp's render size. The shape + emoji path is skipped entirely —
+//   the uploaded artwork IS the stamp.
+//
+// Appearance models (BLD-34, migration 040) — apply to BOTH artwork modes:
 //
 //   Legacy (pre-gesture): driven by the stop's discrete stamp_smudge enum
 //   (none / light / medium / heavy). Rendered as a single stamp with an
@@ -10,9 +21,7 @@
 //   (smudge_dx, smudge_dy, smudge_intensity). Renders the stamp with
 //   opacity = saturation, plus directional ghost copies offset along
 //   the smudge vector with declining opacity — a motion-blur style trail
-//   that scales with smudge_intensity. The FeDisplacementMap filter is
-//   ALSO applied (using a continuous scale derived from smudge_intensity)
-//   so the ghost copies still pick up the noisy edge.
+//   that scales with smudge_intensity.
 //
 // Passing any gesture-derived prop (saturation, smudgeDx, smudgeDy, or
 // smudgeIntensity) switches the renderer into gesture mode for that
@@ -22,12 +31,13 @@
 // scaling. It just renders what the gesture component or the legacy stop
 // enum tells it to render.
 import React from 'react'
-import { View } from 'react-native'
+import { View, Image } from 'react-native'
 import Svg, { Circle, Rect, Path, Text as SvgText, Defs, Filter, FeTurbulence, FeDisplacementMap } from 'react-native-svg'
 import type { Stop } from '../../types'
 
 interface Props {
   stop: Pick<Stop, 'stamp_icon' | 'stamp_color' | 'stamp_shape' | 'stamp_smudge'>
+    & Partial<Pick<Stop, 'stamp_type' | 'stamp_asset'>>
   size: number
   rotationDeg?: number
   ghost?: boolean
@@ -90,6 +100,18 @@ export function StampArtwork({
   const opacity = ghost ? 0.3 : effectiveSaturation
   const color = ghost ? stop.stamp_color + '80' : stop.stamp_color
 
+  // Custom-asset mode: render the designer's uploaded artwork.
+  // Falls through to default mode when the URL is missing (corrupt link,
+  // unresolved join, asset deleted) so the stamp still shows SOMETHING.
+  const customAssetUrl = stop.stamp_type === 'custom_asset'
+    ? (stop.stamp_asset?.url ?? null)
+    : null
+
+  // Filter primitives are undefined on the web SVG renderer
+  const filterSupported = !!Filter && !!FeTurbulence && !!FeDisplacementMap
+  const useFilter = filterSupported && displacementScale > 0
+
+  // Shape body (default mode). Factored so the trail can reuse it.
   const shapeEl = () => {
     const half = size / 2
     switch (stop.stamp_shape) {
@@ -112,40 +134,59 @@ export function StampArtwork({
     }
   }
 
-  // Filter primitives are undefined on the web SVG renderer
-  const filterSupported = !!Filter && !!FeTurbulence && !!FeDisplacementMap
-  const useFilter = filterSupported && displacementScale > 0
-
   // Single stamp body — used both for the primary stamp and the trail
-  // ghosts. Factored to a render function so we don't repeat the SVG tree.
-  const stampBody = (filterRef: string | null, opacityOverride?: number) => (
-    <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} opacity={opacityOverride ?? 1}>
-      {useFilter && filterRef && (
-        <Defs>
-          <Filter id={filterRef} x="-10%" y="-10%" width="120%" height="120%">
-            <FeTurbulence type="turbulence" baseFrequency="0.65" numOctaves="3" seed="2" />
-            <FeDisplacementMap in="SourceGraphic" scale={displacementScale} xChannelSelector="R" yChannelSelector="G" />
-          </Filter>
-        </Defs>
-      )}
-      <Svg width={size} height={size} filter={useFilter && filterRef ? `url(#${filterRef})` : undefined}>
-        {shapeEl()}
-        <SvgText
-          x={size / 2}
-          y={size / 2 + size * 0.12}
-          fontSize={size * 0.38}
-          textAnchor="middle"
-          fill={ghost ? color : stop.stamp_color}
-        >
-          {stop.stamp_icon}
-        </SvgText>
+  // ghosts. Renders either the custom asset image or the shape+emoji
+  // based on artwork mode. Gesture-mode FeDisplacementMap noise is
+  // applied to BOTH modes uniformly so smudge behavior matches.
+  const stampBody = (filterRef: string | null, opacityOverride?: number) => {
+    if (customAssetUrl) {
+      // Custom-asset mode. The displacement filter doesn't apply to a
+      // raster <Image> in RN, so we approximate the "noisy edges" by
+      // letting the trail-ghost density carry the smudge feel and
+      // skipping the filter on the image itself.
+      return (
+        <Image
+          source={{ uri: customAssetUrl }}
+          style={{
+            width: size,
+            height: size,
+            opacity: (opacityOverride ?? 1) * (ghost ? 0.6 : 1),
+          }}
+          resizeMode="contain"
+        />
+      )
+    }
+
+    return (
+      <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} opacity={opacityOverride ?? 1}>
+        {useFilter && filterRef && (
+          <Defs>
+            <Filter id={filterRef} x="-10%" y="-10%" width="120%" height="120%">
+              <FeTurbulence type="turbulence" baseFrequency="0.65" numOctaves="3" seed="2" />
+              <FeDisplacementMap in="SourceGraphic" scale={displacementScale} xChannelSelector="R" yChannelSelector="G" />
+            </Filter>
+          </Defs>
+        )}
+        <Svg width={size} height={size} filter={useFilter && filterRef ? `url(#${filterRef})` : undefined}>
+          {shapeEl()}
+          <SvgText
+            x={size / 2}
+            y={size / 2 + size * 0.12}
+            fontSize={size * 0.38}
+            textAnchor="middle"
+            fill={ghost ? color : stop.stamp_color}
+          >
+            {stop.stamp_icon}
+          </SvgText>
+        </Svg>
       </Svg>
-    </Svg>
-  )
+    )
+  }
 
   // Directional ghost trail. Each step is the stamp body offset along
   // the smudge direction with declining opacity. The trail is rendered
-  // BEHIND the primary stamp so the primary reads clearly.
+  // BEHIND the primary stamp so the primary reads clearly. Works for
+  // both custom-asset and shape+emoji modes — stampBody handles both.
   const steps = isGestureMode ? trailSteps(effectiveSmudgeIntensity) : 0
   const stepOffsetPx = size * 0.12 * effectiveSmudgeIntensity
   const ghostNodes: React.ReactNode[] = []
