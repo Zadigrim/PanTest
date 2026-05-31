@@ -102,18 +102,15 @@ export function JournalEntry({
     return data.id
   }, [entryId, stampId, userId, body, mood, inputMethod])
 
-  const addPhotos = useCallback(async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsMultipleSelection: true,
-      // No quality reduction here — resizing/upload is handled by the queue.
-    })
-    if (result.canceled) return
-
+  // Both addFromLibrary and addFromCamera route through the SAME
+  // enqueueJournalPhoto pipeline so persistence / retry / delete behavior
+  // is identical. The single difference is the source of the asset URI.
+  const enqueueAssets = useCallback(async (assets: ImagePicker.ImagePickerAsset[]) => {
+    if (assets.length === 0) return
     const id = await ensureEntry()
     if (!id) return
 
-    for (const asset of result.assets) {
+    for (const asset of assets) {
       try {
         await enqueueJournalPhoto(
           { uri: asset.uri, width: asset.width, height: asset.height, mimeType: asset.mimeType, fileName: asset.fileName },
@@ -125,6 +122,38 @@ export function JournalEntry({
     }
     void refreshPhotos(id)
   }, [ensureEntry, userId, refreshPhotos])
+
+  const addFromLibrary = useCallback(async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsMultipleSelection: true,
+      // No quality reduction here — resizing/upload is handled by the queue.
+    })
+    if (result.canceled) return
+    await enqueueAssets(result.assets)
+  }, [enqueueAssets])
+
+  const addFromCamera = useCallback(async () => {
+    // launchCameraAsync uses the OS camera (same package as the library
+    // picker), not the expo-camera CameraView used by the employee/scan
+    // flows. Chosen for surface-area parity with addFromLibrary — both
+    // return the same asset shape so they share enqueueAssets / the
+    // upload queue / the photo-strip UI without a custom camera screen.
+    const perms = await ImagePicker.requestCameraPermissionsAsync()
+    if (!perms.granted) {
+      Alert.alert(
+        'Camera permission needed',
+        'Allow camera access to take a photo, or choose an existing photo from your library.',
+      )
+      return
+    }
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      // No quality reduction here — resizing/upload is handled by the queue.
+    })
+    if (result.canceled) return
+    await enqueueAssets(result.assets)
+  }, [enqueueAssets])
 
   const removePhoto = useCallback(async (vm: PhotoVM) => {
     if (vm.legacy || !vm.photoId) return
@@ -216,9 +245,14 @@ export function JournalEntry({
         </ScrollView>
       )}
 
-      <TouchableOpacity onPress={addPhotos} style={styles.photoBtn}>
-        <Text style={styles.photoBtnText}>+ Add photo</Text>
-      </TouchableOpacity>
+      <View style={styles.photoBtnRow}>
+        <TouchableOpacity onPress={addFromCamera} style={styles.photoBtn}>
+          <Text style={styles.photoBtnText}>📷 Take photo</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={addFromLibrary} style={styles.photoBtn}>
+          <Text style={styles.photoBtnText}>🖼 Choose existing</Text>
+        </TouchableOpacity>
+      </View>
 
       <TouchableOpacity onPress={save} style={styles.saveBtn} disabled={saving}>
         <Text style={styles.saveBtnText}>{saving ? 'Saving…' : 'Save entry'}</Text>
@@ -247,7 +281,8 @@ const styles = StyleSheet.create({
   badgeFail: { backgroundColor: 'rgba(155,35,53,0.85)' },
   badgeLegacy: { backgroundColor: 'rgba(201,168,76,0.9)' },
   badgeText: { color: '#fff', fontSize: 9, fontWeight: '600' },
-  photoBtn: { padding: 10, borderWidth: 1, borderColor: '#ddd', borderRadius: 8, alignItems: 'center', marginBottom: 16 },
+  photoBtnRow: { flexDirection: 'row', gap: 8, marginBottom: 16 },
+  photoBtn: { flex: 1, padding: 10, borderWidth: 1, borderColor: '#ddd', borderRadius: 8, alignItems: 'center' },
   photoBtnText: { color: '#666', fontSize: 13 },
   saveBtn: { backgroundColor: palette.green, borderRadius: 10, padding: 14, alignItems: 'center', marginBottom: 32 },
   saveBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
