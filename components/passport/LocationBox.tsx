@@ -3,7 +3,7 @@
 import React, { useRef, useCallback } from 'react'
 import { View, Text, StyleSheet, LayoutRectangle } from 'react-native'
 import { StampSlot } from './StampSlot'
-import { StampPressInteraction } from '../stamp/StampPressInteraction'
+import { StampGestureInteraction } from '../stamp/StampGestureInteraction'
 import type { Stop, Stamp, StampSlotState, StampPlacement } from '../../types'
 
 interface Props {
@@ -58,9 +58,13 @@ export function LocationBox({
           height={boxLayout.height ? boxLayout.height * 0.6 : 80}
         />
 
-        {/* Touch interceptor for press-to-stamp */}
+        {/* Expressive gesture: press-and-hold for size/saturation,
+            initial drift sets rotation, total movement renders as
+            directional smudge. Replaces the legacy StampPressInteraction
+            (which remains in components/stamp/ as the deferred-future
+            Path-A target for native contact-geometry reads). */}
         {(slotState === 'ready' || slotState === 'pressing') && boxLayout.width > 0 && (
-          <StampPressInteraction
+          <StampGestureInteraction
             stop={stop}
             slotState={slotState}
             boxLayout={boxLayout}

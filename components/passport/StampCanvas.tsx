@@ -22,6 +22,10 @@ export function StampCanvas({ stops, stamps, canvasWidth, canvasHeight }: Props)
         const x = (stamp.stamp_pos_x / 100) * canvasWidth - stampSize / 2
         const y = (stamp.stamp_pos_y / 100) * canvasHeight - stampSize / 2
 
+        // Pass through the gesture-derived appearance fields when set
+        // (migration 040). StampArtwork falls back to the legacy
+        // discrete stop.stamp_smudge enum when all four are null —
+        // ensuring pre-040 stamps render exactly as before.
         return (
           <View
             key={stop.id}
@@ -31,7 +35,10 @@ export function StampCanvas({ stops, stamps, canvasWidth, canvasHeight }: Props)
               stop={stop}
               size={stampSize}
               rotationDeg={stamp.rotation_deg}
-              smudge={stop.stamp_smudge}
+              saturation={stamp.saturation}
+              smudgeDx={stamp.smudge_dx}
+              smudgeDy={stamp.smudge_dy}
+              smudgeIntensity={stamp.smudge_intensity}
             />
           </View>
         )

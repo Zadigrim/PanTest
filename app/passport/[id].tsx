@@ -18,10 +18,9 @@ import { TableOfContents } from '../../components/passport/TableOfContents'
 import { SectionDivider } from '../../components/passport/SectionDivider'
 import { PassportPage } from '../../components/passport/PassportPage'
 import { ExitVisa } from '../../components/passport/ExitVisa'
-import { StampingOverlay } from '../../components/passport/StampingOverlay'
 import { PostStampCaptureSheet } from '../../components/passport/PostStampCaptureSheet'
 
-import type { StampPlacement, StampSlotState, Stop, CollectorPassport, Stamp } from '../../types'
+import type { StampPlacement, StampSlotState, CollectorPassport, Stamp } from '../../types'
 import { palette } from '../../lib/colors'
 
 // BLD-32: a passport.is_demo + viewer-is-platform-admin pair. Activates the
@@ -30,10 +29,6 @@ import { palette } from '../../lib/colors'
 // an admin-only override, not a relaxation of the public access model.
 function useDemoMode(passportIsDemo: boolean | undefined, isAdmin: boolean) {
   return Boolean(isAdmin && passportIsDemo)
-}
-
-function defaultPlacement(): StampPlacement {
-  return { posX: 50, posY: 50, contactSizePx: 80, rotationDeg: Math.random() * 30 - 15 }
 }
 
 export default function PassportScreen() {
@@ -48,7 +43,6 @@ export default function PassportScreen() {
   const [collectorPassport, setCollectorPassport] = useState<CollectorPassport | null>(null)
   const [userId, setUserId] = useState<string | null>(null)
   const [bearerName, setBearerName] = useState<string>('')
-  const [stampingStop, setStampingStop] = useState<{ pageId: string; stop: Stop } | null>(null)
   const [isAdmin, setIsAdmin] = useState(false)
   const [togglingDemo, setTogglingDemo] = useState(false)
   // Post-stamp capture surface state. stampId is the just-placed stamp;
@@ -139,17 +133,18 @@ export default function PassportScreen() {
   }, [loading, id, pages, stops, passport?.is_demo])
 
   // ── stamp handlers ─────────────────────────────────────────────────────────
+  // handlePressStart only flips the slot to 'pressing' so the slot's
+  // pulse animation stops while the gesture is in progress. The gesture
+  // component (StampGestureInteraction) does its own live preview and
+  // delivers the computed placement directly to handleStampPlaced on
+  // release or at the 2 s cap. There is no longer a modal-based
+  // confirmation step.
   const handlePressStart = useCallback((pageId: string, stopId: string) => {
-    const pageStops = stops[pageId] ?? []
-    const stop = pageStops.find((s) => s.id === stopId)
-    if (!stop) return
-    // Show the stamping overlay instead of inline hold
     setSlotStates((prev) => ({
       ...prev,
       [pageId]: { ...prev[pageId], [stopId]: 'pressing' },
     }))
-    setStampingStop({ pageId, stop })
-  }, [stops])
+  }, [])
 
   const handlePressCancel = useCallback((pageId: string, stopId: string) => {
     setSlotStates((prev) => ({
@@ -207,6 +202,13 @@ export default function PassportScreen() {
         stamp_pos_y: placement.posY,
         contact_size_px: placement.contactSizePx,
         rotation_deg: placement.rotationDeg,
+        // Gesture-derived appearance (migration 040). Optional on the
+        // StampPlacement type so legacy callers without these still
+        // type-check; the gesture component fills them in.
+        saturation: placement.saturation ?? null,
+        smudge_dx: placement.smudgeDx ?? null,
+        smudge_dy: placement.smudgeDy ?? null,
+        smudge_intensity: placement.smudgeIntensity ?? null,
         verification_method: verificationMethod,
         stop_opened_at: stopOpenedAt,
         verified_at: new Date().toISOString(),
@@ -267,18 +269,9 @@ export default function PassportScreen() {
     setTogglingDemo(false)
   }, [passport, togglingDemo, reloadPassport])
 
-  // ── overlay callbacks ──────────────────────────────────────────────────────
-  const handleOverlayStamp = useCallback(() => {
-    if (!stampingStop) return
-    setStampingStop(null)
-    handleStampPlaced(stampingStop.pageId, stampingStop.stop.id, defaultPlacement())
-  }, [stampingStop, handleStampPlaced])
-
-  const handleOverlayCancel = useCallback(() => {
-    if (!stampingStop) return
-    handlePressCancel(stampingStop.pageId, stampingStop.stop.id)
-    setStampingStop(null)
-  }, [stampingStop, handlePressCancel])
+  // (Modal-based overlay callbacks removed in the expressive-gesture PR.
+  // The gesture component now delivers placement directly to
+  // handleStampPlaced; there is no separate confirmation step.)
 
   // ── build page sequence ────────────────────────────────────────────────────
   // pageScreenIndex: maps page.id → index in the pages array (of the StopsPage screen index)
@@ -418,14 +411,9 @@ export default function PassportScreen() {
         initialIndex={0}
       />
 
-      {/* Stamping overlay — modal over the entire book */}
-      {stampingStop && (
-        <StampingOverlay
-          stop={stampingStop.stop}
-          onStamp={handleOverlayStamp}
-          onCancel={handleOverlayCancel}
-        />
-      )}
+      {/* (The pre-stamp modal overlay was removed in the expressive-
+          gesture PR — gesture + live preview live in the LocationBox
+          itself, see components/stamp/StampGestureInteraction.tsx.) */}
 
       {/* Post-stamp capture surface — replaces the previous Alert.
           Voice + photo are independently optional. */}
