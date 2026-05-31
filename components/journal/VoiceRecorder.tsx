@@ -11,10 +11,24 @@
 //     let the user type instead. We never silently fall back to cloud
 //     recognition, because that would send audio off-device.
 //
-// SCOPE: minimum-viable behavior — a single mic toggle that returns the final
-// transcript via `onTranscriptUpdate`. The three-state mic UI (green/red/amber),
-// live waveform, paused state, and language detection are intentionally deferred
-// to a follow-up.
+// DURATION (BLD-33): hard cap at MAX_RECORDING_MS on a single recording
+// session. A JS timer started alongside ExpoSpeechRecognitionModule.start()
+// calls stop() at the cap; the resulting 'end' event flushes the timer in
+// the normal cleanup. Cleared on user stop, on 'end', on 'error', and on
+// unmount alongside the existing .abort().
+//
+// CONTINUOUS MODE (BLD-33): switched from continuous:false to continuous:true.
+// continuous:false ends recognition at the first natural pause, which would
+// truncate a reflective ~30s entry the moment the user breathes. continuous:
+// true keeps the engine listening across pauses; multiple final-result
+// events may fire across the session, and the parent appends each via
+// onTranscriptUpdate. The hard timer caps the session regardless. Trade-off:
+// utterances are no longer auto-finalized on silence; the user (or the timer)
+// must explicitly stop.
+//
+// SCOPE: minimum-viable behavior — a single mic toggle plus a tiny remaining-
+// seconds indicator. Three-state UI, waveform, paused state, and language
+// detection remain deferred.
 //
 // LIBRARY: expo-speech-recognition (jamsch), installed as the `sdk-54` dist-tag.
 // Chosen over @react-native-voice/voice, which is unmaintained (v3.2.4, ~4 years
@@ -32,22 +46,37 @@ interface Props {
 }
 
 const LOCALE = 'en-US'
+const MAX_RECORDING_MS = 30_000
+const TICK_MS = 250 // remaining-seconds display refresh
 
 export function VoiceRecorder({ onTranscriptUpdate }: Props) {
   const [recording, setRecording] = useState(false)
   const [preparing, setPreparing] = useState(false)
+  const [remainingMs, setRemainingMs] = useState(MAX_RECORDING_MS)
   const recordingRef = useRef(false)
+  const autoStopRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const tickRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const startedAtRef = useRef<number>(0)
 
   useEffect(() => {
     recordingRef.current = recording
   }, [recording])
 
-  // Stop any in-flight recognition if the component unmounts mid-session.
+  // Centralized timer cleanup. Safe to call multiple times; double-fire on
+  // (timer-fired-then-end-fired) is the expected path.
+  const clearTimers = useCallback(() => {
+    if (autoStopRef.current) { clearTimeout(autoStopRef.current); autoStopRef.current = null }
+    if (tickRef.current) { clearInterval(tickRef.current); tickRef.current = null }
+  }, [])
+
+  // Stop any in-flight recognition + flush timers if the component unmounts
+  // mid-session.
   useEffect(() => {
     return () => {
+      clearTimers()
       if (recordingRef.current) ExpoSpeechRecognitionModule.abort()
     }
-  }, [])
+  }, [clearTimers])
 
   useSpeechRecognitionEvent('result', (event) => {
     if (!event.isFinal) return // interim results are ignored in the MVP
@@ -55,10 +84,16 @@ export function VoiceRecorder({ onTranscriptUpdate }: Props) {
     if (transcript) onTranscriptUpdate(transcript)
   })
 
-  useSpeechRecognitionEvent('end', () => setRecording(false))
+  useSpeechRecognitionEvent('end', () => {
+    clearTimers()
+    setRecording(false)
+    setRemainingMs(MAX_RECORDING_MS)
+  })
 
   useSpeechRecognitionEvent('error', (event) => {
+    clearTimers()
     setRecording(false)
+    setRemainingMs(MAX_RECORDING_MS)
     if (event.error === 'no-speech') return // benign: user didn't speak
     Alert.alert('Voice entry', event.message || 'Transcription failed. You can type your entry instead.')
   })
@@ -99,20 +134,37 @@ export function VoiceRecorder({ onTranscriptUpdate }: Props) {
       ExpoSpeechRecognitionModule.start({
         lang: LOCALE,
         interimResults: false,
-        continuous: false,
+        continuous: true,
         addsPunctuation: true,
         requiresOnDeviceRecognition: true, // audio never leaves the device
         // No recordingOptions => no audio file is written.
       })
       setRecording(true)
+      setRemainingMs(MAX_RECORDING_MS)
+      startedAtRef.current = Date.now()
+
+      // Hard cap. The 'end' event handler clears the timer in the normal
+      // user-stop path; this is the safety net for "user keeps talking."
+      autoStopRef.current = setTimeout(() => {
+        ExpoSpeechRecognitionModule.stop()
+      }, MAX_RECORDING_MS)
+
+      // Tick the visible countdown.
+      tickRef.current = setInterval(() => {
+        const elapsed = Date.now() - startedAtRef.current
+        setRemainingMs(Math.max(0, MAX_RECORDING_MS - elapsed))
+      }, TICK_MS)
     } catch (e) {
+      clearTimers()
       setPreparing(false)
       setRecording(false)
       Alert.alert('Voice entry', e instanceof Error ? e.message : 'Could not start voice entry. You can type your entry instead.')
     }
-  }, [])
+  }, [clearTimers])
 
   const stop = useCallback(() => {
+    // Don't clear timers here — let 'end' clean up so we don't race the
+    // engine's own teardown. .stop() will trigger the 'end' event.
     ExpoSpeechRecognitionModule.stop()
   }, [])
 
@@ -121,6 +173,8 @@ export function VoiceRecorder({ onTranscriptUpdate }: Props) {
     if (recording) stop()
     else start()
   }, [preparing, recording, start, stop])
+
+  const remainingSec = Math.ceil(remainingMs / 1000)
 
   return (
     <View style={styles.container}>
@@ -133,8 +187,8 @@ export function VoiceRecorder({ onTranscriptUpdate }: Props) {
         {preparing
           ? 'Preparing offline voice…'
           : recording
-            ? 'Listening… tap to stop'
-            : 'Tap to speak · transcribed on-device'}
+            ? `Listening… ${remainingSec}s left · tap to stop`
+            : 'Tap to speak · up to 30s · transcribed on-device'}
       </Text>
     </View>
   )
