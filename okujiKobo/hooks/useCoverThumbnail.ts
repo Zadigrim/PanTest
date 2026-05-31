@@ -84,7 +84,20 @@ async function compositeToDataUrl(side: CoverSideData): Promise<string> {
   ctx.fillStyle = `#${side.front_bg}`
   ctx.fillRect(0, 0, COVER_W, COVER_H)
 
-  // Layer 2: cover image (if any)
+  // Layer 2: cover image (if any).
+  //
+  // When the uploaded image is a full cover SPREAD (1248×792 aspect, or
+  // any landscape ratio meaningfully wider than 1:1), we draw only its
+  // FRONT-PANEL half (the right half of the source). The thumbnail
+  // canvas is panel-sized (612×792 logical); drawing a 1248-wide source
+  // at size (612, 792) without cropping would horizontally compress it
+  // by 50% and the resulting thumbnail would show the WHOLE spread
+  // squished into the panel area.
+  //
+  // Heuristic: aspect > 1.2 → treat as spread; otherwise draw whole.
+  // Aspect 1.0..1.2 catches square-ish uploads that aren't really
+  // spreads, and aspect ≤ 1.0 (portrait or square) is definitely a
+  // panel-only upload.
   if (side.image_url) {
     await new Promise<void>((resolve) => {
       const img = new Image()
@@ -96,9 +109,20 @@ async function compositeToDataUrl(side: CoverSideData): Promise<string> {
         const ox = (COVER_W - scaledW) * (1 - (side.image_position_x ?? 0.5))
         const oy = (COVER_H - scaledH) * (1 - (side.image_position_y ?? 0.5))
 
+        // Determine whether to crop to the front-panel half of the source.
+        const sourceAspect = img.naturalHeight > 0
+          ? img.naturalWidth / img.naturalHeight
+          : 1
+        const isSpread = sourceAspect > 1.2
+        const sx = isSpread ? img.naturalWidth / 2 : 0
+        const sw = isSpread ? img.naturalWidth / 2 : img.naturalWidth
+        const sh = img.naturalHeight
+
         ctx.save()
         ctx.globalAlpha = (side.image_opacity ?? 80) / 100
-        ctx.drawImage(img, ox, oy, scaledW, scaledH)
+        // 9-arg drawImage: source-rect + dest-rect. Source-rect picks
+        // the right half (when isSpread) or the whole image.
+        ctx.drawImage(img, sx, 0, sw, sh, ox, oy, scaledW, scaledH)
         ctx.restore()
         resolve()
       }

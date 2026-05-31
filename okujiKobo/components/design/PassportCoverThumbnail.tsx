@@ -70,24 +70,49 @@ export function PassportCoverThumbnail({ title, typeIcon, outsideData, coverThum
     </span>
   )
 
-  // For the two designed-cover render paths (pre-composited thumbnail
-  // and raw image_url), the source image is the FULL 1248×792 spread.
-  // Card slot aspect is set to the front-panel ratio (612:792 / ~129.41%)
-  // and the source is positioned with right:0 + height:100% + width:auto,
-  // so the natural-aspect image's RIGHT EDGE pins to the card's right
-  // edge and the left half overflows the clipping container. Net visible
-  // portion: x ∈ [636, 1248] of the original — exactly the front cover
-  // panel the designer built.
-  const spreadCropStyle: React.CSSProperties = {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    height: '100%',
-    width: 'auto',
-    maxWidth: 'none',
+  // Render priority for designed covers:
+  //
+  //   1. If image_url is set, render the RAW spread image via
+  //      object-cover + object-position:right. The raw image preserves
+  //      the spread's natural 1248×792 aspect; the right-edge crop
+  //      shows exactly the front-panel half. This is the reliable path.
+  //
+  //   2. If only cover_thumbnail is set (text-only covers, no uploaded
+  //      image), fall back to the pre-composited thumbnail.
+  //
+  //   3. Otherwise, procedural SVG fallback.
+  //
+  // The previous version of this component preferred cover_thumbnail
+  // unconditionally. That surfaced a separate bug in useCoverThumbnail's
+  // compositeToDataUrl: when a creator uploads a 1248×792 spread,
+  // compositeToDataUrl draws it at size (612, 792) on the panel-sized
+  // canvas, which horizontally squishes the spread to half its native
+  // width. The resulting thumbnail shows a compressed version of the
+  // FULL spread, not the front panel — so my object-cover crop applied
+  // to the thumbnail just rendered the compressed-full-spread cleanly,
+  // not the front panel. Preferring image_url avoids the buggy
+  // composition path entirely for image-bearing covers.
+
+  if (imageUrl) {
+    return (
+      <div
+        className="relative w-full overflow-hidden"
+        style={{ paddingBottom: FRONT_PANEL_PADDING_BOTTOM, backgroundColor: `#${frontBg}` }}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={imageUrl}
+          alt={`${title} cover`}
+          className="absolute inset-0 w-full h-full object-cover"
+          style={{ objectPosition: 'right top', opacity: imageOpacity / 100 }}
+        />
+        {badge}
+      </div>
+    )
   }
 
-  // Prefer pre-composited thumbnail (includes text elements, correct image transforms)
+  // Text-only cover (no uploaded image). The pre-composited thumbnail
+  // captures the front_bg + text elements at the panel aspect.
   if (coverThumbnail) {
     return (
       <div
@@ -98,27 +123,22 @@ export function PassportCoverThumbnail({ title, typeIcon, outsideData, coverThum
         <img
           src={coverThumbnail}
           alt={`${title} cover`}
-          style={spreadCropStyle}
+          className="absolute inset-0 w-full h-full object-cover"
+          style={{ objectPosition: 'right top' }}
         />
         {badge}
       </div>
     )
   }
 
+  // Designed cover with no image and no thumbnail — render the
+  // front-panel background color as a solid block.
   if (hasDesignedCover) {
     return (
       <div
         className="relative w-full overflow-hidden"
         style={{ paddingBottom: FRONT_PANEL_PADDING_BOTTOM, backgroundColor: `#${frontBg}` }}
       >
-        {imageUrl && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={imageUrl}
-            alt=""
-            style={{ ...spreadCropStyle, opacity: imageOpacity / 100 }}
-          />
-        )}
         {badge}
       </div>
     )
