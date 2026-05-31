@@ -71,21 +71,20 @@ export function PassportCoverThumbnail({ title, typeIcon, outsideData, coverThum
   )
 
   // For the two designed-cover render paths (pre-composited thumbnail
-  // and raw image_url), the source image is the FULL 1248×792 spread.
-  // Card slot aspect is set to the front-panel ratio (612:792 / ~129.41%)
-  // and the source is positioned with right:0 + height:100% + width:auto,
-  // so the natural-aspect image's RIGHT EDGE pins to the card's right
-  // edge and the left half overflows the clipping container. Net visible
-  // portion: x ∈ [636, 1248] of the original — exactly the front cover
-  // panel the designer built.
-  const spreadCropStyle: React.CSSProperties = {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    height: '100%',
-    width: 'auto',
-    maxWidth: 'none',
-  }
+  // and raw image_url), the source might be either:
+  //   - A panel-aspect thumbnail (~280×362), composited from cover_outside
+  //     data with front_bg + image + elements.
+  //   - A spread-aspect uploaded image (~1248×792 or similar wide ratio).
+  //
+  // Card slot aspect is the front-panel ratio (612:792 ≈ 0.773:1,
+  // paddingBottom 129.41%). object-cover + object-position:right pins
+  // the source's right edge to the card's right edge and crops overflow
+  // from the left. For a panel-aspect source this fills cleanly (no
+  // overflow). For a spread-aspect source the left ~half (back cover)
+  // is cropped out and the right ~half (front cover) fills the card.
+  // Net visible portion in both cases: the front cover panel.
+  const spreadCropClass = 'absolute inset-0 w-full h-full object-cover'
+  const spreadCropStyle: React.CSSProperties = { objectPosition: 'right top' }
 
   // Prefer pre-composited thumbnail (includes text elements, correct image transforms)
   if (coverThumbnail) {
@@ -98,6 +97,7 @@ export function PassportCoverThumbnail({ title, typeIcon, outsideData, coverThum
         <img
           src={coverThumbnail}
           alt={`${title} cover`}
+          className={spreadCropClass}
           style={spreadCropStyle}
         />
         {badge}
@@ -116,6 +116,7 @@ export function PassportCoverThumbnail({ title, typeIcon, outsideData, coverThum
           <img
             src={imageUrl}
             alt=""
+            className={spreadCropClass}
             style={{ ...spreadCropStyle, opacity: imageOpacity / 100 }}
           />
         )}
