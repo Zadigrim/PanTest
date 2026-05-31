@@ -141,6 +141,12 @@ export interface Stamp {
   stamp_pos_y: number | null
   contact_size_px: number | null
   rotation_deg: number
+  // Gesture-derived appearance properties (migration 040). All nullable
+  // so legacy stamps render with sensible fallbacks.
+  saturation: number | null
+  smudge_dx: number | null
+  smudge_dy: number | null
+  smudge_intensity: number | null
   verification_method: VerificationMethod
   verifier_id: string | null
   verifier_note: string | null
@@ -206,6 +212,13 @@ export interface StampPlacement {
   posY: number
   contactSizePx: number
   rotationDeg: number
+  // Gesture-derived appearance. Optional on the type so the legacy
+  // computeStampPlacement() in lib/stamp.ts (which doesn't compute
+  // these) still type-checks; the gesture component fills them in.
+  saturation?: number
+  smudgeDx?: number
+  smudgeDy?: number
+  smudgeIntensity?: number
 }
 
 export interface EmployeeAuthorization {
