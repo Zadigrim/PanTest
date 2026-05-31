@@ -77,11 +77,29 @@ export async function PATCH(
   }
 
   // Build the update payload (only include editable fields from body).
+  //
+  // tier is the org-category axis (Appendix L). A future pricing model
+  // will consume tier as ONE input — tier AFFECTS pricing but does NOT
+  // determine it. Civic ≈ free; Municipal pricing is a function of
+  // municipality_population; Business pricing is a function of
+  // annual_revenue and marketing_spend. The pricing model is deliberately
+  // deferred until real deal data exists. tier is recorded manually for
+  // now. The route accepts tier here so an admin can set it; the
+  // pricing_model recomputation above is independent and remains driven
+  // by institution_type / charges_admission / municipality_population
+  // exactly as before.
+  //
+  // token_prefix format is enforced by a DB CHECK (1-6 chars, [A-Z0-9]).
+  // The client form normalizes to uppercase; the CHECK is the final guard.
+  //
+  // annual_revenue + marketing_spend are captured-only Business inputs
+  // (migration 041). No computation in this PR.
   const allowed = [
     'name','slug','logo_url','institution_type','charges_admission',
     'municipality_population','catalog_url','contact_name','contact_email',
     'address_line1','address_city','address_state','address_zip',
     'website','internal_notes',
+    'tier','token_prefix','annual_revenue','marketing_spend',
   ]
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const updates: Record<string, any> = {}

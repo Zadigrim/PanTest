@@ -31,6 +31,12 @@ export async function POST(request: NextRequest) {
     address_state,
     address_zip,
     internal_notes,
+    // tier is the org-category axis (Appendix L); set manually here at
+    // create time so a newly-provisioned institution isn't stuck on the
+    // default 'pending' until someone remembers to edit it. tier and
+    // pricing_model are independent — the pricing_model computation
+    // below is unchanged.
+    tier,
   } = body
 
   if (!name || typeof name !== 'string') {
@@ -73,6 +79,10 @@ export async function POST(request: NextRequest) {
       address_state: address_state ?? null,
       address_zip: address_zip ?? null,
       internal_notes: internal_notes ?? null,
+      // tier defaults to 'pending' at the DB layer if omitted; we only
+      // pass it through when the create form supplied a value. The
+      // CHECK constraint rejects any value outside the allowed set.
+      ...(typeof tier === 'string' ? { tier } : {}),
     })
     .select()
     .single()
