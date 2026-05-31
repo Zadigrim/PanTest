@@ -86,7 +86,6 @@ export function EmployeeProvider({ children }: { children: React.ReactNode }) {
       institution_id: data.institution_id,
       can_verify: data.can_verify,
       can_distribute_prizes: data.can_distribute_prizes,
-      can_add_extras: data.can_add_extras,
       institution_name: inst?.name ?? undefined,
       institution_type: inst?.institution_type ?? undefined,
       catalog_url: inst?.catalog_url ?? null,

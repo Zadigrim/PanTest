@@ -325,7 +325,10 @@ export interface EmployeeAuthorization {
   role_label: string | null
   can_verify: boolean | null
   can_distribute_prizes: boolean | null
-  can_add_extras: boolean | null
+  can_design: boolean | null
+  can_manage_employees: boolean | null
+  can_view_analytics: boolean | null
+  can_manage_billing: boolean | null
   authorized_by: string | null
   authorized_at: string
 }

@@ -46,7 +46,6 @@ export function useEmployeeAuth(userId: string) {
           institution_id: data.institution_id,
           can_verify: data.can_verify,
           can_distribute_prizes: data.can_distribute_prizes,
-          can_add_extras: false,
           institution_name: inst?.name ?? undefined,
           institution_type: inst?.institution_type ?? undefined,
           catalog_url: inst?.catalog_url ?? null,
