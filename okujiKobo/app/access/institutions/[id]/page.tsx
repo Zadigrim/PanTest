@@ -60,13 +60,39 @@ interface PropertiesForm {
   address_state: string
   address_zip: string
   internal_notes: string
+  // tier is the org-category axis (Appendix L). A future pricing model
+  // will consume tier as ONE input — tier AFFECTS pricing but does NOT
+  // determine it. Civic ≈ free; Municipal pricing is a function of
+  // municipality_population; Business pricing is a function of
+  // annual_revenue and marketing_spend. The pricing model is
+  // deliberately deferred until real deal data exists. tier is recorded
+  // manually for now.
+  tier: 'civic' | 'municipal' | 'business' | 'pending'
+  // 1-6 chars, [A-Z0-9]. DB enforces via CHECK. UI normalizes input.
+  token_prefix: string
+  // Captured-only Business inputs (migration 041). Surfaced only when
+  // tier === 'business' in the UI.
+  annual_revenue: string
+  marketing_spend: string
 }
+
+const TOKEN_PREFIX_RE = /^[A-Z0-9]{1,6}$/
+const TIER_OPTIONS: { value: PropertiesForm['tier']; label: string }[] = [
+  { value: 'pending', label: 'Pending (unclassified)' },
+  { value: 'civic', label: 'Civic' },
+  { value: 'municipal', label: 'Municipal' },
+  { value: 'business', label: 'Business' },
+]
 
 function formFromInstitution(inst: Institution): PropertiesForm {
   const raw = inst as unknown as {
     municipality_population?: number | null
     pricing_model_locked?: boolean
     pricing_model_override_by?: string | null
+    tier?: PropertiesForm['tier']
+    token_prefix?: string
+    annual_revenue?: number | null
+    marketing_spend?: number | null
   }
   return {
     name: inst.name,
@@ -84,6 +110,10 @@ function formFromInstitution(inst: Institution): PropertiesForm {
     address_state: inst.address_state ?? '',
     address_zip: inst.address_zip ?? '',
     internal_notes: inst.internal_notes ?? '',
+    tier: raw.tier ?? 'pending',
+    token_prefix: raw.token_prefix ?? 'OKJ',
+    annual_revenue: raw.annual_revenue != null ? String(raw.annual_revenue) : '',
+    marketing_spend: raw.marketing_spend != null ? String(raw.marketing_spend) : '',
   }
 }
 
@@ -122,6 +152,28 @@ function PropertiesSection({
 
   function handleSave() {
     setError(null)
+    // token_prefix: client-side guard mirroring the DB CHECK
+    // (1-6 chars, [A-Z0-9]). The CHECK is still the final guard.
+    const trimmedPrefix = form.token_prefix.trim().toUpperCase()
+    if (trimmedPrefix && !TOKEN_PREFIX_RE.test(trimmedPrefix)) {
+      setError('Token prefix must be 1-6 uppercase letters or digits.')
+      return
+    }
+    const annualRevParsed = form.annual_revenue.trim() === ''
+      ? null
+      : parseInt(form.annual_revenue, 10)
+    const marketingParsed = form.marketing_spend.trim() === ''
+      ? null
+      : parseInt(form.marketing_spend, 10)
+    if (annualRevParsed !== null && (!Number.isFinite(annualRevParsed) || annualRevParsed < 0)) {
+      setError('Annual revenue must be a non-negative whole number.')
+      return
+    }
+    if (marketingParsed !== null && (!Number.isFinite(marketingParsed) || marketingParsed < 0)) {
+      setError('Marketing spend must be a non-negative whole number.')
+      return
+    }
+
     startTransition(async () => {
       const res = await fetch(`/api/institutions/${institution.id}`, {
         method: 'PATCH',
@@ -144,6 +196,16 @@ function PropertiesSection({
           address_state: form.address_state.trim() || null,
           address_zip: form.address_zip.trim() || null,
           internal_notes: form.internal_notes.trim() || null,
+          // tier, token_prefix, and the business inputs are independent
+          // of pricing_model. See API route comments for the future-
+          // pricing relationship.
+          tier: form.tier,
+          token_prefix: trimmedPrefix || null,
+          // annual_revenue + marketing_spend are only meaningful for
+          // Business; on other tiers we explicitly null them out so
+          // stale data doesn't outlive a tier change.
+          annual_revenue: form.tier === 'business' ? annualRevParsed : null,
+          marketing_spend: form.tier === 'business' ? marketingParsed : null,
         }),
       })
 
@@ -189,6 +251,29 @@ function PropertiesSection({
             onChange={(e) => set('name', e.target.value)}
             disabled={!editing}
           />
+        </Field>
+
+        {/* Tier — Appendix L org-category axis. Set manually by an
+            admin; not computed. See PropertiesForm comment for the
+            future tier-affects-pricing relationship. */}
+        <Field label="Tier (Appendix L)">
+          {editing ? (
+            <select
+              className={INPUT_CLS}
+              value={form.tier}
+              onChange={(e) => set('tier', e.target.value as PropertiesForm['tier'])}
+            >
+              {TIER_OPTIONS.map((t) => (
+                <option key={t.value} value={t.value}>{t.label}</option>
+              ))}
+            </select>
+          ) : (
+            <input
+              className={INPUT_CLS}
+              value={TIER_OPTIONS.find((t) => t.value === form.tier)?.label ?? form.tier}
+              disabled
+            />
+          )}
         </Field>
 
         <Field label="Type">
@@ -348,6 +433,54 @@ function PropertiesSection({
           />
         </Field>
 
+        {/* Token prefix — per-institution prefix on generated redemption
+            codes (migration 032). 1-6 chars, uppercase letters / digits.
+            DB CHECK enforces; UI normalizes to uppercase. */}
+        <Field label="Token prefix">
+          <input
+            className={`${INPUT_CLS} font-mono tracking-wider uppercase`}
+            value={form.token_prefix}
+            onChange={(e) => set('token_prefix', e.target.value.toUpperCase().slice(0, 6))}
+            disabled={!editing}
+            placeholder="OKJ"
+            maxLength={6}
+          />
+        </Field>
+
+        {/* Business-tier inputs (migration 041). Captured-only — no
+            computation. Surfaced only when tier === 'business' so they
+            don't clutter Civic/Municipal forms. handleSave nulls these
+            out on save for non-Business tiers to avoid stale data
+            outliving a tier change. */}
+        {form.tier === 'business' && (
+          <>
+            <Field label="Annual revenue (USD)">
+              <input
+                className={INPUT_CLS}
+                type="number"
+                min={0}
+                step={1000}
+                value={form.annual_revenue}
+                onChange={(e) => set('annual_revenue', e.target.value)}
+                disabled={!editing}
+                placeholder="0"
+              />
+            </Field>
+            <Field label="Marketing spend (USD/year)">
+              <input
+                className={INPUT_CLS}
+                type="number"
+                min={0}
+                step={1000}
+                value={form.marketing_spend}
+                onChange={(e) => set('marketing_spend', e.target.value)}
+                disabled={!editing}
+                placeholder="0"
+              />
+            </Field>
+          </>
+        )}
+
         {/* Contact */}
         <div className="sm:col-span-2 border-t border-hairline pt-4">
           <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">Contact</p>
@@ -464,7 +597,26 @@ interface MemberRow {
   role_label: string | null
   can_verify: boolean
   can_distribute_prizes: boolean
+  // Provisioning-convenience flags (migration 033, Phase 1). These
+  // exist as columns and are settable here, but are NOT yet enforced
+  // anywhere in routes or RLS. SEC-02 / Phase 2 wires the gates.
+  // Setting a flag records intent; it does not yet grant capability.
+  can_design: boolean
+  can_manage_employees: boolean
+  can_view_analytics: boolean
+  can_manage_billing: boolean
 }
+
+// The complete set of flag fields exposed by the row editor. Used as
+// the union type for the onPermChange callback so both sites (this
+// page's MembersSection and /manage/employees) can share the shape.
+type MemberFlagField =
+  | 'can_verify'
+  | 'can_distribute_prizes'
+  | 'can_design'
+  | 'can_manage_employees'
+  | 'can_view_analytics'
+  | 'can_manage_billing'
 
 function AddMemberForm({
   institutionId,
@@ -482,6 +634,11 @@ function AddMemberForm({
   const [roleLabel, setRoleLabel] = useState('')
   const [canVerify, setCanVerify] = useState(false)
   const [canPrizes, setCanPrizes] = useState(false)
+  // Provisioning-convenience flags. See MemberRow type comment.
+  const [canDesign, setCanDesign] = useState(false)
+  const [canManageEmployees, setCanManageEmployees] = useState(false)
+  const [canViewAnalytics, setCanViewAnalytics] = useState(false)
+  const [canManageBilling, setCanManageBilling] = useState(false)
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -528,6 +685,10 @@ function AddMemberForm({
           role_label: roleLabel.trim() || null,
           can_verify: canVerify,
           can_distribute_prizes: canPrizes,
+          can_design: canDesign,
+          can_manage_employees: canManageEmployees,
+          can_view_analytics: canViewAnalytics,
+          can_manage_billing: canManageBilling,
           authorized_by: currentUserId,
         })
         .select('id')
@@ -548,9 +709,15 @@ function AddMemberForm({
         role_label: roleLabel.trim() || null,
         can_verify: canVerify,
         can_distribute_prizes: canPrizes,
+        can_design: canDesign,
+        can_manage_employees: canManageEmployees,
+        can_view_analytics: canViewAnalytics,
+        can_manage_billing: canManageBilling,
       })
       setEmail(''); setRoleLabel('')
       setCanVerify(false); setCanPrizes(false)
+      setCanDesign(false); setCanManageEmployees(false)
+      setCanViewAnalytics(false); setCanManageBilling(false)
     })
   }
 
@@ -576,9 +743,18 @@ function AddMemberForm({
           />
         </Field>
       </div>
-      <div className="mt-3 flex flex-wrap items-center gap-4">
+      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
         <PermCheck label="Can verify" checked={canVerify} onChange={setCanVerify} />
         <PermCheck label="Can distribute prizes" checked={canPrizes} onChange={setCanPrizes} />
+        <PermCheck label="Can design" checked={canDesign} onChange={setCanDesign} />
+        <PermCheck label="Can manage employees" checked={canManageEmployees} onChange={setCanManageEmployees} />
+        <PermCheck label="Can view analytics" checked={canViewAnalytics} onChange={setCanViewAnalytics} />
+        <PermCheck label="Can manage billing" checked={canManageBilling} onChange={setCanManageBilling} />
+      </div>
+      <p className="mt-2 text-xs italic text-muted">
+        Provisioning-convenience flags. Recording intent only — Phase 2 will wire enforcement.
+      </p>
+      <div className="mt-3 flex">
         <div className="flex-1" />
         <button
           type="submit"
@@ -628,7 +804,9 @@ function MembersSection({
       const { data, error: fetchErr } = await supabase
         .from('employee_authorizations')
         .select(`
-          id, user_id, role_label, can_verify, can_distribute_prizes,
+          id, user_id, role_label,
+          can_verify, can_distribute_prizes,
+          can_design, can_manage_employees, can_view_analytics, can_manage_billing,
           profile:profiles!user_id(display_name)
         `)
         .eq('institution_id', institutionId)
@@ -646,6 +824,10 @@ function MembersSection({
         role_label: string | null
         can_verify: boolean | null
         can_distribute_prizes: boolean | null
+        can_design: boolean | null
+        can_manage_employees: boolean | null
+        can_view_analytics: boolean | null
+        can_manage_billing: boolean | null
         profile: { display_name: string | null } | null
       }
 
@@ -656,6 +838,10 @@ function MembersSection({
         role_label: row.role_label,
         can_verify: row.can_verify ?? false,
         can_distribute_prizes: row.can_distribute_prizes ?? false,
+        can_design: row.can_design ?? false,
+        can_manage_employees: row.can_manage_employees ?? false,
+        can_view_analytics: row.can_view_analytics ?? false,
+        can_manage_billing: row.can_manage_billing ?? false,
       })))
       setLoading(false)
     })()
@@ -663,7 +849,7 @@ function MembersSection({
 
   async function handlePermChange(
     authzId: string,
-    field: 'can_verify' | 'can_distribute_prizes',
+    field: MemberFlagField,
     value: boolean
   ) {
     setPermErrors((e) => ({ ...e, [authzId]: '' }))
@@ -712,8 +898,12 @@ function MembersSection({
                   <tr className="border-b border-hairline bg-paper text-left">
                     <th className="px-4 py-2.5 font-medium text-muted">Name</th>
                     <th className="px-4 py-2.5 font-medium text-muted">Role</th>
-                    <th className="px-4 py-2.5 text-center font-medium text-muted">Verify</th>
-                    <th className="px-4 py-2.5 text-center font-medium text-muted">Prizes</th>
+                    <th className="px-4 py-2.5 text-center font-medium text-muted" title="Can verify stamps">Verify</th>
+                    <th className="px-4 py-2.5 text-center font-medium text-muted" title="Can distribute prizes">Prizes</th>
+                    <th className="px-4 py-2.5 text-center font-medium text-muted" title="Can design (provisioning only)">Design</th>
+                    <th className="px-4 py-2.5 text-center font-medium text-muted" title="Can manage employees (provisioning only)">Manage</th>
+                    <th className="px-4 py-2.5 text-center font-medium text-muted" title="Can view analytics (provisioning only)">Analytics</th>
+                    <th className="px-4 py-2.5 text-center font-medium text-muted" title="Can manage billing (provisioning only)">Billing</th>
                     <th className="px-4 py-2.5" />
                   </tr>
                 </thead>
@@ -755,7 +945,7 @@ function MemberRow({
 }: {
   member: MemberRow
   canManage: boolean
-  onPermChange: (id: string, field: 'can_verify' | 'can_distribute_prizes', value: boolean) => void
+  onPermChange: (id: string, field: MemberFlagField, value: boolean) => void
   onRemove: (id: string) => void
   permError: string | null
 }) {
@@ -799,6 +989,49 @@ function MemberRow({
             aria-label={`Can distribute prizes: ${member.displayName}`}
           />
         </td>
+        {/* Provisioning-convenience flag cells (migration 033). These
+            checkboxes record intent for SEC-02 / Phase 2 enforcement;
+            they do NOT yet grant capability in any route or RLS. */}
+        <td className="px-4 py-3 text-center">
+          <input
+            type="checkbox"
+            className="accent-green h-4 w-4"
+            checked={member.can_design}
+            disabled={!canManage}
+            onChange={(e) => onPermChange(member.authzId, 'can_design', e.target.checked)}
+            aria-label={`Can design (provisioning): ${member.displayName}`}
+          />
+        </td>
+        <td className="px-4 py-3 text-center">
+          <input
+            type="checkbox"
+            className="accent-green h-4 w-4"
+            checked={member.can_manage_employees}
+            disabled={!canManage}
+            onChange={(e) => onPermChange(member.authzId, 'can_manage_employees', e.target.checked)}
+            aria-label={`Can manage employees (provisioning): ${member.displayName}`}
+          />
+        </td>
+        <td className="px-4 py-3 text-center">
+          <input
+            type="checkbox"
+            className="accent-green h-4 w-4"
+            checked={member.can_view_analytics}
+            disabled={!canManage}
+            onChange={(e) => onPermChange(member.authzId, 'can_view_analytics', e.target.checked)}
+            aria-label={`Can view analytics (provisioning): ${member.displayName}`}
+          />
+        </td>
+        <td className="px-4 py-3 text-center">
+          <input
+            type="checkbox"
+            className="accent-green h-4 w-4"
+            checked={member.can_manage_billing}
+            disabled={!canManage}
+            onChange={(e) => onPermChange(member.authzId, 'can_manage_billing', e.target.checked)}
+            aria-label={`Can manage billing (provisioning): ${member.displayName}`}
+          />
+        </td>
         <td className="px-4 py-3 text-right">
           {canManage && (
             <button
@@ -813,7 +1046,7 @@ function MemberRow({
       </tr>
       {permError && (
         <tr className="border-b border-hairline">
-          <td colSpan={6} className="px-4 pb-2">
+          <td colSpan={9} className="px-4 pb-2">
             <span role="alert" className="text-xs text-red-600">{permError}</span>
           </td>
         </tr>

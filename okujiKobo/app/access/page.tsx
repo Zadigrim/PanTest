@@ -44,6 +44,8 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 // ─── Add Institution Dialog ───────────────────────────────────────────────────
 
+type CreateTier = 'civic' | 'municipal' | 'business' | 'pending'
+
 interface AddInstitutionForm {
   name: string
   institution_type: string
@@ -51,6 +53,12 @@ interface AddInstitutionForm {
   municipality_population: string
   pricing_model_override: string
   pricing_model_locked: boolean
+  // tier is the org-category axis (Appendix L). Set manually here so a
+  // newly-provisioned institution isn't stuck on 'pending' until
+  // someone remembers to edit it. tier and pricing_model are
+  // independent. See app/api/institutions/[id]/route.ts for the
+  // future tier-affects-pricing relationship.
+  tier: CreateTier
   contact_name: string
   contact_email: string
   address_line1: string
@@ -68,6 +76,7 @@ const EMPTY_FORM: AddInstitutionForm = {
   municipality_population: '',
   pricing_model_override: '',
   pricing_model_locked: false,
+  tier: 'pending',
   contact_name: '',
   contact_email: '',
   address_line1: '',
@@ -77,6 +86,13 @@ const EMPTY_FORM: AddInstitutionForm = {
   website: '',
   internal_notes: '',
 }
+
+const TIER_CREATE_OPTIONS: { value: CreateTier; label: string }[] = [
+  { value: 'pending', label: 'Pending (unclassified)' },
+  { value: 'civic', label: 'Civic' },
+  { value: 'municipal', label: 'Municipal' },
+  { value: 'business', label: 'Business' },
+]
 
 const PRICING_MODELS = ['free', 'paid_passport', 'community', 'regional', 'enterprise', 'patron'] as const
 
@@ -132,6 +148,7 @@ function AddInstitutionDialog({
             : null,
           pricing_model_override: form.pricing_model_locked ? form.pricing_model_override || null : null,
           pricing_model_locked: form.pricing_model_locked,
+          tier: form.tier,
           contact_name: form.contact_name.trim() || null,
           contact_email: form.contact_email.trim() || null,
           address_line1: form.address_line1.trim() || null,
@@ -262,6 +279,20 @@ function AddInstitutionDialog({
                 )}
               </div>
             )}
+
+            {/* Tier (Appendix L). Independent of pricing_model. */}
+            <Field label="Tier (Appendix L)">
+              <select
+                className={INPUT_CLS}
+                value={form.tier}
+                onChange={(e) => set('tier', e.target.value as CreateTier)}
+              >
+                {TIER_CREATE_OPTIONS.map((t) => (
+                  <option key={t.value} value={t.value}>{t.label}</option>
+                ))}
+              </select>
+              <p className="text-xs text-muted">Set manually. Coexists with pricing model; the two are independent.</p>
+            </Field>
 
             {/* Admin override */}
             {isAdmin && form.institution_type && (

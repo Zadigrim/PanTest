@@ -19,6 +19,7 @@
 | 2026-05-30 | `feat/phase-1-foundational-schema` (migrations + can_add_extras retirement + comp admin UI + roadmap) | **Phase 1 closed in code.** BLD-01..05, BLD-07, BLD-08, BLD-12, FIX-06, SEC-03, DEC-18 audit + RLS expansion, DEC-19 README. Six migrations 033-038. Comp admin UI at `/access/comp-subscriptions`. `can_add_extras` retired across 7 application files. Three discovery-time decisions: DEC-18 RLS expansion extended to `print_jobs` + `design_assets` (institutional artifacts survive turnover); `last_edited_by` uses a trigger (1 file) instead of app-layer writes at 19 sites; comp ↔ profile sync uses a trigger. |
 | 2026-05-30 | `feat/bld-32-33-demo-mode-voice-camera` (mobile + migration 039 + roadmap) | **BLD-32** (per-passport demo mode: migration `039_passports_is_demo.sql`, banner + bypass + admin toggle in `app/passport/[id].tsx`); **BLD-33** (30 s voice recording cap with `continuous: true` switch); live camera capture path in `components/journal/JournalEntry.tsx` via `ImagePicker.launchCameraAsync`; unified post-stamp capture surface (`components/passport/PostStampCaptureSheet.tsx`) replacing the previous Alert in Flow A. Standalone `/journal/[stampId]` modal route untouched. Flow B (QR/deep-link stamp route) untouched. |
 | 2026-05-30 | `feat/expressive-stamp-gesture` (mobile + migration 040 + roadmap) | **BLD-34** (expressive stamp gesture, proxy version): migration `040_stamp_appearance.sql` adds `stamps.saturation` + `stamps.smudge_dx / smudge_dy / smudge_intensity`. New `components/stamp/StampGestureInteraction.tsx` reads duration / initial-vector / path on the LocationBox itself. `StampArtwork` renders gesture-derived saturation (as opacity) and a directional motion-blur trail. `components/passport/StampingOverlay.tsx` (the pre-stamp confirmation modal) deleted — gesture + live preview now live in the LocationBox directly. Pre-040 stamps render exactly as before via fallback path. Flow B untouched. |
+| 2026-05-30 | `feat/institution-access-completion` (okujiKobo + migration 041 + roadmap) | **Institution access provisioning UI gap closed.** Migration `041_business_inputs.sql` adds nullable `institutions.annual_revenue` + `marketing_spend` (Business-tier inputs; captured-only, no computation). UI additions on `/access/institutions/[id]` and the AddInstitutionDialog: tier dropdown (civic/municipal/business/pending, set manually), token_prefix editable text input (uppercase-normalized, 1-6 [A-Z0-9]), annual_revenue + marketing_spend numeric inputs conditionally surfaced when `tier === 'business'`. Member roster (both `/access/institutions/[id]` and `/manage/employees`) gains 4 new checkboxes for `can_design`, `can_manage_employees`, `can_view_analytics`, `can_manage_billing` — labeled and committed as **provisioning-convenience only**; no enforcement / RLS / gating changes (Phase 2 / SEC-02 wires those). `InstitutionTier` type drift fixed (was legacy `community|commercial|enterprise`, now matches migration 034's CHECK). `pricing_model` computation unchanged; tier and pricing_model remain independent. |
 
 **SEC-05 migration apply status:** `okujiKobo/supabase/migrations/031_design_assets_storage_policy.sql` is committed but NOT yet applied to production. The storage policy is not enforced until the migration runs. Apply with `supabase db push` (or `supabase migration up` per the project's local convention) and verify with `select policyname, cmd, with_check from pg_policies where tablename = 'objects' and policyname = 'design_assets_upload';` — the `with_check` body should include `(storage.foldername(name))[1] = auth.uid()::text`.
 
@@ -33,7 +34,7 @@ Two minor pre-statements to clear up before the inventory:
 
 ## Section 1 — Executive summary
 
-**The gap is large but cleanly partitionable.** 43 distinct work items (BLD-32, BLD-33, BLD-34 added 2026-05-30 alongside their PRs). Status as of 2026-05-30: Phase 0 and Phase 1 both closed in code. Security fixes (6, of which **5 closed** — SEC-01, SEC-03, SEC-04, SEC-05, SEC-06). Broken-today implementation fixes (7, of which **3 closed** — FIX-01, FIX-05, FIX-06). New infrastructure (28, of which **12 closed** — BLD-01..05, BLD-07, BLD-08, BLD-12, BLD-32, BLD-33, BLD-34, plus the canonical-tree README). Dead-code cleanup (9 — plus two table retirements pulled forward into FIX-01 and one modal deletion pulled forward into BLD-34). Product decisions (20 total — **6 resolved 2026-05-30**, 14 still open).
+**The gap is large but cleanly partitionable.** 43 distinct work items (BLD-32, BLD-33, BLD-34 added 2026-05-30 alongside their PRs). Status as of 2026-05-30: Phase 0 and Phase 1 both closed in code; institution-access provisioning UI gap closed in `feat/institution-access-completion`. Security fixes (6, of which **5 closed** — SEC-01, SEC-03, SEC-04, SEC-05, SEC-06). Broken-today implementation fixes (7, of which **3 closed** — FIX-01, FIX-05, FIX-06). New infrastructure (28; BLD-05 now fully closed via the access-completion PR; BLD-01..04 + BLD-07, BLD-08 are SCHEMA + PROVISIONING UI done with enforcement still Phase 2; BLD-12, BLD-32, BLD-33, BLD-34 fully closed; plus the canonical-tree README). Dead-code cleanup (9 — plus two table retirements pulled forward into FIX-01 and one modal deletion pulled forward into BLD-34). Product decisions (20 total — **6 resolved 2026-05-30**, 14 still open).
 
 **Recommended broad sequencing:**
 
@@ -176,32 +177,32 @@ The bulk of the gap. Grouped here by area for readability; sequencing rules in �
 
 **B.1 — Capability flags (new columns on `employee_authorizations`)**
 
-#### BLD-01 — Add `can_design` flag — **SCHEMA DONE (Phase 1)**
-- **Status:** column added in migration 033 (2026-05-30) with default `false`. Enforcement in `api/design/create` is Phase 2. RLS expansion that already uses this flag is migration 038.
+#### BLD-01 — Add `can_design` flag — **SCHEMA DONE (Phase 1) + PROVISIONING UI DONE**
+- **Status:** column added in migration 033 (2026-05-30) with default `false`. Provisioning checkbox added to both employee rosters (`/access/institutions/[id]` and `/manage/employees`) in `feat/institution-access-completion` (2026-05-30). Enforcement in `api/design/create` is still Phase 2. RLS expansion that already uses this flag is migration 038.
 - **Appendix L:** L.6 — gates designing under the institution's name. L.9 — institutional employee path requires this.
 - **Today:** does not exist. `okujiKobo/app/api/design/create/route.ts:10-49` checks only `getUser()`.
 - **Type:** BLD.
 - **Effort:** 1 day for the migration + form UI checkbox; 0.5 day for the API gate enforcement (Phase 2).
 - **Dependencies:** none for the schema; the gate enforcement depends on BLD-06 (trial limits decision for Free) and DEC-03 (DB vs app enforcement).
 
-#### BLD-02 — Add `can_manage_employees` flag — **SCHEMA DONE (Phase 1)**
-- **Status:** column added in migration 033 (2026-05-30) with default `false`. Enforcement at `/manage/employees` and `api/employees/lookup` is Phase 2.
+#### BLD-02 — Add `can_manage_employees` flag — **SCHEMA DONE (Phase 1) + PROVISIONING UI DONE**
+- **Status:** column added in migration 033 (2026-05-30) with default `false`. Provisioning checkbox added to both employee rosters in `feat/institution-access-completion` (2026-05-30). Enforcement at `/manage/employees` and `api/employees/lookup` is still Phase 2 (SEC-02).
 - **Appendix L:** L.6.
 - **Today:** does not exist. The `/manage/employees` UI is gated only on "have any institution membership."
 - **Type:** BLD.
 - **Effort:** 1 day schema + UI; 1-2 days for migration of existing employees (audit: should `authorized_by` employees be auto-granted? Likely yes).
 - **Dependencies:** DEC-16 (manager mechanism). Also unblocks SEC-01 and SEC-02.
 
-#### BLD-03 — Add `can_view_analytics` flag — **SCHEMA DONE (Phase 1)**
-- **Status:** column added in migration 033 (2026-05-30) with default `false`. Enforcement at `api/analytics/[passportId]` is Phase 2.
+#### BLD-03 — Add `can_view_analytics` flag — **SCHEMA DONE (Phase 1) + PROVISIONING UI DONE**
+- **Status:** column added in migration 033 (2026-05-30) with default `false`. Provisioning checkbox added to both employee rosters in `feat/institution-access-completion` (2026-05-30). Enforcement at `api/analytics/[passportId]` is still Phase 2.
 - **Appendix L:** L.6.
 - **Today:** does not exist. `okujiKobo/app/api/analytics/[passportId]/route.ts:94-107` allows any employee.
 - **Type:** BLD.
 - **Effort:** 1 day schema + UI + route gate.
 - **Dependencies:** none for schema; enforcement is just the API gate.
 
-#### BLD-04 — Add `can_manage_billing` flag — **SCHEMA DONE (Phase 1)**
-- **Status:** column added in migration 033 (2026-05-30) with default `false`. Enforcement deferred to Phase 4 (billing UI doesn't exist to gate yet).
+#### BLD-04 — Add `can_manage_billing` flag — **SCHEMA DONE (Phase 1) + PROVISIONING UI DONE**
+- **Status:** column added in migration 033 (2026-05-30) with default `false`. Provisioning checkbox added to both employee rosters in `feat/institution-access-completion` (2026-05-30). Enforcement still deferred to Phase 4 (billing UI doesn't exist to gate yet).
 - **Appendix L:** L.6.
 - **Today:** does not exist; no billing UI to gate.
 - **Type:** BLD.
@@ -210,8 +211,9 @@ The bulk of the gap. Grouped here by area for readability; sequencing rules in �
 
 **B.2 — Institution tier classification**
 
-#### BLD-05 — Add `tier` column on `institutions` — **SCHEMA DONE (Phase 1)**
-- **Status:** column added in migration 034 (2026-05-30) with CHECK (`'civic'|'municipal'|'business'|'pending'`), default `'pending'`. Per DEC-02, Nathan classifies institutions manually post-migration through the platform-admin UI. No auto-classification.
+#### BLD-05 — Add `tier` column on `institutions` — **DONE**
+- **Status:** column added in migration 034 (2026-05-30) with CHECK (`'civic'|'municipal'|'business'|'pending'`), default `'pending'`. Tier dropdown wired into both the AddInstitutionDialog and the `/access/institutions/[id]` edit form in `feat/institution-access-completion` (2026-05-30) — Nathan can now set tier through the platform-admin UI per DEC-02 with no SQL editing. `InstitutionTier` type drift fixed in the same PR (was still claiming the legacy `community|commercial|enterprise` values).
+- **Important coexistence note:** `institutions.tier` (org-category axis, Appendix L) and `institutions.pricing_model` (free|paid_passport|community|regional|enterprise|patron, computed from type+admission+population) are **independent fields**. A future pricing model will consume tier as ONE input — tier AFFECTS pricing but does NOT determine it. Civic ≈ free; Municipal pricing is a function of `municipality_population`; Business pricing is a function of `annual_revenue` and `marketing_spend` (the latter two added as nullable inputs in migration 041, captured-only). The pricing model itself is deliberately deferred until real deal data exists.
 - **Appendix L:** L.5 — Civic / Municipal / Business sub-tiers.
 - **Today:** does not exist. No tier-aware behavior.
 - **Type:** BLD.

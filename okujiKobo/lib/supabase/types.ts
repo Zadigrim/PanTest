@@ -3,7 +3,10 @@
 // ---------------------------------------------------------------------------
 
 export type UserRole = 'collector' | 'creator' | 'employee' | 'admin'
-export type InstitutionTier = 'community' | 'commercial' | 'enterprise'
+// Migration 034 dropped the legacy ('community' | 'commercial' | 'enterprise')
+// tier and re-added it with this set per DEC-02 / Appendix L.5. Nathan sets
+// the tier manually; there is no auto-classification at signup.
+export type InstitutionTier = 'civic' | 'municipal' | 'business' | 'pending'
 
 export type InstitutionType =
   // Educational
@@ -181,6 +184,14 @@ export interface Institution {
   address_zip: string | null
   website: string | null
   internal_notes: string | null
+  // Per-institution token-code prefix (migration 032). 1-6 chars,
+  // uppercase letters or digits; format enforced by CHECK at the DB layer.
+  token_prefix: string
+  // Business-tier inputs (migration 041). Captured-only; the pricing
+  // function that will consume them is deferred. Both nullable for all
+  // tiers; conditionally surfaced in the UI only when tier = 'business'.
+  annual_revenue: number | null
+  marketing_spend: number | null
   created_at: string
 }
 
