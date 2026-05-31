@@ -1,7 +1,22 @@
-// Inside front cover — bearer name, issue date, bearer no.
+// Inside front cover. Two render paths:
+//
+//   - Designed inside-cover (preferred): renders the BACK panel
+//     (x=0..612) of passport.cover_inside_data via CoverPanel. The
+//     inside-front-cover is the LEFT panel of the inside spread, because
+//     when you open a book the inside-front-cover faces you on the
+//     left.
+//   - Procedural fallback: the ceremonial 'official record' page with
+//     bearer name, issue date, and bearer number. Used when
+//     cover_inside_data is null.
+//
+// Either way the page shows passport metadata (bearer fields don't move
+// between cases — they're still useful overlays, but in the designed
+// path the creator's artwork takes precedence and bearer info is shown
+// at the bottom in a smaller treatment).
 import React from 'react'
 import { View, Text, StyleSheet, useWindowDimensions } from 'react-native'
 import { GuillocheBackground } from '../ui/GuillocheBackground'
+import { CoverPanel } from './CoverPanel'
 import type { Passport, CollectorPassport } from '../../types'
 import { palette } from '../../lib/colors'
 
@@ -27,6 +42,34 @@ export function InsideCoverPage({ passport, collectorPassport, bearerName }: Pro
   })
   const bearerNo = collectorPassport.id.replace(/-/g, '').slice(0, 10).toUpperCase()
 
+  // Designed inside-cover path: renders the back panel (x=0..612, the
+  // inside-front face) of cover_inside_data. Bearer fields overlay as a
+  // small footer block so the designer's artwork stays the visual focus.
+  if (passport.cover_inside_data) {
+    return (
+      <View style={[styles.page, { width: pageW, height: pageH }]}>
+        <CoverPanel
+          data={passport.cover_inside_data}
+          half="back"
+          pageWidth={pageW}
+          pageHeight={pageH}
+        />
+        {/* Bearer footer overlay — translucent paper card pinned to the
+            bottom so the inside-cover still functions as the bearer
+            record without obscuring the designer's artwork. */}
+        <View style={styles.bearerOverlay} pointerEvents="none">
+          <Text style={styles.overlayBearer}>
+            {bearerName || 'Collector'}
+          </Text>
+          <Text style={styles.overlayMeta}>
+            Issued {issueDate} · {bearerNo}
+          </Text>
+        </View>
+      </View>
+    )
+  }
+
+  // Procedural fallback (no designed inside-cover).
   return (
     <View style={[styles.page, { width: pageW, height: pageH, backgroundColor: PAPER }]}>
       <GuillocheBackground
@@ -203,5 +246,34 @@ const styles = StyleSheet.create({
     fontSize: 8,
     color: `${INK}33`,
     letterSpacing: 2,
+  },
+  // Designed-inside-cover overlay: translucent card pinned to the bottom
+  // so the designer's artwork remains the focus but bearer info is still
+  // recorded on the inside-cover page (which the procedural fallback
+  // makes the central concept of the page).
+  bearerOverlay: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
+    bottom: 16,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 4,
+    backgroundColor: 'rgba(245, 240, 232, 0.88)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: `${INK}22`,
+    alignItems: 'center',
+  },
+  overlayBearer: {
+    fontFamily: 'serif',
+    fontSize: 14,
+    color: INK,
+    fontWeight: '600',
+  },
+  overlayMeta: {
+    fontSize: 9,
+    color: `${INK}88`,
+    letterSpacing: 1,
+    marginTop: 2,
   },
 })
