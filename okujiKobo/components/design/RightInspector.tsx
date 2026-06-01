@@ -13,6 +13,7 @@ import { Input } from './ui/Input'
 import { Label } from './ui/Label'
 import { Button } from './ui/Button'
 import { ColorPickerInput } from './ui/ColorPickerInput'
+import { MapPickerDialog, MAPS_PICKER_AVAILABLE } from './MapPickerDialog'
 import type {
   DesignerStop,
   DesignerPassportPage,
@@ -288,6 +289,183 @@ function StampPicker({
   )
 }
 
+// ── Location section ──────────────────────────────────────────────────────────
+//
+// Three location types:
+//   address     → text place; lat/lng not required
+//   coordinates → GPS target; address fields not required
+//   honor       → self-reported; neither needed (verification_tier=5)
+//
+// When location_type is null (existing stops pre-migration 042), derive a
+// sensible default at render time so old stops don't drop into 'honor'
+// by accident: coords if lat/lng set, else address.
+
+type LocationType = 'address' | 'coordinates' | 'honor'
+
+function deriveLocationType(stop: DesignerStop): LocationType {
+  if (stop.location_type) return stop.location_type
+  if (stop.lat != null && stop.lng != null) return 'coordinates'
+  return 'address'
+}
+
+function LocationSection({
+  stop,
+  updateStop,
+  persist,
+}: {
+  stop: DesignerStop
+  updateStop: (id: string, patch: Partial<DesignerStop>) => void
+  persist: (patch: Partial<DesignerStop>) => Promise<void>
+}) {
+  const locType = deriveLocationType(stop)
+  const [pickerOpen, setPickerOpen] = useState(false)
+
+  const handleTypeChange = (next: LocationType) => {
+    const patch: Partial<DesignerStop> = { location_type: next }
+    // Honor system: tier 5 is the existing self-reported bypass in
+    // verify-stamp. Switching INTO honor sets it; switching OUT of honor
+    // leaves verification_tier alone so the user's prior choice survives.
+    if (next === 'honor') patch.verification_tier = 5
+    void persist(patch)
+  }
+
+  return (
+    <Section title="Location">
+      <Field label="Location type">
+        <select
+          value={locType}
+          onChange={(e) => handleTypeChange(e.target.value as LocationType)}
+          className="h-8 w-full rounded-card border border-hairline bg-white px-2 text-sm"
+        >
+          <option value="address">Address</option>
+          <option value="coordinates">Coordinates (lat/long)</option>
+          <option value="honor">Honor system (self-reported)</option>
+        </select>
+      </Field>
+
+      {locType === 'address' && (
+        <>
+          <Field label="Street address">
+            <Input
+              value={stop.address_street ?? ''}
+              placeholder="123 Main St"
+              onChange={(e) => updateStop(stop.id, { address_street: e.target.value })}
+              onBlur={(e) => persist({ address_street: e.target.value })}
+              className="h-8 text-sm"
+            />
+          </Field>
+          <div className="grid grid-cols-2 gap-2">
+            <Field label="City">
+              <Input
+                value={stop.address_city ?? ''}
+                placeholder="Springfield"
+                onChange={(e) => updateStop(stop.id, { address_city: e.target.value })}
+                onBlur={(e) => persist({ address_city: e.target.value })}
+                className="h-8 text-sm"
+              />
+            </Field>
+            <Field label="State / Province / Region">
+              <Input
+                value={stop.address_state ?? ''}
+                placeholder="IL / Sinaloa / ..."
+                onChange={(e) => updateStop(stop.id, { address_state: e.target.value })}
+                onBlur={(e) => persist({ address_state: e.target.value })}
+                className="h-8 text-sm"
+              />
+            </Field>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <Field label="Postal / ZIP code">
+              <Input
+                value={stop.address_zip ?? ''}
+                placeholder="62701"
+                maxLength={20}
+                onChange={(e) => updateStop(stop.id, { address_zip: e.target.value })}
+                onBlur={(e) => persist({ address_zip: e.target.value })}
+                className="h-8 text-sm"
+              />
+            </Field>
+            <Field label="Country">
+              <Input
+                value={stop.country ?? ''}
+                placeholder="USA / Mexico / ..."
+                onChange={(e) => updateStop(stop.id, { country: e.target.value })}
+                onBlur={(e) => persist({ country: e.target.value })}
+                className="h-8 text-sm"
+              />
+            </Field>
+          </div>
+        </>
+      )}
+
+      {locType === 'coordinates' && (
+        <>
+          <div className="grid grid-cols-2 gap-2">
+            <Field label="Lat">
+              <Input
+                type="number"
+                step="0.000001"
+                value={stop.lat ?? ''}
+                onChange={(e) =>
+                  updateStop(stop.id, { lat: e.target.value ? Number(e.target.value) : null })
+                }
+                onBlur={(e) =>
+                  persist({ lat: e.target.value ? Number(e.target.value) : null })
+                }
+                className="h-8 text-xs"
+              />
+            </Field>
+            <Field label="Lng">
+              <Input
+                type="number"
+                step="0.000001"
+                value={stop.lng ?? ''}
+                onChange={(e) =>
+                  updateStop(stop.id, { lng: e.target.value ? Number(e.target.value) : null })
+                }
+                onBlur={(e) =>
+                  persist({ lng: e.target.value ? Number(e.target.value) : null })
+                }
+                className="h-8 text-xs"
+              />
+            </Field>
+          </div>
+
+          {MAPS_PICKER_AVAILABLE ? (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPickerOpen(true)}
+                className="w-full"
+              >
+                Pick on map
+              </Button>
+              <MapPickerDialog
+                open={pickerOpen}
+                onOpenChange={setPickerOpen}
+                initialLat={stop.lat}
+                initialLng={stop.lng}
+                onConfirm={(lat, lng) => void persist({ lat, lng })}
+              />
+            </>
+          ) : (
+            <p className="text-xs text-muted">
+              Map picker unavailable — enter coordinates manually.
+            </p>
+          )}
+        </>
+      )}
+
+      {locType === 'honor' && (
+        <p className="text-xs text-muted">
+          Self-reported. Visitors confirm they were here without a location check.
+        </p>
+      )}
+    </Section>
+  )
+}
+
 function StopInspector({
   stop,
   creatorInstitutionId,
@@ -462,82 +640,8 @@ function StopInspector({
         </div>
       </Section>
 
-      <Section title="Location">
-        <Field label="Street address">
-          <Input
-            value={stop.address_street ?? ''}
-            placeholder="123 Main St"
-            onChange={(e) => updateStop(stop.id, { address_street: e.target.value })}
-            onBlur={(e) => persist({ address_street: e.target.value })}
-            className="h-8 text-sm"
-          />
-        </Field>
-        <div className="grid grid-cols-2 gap-2">
-          <Field label="City">
-            <Input
-              value={stop.address_city ?? ''}
-              placeholder="Springfield"
-              onChange={(e) => updateStop(stop.id, { address_city: e.target.value })}
-              onBlur={(e) => persist({ address_city: e.target.value })}
-              className="h-8 text-sm"
-            />
-          </Field>
-          <Field label="State">
-            <Input
-              value={stop.address_state ?? ''}
-              placeholder="IL"
-              maxLength={2}
-              onChange={(e) =>
-                updateStop(stop.id, { address_state: e.target.value.toUpperCase() })
-              }
-              onBlur={(e) =>
-                persist({ address_state: e.target.value.toUpperCase() })
-              }
-              className="h-8 text-sm uppercase"
-            />
-          </Field>
-        </div>
-        <Field label="ZIP code">
-          <Input
-            value={stop.address_zip ?? ''}
-            placeholder="62701"
-            maxLength={10}
-            onChange={(e) => updateStop(stop.id, { address_zip: e.target.value })}
-            onBlur={(e) => persist({ address_zip: e.target.value })}
-            className="h-8 text-sm"
-          />
-        </Field>
-        <div className="grid grid-cols-2 gap-2">
-          <Field label="Lat">
-            <Input
-              type="number"
-              step="0.000001"
-              value={stop.lat ?? ''}
-              onChange={(e) =>
-                updateStop(stop.id, { lat: e.target.value ? Number(e.target.value) : null })
-              }
-              onBlur={(e) =>
-                persist({ lat: e.target.value ? Number(e.target.value) : null })
-              }
-              className="h-8 text-xs"
-            />
-          </Field>
-          <Field label="Lng">
-            <Input
-              type="number"
-              step="0.000001"
-              value={stop.lng ?? ''}
-              onChange={(e) =>
-                updateStop(stop.id, { lng: e.target.value ? Number(e.target.value) : null })
-              }
-              onBlur={(e) =>
-                persist({ lng: e.target.value ? Number(e.target.value) : null })
-              }
-              className="h-8 text-xs"
-            />
-          </Field>
-        </div>
-      </Section>
+      <LocationSection stop={stop} updateStop={updateStop} persist={persist} />
+
 
       <Section title="Experience">
         <Field label="Type">

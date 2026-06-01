@@ -249,6 +249,8 @@ export interface Stop {
   address_city: string | null
   address_state: string | null
   address_zip: string | null
+  country: string | null
+  location_type: 'address' | 'coordinates' | 'honor' | null
   lat: number | null
   lng: number | null
   verification_tier: number | null

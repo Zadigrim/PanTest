@@ -160,6 +160,12 @@ export interface DesignerStop {
   address_city: string | null
   address_state: string | null
   address_zip: string | null
+  // International / location-type fields (migration 042).
+  // country is free text — no ISO-code enforcement. location_type drives
+  // which location fields the designer surfaces; null means "derive at
+  // render time" for stops created before the column existed.
+  country: string | null
+  location_type: 'address' | 'coordinates' | 'honor' | null
   lat: number | null
   lng: number | null
   geohash: string | null
