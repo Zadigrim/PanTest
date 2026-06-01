@@ -20,21 +20,61 @@ function describeError(err: { message?: string | null; code?: string | null } | 
   return err.message?.trim() ? err.message : `Save failed${err.code ? ` (${err.code})` : ''}`
 }
 
+// In-flight counter. Lets the SaveIndicator reflect actual write activity
+// instead of needing a separate polling loop. Replaces the old 10s
+// useAutosave batch which re-serialized the whole passport row on every
+// tick and made the editor feel sluggish.
+let inflight = 0
+const pendingResolvers: Array<() => void> = []
+
+function inc() {
+  inflight++
+  usePassportStore.getState().setSaving(true)
+}
+
+function dec(success: boolean) {
+  inflight = Math.max(0, inflight - 1)
+  if (inflight === 0) {
+    if (success) {
+      usePassportStore.getState().markSaved()
+    } else {
+      // setSaveError already clears isSaving; nothing else to do.
+    }
+    while (pendingResolvers.length) pendingResolvers.shift()?.()
+  }
+}
+
+/** Resolves when all currently-running safeUpdate / safeInsert calls finish. */
+export function awaitPending(): Promise<void> {
+  if (inflight === 0) return Promise.resolve()
+  return new Promise<void>((resolve) => pendingResolvers.push(resolve))
+}
+
 export async function safeUpdate(
   table: string,
   patch: Record<string, unknown>,
   eqColumn: string,
   eqValue: string | number,
 ): Promise<boolean> {
+  inc()
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createClient() as any
-  const { error } = await db.from(table).update(patch).eq(eqColumn, eqValue)
-  if (error) {
-    usePassportStore.getState().setSaveError(describeError(error))
+  try {
+    const { error } = await db.from(table).update(patch).eq(eqColumn, eqValue)
+    if (error) {
+      usePassportStore.getState().setSaveError(describeError(error))
+      dec(false)
+      return false
+    }
+    usePassportStore.getState().setSaveError(null)
+    dec(true)
+    return true
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Save failed'
+    usePassportStore.getState().setSaveError(msg)
+    dec(false)
     return false
   }
-  usePassportStore.getState().setSaveError(null)
-  return true
 }
 
 export async function safeInsert<T = unknown>(
@@ -42,14 +82,24 @@ export async function safeInsert<T = unknown>(
   row: Record<string, unknown>,
   selectClause?: string,
 ): Promise<T | null> {
+  inc()
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createClient() as any
-  const q = db.from(table).insert(row)
-  const { data, error } = selectClause ? await q.select(selectClause).single() : await q
-  if (error) {
-    usePassportStore.getState().setSaveError(describeError(error))
+  try {
+    const q = db.from(table).insert(row)
+    const { data, error } = selectClause ? await q.select(selectClause).single() : await q
+    if (error) {
+      usePassportStore.getState().setSaveError(describeError(error))
+      dec(false)
+      return null
+    }
+    usePassportStore.getState().setSaveError(null)
+    dec(true)
+    return (data ?? null) as T | null
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Save failed'
+    usePassportStore.getState().setSaveError(msg)
+    dec(false)
     return null
   }
-  usePassportStore.getState().setSaveError(null)
-  return (data ?? null) as T | null
 }

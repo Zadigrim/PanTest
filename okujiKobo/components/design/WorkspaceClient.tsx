@@ -66,15 +66,14 @@ export function WorkspaceClient({ passport, pages, stops, creatorInstitutionId }
   async function handleBack() {
     if (navigating) return
     setNavigating(true)
+    // Wait for any in-flight per-mutation persists to finish before
+    // leaving. Per-mutation writes already cover every field; this just
+    // makes sure we don't navigate away mid-write.
     try {
-      // Flush any pending edits before leaving — protects against the
-      // 10-second autosave window losing in-flight changes.
       await saveNow()
     } catch (err) {
-      console.error('save-before-navigate failed:', err)
+      console.error('drain pending persists failed:', err)
     }
-    // saveNow surfaces failures via the store rather than throwing, so
-    // also check saveError before letting the user lose work silently.
     const err = usePassportStore.getState().saveError
     if (err) {
       const proceed = window.confirm(

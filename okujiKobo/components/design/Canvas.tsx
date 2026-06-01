@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from 'react'
 import { useShallow } from 'zustand/react/shallow'
-import { createClient } from '@/lib/supabase/client'
+import { safeUpdate } from '@/lib/design/persist'
 import {
   usePassportStore,
   selectActivePage,
@@ -27,7 +27,6 @@ export function Canvas() {
   const setSelectedElement = usePassportStore((s) => s.setSelectedElement)
   const updateStop = usePassportStore((s) => s.updateStop)
   const updateElement = usePassportStore((s) => s.updateElement)
-  const markDirty = usePassportStore((s) => s.markDirty)
 
   const [zoom, setZoom] = useState(1)
 
@@ -37,18 +36,15 @@ export function Canvas() {
       patch: Parameters<typeof updateStop>[1],
     ) => {
       updateStop(id, patch)
-      markDirty()
-      const supabase = createClient()
-      await supabase.from('stops').update(patch).eq('id', id)
+      await safeUpdate('stops', patch, 'id', id)
     },
-    [updateStop, markDirty],
+    [updateStop],
   )
 
   const handleElementChange = useCallback(
     async (pageId: string, elementId: string, patch: Partial<DesignerPageElement>) => {
       const updated = updateElement(pageId, elementId, patch)
-      const supabase = createClient()
-      await supabase.from('passport_pages').update({ elements: updated }).eq('id', pageId)
+      await safeUpdate('passport_pages', { elements: updated }, 'id', pageId)
     },
     [updateElement],
   )
