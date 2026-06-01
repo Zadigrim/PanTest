@@ -3,7 +3,6 @@
 import { useRef, useState, useTransition } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { usePassportStore } from '@/lib/design/passport-store'
-import { safeUpdate } from '@/lib/design/persist'
 import { Input } from './ui/Input'
 import { Label } from './ui/Label'
 import { getSideData, CANVAS_W, COVER_H } from './CoverCanvas'
@@ -41,11 +40,11 @@ export function CoverInspector({ face, panel }: Props) {
     : null
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // Local-only mutator; saveAll writes on the user's Save click.
   const persist = async (patch: Partial<CoverSideData>) => {
     const next: CoverSideData = { ...sideData, ...patch }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     updatePassport({ [sideKey]: next } as any)
-    await safeUpdate('passports', { [sideKey]: next }, 'id', passport.id)
   }
 
   const persistElement = async (elementId: string, patch: Partial<import('@/lib/design/types').DesignerPageElement>) => {
@@ -65,7 +64,6 @@ export function CoverInspector({ face, panel }: Props) {
 
   const persistPassport = async (patch: Record<string, unknown>) => {
     updatePassport(patch as Parameters<typeof updatePassport>[0])
-    await safeUpdate('passports', patch, 'id', passport.id)
   }
 
   async function uploadImage(file: File): Promise<string | null> {

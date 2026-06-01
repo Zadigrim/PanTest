@@ -167,10 +167,7 @@ export function LeftPalette() {
     const newOrder = arrayMove(pages, oldIndex, newIndex)
     const orderedIds = newOrder.map((p) => p.id)
     reorderPages(orderedIds)
-    // Persist new page_order values
-    await Promise.all(
-      orderedIds.map((id, idx) => safeUpdate('passport_pages', { page_order: idx }, 'id', id)),
-    )
+    // page_order persists when the user clicks Save (saveAll).
   }, [pages, reorderPages])
 
   const handleAddStop = async () => {
@@ -231,9 +228,9 @@ export function LeftPalette() {
       return
     }
 
-    const updated = addElement(activePageId, defaults)
+    addElement(activePageId, defaults)
     setSelectedElement(id)
-    await safeUpdate('passport_pages', { elements: updated }, 'id', activePageId)
+    // The page's elements jsonb persists when the user clicks Save.
   }
 
   const handleAddPage = () => {

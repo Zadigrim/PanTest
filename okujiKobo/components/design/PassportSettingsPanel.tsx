@@ -44,7 +44,6 @@ export function PassportSettingsPanel({ onClose }: Props) {
 
   const persist = async (patch: Parameters<typeof updatePassport>[0]) => {
     updatePassport(patch)
-    await safeUpdate('passports', patch as Record<string, unknown>, 'id', passport.id)
   }
 
   const handleVerifySpend = async () => {

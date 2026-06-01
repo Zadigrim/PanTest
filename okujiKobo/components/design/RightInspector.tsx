@@ -480,7 +480,6 @@ function StopInspector({
 
   const persist = async (patch: Partial<DesignerStop>) => {
     updateStop(stop.id, patch)
-    await safeUpdate('stops', patch, 'id', stop.id)
   }
 
   const handleDelete = async () => {
@@ -915,7 +914,6 @@ function PageInspector({ page }: { page: DesignerPassportPage }) {
 
   const persist = async (patch: Partial<DesignerPassportPage>) => {
     updatePage(page.id, patch)
-    await safeUpdate('passport_pages', patch, 'id', page.id)
   }
 
   const bg = page.background_type
@@ -1107,7 +1105,6 @@ function PassportInspector() {
 
   const persist = async (patch: Parameters<typeof updatePassport>[0]) => {
     updatePassport(patch)
-    await safeUpdate('passports', patch as Record<string, unknown>, 'id', passport.id)
   }
 
   return (
@@ -1317,14 +1314,12 @@ function ElementInspector({
   const setSelectedElement = usePassportStore((s) => s.setSelectedElement)
 
   const persist = async (patch: Partial<DesignerPageElement>) => {
-    const updated = updateElement(pageId, element.id, patch)
-    await safeUpdate('passport_pages', { elements: updated }, 'id', pageId)
+    updateElement(pageId, element.id, patch)
   }
 
   const handleDelete = async () => {
-    const updated = removeElement(pageId, element.id)
+    removeElement(pageId, element.id)
     setSelectedElement(null)
-    await safeUpdate('passport_pages', { elements: updated }, 'id', pageId)
   }
 
   return (

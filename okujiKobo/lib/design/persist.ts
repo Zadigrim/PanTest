@@ -23,10 +23,7 @@ function describeError(err: { message?: string | null; code?: string | null; det
   return `Save failed${err.code ? ` (${err.code})` : ''}`
 }
 
-// In-flight counter. Lets the SaveIndicator reflect actual write activity
-// instead of needing a separate polling loop. Replaces the old 10s
-// useAutosave batch which re-serialized the whole passport row on every
-// tick and made the editor feel sluggish.
+// In-flight counter. Lets the SaveIndicator reflect actual write activity.
 let inflight = 0
 const pendingResolvers: Array<() => void> = []
 
@@ -38,14 +35,9 @@ function inc() {
 function dec() {
   inflight = Math.max(0, inflight - 1)
   if (inflight === 0) {
-    // Only mark saved if no failures are still outstanding in the retry
-    // queue. Otherwise the indicator would falsely flip to "Saved" while
-    // pending failed writes still need attention.
     if (retryQueue.length === 0 && !usePassportStore.getState().saveError) {
       usePassportStore.getState().markSaved()
     } else {
-      // Counter zero but errors remain — still clear isSaving so the
-      // indicator can show "Save failed" instead of "Saving…".
       usePassportStore.getState().setSaving(false)
     }
     while (pendingResolvers.length) pendingResolvers.shift()?.()
@@ -58,11 +50,8 @@ export function awaitPending(): Promise<void> {
   return new Promise<void>((resolve) => pendingResolvers.push(resolve))
 }
 
-// Retry queue. Each failed safeUpdate / safeInsert is pushed here so the
-// SaveIndicator's Retry button can replay them. Without this the button
-// is a no-op: the failed write's caller has already moved on (the user
-// blurred an input, clicked Done, etc.) so there's nothing local for
-// Retry to re-trigger.
+// ── Retry queue ──────────────────────────────────────────────────────────────
+
 interface QueuedUpdate {
   kind: 'update'
   table: string
@@ -84,17 +73,13 @@ export function pendingRetryCount(): number {
   return retryQueue.length
 }
 
-/** Replays every write that previously failed. Call from the Retry button. */
 export async function retryFailed(): Promise<void> {
   if (retryQueue.length === 0) {
-    // Nothing queued — just clear the error banner.
     usePassportStore.getState().setSaveError(null)
     if (inflight === 0) usePassportStore.getState().markSaved()
     return
   }
   const items = retryQueue.splice(0)
-  // Clear before replaying so a fresh failure's error message is the one
-  // that shows up, not a stale one from before Retry was clicked.
   usePassportStore.getState().setSaveError(null)
   for (const item of items) {
     if (item.kind === 'update') {
@@ -104,6 +89,9 @@ export async function retryFailed(): Promise<void> {
     }
   }
 }
+
+// ── Atomic helpers (use for one-off writes that still happen automatically:
+//    inserts of new rows, file uploads, etc.) ──────────────────────────────
 
 export async function safeUpdate(
   table: string,
@@ -162,5 +150,149 @@ export async function safeInsert<T = unknown>(
     retryQueue.push({ kind: 'insert', table, row, selectClause })
     dec()
     return null
+  }
+}
+
+// ── Explicit save ────────────────────────────────────────────────────────────
+//
+// The designer no longer auto-persists field edits or drag changes — every
+// in-place mutation just updates the local store and marks isDirty. The
+// user (or handleBack) calls saveAll() to write everything in one pass.
+//
+// saveAll writes the FULL editable surface for each entity even if only one
+// field changed. Cheaper than tracking a diff, and the row-level lock is
+// held only as long as the single UPDATE takes.
+
+interface BatchError { table: string; id: string; message: string }
+
+export async function saveAll(): Promise<BatchError[]> {
+  const { passport, pages, stops } = usePassportStore.getState()
+  if (!passport) return []
+
+  inc()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = createClient() as any
+  const errors: BatchError[] = []
+
+  try {
+    const { error: passportErr } = await db
+      .from('passports')
+      .update({
+        title:                  passport.title,
+        description:            passport.description,
+        cover_emblem:           passport.cover_emblem,
+        cover_paper_color:      passport.cover_paper_color,
+        cover_bg_color:         passport.cover_bg_color,
+        cover_outside_data:     passport.cover_outside_data,
+        cover_inside_data:      passport.cover_inside_data,
+        expected_spend_tier:    passport.expected_spend_tier,
+        expected_spend_note:    passport.expected_spend_note,
+        transit_accessible:     passport.transit_accessible,
+        wheelchair_accessible:  passport.wheelchair_accessible,
+        print_journal_setting:  passport.print_journal_setting,
+        updated_at:             new Date().toISOString(),
+      })
+      .eq('id', passport.id)
+    if (passportErr) {
+      console.error('[persist] saveAll passports failed', { id: passport.id, error: passportErr })
+      errors.push({ table: 'passports', id: passport.id, message: passportErr.message ?? 'unknown' })
+    }
+
+    // Pages — issue updates sequentially. Parallel writes are what caused
+    // the 57014 statement-timeout pile-up: row locks chained behind each
+    // other and one would eventually exceed the 8s Supabase timeout.
+    // Sequential is slower but reliable.
+    for (const page of pages) {
+      const { error: pageErr } = await db
+        .from('passport_pages')
+        .update({
+          section_title:             page.section_title,
+          section_subtitle:          page.section_subtitle,
+          prize_description:         page.prize_description,
+          prize_location_constraint: page.prize_location_constraint,
+          background_type:           page.background_type,
+          background_color:          page.background_color,
+          background_opacity:        page.background_opacity,
+          background_image_url:      page.background_image_url,
+          custom_background_opacity: page.custom_background_opacity,
+          paper_color:               page.paper_color,
+          page_order:                page.page_order,
+          elements:                  page.elements ?? [],
+        })
+        .eq('id', page.id)
+      if (pageErr) {
+        console.error('[persist] saveAll page failed', { id: page.id, error: pageErr })
+        errors.push({ table: 'passport_pages', id: page.id, message: pageErr.message ?? 'unknown' })
+      }
+    }
+
+    for (const stop of stops) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const s: any = stop
+      const { error: stopErr } = await db
+        .from('stops')
+        .update({
+          name:               stop.name,
+          stop_order:         stop.stop_order,
+          learning_objective: stop.learning_objective,
+          journal_prompt:     stop.journal_prompt,
+          classifiers:        stop.classifiers ?? [],
+          grade_levels:       stop.grade_levels ?? [],
+          subject_areas:      stop.subject_areas ?? [],
+          is_shared:          stop.is_shared ?? false,
+          shared_at:          stop.shared_at ?? null,
+          // Location / address fields
+          address_street:     s.address_street,
+          address_city:       s.address_city,
+          address_state:      s.address_state,
+          address_zip:        s.address_zip,
+          country:            s.country,
+          location_type:      s.location_type,
+          lat:                stop.lat,
+          lng:                stop.lng,
+          // Verification + stamp box
+          verification_tier:           stop.verification_tier,
+          verification_radius_meters:  stop.verification_radius_meters,
+          experience_type:             stop.experience_type,
+          experience_verification_method: stop.experience_verification_method,
+          stamp_icon:         stop.stamp_icon,
+          stamp_color:        stop.stamp_color,
+          stamp_rotation_min: stop.stamp_rotation_min,
+          stamp_rotation_max: stop.stamp_rotation_max,
+          stamp_rotation_fixed: stop.stamp_rotation_fixed,
+          smudge_intensity:   stop.smudge_intensity,
+          stamp_type:         stop.stamp_type,
+          stamp_asset_id:     stop.stamp_asset_id,
+          box_x:              stop.box_x,
+          box_y:              stop.box_y,
+          box_width:          stop.box_width,
+          box_height:         stop.box_height,
+          rotation:           stop.rotation,
+          print_include_journal: stop.print_include_journal,
+        })
+        .eq('id', stop.id)
+      if (stopErr) {
+        console.error('[persist] saveAll stop failed', { id: stop.id, error: stopErr })
+        errors.push({ table: 'stops', id: stop.id, message: stopErr.message ?? 'unknown' })
+      }
+    }
+
+    if (errors.length === 0) {
+      usePassportStore.getState().setSaveError(null)
+      dec()
+    } else {
+      const summary = errors.length === 1
+        ? `${errors[0].table}: ${errors[0].message}`
+        : `${errors.length} writes failed (${errors[0].message})`
+      usePassportStore.getState().setSaveError(summary)
+      dec()
+    }
+    return errors
+  } catch (err) {
+    console.error('[persist] saveAll threw', err)
+    const msg = err instanceof Error ? err.message : 'Save failed'
+    usePassportStore.getState().setSaveError(msg)
+    dec()
+    return errors
   }
 }

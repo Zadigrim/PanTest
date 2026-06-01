@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { usePassportStore } from '@/lib/design/passport-store'
 import { LeftPalette } from './LeftPalette'
@@ -14,7 +14,7 @@ import { PublishFlow } from './PublishFlow'
 import { PrintPassportModal } from './PrintPassportModal'
 import { Button } from './ui/Button'
 import { useAutosave } from '@/hooks/useAutosave'
-import { retryFailed } from '@/lib/design/persist'
+import { retryFailed, saveAll } from '@/lib/design/persist'
 import { useWorkspaceKeyboard } from '@/hooks/useWorkspaceKeyboard'
 import { useEffectiveProfile } from '@/hooks/useEffectiveProfile'
 import { useCoverThumbnail } from '@/hooks/useCoverThumbnail'
@@ -54,10 +54,16 @@ export function WorkspaceClient({ passport, pages, stops, creatorInstitutionId }
 
   const { institutionId: effectiveInstitutionId } = useEffectiveProfile({ institutionId: creatorInstitutionId })
 
-  const { saveNow } = useAutosave()
+  // Explicit-save model: edits update the local store; the Save button
+  // (and Ctrl/Cmd-S via useWorkspaceKeyboard) call saveAll to persist
+  // everything in one pass.
+  const handleSave = useCallback(async () => {
+    await saveAll()
+  }, [])
+  useAutosave()
   useCoverThumbnail()
   useWorkspaceKeyboard({
-    onSave: saveNow,
+    onSave: handleSave,
     onSettings: () => setShowSettings(true),
   })
 
@@ -67,22 +73,25 @@ export function WorkspaceClient({ passport, pages, stops, creatorInstitutionId }
   async function handleBack() {
     if (navigating) return
     setNavigating(true)
-    // Wait for any in-flight per-mutation persists to finish before
-    // leaving. Per-mutation writes already cover every field; this just
-    // makes sure we don't navigate away mid-write.
-    try {
-      await saveNow()
-    } catch (err) {
-      console.error('drain pending persists failed:', err)
-    }
-    const err = usePassportStore.getState().saveError
-    if (err) {
-      const proceed = window.confirm(
-        `Your changes could not be saved (${err}). Leave anyway and lose them?`,
-      )
-      if (!proceed) {
-        setNavigating(false)
-        return
+    // If the user has unsaved edits, flush them with saveAll before
+    // leaving. Saves are otherwise explicit (Save button) — this is
+    // just a safety net so backing out doesn't lose work.
+    const { isDirty } = usePassportStore.getState()
+    if (isDirty) {
+      try {
+        await saveAll()
+      } catch (err) {
+        console.error('save-before-navigate failed:', err)
+      }
+      const err = usePassportStore.getState().saveError
+      if (err) {
+        const proceed = window.confirm(
+          `Your changes could not be saved (${err}). Leave anyway and lose them?`,
+        )
+        if (!proceed) {
+          setNavigating(false)
+          return
+        }
       }
     }
     router.push('/design')
@@ -120,7 +129,7 @@ export function WorkspaceClient({ passport, pages, stops, creatorInstitutionId }
           <Button
             size="sm"
             variant={isDirty ? 'default' : 'ghost'}
-            onClick={saveNow}
+            onClick={handleSave}
             disabled={isSaving || !isDirty}
             aria-label="Save changes"
           >

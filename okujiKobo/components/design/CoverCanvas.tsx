@@ -2,7 +2,6 @@
 
 import { useState, useRef, useCallback } from 'react'
 import { usePassportStore } from '@/lib/design/passport-store'
-import { safeUpdate } from '@/lib/design/persist'
 import { PageElementBox } from './PageElementBox'
 import type { CoverSideData, DesignerPageElement } from '@/lib/design/types'
 
@@ -73,23 +72,13 @@ export function CoverCanvas({ face, onFaceChange, selectedPanel, onPanelChange }
   const raw = (passport as any)[sideKey]
   const side = getSideData(raw)
 
+  // Local-only mutator. Edits update the store; the Save button
+  // (WorkspaceClient → saveAll) writes everything to the DB.
   const persistSide = (patch: Partial<CoverSideData>) => {
     const next: CoverSideData = { ...side, ...patch }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     updatePassport({ [sideKey]: next } as any)
-    // Fire-and-forget at the call site, but safeUpdate awaits + reports
-    // the result via the store so silent failures become a visible
-    // "Save failed — retry" instead of vanishing on next page-load.
-    void safeUpdate('passports', { [sideKey]: next }, 'id', passport.id)
   }
-
-  // Element drags fire onChange per pointer-move (~60Hz); writing the
-  // full cover_outside_data jsonb each time pegged the DB connection.
-  // Debounce the persist so only the final position is written ~250ms
-  // after the drag settles. Local store still updates on every move so
-  // the drag stays smooth visually.
-  const elementPersistTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const ELEMENT_PERSIST_DEBOUNCE_MS = 250
 
   function handleCanvasClick(e: React.MouseEvent<HTMLDivElement>) {
     if (dragRef.current) return
@@ -147,11 +136,6 @@ export function CoverCanvas({ face, onFaceChange, selectedPanel, onPanelChange }
     const nextSide: CoverSideData = { ...side, elements: nextElements }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     updatePassport({ [sideKey]: nextSide } as any)
-    if (elementPersistTimer.current) clearTimeout(elementPersistTimer.current)
-    elementPersistTimer.current = setTimeout(() => {
-      elementPersistTimer.current = null
-      void safeUpdate('passports', { [sideKey]: nextSide }, 'id', passport.id)
-    }, ELEMENT_PERSIST_DEBOUNCE_MS)
   }
 
   return (
