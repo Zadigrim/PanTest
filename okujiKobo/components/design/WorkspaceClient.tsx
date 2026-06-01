@@ -14,6 +14,7 @@ import { PublishFlow } from './PublishFlow'
 import { PrintPassportModal } from './PrintPassportModal'
 import { Button } from './ui/Button'
 import { useAutosave } from '@/hooks/useAutosave'
+import { retryFailed } from '@/lib/design/persist'
 import { useWorkspaceKeyboard } from '@/hooks/useWorkspaceKeyboard'
 import { useEffectiveProfile } from '@/hooks/useEffectiveProfile'
 import { useCoverThumbnail } from '@/hooks/useCoverThumbnail'
@@ -114,7 +115,7 @@ export function WorkspaceClient({ passport, pages, stops, creatorInstitutionId }
             isSaving={isSaving}
             lastSavedAt={lastSavedAt}
             saveError={saveError}
-            onRetry={saveNow}
+            onRetry={retryFailed}
           />
           <Button
             size="sm"
