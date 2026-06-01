@@ -28,11 +28,6 @@ const JPEG_QUALITY = 88
 // — print layout never displays bigger than ~600x400 at letter size.
 const MAX_DIMENSION = 1600
 
-export interface NormalizedImage {
-  data: Buffer
-  format: 'jpg'
-}
-
 export interface NormalizeContext {
   /** Hex color (no leading #) used as the flattening background when
    *  the source has alpha. Cover/page images use the relevant
@@ -65,10 +60,11 @@ async function fetchBytes(url: string): Promise<Buffer | null> {
   }
 }
 
+/** Returns a `data:image/jpeg;base64,...` URL or null on failure. */
 export async function normalizeImage(
   url: string,
   ctx: NormalizeContext,
-): Promise<NormalizedImage | null> {
+): Promise<string | null> {
   const bytes = await fetchBytes(url)
   if (!bytes) {
     console.warn('[print-pdf] image fetch failed:', url)
@@ -91,20 +87,20 @@ export async function normalizeImage(
       .flatten({ background: { r: bg.r, g: bg.g, b: bg.b } })
       .jpeg({ quality: JPEG_QUALITY, chromaSubsampling: '4:4:4' })
       .toBuffer()
-    return { data: out, format: 'jpg' }
+    return `data:image/jpeg;base64,${out.toString('base64')}`
   } catch (err) {
     console.warn('[print-pdf] image decode failed:', url, err)
     return null
   }
 }
 
-/** Concurrency-limited batch normalize. Returns a map keyed by original URL. */
+/** Concurrency-limited batch normalize. Returns a map: original URL → data URL. */
 export async function normalizeAll(
   urls: string[],
   ctx: NormalizeContext,
-): Promise<Map<string, NormalizedImage>> {
+): Promise<Map<string, string>> {
   const unique = Array.from(new Set(urls.filter(Boolean)))
-  const out = new Map<string, NormalizedImage>()
+  const out = new Map<string, string>()
   let cursor = 0
 
   async function worker() {

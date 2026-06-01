@@ -4,7 +4,7 @@ import {
   Svg, Ellipse, Path, Line, Polyline, Polygon, Rect, Image,
 } from '@react-pdf/renderer'
 import { createClient } from '@/lib/supabase/server'
-import { normalizeAll, type NormalizedImage } from '@/lib/print/normalize-images'
+import { normalizeAll } from '@/lib/print/normalize-images'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const ARTBOARD_W = 612, ARTBOARD_H = 792
@@ -112,21 +112,21 @@ function clampOpacityPct(v: number | null | undefined, def = 100): number {
 }
 function truncateTitle(t: string, max = 60): string { return t.length <= max ? t : t.slice(0, max - 1) + '…' }
 
-// ── Image source resolution ─────────────────────────────────────────────────
-// Every image in the doc (page backgrounds, page-element images, cover
-// image) is pre-normalized server-side by lib/print/normalize-images: bytes
-// fetched, transparency flattened onto paper color, re-encoded as baseline
-// JPEG. Pdfkit's PNG decoder has known gaps (16-bit depth, Adam7
-// interlacing, embedded ICC profiles, certain alpha/palette combos) that
-// caused some user-uploaded book-cover PNGs to render as empty slots while
-// others on the same page rendered fine. Flattening + JPEG re-encode side-
-// steps the whole class of bug — pdfkit's JPEG decoder is reliable.
+// Image-handling note: every image URL in the doc data (cover image,
+// cover-side elements, page backgrounds, page-element images) is
+// pre-processed in the route handler before render — fetched, alpha
+// flattened onto the paper color, re-encoded as baseline JPEG, and
+// replaced with a `data:image/jpeg;base64,...` URL. The components
+// below just consume the URL string as before; pdfkit's PNG-decoder
+// gaps (16-bit, Adam7 interlace, ICC profiles, certain alpha/palette
+// combos) never come into play because every image is delivered as
+// baseline JPEG. URLs that failed to normalize are nulled out so the
+// slot renders blank rather than a broken image.
 //
-// resolveImageSrc returns either the normalized {data, format} object that
-// <Image> accepts directly, or null when the image failed to normalize
-// (caller renders nothing rather than a broken slot).
-type ResolvedImageSrc = { data: Buffer; format: 'jpg' } | null
-const ImageSourceContext = React.createContext<(url: string | null | undefined) => ResolvedImageSrc>(() => null)
+// (Earlier attempt used React.createContext to propagate the normalized
+// buffers, but Next.js 14 App Router compiles API routes against
+// react-server which omits createContext. The pre-processing approach
+// is also simpler — no provider, no prop drilling.)
 
 // ── Page-element renderers ────────────────────────────────────────────────────
 function TextEl({ el, scale }: { el: TextPageElement; scale: number }) {
@@ -143,14 +143,11 @@ function TextEl({ el, scale }: { el: TextPageElement; scale: number }) {
 }
 
 function ImageEl({ el, scale }: { el: ImagePageElement; scale: number }) {
-  const resolveSrc = React.useContext(ImageSourceContext)
   if (!el.imageUrl) return null
-  const src = resolveSrc(el.imageUrl)
-  if (!src) return null
   const rotation = el.rotation ?? 0
   return (
     <View style={{ position: 'absolute', left: el.x * scale, top: el.y * scale, width: el.width * scale, height: el.height * scale, overflow: 'hidden', transform: rotation ? `rotate(${rotation}deg)` : undefined, opacity: (el.opacity ?? 100) / 100 }}>
-      <Image src={src} style={{ width: el.width * scale, height: el.height * scale, objectFit: 'contain' }} />
+      <Image src={el.imageUrl} style={{ width: el.width * scale, height: el.height * scale, objectFit: 'contain' }} />
     </View>
   )
 }
@@ -238,21 +235,19 @@ function GridOverlay({ color, opacity }: { color: string; opacity: number }) {
 
 // ── Stamp page slot ───────────────────────────────────────────────────────────
 function PassportPageSlotContent({ page }: { page: PassportPageForPrint }) {
-  const resolveSrc = React.useContext(ImageSourceContext)
   const label = page.section_title || page.section_name || `Page ${page.page_order}`
   const paperColor = `#${page.paper_color ?? 'F5F2EC'}`
   const bgColor = `#${page.background_color ?? '0D1B2A'}`
   const bgOpacity = clampOpacityPct(page.background_opacity)
   const customBgOpacity = clampOpacityPct(page.custom_background_opacity)
-  const customBgSrc = page.background_type === 'custom' ? resolveSrc(page.background_image_url) : null
   return (
     <>
       <Text style={S.sectionTitle}>{label}</Text>
       <View style={[S.pageCanvas, { width: CANVAS_W, height: CANVAS_H, marginLeft: CANVAS_OFFSET_X, backgroundColor: paperColor }]}>
         {page.background_type === 'guilloche' && <GuillocheOverlay color={bgColor} opacity={bgOpacity} />}
         {page.background_type === 'grid' && <GridOverlay color={bgColor} opacity={bgOpacity} />}
-        {customBgSrc && (
-          <Image src={customBgSrc} style={{ position: 'absolute', top: 0, left: 0, width: CANVAS_W, height: CANVAS_H, objectFit: 'contain', opacity: customBgOpacity / 100 }} />
+        {page.background_type === 'custom' && page.background_image_url && (
+          <Image src={page.background_image_url} style={{ position: 'absolute', top: 0, left: 0, width: CANVAS_W, height: CANVAS_H, objectFit: 'contain', opacity: customBgOpacity / 100 }} />
         )}
         <PageElementsLayer elements={page.elements} scale={CANVAS_SCALE} />
         {page.stops.map((stop) => {
@@ -305,7 +300,6 @@ function CertSlotContent({ title, institutionName }: { title: string; institutio
 
 // ── Cover composition ─────────────────────────────────────────────────────────
 function CoverCompositionContent({ side, fallbackTitle, paperColor }: { side: CoverSideData | null; fallbackTitle: string; paperColor: string }) {
-  const resolveSrc = React.useContext(ImageSourceContext)
   if (!side) {
     return (
       <View style={{ position: 'absolute', left: 0, top: COVER_Y_OFFSET, width: COVER_RENDER_W, height: COVER_RENDER_H, backgroundColor: paperColor, alignItems: 'center', justifyContent: 'center' }}>
@@ -327,15 +321,11 @@ function CoverCompositionContent({ side, fallbackTitle, paperColor }: { side: Co
       {/* Front panel (right) */}
       <View style={{ position: 'absolute', left: COVER_PANEL_W_PT + COVER_SPINE_W_PT, top: 0, width: COVER_PANEL_W_PT, height: COVER_RENDER_H, backgroundColor: `#${side.front_bg ?? '0D1B2A'}` }} />
       {/* Spine gutter left transparent. Optional full-bleed image: */}
-      {(() => {
-        const src = resolveSrc(side.image_url)
-        if (!src) return null
-        return (
-          <View style={{ position: 'absolute', left: 0, top: 0, width: COVER_RENDER_W, height: COVER_RENDER_H, overflow: 'hidden', opacity: imgOpacity }}>
-            <Image src={src} style={{ position: 'absolute', left: imgLeft, top: imgTop, width: imgW, height: imgH, objectFit: 'cover' }} />
-          </View>
-        )
-      })()}
+      {side.image_url ? (
+        <View style={{ position: 'absolute', left: 0, top: 0, width: COVER_RENDER_W, height: COVER_RENDER_H, overflow: 'hidden', opacity: imgOpacity }}>
+          <Image src={side.image_url} style={{ position: 'absolute', left: imgLeft, top: imgTop, width: imgW, height: imgH, objectFit: 'cover' }} />
+        </View>
+      ) : null}
       <PageElementsLayer elements={side.elements ?? []} scale={COVER_SCALE} />
     </View>
   )
@@ -640,13 +630,9 @@ interface PrintPassportDocProps {
   outsideCover: CoverSideData | null; insideCover: CoverSideData | null
   paperColorHex: string
   stampPages: PassportPageForPrint[]
-  /** Map from original image URL → normalized JPEG buffer. URLs not in
-   *  the map (failed normalization, or none requested) resolve to null
-   *  and the image is omitted from the PDF. */
-  normalizedImages: Map<string, NormalizedImage>
 }
 
-function PrintPassportDoc({ passportTitle, institutionName, passportType, includeCert, outsideCover, insideCover, paperColorHex, stampPages, normalizedImages }: PrintPassportDocProps) {
+function PrintPassportDoc({ passportTitle, institutionName, passportType, includeCert, outsideCover, insideCover, paperColorHex, stampPages }: PrintPassportDocProps) {
   const readerPages: ReaderPage[] = []
   readerPages.push({ kind: 'name', passportTitle, institutionName, passportType })
   let pageNum = 1
@@ -670,15 +656,8 @@ function PrintPassportDoc({ passportTitle, institutionName, passportType, includ
     outsideCover, insideCover, paperColorHex,
   }
 
-  const resolveSrc = (url: string | null | undefined): ResolvedImageSrc => {
-    if (!url) return null
-    const n = normalizedImages.get(url)
-    return n ?? null
-  }
-
   return (
     <Document>
-      <ImageSourceContext.Provider value={resolveSrc}>
       {plan.map((sheet, sheetIndex) => {
         if (sheet.kind === 'cover') {
           return (
@@ -695,7 +674,6 @@ function PrintPassportDoc({ passportTitle, institutionName, passportType, includ
           </React.Fragment>
         )
       })}
-      </ImageSourceContext.Provider>
     </Document>
   )
 }
@@ -921,10 +899,41 @@ async function handlePrintRequest(request: Request, passportId: string) {
     }
   }
 
-  const normalizedImages = await normalizeAll(imageUrls, {
+  const normalized = await normalizeAll(imageUrls, {
     paperHex: (passport.cover_paper_color ?? 'F5F2EC').replace(/^#/, ''),
   })
-  console.log(`[print-pdf] normalized ${normalizedImages.size}/${new Set(imageUrls).size} images`)
+  console.log(`[print-pdf] normalized ${normalized.size}/${new Set(imageUrls).size} images`)
+
+  // Rewrite URLs in the doc data: each original URL becomes the
+  // data:image/jpeg;base64,... URL from the normalizer, or null if
+  // normalization failed (so the component skips rather than rendering
+  // a broken slot).
+  const remap = (u: string | null | undefined): string | null => {
+    if (!u) return null
+    return normalized.get(u) ?? null
+  }
+  const remapElements = (els: PageElement[]): PageElement[] =>
+    (els ?? []).map((el) => {
+      if (el.type === 'image') {
+        return { ...el, imageUrl: remap((el as ImagePageElement).imageUrl) ?? undefined }
+      }
+      return el
+    })
+  const remapCover = (side: CoverSideData | null): CoverSideData | null => {
+    if (!side) return null
+    return {
+      ...side,
+      image_url: remap(side.image_url),
+      elements: remapElements(side.elements ?? []),
+    }
+  }
+  const outsideCover = remapCover(passport.cover_outside_data ?? null)
+  const insideCover = remapCover(passport.cover_inside_data ?? null)
+  const remappedPages: PassportPageForPrint[] = pagesForPrint.map((p) => ({
+    ...p,
+    background_image_url: remap(p.background_image_url),
+    elements: remapElements(p.elements ?? []),
+  }))
 
   // Render PDF
   let pdfBuffer: Buffer
@@ -935,11 +944,10 @@ async function handlePrintRequest(request: Request, passportId: string) {
         institutionName={institutionName}
         passportType={passportType}
         includeCert={includeCert}
-        outsideCover={passport.cover_outside_data ?? null}
-        insideCover={passport.cover_inside_data ?? null}
+        outsideCover={outsideCover}
+        insideCover={insideCover}
         paperColorHex={paperColorHex}
-        stampPages={pagesForPrint}
-        normalizedImages={normalizedImages}
+        stampPages={remappedPages}
       />
     )
   } catch (err) {
