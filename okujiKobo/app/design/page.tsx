@@ -85,7 +85,6 @@ function PassportCard({ passport }: { passport: DesignerPassport }) {
             id: passport.id,
             title: passport.title,
             institution_id: passport.institution_id ?? passport.proprietor_id ?? null,
-            print_journal_setting: passport.print_journal_setting ?? 'include_all',
           }}
         />
       </div>

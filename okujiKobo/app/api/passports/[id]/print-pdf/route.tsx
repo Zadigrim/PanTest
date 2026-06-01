@@ -717,18 +717,16 @@ async function handlePrintRequest(request: Request, passportId: string) {
     return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { 'Content-Type': 'application/json' } })
   }
 
-  // Body
-  let body: { stop_ids: string[]; copies: number; journal_override: 'include_all' | 'exclude_all' | null }
-  try {
-    body = await request.json()
-  } catch {
-    return new Response(JSON.stringify({ error: 'Invalid request body' }), { status: 400, headers: { 'Content-Type': 'application/json' } })
-  }
-
-  const { stop_ids, copies, journal_override } = body
-  if (!Array.isArray(stop_ids) || typeof copies !== 'number') {
-    return new Response(JSON.stringify({ error: 'Missing required fields' }), { status: 400, headers: { 'Content-Type': 'application/json' } })
-  }
+  // The request body used to carry stop_ids (selected stops), copies,
+  // and journal_override. All three are gone — the simplified "Print
+  // physical passports" flow has no options: every stop is always
+  // included, copies are chosen at the user's printer, and journal
+  // lines aren't rendered at all (that mechanism was retired; future
+  // journal-line support will land as dedicated journal pages, not as
+  // overlays on stop pages). We still parse the body so existing
+  // clients posting an empty JSON object work, and we ignore any
+  // leftover fields rather than 400.
+  try { await request.json() } catch { /* empty body is fine */ }
 
   // Fetch passport
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -836,10 +834,8 @@ async function handlePrintRequest(request: Request, passportId: string) {
     return new Response(JSON.stringify({ error: 'Failed to fetch stops' }), { status: 500, headers: { 'Content-Type': 'application/json' } })
   }
 
-  // Build per-page data
-  const selectedIds = new Set(stop_ids)
-  const includeAll = stop_ids.length === 0
-
+  // Build per-page data. Every stop is always included now; the old
+  // selectedIds filter is gone alongside the modal's stop checkboxes.
   const pagesForPrint: PassportPageForPrint[] = pagesRaw
     .map((page) => {
       const pageStops = (stopsRaw ?? [])
@@ -865,11 +861,6 @@ async function handlePrintRequest(request: Request, passportId: string) {
         custom_background_opacity: clampOpacityPct(page.custom_background_opacity),
         background_image_url: page.background_image_url ?? null,
       }
-    })
-    .filter((page) => {
-      if (page.page_type === 'information') return true
-      if (includeAll) return true
-      return page.stops.some((s) => selectedIds.has(s.id))
     })
 
   // Cert + cover decisions
@@ -962,8 +953,11 @@ async function handlePrintRequest(request: Request, passportId: string) {
       passport_id: passportId,
       institution_id: passport.proprietor_id ?? null,
       created_by: user.id,
-      stop_ids, copies,
-      journal_setting: journal_override ?? 'per_stop',
+      // Sensible defaults — stop_ids/copies/journal_setting columns remain
+      // on the print_jobs table but are no longer driven by the UI.
+      stop_ids: [],
+      copies: 1,
+      journal_setting: 'per_stop',
     })
   } catch (err) {
     console.warn('[print-pdf] failed to log print job:', err)

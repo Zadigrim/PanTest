@@ -8,8 +8,8 @@ import { Button } from './ui/Button'
 import { Input } from './ui/Input'
 import { Label } from './ui/Label'
 import { SPEND_TIERS, spendTierLabel } from '@/lib/design/spend-tiers'
-import { PrintPassportModal } from './PrintPassportModal'
-import type { SpendTier, CreatorDecision, PrintJournalSetting } from '@/lib/design/types'
+import { downloadPrintPdf } from '@/lib/print/download'
+import type { SpendTier, CreatorDecision } from '@/lib/design/types'
 
 interface Props {
   onClose: () => void
@@ -38,9 +38,19 @@ export function PassportSettingsPanel({ onClose }: Props) {
   const [verifyResult, setVerifyResult] = useState<VerifyResult | null>(null)
   const [verifyError, setVerifyError] = useState<string | null>(null)
   const [decision, setDecision] = useState<CreatorDecision | null>(null)
-  const [showPrintModal, setShowPrintModal] = useState(false)
+  const [printing, setPrinting] = useState(false)
+  const [printError, setPrintError] = useState<string | null>(null)
 
   if (!passport) return null
+
+  async function handlePrint() {
+    if (!passport || printing) return
+    setPrinting(true)
+    setPrintError(null)
+    const result = await downloadPrintPdf(passport.id, passport.title)
+    if (!result.ok) setPrintError(result.error)
+    setPrinting(false)
+  }
 
   const persist = async (patch: Parameters<typeof updatePassport>[0]) => {
     updatePassport(patch)
@@ -112,19 +122,6 @@ export function PassportSettingsPanel({ onClose }: Props) {
             ✕
           </button>
         </div>
-
-        {/* Print modal */}
-        {showPrintModal && passport.institution_id && (
-          <PrintPassportModal
-            passport={{
-              id: passport.id,
-              title: passport.title,
-              institution_id: passport.institution_id,
-              print_journal_setting: passport.print_journal_setting ?? 'include_all',
-            }}
-            onClose={() => setShowPrintModal(false)}
-          />
-        )}
 
         <div className="flex-1 space-y-6 p-5">
           {/* Basic info */}
@@ -229,41 +226,30 @@ export function PassportSettingsPanel({ onClose }: Props) {
                 </span>
               </label>
 
-              {(passport.print_enabled) && (
-                <>
-                  <div className="space-y-1.5 pl-7">
-                    <p className="text-xs font-medium text-muted uppercase tracking-wide">
-                      Journal prompts
-                    </p>
-                    {(
-                      [
-                        { value: 'include_all',  label: 'Include journal lines for all stops' },
-                        { value: 'exclude_all',  label: 'Exclude journal lines for all stops' },
-                        { value: 'per_stop',     label: 'Control per stop' },
-                      ] as { value: PrintJournalSetting; label: string }[]
-                    ).map(({ value, label }) => (
-                      <label key={value} className="flex cursor-pointer items-center gap-2">
-                        <input
-                          type="radio"
-                          name="print_journal_setting"
-                          value={value}
-                          checked={(passport.print_journal_setting ?? 'include_all') === value}
-                          onChange={() => persist({ print_journal_setting: value })}
-                          className="accent-green"
-                        />
-                        <span className="text-sm text-navy">{label}</span>
-                      </label>
-                    ))}
-                  </div>
+              {/* Journal lines used to be rendered on stop pages, controlled
+                  by a per-passport / per-stop toggle. The "lines layered onto
+                  stop pages" mechanism has been retired — future journal-line
+                  support will land as dedicated journal pages, not as an
+                  overlay on stop pages, so the old toggles were removed
+                  outright instead of left dormant. */}
 
+              {passport.print_enabled && (
+                <>
                   <Button
                     variant="secondary"
                     size="sm"
                     className="w-full"
-                    onClick={() => setShowPrintModal(true)}
+                    onClick={handlePrint}
+                    disabled={printing}
                   >
-                    🖨 Print for kids…
+                    🖨 {printing ? 'Generating…' : 'Print for kids'}
                   </Button>
+                  {printError && (
+                    <p role="alert" className="text-xs text-accent">
+                      {printError}
+                      <button type="button" onClick={() => setPrintError(null)} className="ml-2 underline">dismiss</button>
+                    </p>
+                  )}
                 </>
               )}
             </section>

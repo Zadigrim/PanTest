@@ -107,33 +107,11 @@ const SUBJECT_AREA_OPTIONS = [
   { value: 'environment',  label: 'Environment'  },
 ] as const
 
-// ── PhysicalPassportSection ────────────────────────────────────────────────────
-
-function PhysicalPassportSection({
-  stop,
-  persist,
-}: {
-  stop: DesignerStop
-  persist: (patch: Partial<DesignerStop>) => Promise<void>
-}) {
-  const passport = usePassportStore((s) => s.passport)
-  if (!passport?.institution_id || !passport.print_enabled) return null
-  if (passport.print_journal_setting !== 'per_stop') return null
-
-  return (
-    <Section title="Physical passport">
-      <label className="flex cursor-pointer items-center gap-3">
-        <input
-          type="checkbox"
-          checked={stop.print_include_journal ?? true}
-          onChange={(e) => void persist({ print_include_journal: e.target.checked })}
-          className="h-4 w-4 rounded accent-green"
-        />
-        <span className="text-sm text-navy">Include journal lines for this stop</span>
-      </label>
-    </Section>
-  )
-}
+// The per-stop "Include journal lines" checkbox and its parent
+// PhysicalPassportSection were removed. Journal-line rendering on stop
+// pages has been retired entirely; future journal-line support will land
+// as dedicated journal pages, not as an overlay on stop pages, so the
+// per-stop toggle would be the wrong shape to keep around.
 
 // ── Stop Inspector ─────────────────────────────────────────────────────────────
 
@@ -769,8 +747,6 @@ function StopInspector({
           </>
         )}
       </Section>
-
-      <PhysicalPassportSection stop={stop} persist={persist} />
 
       {/* Share with the community — visible when educational classifier is set */}
       {(stop.classifiers ?? []).includes('educational') && (

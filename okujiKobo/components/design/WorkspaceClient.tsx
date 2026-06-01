@@ -11,8 +11,8 @@ import { CoverInspector } from './CoverInspector'
 import { CoverPalette } from './CoverPalette'
 import { PassportSettingsPanel } from './PassportSettingsPanel'
 import { PublishFlow } from './PublishFlow'
-import { PrintPassportModal } from './PrintPassportModal'
 import { Button } from './ui/Button'
+import { downloadPrintPdf } from '@/lib/print/download'
 import { useAutosave } from '@/hooks/useAutosave'
 import { retryFailed, saveAll } from '@/lib/design/persist'
 import { useWorkspaceKeyboard } from '@/hooks/useWorkspaceKeyboard'
@@ -42,7 +42,8 @@ export function WorkspaceClient({ passport, pages, stops, creatorInstitutionId }
 
   const [showSettings, setShowSettings] = useState(false)
   const [showPublish, setShowPublish] = useState(false)
-  const [showPrint, setShowPrint] = useState(false)
+  const [printing, setPrinting] = useState(false)
+  const [printError, setPrintError] = useState<string | null>(null)
   const [navigating, setNavigating] = useState(false)
   const [viewMode, setViewMode] = useState<'cover' | 'pages'>('pages')
   const [coverFace, setCoverFace] = useState<CoverFace>('outside')
@@ -146,9 +147,27 @@ export function WorkspaceClient({ passport, pages, stops, creatorInstitutionId }
           >
             {displayPassport.status}
           </span>
-          <Button variant="ghost" size="sm" onClick={() => setShowPrint(true)}>
-            Print…
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={async () => {
+              if (printing) return
+              setPrinting(true)
+              setPrintError(null)
+              const r = await downloadPrintPdf(displayPassport.id, displayPassport.title)
+              if (!r.ok) setPrintError(r.error)
+              setPrinting(false)
+            }}
+            disabled={printing}
+          >
+            {printing ? 'Generating…' : 'Print'}
           </Button>
+          {printError && (
+            <span role="alert" className="text-xs text-accent">
+              {printError}
+              <button type="button" onClick={() => setPrintError(null)} className="ml-1 underline">×</button>
+            </span>
+          )}
           <Button variant="ghost" size="sm" onClick={() => setShowSettings(true)}>
             Settings
           </Button>
@@ -222,17 +241,6 @@ export function WorkspaceClient({ passport, pages, stops, creatorInstitutionId }
 
       {showSettings && <PassportSettingsPanel onClose={() => setShowSettings(false)} />}
       {showPublish && <PublishFlow onClose={() => setShowPublish(false)} />}
-      {showPrint && (
-        <PrintPassportModal
-          passport={{
-            id: displayPassport.id,
-            title: displayPassport.title,
-            institution_id: displayPassport.institution_id ?? null,
-            print_journal_setting: displayPassport.print_journal_setting ?? 'include_all',
-          }}
-          onClose={() => setShowPrint(false)}
-        />
-      )}
     </div>
   )
 }
