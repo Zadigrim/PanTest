@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { cn } from '@/lib/cn'
 import { UploadAssetButton } from '@/components/assets/UploadAssetButton'
 import { DeleteAssetButton } from '@/components/assets/DeleteAssetButton'
+import { AssetUsageExpander } from '@/components/assets/AssetUsageExpander'
 
 // ---------------------------------------------------------------------------
 // Config per asset type
@@ -140,6 +141,7 @@ function AssetCard({
           />
         </div>
       </div>
+      {canDelete && <AssetUsageExpander assetId={asset.id} />}
     </div>
   )
 }

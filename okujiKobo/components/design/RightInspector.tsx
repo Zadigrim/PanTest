@@ -14,6 +14,7 @@ import { Label } from './ui/Label'
 import { Button } from './ui/Button'
 import { ColorPickerInput } from './ui/ColorPickerInput'
 import { MapPickerDialog, MAPS_PICKER_AVAILABLE } from './MapPickerDialog'
+import { AssetDeleteButton } from './AssetDeleteButton'
 import { safeUpdate, safeInsert } from '@/lib/design/persist'
 import type {
   DesignerStop,
@@ -226,18 +227,24 @@ function StampPicker({
               <Label className="text-xs text-muted">My uploads</Label>
               <div className="mt-1.5 flex flex-wrap gap-1">
                 {myAssets.map((asset) => (
-                  <button
-                    key={asset.id}
-                    onClick={() => selectAsset(asset)}
-                    title={asset.name ?? ''}
-                    className={`flex h-9 w-9 items-center justify-center overflow-hidden rounded-card border transition-colors ${
-                      isCustom && stop.stamp_asset_id === asset.id
-                        ? 'border-green bg-cream'
-                        : 'border-hairline hover:border-green'
-                    }`}
-                  >
-                    {renderThumb(asset)}
-                  </button>
+                  <div key={asset.id} className="group relative">
+                    <button
+                      onClick={() => selectAsset(asset)}
+                      title={asset.name ?? ''}
+                      className={`flex h-9 w-9 items-center justify-center overflow-hidden rounded-card border transition-colors ${
+                        isCustom && stop.stamp_asset_id === asset.id
+                          ? 'border-green bg-cream'
+                          : 'border-hairline hover:border-green'
+                      }`}
+                    >
+                      {renderThumb(asset)}
+                    </button>
+                    <AssetDeleteButton
+                      assetId={asset.id}
+                      assetName={asset.name ?? 'Untitled'}
+                      onDeleted={() => setMyAssets((prev) => prev.filter((a) => a.id !== asset.id))}
+                    />
+                  </div>
                 ))}
               </div>
             </div>
@@ -879,19 +886,25 @@ function CustomBgPicker({
       ) : (
         <div className="grid grid-cols-3 gap-1.5">
           {assets.map((asset) => (
-            <button
-              key={asset.id}
-              onClick={() => void persist({ background_image_url: asset.url })}
-              className={`relative aspect-video overflow-hidden rounded border-2 transition-colors ${
-                page.background_image_url === asset.url
-                  ? 'border-green'
-                  : 'border-transparent hover:border-green/40'
-              }`}
-              title={asset.name ?? ''}
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={asset.url ?? ''} alt={asset.name ?? ''} className="h-full w-full object-cover" />
-            </button>
+            <div key={asset.id} className="group relative">
+              <button
+                onClick={() => void persist({ background_image_url: asset.url })}
+                className={`relative aspect-video w-full overflow-hidden rounded border-2 transition-colors ${
+                  page.background_image_url === asset.url
+                    ? 'border-green'
+                    : 'border-transparent hover:border-green/40'
+                }`}
+                title={asset.name ?? ''}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={asset.url ?? ''} alt={asset.name ?? ''} className="h-full w-full object-cover" />
+              </button>
+              <AssetDeleteButton
+                assetId={asset.id}
+                assetName={asset.name ?? 'Untitled'}
+                onDeleted={() => setAssets((prev) => prev.filter((a) => a.id !== asset.id))}
+              />
+            </div>
           ))}
         </div>
       )}
@@ -1257,20 +1270,26 @@ function ImageElementPicker({
           <Label className="text-xs text-muted">Your uploaded images</Label>
           <div className="mt-1 grid grid-cols-4 gap-1.5">
             {assets.map((asset) => (
-              <button
-                key={asset.id}
-                type="button"
-                onClick={() => void persist({ imageUrl: asset.url })}
-                title={asset.name ?? ''}
-                className={`relative aspect-square overflow-hidden rounded-card border transition-colors ${
-                  element.imageUrl === asset.url
-                    ? 'border-green ring-1 ring-green'
-                    : 'border-hairline hover:border-green/40'
-                }`}
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={asset.url} alt={asset.name ?? ''} className="h-full w-full object-cover" />
-              </button>
+              <div key={asset.id} className="group relative">
+                <button
+                  type="button"
+                  onClick={() => void persist({ imageUrl: asset.url })}
+                  title={asset.name ?? ''}
+                  className={`relative aspect-square w-full overflow-hidden rounded-card border transition-colors ${
+                    element.imageUrl === asset.url
+                      ? 'border-green ring-1 ring-green'
+                      : 'border-hairline hover:border-green/40'
+                  }`}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={asset.url} alt={asset.name ?? ''} className="h-full w-full object-cover" />
+                </button>
+                <AssetDeleteButton
+                  assetId={asset.id}
+                  assetName={asset.name ?? 'Untitled'}
+                  onDeleted={() => setAssets((prev) => prev.filter((a) => a.id !== asset.id))}
+                />
+              </div>
             ))}
           </div>
         </div>
