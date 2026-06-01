@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { safeUpdate } from '@/lib/design/persist'
 import {
@@ -30,23 +30,55 @@ export function Canvas() {
 
   const [zoom, setZoom] = useState(1)
 
+  // Drag handlers fire onChange on EVERY pointer move (~60/sec). Sending
+  // a Supabase UPDATE per move pegged the DB connection and triggered a
+  // 57014 "canceling statement due to statement timeout" once enough
+  // writes piled up. Debounce the persist per-id so the local store
+  // still updates instantly for visual feedback, but only the final
+  // position is written to the DB ~250ms after the last change.
+  const persistTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
+  const PERSIST_DEBOUNCE_MS = 250
+
+  const scheduleStopPersist = useCallback((id: string, patch: Record<string, unknown>) => {
+    const key = `stop:${id}`
+    const prev = persistTimers.current.get(key)
+    if (prev) clearTimeout(prev)
+    persistTimers.current.set(
+      key,
+      setTimeout(() => {
+        persistTimers.current.delete(key)
+        void safeUpdate('stops', patch, 'id', id)
+      }, PERSIST_DEBOUNCE_MS),
+    )
+  }, [])
+
+  const schedulePagePersist = useCallback((pageId: string, elements: unknown[]) => {
+    const key = `page:${pageId}`
+    const prev = persistTimers.current.get(key)
+    if (prev) clearTimeout(prev)
+    persistTimers.current.set(
+      key,
+      setTimeout(() => {
+        persistTimers.current.delete(key)
+        void safeUpdate('passport_pages', { elements }, 'id', pageId)
+      }, PERSIST_DEBOUNCE_MS),
+    )
+  }, [])
+
   const handleStopChange = useCallback(
-    async (
-      id: string,
-      patch: Parameters<typeof updateStop>[1],
-    ) => {
+    (id: string, patch: Parameters<typeof updateStop>[1]) => {
       updateStop(id, patch)
-      await safeUpdate('stops', patch, 'id', id)
+      scheduleStopPersist(id, patch as Record<string, unknown>)
     },
-    [updateStop],
+    [updateStop, scheduleStopPersist],
   )
 
   const handleElementChange = useCallback(
-    async (pageId: string, elementId: string, patch: Partial<DesignerPageElement>) => {
+    (pageId: string, elementId: string, patch: Partial<DesignerPageElement>) => {
       const updated = updateElement(pageId, elementId, patch)
-      await safeUpdate('passport_pages', { elements: updated }, 'id', pageId)
+      schedulePagePersist(pageId, updated)
     },
-    [updateElement],
+    [updateElement, schedulePagePersist],
   )
 
   const handleZoomIn = () =>

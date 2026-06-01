@@ -83,6 +83,14 @@ export function CoverCanvas({ face, onFaceChange, selectedPanel, onPanelChange }
     void safeUpdate('passports', { [sideKey]: next }, 'id', passport.id)
   }
 
+  // Element drags fire onChange per pointer-move (~60Hz); writing the
+  // full cover_outside_data jsonb each time pegged the DB connection.
+  // Debounce the persist so only the final position is written ~250ms
+  // after the drag settles. Local store still updates on every move so
+  // the drag stays smooth visually.
+  const elementPersistTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const ELEMENT_PERSIST_DEBOUNCE_MS = 250
+
   function handleCanvasClick(e: React.MouseEvent<HTMLDivElement>) {
     if (dragRef.current) return
     const rect = e.currentTarget.getBoundingClientRect()
@@ -135,8 +143,15 @@ export function CoverCanvas({ face, onFaceChange, selectedPanel, onPanelChange }
   const elements = side.elements ?? []
 
   function handleElementChange(elementId: string, patch: Partial<DesignerPageElement>) {
-    const next = elements.map((el) => el.id === elementId ? { ...el, ...patch } : el)
-    persistSide({ elements: next })
+    const nextElements = elements.map((el) => el.id === elementId ? { ...el, ...patch } : el)
+    const nextSide: CoverSideData = { ...side, elements: nextElements }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    updatePassport({ [sideKey]: nextSide } as any)
+    if (elementPersistTimer.current) clearTimeout(elementPersistTimer.current)
+    elementPersistTimer.current = setTimeout(() => {
+      elementPersistTimer.current = null
+      void safeUpdate('passports', { [sideKey]: nextSide }, 'id', passport.id)
+    }, ELEMENT_PERSIST_DEBOUNCE_MS)
   }
 
   return (
