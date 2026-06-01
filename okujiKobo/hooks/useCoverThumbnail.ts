@@ -170,18 +170,18 @@ export function useCoverThumbnail() {
           return
         }
 
-        // Persist to DB
+        // Persist to DB only. Skipping the local store update is
+        // deliberate: passport.cover_thumbnail is only read by the
+        // marketplace card surfaces (fetched fresh on next page-load),
+        // never by the active designer session, so caching it in the
+        // store earns nothing — and updatePassport() flips isDirty=true,
+        // which would re-trigger the autosave loop forever.
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const supabase = createClient() as any
-        const { error } = await supabase
+        await supabase
           .from('passports')
           .update({ cover_thumbnail: dataUrl })
           .eq('id', currentPassport.id)
-
-        if (!error) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          ;(usePassportStore.getState() as any).updatePassport({ cover_thumbnail: dataUrl })
-        }
       }, DEBOUNCE_MS)
     })
 

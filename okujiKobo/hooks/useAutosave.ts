@@ -115,6 +115,14 @@ async function runPersist(): Promise<BatchError[]> {
       usePassportStore.getState().setSaveError(summary)
     }
     return errs
+  } catch (err) {
+    // A thrown Supabase / network exception (not just a result.error)
+    // used to leave isSaving=true forever — the indicator would show
+    // "Saving…" indefinitely. Treat it the same as a batch failure.
+    console.error('autosave threw:', err)
+    const msg = err instanceof Error ? err.message : 'Unknown error'
+    usePassportStore.getState().setSaveError(msg)
+    return []
   } finally {
     inflight = null
     if (queued) {
