@@ -19,6 +19,7 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import { createClient } from '@/lib/supabase/client'
 import { usePassportStore } from '@/lib/design/passport-store'
+import { safeUpdate } from '@/lib/design/persist'
 import { Button } from './ui/Button'
 import type {
   DesignerStop,
@@ -167,11 +168,8 @@ export function LeftPalette() {
     const orderedIds = newOrder.map((p) => p.id)
     reorderPages(orderedIds)
     // Persist new page_order values
-    const db = createClient() as any // eslint-disable-line @typescript-eslint/no-explicit-any
     await Promise.all(
-      orderedIds.map((id, idx) =>
-        db.from('passport_pages').update({ page_order: idx }).eq('id', id)
-      )
+      orderedIds.map((id, idx) => safeUpdate('passport_pages', { page_order: idx }, 'id', id)),
     )
   }, [pages, reorderPages])
 
@@ -235,8 +233,7 @@ export function LeftPalette() {
 
     const updated = addElement(activePageId, defaults)
     setSelectedElement(id)
-    const db = createClient() as any
-    await db.from('passport_pages').update({ elements: updated }).eq('id', activePageId)
+    await safeUpdate('passport_pages', { elements: updated }, 'id', activePageId)
   }
 
   const handleAddPage = () => {

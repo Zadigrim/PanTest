@@ -20,6 +20,9 @@ interface PassportStore {
   isDirty: boolean
   isSaving: boolean
   lastSavedAt: Date | null
+  // Last persist failure surfaced to the user via SaveIndicator.
+  // Cleared on the next successful persist or by the Retry button.
+  saveError: string | null
 
   hydrate: (
     passport: DesignerPassport,
@@ -52,6 +55,7 @@ interface PassportStore {
   markDirty: () => void
   markSaved: () => void
   setSaving: (v: boolean) => void
+  setSaveError: (msg: string | null) => void
 }
 
 export const usePassportStore = create<PassportStore>((set, get) => ({
@@ -64,6 +68,7 @@ export const usePassportStore = create<PassportStore>((set, get) => ({
   isDirty: false,
   isSaving: false,
   lastSavedAt: null,
+  saveError: null,
 
   hydrate: (passport, pages, stops) => {
     const sorted = [...pages]
@@ -179,8 +184,9 @@ export const usePassportStore = create<PassportStore>((set, get) => ({
   },
 
   markDirty: () => set({ isDirty: true }),
-  markSaved: () => set({ isDirty: false, isSaving: false, lastSavedAt: new Date() }),
+  markSaved: () => set({ isDirty: false, isSaving: false, lastSavedAt: new Date(), saveError: null }),
   setSaving: (v) => set({ isSaving: v }),
+  setSaveError: (msg) => set({ saveError: msg, isSaving: false }),
 }))
 
 // ── Selectors ──────────────────────────────────────────────────────────────────

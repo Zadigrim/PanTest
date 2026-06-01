@@ -14,6 +14,7 @@ import { Label } from './ui/Label'
 import { Button } from './ui/Button'
 import { ColorPickerInput } from './ui/ColorPickerInput'
 import { MapPickerDialog, MAPS_PICKER_AVAILABLE } from './MapPickerDialog'
+import { safeUpdate, safeInsert } from '@/lib/design/persist'
 import type {
   DesignerStop,
   DesignerPassportPage,
@@ -479,9 +480,7 @@ function StopInspector({
 
   const persist = async (patch: Partial<DesignerStop>) => {
     updateStop(stop.id, patch)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const db = createClient() as any
-    await db.from('stops').update(patch).eq('id', stop.id)
+    await safeUpdate('stops', patch, 'id', stop.id)
   }
 
   const handleDelete = async () => {
@@ -850,19 +849,21 @@ function CustomBgPicker({
       const ext = file.name.split('.').pop() ?? 'png'
       const path = `${user.id}/bg-${Date.now()}.${ext}`
       const { error: upErr } = await supabase.storage.from('design-assets').upload(path, file)
-      if (upErr) { console.error(upErr); return }
-      const { data: { publicUrl } } = supabase.storage.from('design-assets').getPublicUrl(path)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const db = createClient() as any
-      const { data: asset } = await db
-        .from('design_assets')
-        .insert({ asset_type: 'background', url: publicUrl, storage_path: path, name: file.name, owner_id: user.id })
-        .select('id, url, name')
-        .single()
-      if (asset) {
-        setAssets((prev) => [asset as BgAsset, ...prev])
-        await persist({ background_image_url: (asset as BgAsset).url })
+      if (upErr) {
+        usePassportStore.getState().setSaveError(`Upload failed: ${upErr.message}`)
+        return
       }
+      const { data: { publicUrl } } = supabase.storage.from('design-assets').getPublicUrl(path)
+      const asset = await safeInsert<BgAsset>(
+        'design_assets',
+        { asset_type: 'background', url: publicUrl, storage_path: path, name: file.name, owner_id: user.id },
+        'id, url, name',
+      )
+      if (asset) {
+        setAssets((prev) => [asset, ...prev])
+        await persist({ background_image_url: asset.url })
+      }
+      // If asset is null, safeInsert already surfaced the error via store.
     } finally {
       setUploading(false)
       e.target.value = ''
@@ -914,9 +915,7 @@ function PageInspector({ page }: { page: DesignerPassportPage }) {
 
   const persist = async (patch: Partial<DesignerPassportPage>) => {
     updatePage(page.id, patch)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const db = createClient() as any
-    await db.from('passport_pages').update(patch).eq('id', page.id)
+    await safeUpdate('passport_pages', patch, 'id', page.id)
   }
 
   const bg = page.background_type
@@ -1108,9 +1107,7 @@ function PassportInspector() {
 
   const persist = async (patch: Parameters<typeof updatePassport>[0]) => {
     updatePassport(patch)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const db = createClient() as any
-    await db.from('passports').update(patch).eq('id', passport.id)
+    await safeUpdate('passports', patch as Record<string, unknown>, 'id', passport.id)
   }
 
   return (
@@ -1181,6 +1178,12 @@ function PassportInspector() {
 }
 
 // ── Image element picker ───────────────────────────────────────────────────────
+//
+// Lists previously-uploaded images for the current user so a creator can
+// reuse an image across pages without re-uploading. Uploads also write a
+// design_assets row (asset_type='image') so the library accumulates.
+
+interface ImageAsset { id: string; url: string; name: string | null }
 
 function ImageElementPicker({
   element,
@@ -1190,6 +1193,25 @@ function ImageElementPicker({
   persist: (patch: Partial<ImagePageElement>) => Promise<void>
 }) {
   const [uploading, setUploading] = useState(false)
+  const [assets, setAssets] = useState<ImageAsset[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = createClient() as any
+    void (async () => {
+      const { data: { user } } = await (db as ReturnType<typeof createClient>).auth.getUser()
+      if (!user) { setLoading(false); return }
+      const { data } = await db
+        .from('design_assets')
+        .select('id, url, name')
+        .eq('asset_type', 'image')
+        .eq('owner_id', user.id)
+        .order('created_at', { ascending: false })
+      setAssets((data ?? []) as ImageAsset[])
+      setLoading(false)
+    })()
+  }, [])
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -1202,8 +1224,18 @@ function ImageElementPicker({
       const ext = file.name.split('.').pop() ?? 'png'
       const path = `${user.id}/img-${Date.now()}.${ext}`
       const { error: upErr } = await supabase.storage.from('design-assets').upload(path, file)
-      if (upErr) { console.error(upErr); return }
+      if (upErr) {
+        usePassportStore.getState().setSaveError(`Upload failed: ${upErr.message}`)
+        return
+      }
       const { data: { publicUrl } } = supabase.storage.from('design-assets').getPublicUrl(path)
+      // Record the asset so future image elements can pick it without re-upload.
+      const asset = await safeInsert<ImageAsset>(
+        'design_assets',
+        { asset_type: 'image', url: publicUrl, storage_path: path, name: file.name, owner_id: user.id },
+        'id, url, name',
+      )
+      if (asset) setAssets((prev) => [asset, ...prev])
       await persist({ imageUrl: publicUrl })
     } finally {
       setUploading(false)
@@ -1222,6 +1254,31 @@ function ImageElementPicker({
           style={{ maxHeight: 120 }}
         />
       )}
+
+      {!loading && assets.length > 0 && (
+        <div>
+          <Label className="text-xs text-muted">Your uploaded images</Label>
+          <div className="mt-1 grid grid-cols-4 gap-1.5">
+            {assets.map((asset) => (
+              <button
+                key={asset.id}
+                type="button"
+                onClick={() => void persist({ imageUrl: asset.url })}
+                title={asset.name ?? ''}
+                className={`relative aspect-square overflow-hidden rounded-card border transition-colors ${
+                  element.imageUrl === asset.url
+                    ? 'border-green ring-1 ring-green'
+                    : 'border-hairline hover:border-green/40'
+                }`}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={asset.url} alt={asset.name ?? ''} className="h-full w-full object-cover" />
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       <label
         className={`flex cursor-pointer items-center justify-center gap-2 rounded-card border border-hairline px-3 py-2 text-xs transition-colors ${
           uploading ? 'pointer-events-none opacity-50' : 'text-muted hover:border-green/40'
@@ -1261,17 +1318,13 @@ function ElementInspector({
 
   const persist = async (patch: Partial<DesignerPageElement>) => {
     const updated = updateElement(pageId, element.id, patch)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const db = createClient() as any
-    await db.from('passport_pages').update({ elements: updated }).eq('id', pageId)
+    await safeUpdate('passport_pages', { elements: updated }, 'id', pageId)
   }
 
   const handleDelete = async () => {
     const updated = removeElement(pageId, element.id)
     setSelectedElement(null)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const db = createClient() as any
-    await db.from('passport_pages').update({ elements: updated }).eq('id', pageId)
+    await safeUpdate('passport_pages', { elements: updated }, 'id', pageId)
   }
 
   return (

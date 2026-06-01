@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback } from 'react'
 import { usePassportStore } from '@/lib/design/passport-store'
+import { safeUpdate } from '@/lib/design/persist'
 import { PageElementBox } from './PageElementBox'
 import type { CoverSideData, DesignerPageElement } from '@/lib/design/types'
 
@@ -76,10 +77,10 @@ export function CoverCanvas({ face, onFaceChange, selectedPanel, onPanelChange }
     const next: CoverSideData = { ...side, ...patch }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     updatePassport({ [sideKey]: next } as any)
-    const { createClient } = require('@/lib/supabase/client')
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const db = createClient() as any
-    void db.from('passports').update({ [sideKey]: next }).eq('id', passport.id)
+    // Fire-and-forget at the call site, but safeUpdate awaits + reports
+    // the result via the store so silent failures become a visible
+    // "Save failed — retry" instead of vanishing on next page-load.
+    void safeUpdate('passports', { [sideKey]: next }, 'id', passport.id)
   }
 
   function handleCanvasClick(e: React.MouseEvent<HTMLDivElement>) {

@@ -4,17 +4,29 @@ import { useEffect, useRef, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { usePassportStore } from '@/lib/design/passport-store'
 
-const AUTOSAVE_INTERVAL_MS = 30_000
+// Periodic check: every 10s, if anything is dirty, save it. Previously
+// 30s, which lost up to 30s of changes when the user navigated away or
+// closed the tab. 10s keeps the worst-case loss small while still
+// coalescing rapid edits into a single write. Backed up by a navigate
+// flush in WorkspaceClient.handleBack() and beforeunload/visibility
+// listeners below, so backing out within the window doesn't lose work.
+const AUTOSAVE_INTERVAL_MS = 10_000
 
-async function persistAll() {
-  const { passport, pages, stops, setSaving, markSaved } = usePassportStore.getState()
-  if (!passport) return
+interface BatchError { table: string; id: string; message: string }
+
+// Runs every batched save. Each table-write is awaited and its error
+// destructured; failures are collected into BatchError[] so the user
+// sees a real "Save failed — retry" instead of a fake "Saved ✓".
+async function persistAll(): Promise<BatchError[]> {
+  const { passport, pages, stops, setSaving } = usePassportStore.getState()
+  if (!passport) return []
 
   setSaving(true)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createClient() as any
+  const errors: BatchError[] = []
 
-  await db
+  const { error: passportErr } = await db
     .from('passports')
     .update({
       title:                  passport.title,
@@ -31,8 +43,9 @@ async function persistAll() {
       updated_at:             new Date().toISOString(),
     })
     .eq('id', passport.id)
+  if (passportErr) errors.push({ table: 'passports', id: passport.id, message: passportErr.message ?? 'unknown' })
 
-  await Promise.all(
+  const pageResults = await Promise.all(
     pages.map((page) =>
       db
         .from('passport_pages')
@@ -46,8 +59,13 @@ async function persistAll() {
         .eq('id', page.id),
     ),
   )
+  pageResults.forEach((r, i) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const err = (r as any).error
+    if (err) errors.push({ table: 'passport_pages', id: pages[i].id, message: err.message ?? 'unknown' })
+  })
 
-  await Promise.all(
+  const stopResults = await Promise.all(
     stops.map((stop) =>
       db
         .from('stops')
@@ -64,53 +82,80 @@ async function persistAll() {
         .eq('id', stop.id),
     ),
   )
+  stopResults.forEach((r, i) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const err = (r as any).error
+    if (err) errors.push({ table: 'stops', id: stops[i].id, message: err.message ?? 'unknown' })
+  })
 
-  markSaved()
+  return errors
+}
+
+// Single-flight + queue: if a save is in flight when another is requested,
+// queue exactly one follow-up so the latest store state is written.
+let inflight: Promise<BatchError[]> | null = null
+let queued = false
+
+async function runPersist(): Promise<BatchError[]> {
+  if (inflight) {
+    queued = true
+    return inflight
+  }
+  inflight = persistAll()
+  try {
+    const errs = await inflight
+    if (errs.length === 0) {
+      usePassportStore.getState().markSaved()
+    } else {
+      // Surface first error in the indicator; full details logged.
+      console.error('autosave failures:', errs)
+      const summary = errs.length === 1
+        ? `${errs[0].table}: ${errs[0].message}`
+        : `${errs.length} writes failed (${errs[0].message})`
+      usePassportStore.getState().setSaveError(summary)
+    }
+    return errs
+  } finally {
+    inflight = null
+    if (queued) {
+      queued = false
+      void runPersist()
+    }
+  }
 }
 
 export function useAutosave() {
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-
   const saveNow = useCallback(async () => {
-    if (timerRef.current) {
-      clearTimeout(timerRef.current)
-      timerRef.current = null
-    }
     const { isDirty } = usePassportStore.getState()
     if (!isDirty) return
-    await persistAll()
+    await runPersist()
   }, [])
 
   useEffect(() => {
-    const cancelTimer = () => {
-      if (timerRef.current) {
-        clearTimeout(timerRef.current)
-        timerRef.current = null
-      }
-    }
-
-    const scheduleOrCancel = () => {
+    const interval = setInterval(() => {
       const { isDirty } = usePassportStore.getState()
-      if (!isDirty) {
-        cancelTimer()
-        return
-      }
-      if (timerRef.current) return
+      if (isDirty) void runPersist()
+    }, AUTOSAVE_INTERVAL_MS)
 
-      timerRef.current = setTimeout(async () => {
-        timerRef.current = null
-        const { isDirty: stillDirty } = usePassportStore.getState()
-        if (!stillDirty) return
-        await persistAll()
-      }, AUTOSAVE_INTERVAL_MS)
+    // Flush in-flight work on tab close / hide so backing out inside the
+    // 10s window doesn't lose changes.
+    const handleBeforeUnload = () => {
+      const { isDirty } = usePassportStore.getState()
+      if (isDirty) void runPersist()
     }
-
-    // Subscribe directly to the store — zero React render-cycle involvement
-    const unsub = usePassportStore.subscribe(scheduleOrCancel)
+    const handleVisibility = () => {
+      if (document.visibilityState === 'hidden') {
+        const { isDirty } = usePassportStore.getState()
+        if (isDirty) void runPersist()
+      }
+    }
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    document.addEventListener('visibilitychange', handleVisibility)
 
     return () => {
-      unsub()
-      cancelTimer()
+      clearInterval(interval)
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+      document.removeEventListener('visibilitychange', handleVisibility)
     }
   }, [])
 

@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { usePassportStore } from '@/lib/design/passport-store'
+import { safeUpdate } from '@/lib/design/persist'
 import { Button } from './ui/Button'
 import { Input } from './ui/Input'
 import { Label } from './ui/Label'
@@ -43,8 +44,7 @@ export function PassportSettingsPanel({ onClose }: Props) {
 
   const persist = async (patch: Parameters<typeof updatePassport>[0]) => {
     updatePassport(patch)
-    const supabase = createClient()
-    await supabase.from('passports').update(patch).eq('id', passport.id)
+    await safeUpdate('passports', patch as Record<string, unknown>, 'id', passport.id)
   }
 
   const handleVerifySpend = async () => {

@@ -33,6 +33,7 @@ export function WorkspaceClient({ passport, pages, stops, creatorInstitutionId }
   const isDirty = usePassportStore((s) => s.isDirty)
   const isSaving = usePassportStore((s) => s.isSaving)
   const lastSavedAt = usePassportStore((s) => s.lastSavedAt)
+  const saveError = usePassportStore((s) => s.saveError)
   const passportState = usePassportStore((s) => s.passport)
   const pageList = usePassportStore((s) => s.pages)
   const activePageId = usePassportStore((s) => s.activePageId)
@@ -67,11 +68,19 @@ export function WorkspaceClient({ passport, pages, stops, creatorInstitutionId }
     setNavigating(true)
     try {
       // Flush any pending edits before leaving — protects against the
-      // 30-second autosave window losing in-flight changes.
+      // 10-second autosave window losing in-flight changes.
       await saveNow()
     } catch (err) {
       console.error('save-before-navigate failed:', err)
-      if (!window.confirm('Your changes could not be saved. Leave anyway?')) {
+    }
+    // saveNow surfaces failures via the store rather than throwing, so
+    // also check saveError before letting the user lose work silently.
+    const err = usePassportStore.getState().saveError
+    if (err) {
+      const proceed = window.confirm(
+        `Your changes could not be saved (${err}). Leave anyway and lose them?`,
+      )
+      if (!proceed) {
         setNavigating(false)
         return
       }
@@ -101,7 +110,13 @@ export function WorkspaceClient({ passport, pages, stops, creatorInstitutionId }
         </div>
 
         <div className="flex items-center gap-3">
-          <SaveIndicator isDirty={isDirty} isSaving={isSaving} lastSavedAt={lastSavedAt} />
+          <SaveIndicator
+            isDirty={isDirty}
+            isSaving={isSaving}
+            lastSavedAt={lastSavedAt}
+            saveError={saveError}
+            onRetry={saveNow}
+          />
           <Button
             size="sm"
             variant={isDirty ? 'default' : 'ghost'}
@@ -217,11 +232,29 @@ function SaveIndicator({
   isDirty,
   isSaving,
   lastSavedAt,
+  saveError,
+  onRetry,
 }: {
   isDirty: boolean
   isSaving: boolean
   lastSavedAt: Date | null
+  saveError: string | null
+  onRetry: () => Promise<void>
 }) {
+  if (saveError) {
+    return (
+      <span className="flex items-center gap-2 text-xs text-accent">
+        <span title={saveError}>Save failed</span>
+        <button
+          type="button"
+          onClick={() => void onRetry()}
+          className="rounded-card border border-accent px-2 py-0.5 text-xs font-medium text-accent hover:bg-accent hover:text-white transition-colors"
+        >
+          Retry
+        </button>
+      </span>
+    )
+  }
   if (isSaving) return <span className="text-xs text-muted">Saving…</span>
   if (isDirty) return <span className="text-xs text-accent">Unsaved changes</span>
   if (lastSavedAt) {
