@@ -4,6 +4,7 @@ import {
   Svg, Ellipse, Path, Line, Polyline, Polygon, Rect, Image,
 } from '@react-pdf/renderer'
 import { createClient } from '@/lib/supabase/server'
+import { normalizeAll, type NormalizedImage } from '@/lib/print/normalize-images'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const ARTBOARD_W = 612, ARTBOARD_H = 792
@@ -62,7 +63,14 @@ const S = StyleSheet.create({
   instrPanelTitle: { fontSize: 10, fontFamily: 'Helvetica-Bold', color: '#1A1A1A', textAlign: 'center', marginTop: 10 },
   instrPanelText: { fontSize: 9, fontFamily: 'Helvetica', color: '#333333', textAlign: 'center', marginTop: 4 },
   instrLegend: { position: 'absolute', left: 0, width: SHEET_W, textAlign: 'center', fontSize: 8, fontFamily: 'Helvetica', color: '#444444' },
+  blankByDesign: { position: 'absolute', left: 0, width: SHEET_W, textAlign: 'center', fontSize: 7, fontFamily: 'Helvetica-Oblique', color: '#BBBBBB' },
 })
+
+// Used on structurally-empty strips so the user can tell "intentionally
+// blank" apart from "missing content bug". Drawn centered on the strip.
+function BlankByDesignLabel({ top, text }: { top: number; text: string }) {
+  return <Text style={[S.blankByDesign, { top: top + STRIP_H / 2 - 4 }]}>{text}</Text>
+}
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface StopForPrint { id: string; name: string; stop_order: number; box_x: number; box_y: number; box_width: number; box_height: number; rotation: number }
@@ -104,6 +112,22 @@ function clampOpacityPct(v: number | null | undefined, def = 100): number {
 }
 function truncateTitle(t: string, max = 60): string { return t.length <= max ? t : t.slice(0, max - 1) + '…' }
 
+// ── Image source resolution ─────────────────────────────────────────────────
+// Every image in the doc (page backgrounds, page-element images, cover
+// image) is pre-normalized server-side by lib/print/normalize-images: bytes
+// fetched, transparency flattened onto paper color, re-encoded as baseline
+// JPEG. Pdfkit's PNG decoder has known gaps (16-bit depth, Adam7
+// interlacing, embedded ICC profiles, certain alpha/palette combos) that
+// caused some user-uploaded book-cover PNGs to render as empty slots while
+// others on the same page rendered fine. Flattening + JPEG re-encode side-
+// steps the whole class of bug — pdfkit's JPEG decoder is reliable.
+//
+// resolveImageSrc returns either the normalized {data, format} object that
+// <Image> accepts directly, or null when the image failed to normalize
+// (caller renders nothing rather than a broken slot).
+type ResolvedImageSrc = { data: Buffer; format: 'jpg' } | null
+const ImageSourceContext = React.createContext<(url: string | null | undefined) => ResolvedImageSrc>(() => null)
+
 // ── Page-element renderers ────────────────────────────────────────────────────
 function TextEl({ el, scale }: { el: TextPageElement; scale: number }) {
   const color = `#${el.color ?? '0D1B2A'}`
@@ -119,11 +143,14 @@ function TextEl({ el, scale }: { el: TextPageElement; scale: number }) {
 }
 
 function ImageEl({ el, scale }: { el: ImagePageElement; scale: number }) {
+  const resolveSrc = React.useContext(ImageSourceContext)
   if (!el.imageUrl) return null
+  const src = resolveSrc(el.imageUrl)
+  if (!src) return null
   const rotation = el.rotation ?? 0
   return (
     <View style={{ position: 'absolute', left: el.x * scale, top: el.y * scale, width: el.width * scale, height: el.height * scale, overflow: 'hidden', transform: rotation ? `rotate(${rotation}deg)` : undefined, opacity: (el.opacity ?? 100) / 100 }}>
-      <Image src={el.imageUrl} style={{ width: el.width * scale, height: el.height * scale, objectFit: 'contain' }} />
+      <Image src={src} style={{ width: el.width * scale, height: el.height * scale, objectFit: 'contain' }} />
     </View>
   )
 }
@@ -211,19 +238,21 @@ function GridOverlay({ color, opacity }: { color: string; opacity: number }) {
 
 // ── Stamp page slot ───────────────────────────────────────────────────────────
 function PassportPageSlotContent({ page }: { page: PassportPageForPrint }) {
+  const resolveSrc = React.useContext(ImageSourceContext)
   const label = page.section_title || page.section_name || `Page ${page.page_order}`
   const paperColor = `#${page.paper_color ?? 'F5F2EC'}`
   const bgColor = `#${page.background_color ?? '0D1B2A'}`
   const bgOpacity = clampOpacityPct(page.background_opacity)
   const customBgOpacity = clampOpacityPct(page.custom_background_opacity)
+  const customBgSrc = page.background_type === 'custom' ? resolveSrc(page.background_image_url) : null
   return (
     <>
       <Text style={S.sectionTitle}>{label}</Text>
       <View style={[S.pageCanvas, { width: CANVAS_W, height: CANVAS_H, marginLeft: CANVAS_OFFSET_X, backgroundColor: paperColor }]}>
         {page.background_type === 'guilloche' && <GuillocheOverlay color={bgColor} opacity={bgOpacity} />}
         {page.background_type === 'grid' && <GridOverlay color={bgColor} opacity={bgOpacity} />}
-        {page.background_type === 'custom' && page.background_image_url && (
-          <Image src={page.background_image_url} style={{ position: 'absolute', top: 0, left: 0, width: CANVAS_W, height: CANVAS_H, objectFit: 'contain', opacity: customBgOpacity / 100 }} />
+        {customBgSrc && (
+          <Image src={customBgSrc} style={{ position: 'absolute', top: 0, left: 0, width: CANVAS_W, height: CANVAS_H, objectFit: 'contain', opacity: customBgOpacity / 100 }} />
         )}
         <PageElementsLayer elements={page.elements} scale={CANVAS_SCALE} />
         {page.stops.map((stop) => {
@@ -276,6 +305,7 @@ function CertSlotContent({ title, institutionName }: { title: string; institutio
 
 // ── Cover composition ─────────────────────────────────────────────────────────
 function CoverCompositionContent({ side, fallbackTitle, paperColor }: { side: CoverSideData | null; fallbackTitle: string; paperColor: string }) {
+  const resolveSrc = React.useContext(ImageSourceContext)
   if (!side) {
     return (
       <View style={{ position: 'absolute', left: 0, top: COVER_Y_OFFSET, width: COVER_RENDER_W, height: COVER_RENDER_H, backgroundColor: paperColor, alignItems: 'center', justifyContent: 'center' }}>
@@ -297,11 +327,15 @@ function CoverCompositionContent({ side, fallbackTitle, paperColor }: { side: Co
       {/* Front panel (right) */}
       <View style={{ position: 'absolute', left: COVER_PANEL_W_PT + COVER_SPINE_W_PT, top: 0, width: COVER_PANEL_W_PT, height: COVER_RENDER_H, backgroundColor: `#${side.front_bg ?? '0D1B2A'}` }} />
       {/* Spine gutter left transparent. Optional full-bleed image: */}
-      {side.image_url ? (
-        <View style={{ position: 'absolute', left: 0, top: 0, width: COVER_RENDER_W, height: COVER_RENDER_H, overflow: 'hidden', opacity: imgOpacity }}>
-          <Image src={side.image_url} style={{ position: 'absolute', left: imgLeft, top: imgTop, width: imgW, height: imgH, objectFit: 'cover' }} />
-        </View>
-      ) : null}
+      {(() => {
+        const src = resolveSrc(side.image_url)
+        if (!src) return null
+        return (
+          <View style={{ position: 'absolute', left: 0, top: 0, width: COVER_RENDER_W, height: COVER_RENDER_H, overflow: 'hidden', opacity: imgOpacity }}>
+            <Image src={src} style={{ position: 'absolute', left: imgLeft, top: imgTop, width: imgW, height: imgH, objectFit: 'cover' }} />
+          </View>
+        )
+      })()}
       <PageElementsLayer elements={side.elements ?? []} scale={COVER_SCALE} />
     </View>
   )
@@ -436,6 +470,13 @@ function ReaderPageSlot({ page, left, top }: { page: ReaderPage; left: number; t
         {page.kind === 'name' && <NamePageContent passportTitle={page.passportTitle} institutionName={page.institutionName} passportType={page.passportType} />}
         {page.kind === 'stamp' && <PassportPageSlotContent page={page.page} />}
         {page.kind === 'cert' && <CertSlotContent title={page.passportTitle} institutionName={page.institutionName} />}
+        {page.kind === 'blank' && (
+          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+            <Text style={{ fontSize: 7, fontFamily: 'Helvetica-Oblique', color: '#BBBBBB' }}>
+              Blank by design — pads to signature
+            </Text>
+          </View>
+        )}
       </View>
     </View>
   )
@@ -559,6 +600,7 @@ function StampSheetSideA({ ctx, sheet, sheetIndex }: { ctx: RenderContext; sheet
           {lowerStripPos !== null && <StripLabel stripPosition={lowerStripPos} totalStrips={ctx.totalStrips} passportTitle={ctx.passportTitle} stripIndex={1} />}
         </>
       )}
+      {!lowerSlots && <BlankByDesignLabel top={CUT_Y} text="Blank by design — cut and discard" />}
     </Page>
   )
 }
@@ -586,6 +628,7 @@ function StampSheetSideB({ ctx, sheet, sheetIndex }: { ctx: RenderContext; sheet
           <ReaderPageSlot page={lowerSlots.sideB_right} left={STRIP_HALF_W} top={CUT_Y} />
         </>
       )}
+      {!lowerSlots && <BlankByDesignLabel top={CUT_Y} text="Blank by design — cut and discard" />}
     </Page>
   )
 }
@@ -597,9 +640,13 @@ interface PrintPassportDocProps {
   outsideCover: CoverSideData | null; insideCover: CoverSideData | null
   paperColorHex: string
   stampPages: PassportPageForPrint[]
+  /** Map from original image URL → normalized JPEG buffer. URLs not in
+   *  the map (failed normalization, or none requested) resolve to null
+   *  and the image is omitted from the PDF. */
+  normalizedImages: Map<string, NormalizedImage>
 }
 
-function PrintPassportDoc({ passportTitle, institutionName, passportType, includeCert, outsideCover, insideCover, paperColorHex, stampPages }: PrintPassportDocProps) {
+function PrintPassportDoc({ passportTitle, institutionName, passportType, includeCert, outsideCover, insideCover, paperColorHex, stampPages, normalizedImages }: PrintPassportDocProps) {
   const readerPages: ReaderPage[] = []
   readerPages.push({ kind: 'name', passportTitle, institutionName, passportType })
   let pageNum = 1
@@ -623,8 +670,15 @@ function PrintPassportDoc({ passportTitle, institutionName, passportType, includ
     outsideCover, insideCover, paperColorHex,
   }
 
+  const resolveSrc = (url: string | null | undefined): ResolvedImageSrc => {
+    if (!url) return null
+    const n = normalizedImages.get(url)
+    return n ?? null
+  }
+
   return (
     <Document>
+      <ImageSourceContext.Provider value={resolveSrc}>
       {plan.map((sheet, sheetIndex) => {
         if (sheet.kind === 'cover') {
           return (
@@ -641,6 +695,7 @@ function PrintPassportDoc({ passportTitle, institutionName, passportType, includ
           </React.Fragment>
         )
       })}
+      </ImageSourceContext.Provider>
     </Document>
   )
 }
@@ -660,6 +715,9 @@ function decideIncludeCert(passportType: PassportType, institutionType: string |
 
 // ── Route ─────────────────────────────────────────────────────────────────────
 export const dynamic = 'force-dynamic'
+// sharp (used by lib/print/normalize-images) requires the Node.js runtime;
+// the default Edge runtime would crash on the native binding.
+export const runtime = 'nodejs'
 
 export async function POST(request: Request, { params }: { params: { id: string } }) {
   try {
@@ -841,6 +899,33 @@ async function handlePrintRequest(request: Request, passportId: string) {
   const includeCert = decideIncludeCert(passportType, institutionType, passport.print_certificate)
   const paperColorHex = `#${passport.cover_paper_color ?? 'F5F2EC'}`
 
+  // ── Pre-normalize every image in the doc ─────────────────────────────────
+  // pdfkit's PNG decoder silently drops certain user-uploaded variants
+  // (alpha + ICC profile, interlaced, 16-bit, etc.). Fetch every image
+  // ahead of render and flatten/re-encode as JPEG so the rendering pass
+  // gets a guaranteed-decodable buffer.
+  const imageUrls: string[] = []
+  const pushUrl = (u: string | null | undefined) => { if (u) imageUrls.push(u) }
+  pushUrl(passport.cover_outside_data?.image_url)
+  for (const el of passport.cover_outside_data?.elements ?? []) {
+    if ((el as { type?: string }).type === 'image') pushUrl((el as ImagePageElement).imageUrl)
+  }
+  pushUrl(passport.cover_inside_data?.image_url)
+  for (const el of passport.cover_inside_data?.elements ?? []) {
+    if ((el as { type?: string }).type === 'image') pushUrl((el as ImagePageElement).imageUrl)
+  }
+  for (const page of pagesForPrint) {
+    if (page.background_type === 'custom') pushUrl(page.background_image_url)
+    for (const el of page.elements ?? []) {
+      if (el.type === 'image') pushUrl((el as ImagePageElement).imageUrl)
+    }
+  }
+
+  const normalizedImages = await normalizeAll(imageUrls, {
+    paperHex: (passport.cover_paper_color ?? 'F5F2EC').replace(/^#/, ''),
+  })
+  console.log(`[print-pdf] normalized ${normalizedImages.size}/${new Set(imageUrls).size} images`)
+
   // Render PDF
   let pdfBuffer: Buffer
   try {
@@ -854,6 +939,7 @@ async function handlePrintRequest(request: Request, passportId: string) {
         insideCover={passport.cover_inside_data ?? null}
         paperColorHex={paperColorHex}
         stampPages={pagesForPrint}
+        normalizedImages={normalizedImages}
       />
     )
   } catch (err) {
