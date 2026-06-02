@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Stack, useRouter, useSegments } from 'expo-router'
 import * as SplashScreen from 'expo-splash-screen'
+import * as Linking from 'expo-linking'
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import { StyleSheet } from 'react-native'
 import * as Sentry from '@sentry/react-native'
@@ -8,6 +9,30 @@ import type { Session } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
 import { EmployeeProvider } from '../contexts/EmployeeContext'
 import { initJournalPhotoSync } from '../lib/journal-photo-queue'
+
+// Global deep-link consumer for Supabase auth redirects. Handles:
+//   - email-confirmation taps (`okuji://auth?code=…&type=signup`)
+//   - magic-link / password-recovery taps in the future
+//   - any OAuth redirect that arrives outside the in-app browser flow
+// The login screen's WebBrowser.openAuthSessionAsync path still parses
+// `result.url` itself for the Google flow; this handler is for cold-
+// open deep links where there's no in-app browser session to consume
+// the URL.
+async function handleAuthRedirect(url: string | null) {
+  if (!url) return
+  const parsed = Linking.parse(url)
+  const params = parsed.queryParams ?? {}
+  const code = params.code
+  const errDesc = params.error_description
+  if (typeof errDesc === 'string' && errDesc) {
+    console.warn('[auth redirect] error', errDesc)
+    return
+  }
+  if (typeof code === 'string' && code) {
+    const { error } = await supabase.auth.exchangeCodeForSession(code)
+    if (error) console.warn('[auth redirect] exchangeCodeForSession failed', error.message)
+  }
+}
 
 Sentry.init({
   dsn: process.env.EXPO_PUBLIC_SENTRY_DSN,
@@ -36,7 +61,19 @@ export default function RootLayout() {
       setSession(nextSession)
     })
 
-    return () => subscription.unsubscribe()
+    // Cold-start deep-link consumption: the user may have arrived from
+    // tapping an email-confirmation link, which opens the app with the
+    // URL but no in-app browser session to parse it.
+    void Linking.getInitialURL().then(handleAuthRedirect)
+
+    // Foreground deep-link consumption: same handler, fires when the
+    // app is already running and a deep-link arrives.
+    const sub = Linking.addEventListener('url', (e) => void handleAuthRedirect(e.url))
+
+    return () => {
+      subscription.unsubscribe()
+      sub.remove()
+    }
   }, [])
 
   // Centralized auth gate: route into the right group on auth changes.

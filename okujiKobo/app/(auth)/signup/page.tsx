@@ -14,6 +14,13 @@ export default function SignupPage() {
   const [password,    setPassword]    = useState('')
   const [error,       setError]       = useState<string | null>(null)
   const [loading,     setLoading]     = useState(false)
+  // After a successful signUp where Supabase didn't return a session
+  // (because email-confirmation is on), we show the "check your email"
+  // pane instead of redirecting. The user clicks the link in the email
+  // and lands at /auth/callback which exchanges the code and signs them
+  // in. Google OAuth signups still land in the regular logged-in flow.
+  const [awaitingConfirmation, setAwaitingConfirmation] = useState<string | null>(null)
+  const [resendStatus, setResendStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -22,11 +29,16 @@ export default function SignupPage() {
 
     const supabase = createClient()
 
-    // 1. Create the auth user
+    // 1. Create the auth user. emailRedirectTo points at the existing
+    // /auth/callback route which already handles exchangeCodeForSession
+    // for both OAuth and PKCE email-confirmation links.
     const { data: signUpData, error: authError } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: { display_name: displayName } },
+      options: {
+        data: { display_name: displayName },
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
+      },
     })
 
     if (authError || !signUpData.user) {
@@ -51,7 +63,71 @@ export default function SignupPage() {
       console.warn('Profile upsert warning:', profileError.message)
     }
 
+    // Supabase returns session=null when email confirmation is required.
+    // session is non-null only when confirmation is off (existing
+    // pre-confirmation accounts) or for non-confirmable providers.
+    if (!signUpData.session) {
+      setAwaitingConfirmation(email)
+      setLoading(false)
+      return
+    }
+
     router.replace('/')
+  }
+
+  async function handleResend() {
+    if (!awaitingConfirmation) return
+    setResendStatus('sending')
+    const supabase = createClient()
+    const { error: resendErr } = await supabase.auth.resend({
+      type: 'signup',
+      email: awaitingConfirmation,
+      options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+    })
+    setResendStatus(resendErr ? 'error' : 'sent')
+  }
+
+  if (awaitingConfirmation) {
+    return (
+      <div className="w-full max-w-sm">
+        <div className="mb-8 text-center">
+          <span className="text-4xl leading-none" aria-hidden="true">📨</span>
+          <h1 className="mt-3 font-serif text-2xl font-bold text-white tracking-tight">
+            Check your email
+          </h1>
+        </div>
+        <div className="rounded-modal bg-white p-8 shadow-lg text-sm text-navy space-y-4">
+          <p>
+            We sent a verification link to <strong>{awaitingConfirmation}</strong>. Click it to finish creating your account.
+          </p>
+          <p className="text-muted">
+            Didn&apos;t get it? Check spam, then try resending.
+          </p>
+          <button
+            type="button"
+            onClick={handleResend}
+            disabled={resendStatus === 'sending' || resendStatus === 'sent'}
+            className={cn(
+              'h-10 w-full rounded-panel bg-green px-4 text-sm font-medium text-white',
+              'hover:bg-[#0F6E56] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green',
+              'disabled:opacity-50 disabled:pointer-events-none transition-colors',
+            )}
+          >
+            {resendStatus === 'sending' && 'Sending…'}
+            {resendStatus === 'sent' && 'Sent — check your inbox'}
+            {resendStatus === 'error' && 'Couldn’t resend — try again'}
+            {resendStatus === 'idle' && 'Resend verification email'}
+          </button>
+          <p className="text-center text-sm text-muted">
+            Once verified,{' '}
+            <Link href="/login" className="font-medium text-green hover:underline">
+              sign in
+            </Link>
+            .
+          </p>
+        </div>
+      </div>
+    )
   }
 
   return (

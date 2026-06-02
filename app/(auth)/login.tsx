@@ -51,8 +51,38 @@ export default function LoginScreen() {
     setLoading(true)
     const { error } = await supabase.auth.signInWithPassword({ email, password })
     setLoading(false)
-    if (error) Alert.alert('Login failed', error.message)
-    else router.replace('/(tabs)/my-passports')
+    if (error) {
+      const isUnverified =
+        (error as { code?: string }).code === 'email_not_confirmed' ||
+        /email.*not.*confirm/i.test(error.message)
+      if (isUnverified) {
+        Alert.alert(
+          'Verify your email',
+          `${email} hasn’t been verified yet. Check your inbox for the verification link, or resend it now.`,
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Resend',
+              onPress: async () => {
+                const { error: resendErr } = await supabase.auth.resend({
+                  type: 'signup',
+                  email,
+                  options: { emailRedirectTo: redirectTo },
+                })
+                Alert.alert(
+                  resendErr ? 'Couldn’t resend' : 'Sent',
+                  resendErr ? resendErr.message : 'Check your inbox for a fresh verification link.',
+                )
+              },
+            },
+          ],
+        )
+      } else {
+        Alert.alert('Login failed', error.message)
+      }
+      return
+    }
+    router.replace('/(tabs)/my-passports')
   }
 
   // Requires the Google provider enabled in Supabase Auth, the okuji:// redirect

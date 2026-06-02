@@ -23,6 +23,11 @@ function LoginForm() {
   const [error,    setError]    = useState<string | null>(null)
   const [loading,  setLoading]  = useState(false)
   const [googleLoading, setGoogleLoading] = useState(false)
+  // When Supabase returns "Email not confirmed" we surface a friendly
+  // pane with a Resend button rather than the raw error string. The
+  // unverified email is captured so Resend posts to the right address.
+  const [unverifiedEmail, setUnverifiedEmail] = useState<string | null>(null)
+  const [resendStatus, setResendStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
 
   const next = searchParams.get('next') ?? '/'
 
@@ -52,7 +57,18 @@ function LoginForm() {
     const { error: authError } = await supabase.auth.signInWithPassword({ email, password })
 
     if (authError) {
-      setError(authError.message)
+      // Supabase returns code 'email_not_confirmed' (and a message
+      // containing that phrase) when the user clicked "Sign in" before
+      // verifying. Surface a clearer state rather than the raw error.
+      const isUnverified =
+        (authError as { code?: string }).code === 'email_not_confirmed' ||
+        /email.*not.*confirm/i.test(authError.message)
+      if (isUnverified) {
+        setUnverifiedEmail(email)
+        setError(null)
+      } else {
+        setError(authError.message)
+      }
       setLoading(false)
       return
     }
@@ -60,6 +76,59 @@ function LoginForm() {
     // Hard redirect so the browser sends a fresh request with new auth cookies.
     // router.replace() does a soft RSC navigation that can race with cookie propagation.
     window.location.href = next
+  }
+
+  async function handleResendVerification() {
+    if (!unverifiedEmail) return
+    setResendStatus('sending')
+    const supabase = createClient()
+    const { error: resendErr } = await supabase.auth.resend({
+      type: 'signup',
+      email: unverifiedEmail,
+      options: { emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}` },
+    })
+    setResendStatus(resendErr ? 'error' : 'sent')
+  }
+
+  if (unverifiedEmail) {
+    return (
+      <div className="w-full max-w-sm">
+        <div className="mb-8 text-center">
+          <span className="text-4xl leading-none" aria-hidden="true">📨</span>
+          <h1 className="mt-3 font-serif text-2xl font-bold text-white tracking-tight">
+            Verify your email
+          </h1>
+        </div>
+        <div className="rounded-modal bg-white p-8 shadow-lg text-sm text-navy space-y-4">
+          <p>
+            <strong>{unverifiedEmail}</strong> hasn&apos;t been verified yet. Click the link we sent to finish signing in.
+          </p>
+          <p className="text-muted">Didn&apos;t get it? Check spam, then resend.</p>
+          <button
+            type="button"
+            onClick={handleResendVerification}
+            disabled={resendStatus === 'sending' || resendStatus === 'sent'}
+            className={cn(
+              'h-10 w-full rounded-panel bg-green px-4 text-sm font-medium text-white',
+              'hover:bg-[#0F6E56] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green',
+              'disabled:opacity-50 disabled:pointer-events-none transition-colors',
+            )}
+          >
+            {resendStatus === 'sending' && 'Sending…'}
+            {resendStatus === 'sent' && 'Sent — check your inbox'}
+            {resendStatus === 'error' && 'Couldn’t resend — try again'}
+            {resendStatus === 'idle' && 'Resend verification email'}
+          </button>
+          <button
+            type="button"
+            onClick={() => { setUnverifiedEmail(null); setResendStatus('idle') }}
+            className="block w-full text-center text-sm text-muted hover:text-navy"
+          >
+            ← Back to sign in
+          </button>
+        </div>
+      </div>
+    )
   }
 
   return (
