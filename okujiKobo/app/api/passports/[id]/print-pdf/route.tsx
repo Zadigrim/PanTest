@@ -434,12 +434,20 @@ function RegistrationMarks({ skipVertical }: { skipVertical: boolean }) {
   }
   return (
     <>
-      {positions.map((pos, i) => (
-        <React.Fragment key={i}>
-          <View style={[S.regH, { left: pos.x - half, top: pos.y - 0.25, width: len }]} />
-          <View style={[S.regV, { left: pos.x - 0.25, top: pos.y - half, height: len }]} />
-        </React.Fragment>
-      ))}
+      {positions.map((pos, i) => {
+        // Clamp marks to stay within the page box. Without this, marks
+        // at y=0 / y=SHEET_H and x=0 / x=SHEET_W extend 8pt past the
+        // edge, which trips @react-pdf's wrap and emits a phantom
+        // continuation page after every stamp sheet.
+        const regHLeft = Math.max(0, Math.min(SHEET_W - len, pos.x - half))
+        const regVTop  = Math.max(0, Math.min(SHEET_H - len, pos.y - half))
+        return (
+          <React.Fragment key={i}>
+            <View style={[S.regH, { left: regHLeft, top: pos.y - 0.25, width: len }]} />
+            <View style={[S.regV, { left: pos.x - 0.25, top: regVTop, height: len }]} />
+          </React.Fragment>
+        )
+      })}
     </>
   )
 }
