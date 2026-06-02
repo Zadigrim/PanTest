@@ -447,12 +447,20 @@ function RegistrationMarks({ skipVertical, sheetH = SHEET_H }: { skipVertical: b
   }
   return (
     <>
-      {positions.map((pos, i) => (
-        <React.Fragment key={i}>
-          <View style={[S.regH, { left: pos.x - half, top: pos.y - 0.25, width: len }]} />
-          <View style={[S.regV, { left: pos.x - 0.25, top: pos.y - half, height: len }]} />
-        </React.Fragment>
-      ))}
+      {positions.map((pos, i) => {
+        // Clamp so marks at y=0 / y=sheetH and x=0 / x=SHEET_W don't
+        // overflow page bounds. Even a fraction of a point past the
+        // edge triggers @react-pdf's auto-pagination, which emits a
+        // phantom continuation page after each sheet.
+        const regHLeft = Math.max(0, Math.min(SHEET_W - len, pos.x - half))
+        const regVTop  = Math.max(0, Math.min(sheetH    - len, pos.y - half))
+        return (
+          <React.Fragment key={i}>
+            <View style={[S.regH, { left: regHLeft, top: pos.y - 0.25, width: len }]} />
+            <View style={[S.regV, { left: pos.x - 0.25, top: regVTop, height: len }]} />
+          </React.Fragment>
+        )
+      })}
     </>
   )
 }
