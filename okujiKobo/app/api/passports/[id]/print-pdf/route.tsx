@@ -16,16 +16,13 @@ const STRIP_H = 396, CUT_Y = STRIP_H
 const STRIP_HALF_W = SHEET_W / 2, VERT_FOLD_X = STRIP_HALF_W, CUT_X = STRIP_HALF_W
 const PAGE_SLOT_W = STRIP_HALF_W, PAGE_SLOT_H = STRIP_H, PAD = 14
 
-// Scaled artboard for stamp-page slot. Now that the auto-injected
-// section title row is gone (only designer-placed text boxes render),
-// the canvas can use the full slot height. Fit by width so the canvas
-// never exceeds the slot's horizontal padded area.
-const CANVAS_AREA_H = PAGE_SLOT_H - 2 * PAD
+// Scaled artboard for stamp-page slot
+const CANVAS_AREA_H = PAGE_SLOT_H - 2 * PAD - 20
 const CANVAS_AREA_W = PAGE_SLOT_W - 2 * PAD
-const FIT_BY_WIDTH_H = CANVAS_AREA_W * (ARTBOARD_H / ARTBOARD_W)
-const CANVAS_W = CANVAS_AREA_W
-const CANVAS_H = Math.min(FIT_BY_WIDTH_H, CANVAS_AREA_H)
+const FIT_BY_HEIGHT_W = CANVAS_AREA_H / (ARTBOARD_H / ARTBOARD_W)
+const CANVAS_H = CANVAS_AREA_H, CANVAS_W = FIT_BY_HEIGHT_W
 const CANVAS_SCALE = CANVAS_H / ARTBOARD_H
+const CANVAS_OFFSET_X = (PAGE_SLOT_W - 2 * PAD - CANVAS_W) / 2
 
 // Cover composition area: full sheet width, centered vertically in strip
 const COVER_RENDER_W = SHEET_W
@@ -40,16 +37,11 @@ const S = StyleSheet.create({
   guideH: { position: 'absolute', left: 0, height: 0.5, width: SHEET_W, backgroundColor: '#EEEEEE' },
   regH: { position: 'absolute', height: 0.5, backgroundColor: '#CCCCCC' },
   regV: { position: 'absolute', width: 0.5, backgroundColor: '#CCCCCC' },
+  stripLabel: { position: 'absolute', left: 0, width: SHEET_W, textAlign: 'center', fontSize: 6, color: '#888888', fontFamily: 'Helvetica' },
   sheetTag: { position: 'absolute', top: 4, right: 4, fontSize: 6, color: '#999999', fontFamily: 'Helvetica' },
   slot: { position: 'absolute', width: PAGE_SLOT_W, height: PAGE_SLOT_H, overflow: 'hidden', flexDirection: 'column' },
-  // slotContent is a column flex container — the actual child decides
-  // its own centering. NamePageContent and CertSlotContent use flex:1
-  // + justifyContent:'center' internally (they fill the slot and
-  // center their own labels/lines). PassportPageSlotContent wraps the
-  // page canvas in a centered View so the canvas sits in the middle of
-  // the strip; both upper and lower strips end up symmetric about the
-  // cut line, which is what aligns them after stack-and-fold.
   slotContent: { flex: 1, padding: PAD, flexDirection: 'column', overflow: 'hidden' },
+  sectionTitle: { fontSize: 9, fontFamily: 'Helvetica-Bold', color: '#333333', textAlign: 'center', marginBottom: 4 },
   pageCanvas: { position: 'relative', borderWidth: 0.5, borderColor: '#DDDDDD', borderStyle: 'solid' },
   locationBox: { position: 'absolute', borderWidth: 1, borderColor: '#999999', borderStyle: 'dashed', borderRadius: 2 },
   locationBoxName: { position: 'absolute', top: 2, left: 0, right: 0, textAlign: 'center', fontSize: 5, color: '#000000', fontFamily: 'Helvetica' },
@@ -71,7 +63,14 @@ const S = StyleSheet.create({
   instrPanelTitle: { fontSize: 10, fontFamily: 'Helvetica-Bold', color: '#1A1A1A', textAlign: 'center', marginTop: 10 },
   instrPanelText: { fontSize: 9, fontFamily: 'Helvetica', color: '#333333', textAlign: 'center', marginTop: 4 },
   instrLegend: { position: 'absolute', left: 0, width: SHEET_W, textAlign: 'center', fontSize: 8, fontFamily: 'Helvetica', color: '#444444' },
+  blankByDesign: { position: 'absolute', left: 0, width: SHEET_W, textAlign: 'center', fontSize: 7, fontFamily: 'Helvetica-Oblique', color: '#BBBBBB' },
 })
+
+// Used on structurally-empty strips so the user can tell "intentionally
+// blank" apart from "missing content bug". Drawn centered on the strip.
+function BlankByDesignLabel({ top, text }: { top: number; text: string }) {
+  return <Text style={[S.blankByDesign, { top: top + STRIP_H / 2 - 4 }]}>{text}</Text>
+}
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface StopForPrint { id: string; name: string; stop_order: number; box_x: number; box_y: number; box_width: number; box_height: number; rotation: number }
@@ -111,10 +110,7 @@ function clampOpacityPct(v: number | null | undefined, def = 100): number {
   const n = typeof v === 'number' ? v : def
   return Math.min(100, Math.max(10, n))
 }
-// truncateTitle and totalStrips were used by the per-page STRIP labels;
-// the labels are gone (assembly is documented on the front instruction
-// sheet only) but the totalStrips field is kept on RenderContext as
-// metadata for anything that wants it.
+function truncateTitle(t: string, max = 60): string { return t.length <= max ? t : t.slice(0, max - 1) + '…' }
 
 // Image-handling note: every image URL in the doc data (cover image,
 // cover-side elements, page backgrounds, page-element images) is
@@ -239,20 +235,15 @@ function GridOverlay({ color, opacity }: { color: string; opacity: number }) {
 
 // ── Stamp page slot ───────────────────────────────────────────────────────────
 function PassportPageSlotContent({ page }: { page: PassportPageForPrint }) {
-  // No auto-generated header: page titles come only from designer-placed
-  // text boxes (rendered via PageElementsLayer below). The internal
-  // section_name / section_title fields are organizational labels used
-  // in the designer chrome — they don't render onto the printed page.
+  const label = page.section_title || page.section_name || `Page ${page.page_order}`
   const paperColor = `#${page.paper_color ?? 'F5F2EC'}`
   const bgColor = `#${page.background_color ?? '0D1B2A'}`
   const bgOpacity = clampOpacityPct(page.background_opacity)
   const customBgOpacity = clampOpacityPct(page.custom_background_opacity)
-  // Outer wrapper fills the slot and centers the canvas horizontally
-  // + vertically; that's what gives upper-strip and lower-strip content
-  // matching Y positions about the horizontal cut line.
   return (
-    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-      <View style={[S.pageCanvas, { width: CANVAS_W, height: CANVAS_H, backgroundColor: paperColor }]}>
+    <>
+      <Text style={S.sectionTitle}>{label}</Text>
+      <View style={[S.pageCanvas, { width: CANVAS_W, height: CANVAS_H, marginLeft: CANVAS_OFFSET_X, backgroundColor: paperColor }]}>
         {page.background_type === 'guilloche' && <GuillocheOverlay color={bgColor} opacity={bgOpacity} />}
         {page.background_type === 'grid' && <GridOverlay color={bgColor} opacity={bgOpacity} />}
         {page.background_type === 'custom' && page.background_image_url && (
@@ -269,7 +260,7 @@ function PassportPageSlotContent({ page }: { page: PassportPageForPrint }) {
           )
         })}
       </View>
-    </View>
+    </>
   )
 }
 
@@ -431,45 +422,35 @@ function FoldGuide({ top }: { top: number }) {
   )
 }
 
-function RegistrationMarks({ skipVertical, sheetH = SHEET_H }: { skipVertical: boolean; sheetH?: number }) {
+function RegistrationMarks({ skipVertical }: { skipVertical: boolean }) {
   const len = 16, half = len / 2
-  const positions: { x: number; y: number }[] = []
-  // Half-height sheets have no horizontal cut, so we skip the cut-line
-  // registration marks. The vertical-fold marks still help align the
-  // strip when stacked with the others.
-  if (sheetH > STRIP_H) {
-    positions.push({ x: 0, y: CUT_Y })
-    positions.push({ x: SHEET_W, y: CUT_Y })
-  }
+  const positions: { x: number; y: number }[] = [
+    { x: 0, y: CUT_Y },
+    { x: SHEET_W, y: CUT_Y },
+  ]
   if (!skipVertical) {
     positions.push({ x: CUT_X, y: 0 })
-    positions.push({ x: CUT_X, y: sheetH })
+    positions.push({ x: CUT_X, y: SHEET_H })
   }
   return (
     <>
-      {positions.map((pos, i) => {
-        // Clamp so marks at y=0 / y=sheetH and x=0 / x=SHEET_W don't
-        // overflow page bounds. Even a fraction of a point past the
-        // edge triggers @react-pdf's auto-pagination, which emits a
-        // phantom continuation page after each sheet.
-        const regHLeft = Math.max(0, Math.min(SHEET_W - len, pos.x - half))
-        const regVTop  = Math.max(0, Math.min(sheetH    - len, pos.y - half))
-        return (
-          <React.Fragment key={i}>
-            <View style={[S.regH, { left: regHLeft, top: pos.y - 0.25, width: len }]} />
-            <View style={[S.regV, { left: pos.x - 0.25, top: regVTop, height: len }]} />
-          </React.Fragment>
-        )
-      })}
+      {positions.map((pos, i) => (
+        <React.Fragment key={i}>
+          <View style={[S.regH, { left: pos.x - half, top: pos.y - 0.25, width: len }]} />
+          <View style={[S.regV, { left: pos.x - 0.25, top: pos.y - half, height: len }]} />
+        </React.Fragment>
+      ))}
     </>
   )
 }
 
-// Per-page STRIP labels ("STRIP 2 of 4 — Title · ▼ Place on top") were
-// removed. The cut/stack/fold/staple instruction sheet on the front of
-// the bundle is still rendered (InstructionStrip on the cover sheet)
-// and is sufficient — labels on every page made the artifact look like
-// production scaffolding.
+function StripLabel({ stripPosition, totalStrips, passportTitle, stripIndex }: { stripPosition: number; totalStrips: number; passportTitle: string; stripIndex: 0 | 1 }) {
+  const directional = stripPosition === 1 ? '▼ Place on top' : '▲ Place underneath previous'
+  const title = truncateTitle(passportTitle, 60)
+  const text = `STRIP ${stripPosition} of ${totalStrips} — ${title} · ${directional}`
+  const top = stripIndex === 0 ? 2 : STRIP_H + 2
+  return <Text style={[S.stripLabel, { top }]}>{text}</Text>
+}
 
 // ── Reader-page slot wrapper ──────────────────────────────────────────────────
 function ReaderPageSlot({ page, left, top }: { page: ReaderPage; left: number; top: number }) {
@@ -479,10 +460,13 @@ function ReaderPageSlot({ page, left, top }: { page: ReaderPage; left: number; t
         {page.kind === 'name' && <NamePageContent passportTitle={page.passportTitle} institutionName={page.institutionName} passportType={page.passportType} />}
         {page.kind === 'stamp' && <PassportPageSlotContent page={page.page} />}
         {page.kind === 'cert' && <CertSlotContent title={page.passportTitle} institutionName={page.institutionName} />}
-        {/* page.kind === 'blank': render nothing. These slots are padding
-            blanks that are the folded-pair partner of a content slot on
-            the same strip — they must stay (removing them would force a
-            vertical cut), but they are silently blank with no annotation. */}
+        {page.kind === 'blank' && (
+          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+            <Text style={{ fontSize: 7, fontFamily: 'Helvetica-Oblique', color: '#BBBBBB' }}>
+              Blank by design — pads to signature
+            </Text>
+          </View>
+        )}
       </View>
     </View>
   )
@@ -523,21 +507,7 @@ function signatureSlots(k: number, pPadded: number, readerPages: ReaderPage[]): 
 }
 
 // ── Sheet plan ────────────────────────────────────────────────────────────────
-// Definitive imposition spec:
-//   - Cover sheet is ALWAYS its own first duplex sheet, separate from
-//     content signatures. It is NEVER merged with a content signature
-//     (that's the merge prior attempts tried; the spec forbids it).
-//   - Each subsequent ("content") duplex sheet carries two strips,
-//     each strip = 1 signature = 1 booklet leaf = 4 booklet pages.
-//   - When the number of strips (= numSignatures) is ODD, the LAST
-//     content sheet carries one used strip and one BLANK HALF-STRIP
-//     (front AND back of that half blank). The user cuts horizontally
-//     and discards the blank half. This blank HALF is the spec's
-//     "ACCEPTABLE" case (#2); it is NOT a separately-emitted PDF page
-//     and it is NOT a fully-blank PDF SHEET — the page itself carries
-//     content in the upper strip on BOTH sides.
-
-interface StampSheet { kind: 'stamp'; upperSignatureK: number; lowerSignatureK: number | null }
+interface StampSheet { kind: 'stamp'; upperSignatureK: number | null; lowerSignatureK: number | null }
 interface CoverSheet { kind: 'cover' }
 type SheetPlan = CoverSheet | StampSheet
 
@@ -562,22 +532,6 @@ interface RenderContext {
   paperColorHex: string
 }
 
-// Cover sheet quadrant layout (per the definitive imposition spec):
-//   Front side (sideA):
-//     TOP half    = instructions (cut/stack/fold/staple — discarded
-//                                 after assembly)
-//     BOTTOM half = OUTSIDE COVER (back-cover panel + spine + front-
-//                                 cover panel of the spread)
-//   Back side (sideB):
-//     TOP half    = INTENTIONALLY BLANK (the back of the instructions
-//                                 strip — the user cuts and discards
-//                                 this strip, so its back doesn't
-//                                 need printer-alignment noise either)
-//     BOTTOM half = INSIDE COVER
-//
-// The cover sheet is ITS OWN duplex sheet, never merged with a content
-// signature.
-
 function CoverSheetSideA({ ctx, sheetIndex }: { ctx: RenderContext; sheetIndex: number }) {
   return (
     <Page size={[SHEET_W, SHEET_H]} style={S.sheet}>
@@ -589,21 +543,19 @@ function CoverSheetSideA({ ctx, sheetIndex }: { ctx: RenderContext; sheetIndex: 
       <View style={{ position: 'absolute', left: 0, top: CUT_Y, width: SHEET_W, height: STRIP_H }}>
         <CoverCompositionContent side={ctx.outsideCover} fallbackTitle={ctx.passportTitle} paperColor={ctx.paperColorHex} />
       </View>
+      <StripLabel stripPosition={1} totalStrips={ctx.totalStrips} passportTitle={ctx.passportTitle} stripIndex={1} />
     </Page>
   )
 }
 
 function CoverSheetSideB({ ctx, sheetIndex }: { ctx: RenderContext; sheetIndex: number }) {
-  // Upper strip is intentionally blank per spec — no DuplexCheckStrip,
-  // no markings beyond cut/fold/registration guides. It's the back of
-  // the discardable instruction strip; leaving it blank matches what
-  // the user physically tolerates after the cut.
   return (
     <Page size={[SHEET_W, SHEET_H]} style={S.sheet}>
       <CutGuide />
       <FoldGuide top={CUT_Y} />
       <RegistrationMarks skipVertical={true} />
       <Text style={S.sheetTag}>{`Sheet ${sheetIndex + 1} / ${ctx.totalSheets} (back)`}</Text>
+      <DuplexCheckStrip top={0} />
       <View style={{ position: 'absolute', left: 0, top: CUT_Y, width: SHEET_W, height: STRIP_H }}>
         <CoverCompositionContent side={ctx.insideCover} fallbackTitle="" paperColor={ctx.paperColorHex} />
       </View>
@@ -611,70 +563,62 @@ function CoverSheetSideB({ ctx, sheetIndex }: { ctx: RenderContext; sheetIndex: 
   )
 }
 
-// Every stamp sheet is FULL-LETTER. The half-height optimization for
-// trailing-odd-signature sheets was removed because it broke duplex
-// pairing: a printer auto-flipping (p1,p2),(p3,p4),(p5,p6) treats each
-// pair as one physical paper, and mixing a half-letter pair into a
-// full-letter sequence misaligns the rest. Instead, PrintPassportDoc
-// now rounds numSignatures up to even, so every stamp sheet has both
-// its upper and lower strips populated.
-
-// Stamp sheet emission. When numSignatures is ODD, the trailing
-// signature occupies one strip (upper) on the last stamp sheet and the
-// other strip (lower) is the spec's "acceptable blank half-strip" — a
-// strip-area that has no signature mapped to it. The page itself still
-// has content (sig N in the upper strip on both sides), so it's a
-// half-used content sheet, NOT a fully-blank PDF sheet.
-//
-// The blank lower strip is gated on the imposition data: lowerSlots
-// is null exactly when lowerSignatureK is null. No empty slot ever
-// gets a ReaderPageSlot emitted; the half-strip area is left as
-// paper-color.
-
 function StampSheetSideA({ ctx, sheet, sheetIndex }: { ctx: RenderContext; sheet: StampSheet; sheetIndex: number }) {
-  const upperSlots = signatureSlots(sheet.upperSignatureK, ctx.pPadded, ctx.readerPages)
-  const lowerSlots = sheet.lowerSignatureK !== null
-    ? signatureSlots(sheet.lowerSignatureK, ctx.pPadded, ctx.readerPages)
-    : null
+  const upperK = sheet.upperSignatureK, lowerK = sheet.lowerSignatureK
+  const upperStripPos = upperK !== null ? upperK + 1 : null
+  const lowerStripPos = lowerK !== null ? lowerK + 1 : null
+  const upperSlots = upperK !== null ? signatureSlots(upperK, ctx.pPadded, ctx.readerPages) : null
+  const lowerSlots = lowerK !== null ? signatureSlots(lowerK, ctx.pPadded, ctx.readerPages) : null
   return (
     <Page size={[SHEET_W, SHEET_H]} style={S.sheet}>
       <CutGuide />
       <FoldGuide top={0} />
-      {lowerSlots && <FoldGuide top={CUT_Y} />}
+      <FoldGuide top={CUT_Y} />
       <RegistrationMarks skipVertical={false} />
       <Text style={S.sheetTag}>{`Sheet ${sheetIndex + 1} / ${ctx.totalSheets}`}</Text>
-      <ReaderPageSlot page={upperSlots.sideA_left}  left={0}            top={0} />
-      <ReaderPageSlot page={upperSlots.sideA_right} left={STRIP_HALF_W} top={0} />
+      {upperSlots && (
+        <>
+          <ReaderPageSlot page={upperSlots.sideA_left}  left={0}            top={0} />
+          <ReaderPageSlot page={upperSlots.sideA_right} left={STRIP_HALF_W} top={0} />
+          {upperStripPos !== null && <StripLabel stripPosition={upperStripPos} totalStrips={ctx.totalStrips} passportTitle={ctx.passportTitle} stripIndex={0} />}
+        </>
+      )}
       {lowerSlots && (
         <>
           <ReaderPageSlot page={lowerSlots.sideA_left}  left={0}            top={CUT_Y} />
           <ReaderPageSlot page={lowerSlots.sideA_right} left={STRIP_HALF_W} top={CUT_Y} />
+          {lowerStripPos !== null && <StripLabel stripPosition={lowerStripPos} totalStrips={ctx.totalStrips} passportTitle={ctx.passportTitle} stripIndex={1} />}
         </>
       )}
+      {!lowerSlots && <BlankByDesignLabel top={CUT_Y} text="Blank by design — cut and discard" />}
     </Page>
   )
 }
 
 function StampSheetSideB({ ctx, sheet, sheetIndex }: { ctx: RenderContext; sheet: StampSheet; sheetIndex: number }) {
-  const upperSlots = signatureSlots(sheet.upperSignatureK, ctx.pPadded, ctx.readerPages)
-  const lowerSlots = sheet.lowerSignatureK !== null
-    ? signatureSlots(sheet.lowerSignatureK, ctx.pPadded, ctx.readerPages)
-    : null
+  const upperK = sheet.upperSignatureK, lowerK = sheet.lowerSignatureK
+  const upperSlots = upperK !== null ? signatureSlots(upperK, ctx.pPadded, ctx.readerPages) : null
+  const lowerSlots = lowerK !== null ? signatureSlots(lowerK, ctx.pPadded, ctx.readerPages) : null
   return (
     <Page size={[SHEET_W, SHEET_H]} style={S.sheet}>
       <CutGuide />
       <FoldGuide top={0} />
-      {lowerSlots && <FoldGuide top={CUT_Y} />}
+      <FoldGuide top={CUT_Y} />
       <RegistrationMarks skipVertical={false} />
       <Text style={S.sheetTag}>{`Sheet ${sheetIndex + 1} / ${ctx.totalSheets} (back)`}</Text>
-      <ReaderPageSlot page={upperSlots.sideB_left}  left={0}            top={0} />
-      <ReaderPageSlot page={upperSlots.sideB_right} left={STRIP_HALF_W} top={0} />
+      {upperSlots && (
+        <>
+          <ReaderPageSlot page={upperSlots.sideB_left}  left={0}            top={0} />
+          <ReaderPageSlot page={upperSlots.sideB_right} left={STRIP_HALF_W} top={0} />
+        </>
+      )}
       {lowerSlots && (
         <>
           <ReaderPageSlot page={lowerSlots.sideB_left}  left={0}            top={CUT_Y} />
           <ReaderPageSlot page={lowerSlots.sideB_right} left={STRIP_HALF_W} top={CUT_Y} />
         </>
       )}
+      {!lowerSlots && <BlankByDesignLabel top={CUT_Y} text="Blank by design — cut and discard" />}
     </Page>
   )
 }
@@ -689,27 +633,18 @@ interface PrintPassportDocProps {
 }
 
 function PrintPassportDoc({ passportTitle, institutionName, passportType, includeCert, outsideCover, insideCover, paperColorHex, stampPages }: PrintPassportDocProps) {
-  // The reader-page sequence drives the standard saddle-stitch slot
-  // assignment. Per the definitive imposition spec:
-  //   - Booklet page 1 = Name/owner page
-  //   - Last booklet page = Certificate (when included)
-  //   - Padding blanks land BEFORE the certificate so Cert always
-  //     occupies slot pPadded — that's what makes the outermost-strip
-  //     pairing read "Name ↔ Cert", with the saddle formula
-  //     k ↔ pPadded - k + 1 producing reading order 1..N after fold.
   const readerPages: ReaderPage[] = []
   readerPages.push({ kind: 'name', passportTitle, institutionName, passportType })
   let pageNum = 1
   for (const page of stampPages) {
     readerPages.push({ kind: 'stamp', page, pageNum: ++pageNum })
   }
-  const certReserved = includeCert ? 1 : 0
-  const P = readerPages.length + certReserved
+  if (includeCert) readerPages.push({ kind: 'cert', passportTitle, institutionName })
+
+  const P = readerPages.length
   const numSignatures = Math.max(1, Math.ceil(P / 4))
   const pPadded = numSignatures * 4
-  const padsNeeded = pPadded - P
-  for (let i = 0; i < padsNeeded; i++) readerPages.push({ kind: 'blank' })
-  if (includeCert) readerPages.push({ kind: 'cert', passportTitle, institutionName })
+  while (readerPages.length < pPadded) readerPages.push({ kind: 'blank' })
 
   const plan = planSheets(numSignatures)
   const totalSheets = plan.length
@@ -725,44 +660,17 @@ function PrintPassportDoc({ passportTitle, institutionName, passportType, includ
     <Document>
       {plan.map((sheet, sheetIndex) => {
         if (sheet.kind === 'cover') {
-          // Cover sideB is fully blank when there's no inside-cover
-          // design AND no instructions/duplex marker in the upper strip
-          // (b246cca made that strip BLANK per spec). Skip the emission
-          // at the source — gated on the imposition data
-          // (cover_inside_data), not on whiteness. SideA always has
-          // instructions + cover outside, so it always emits.
-          const insideHasContent = !!ctx.insideCover &&
-            (!!ctx.insideCover.image_url || (ctx.insideCover.elements ?? []).length > 0)
           return (
             <React.Fragment key={`sheet-${sheetIndex}`}>
               <CoverSheetSideA ctx={ctx} sheetIndex={sheetIndex} />
-              {insideHasContent && <CoverSheetSideB ctx={ctx} sheetIndex={sheetIndex} />}
+              <CoverSheetSideB ctx={ctx} sheetIndex={sheetIndex} />
             </React.Fragment>
           )
         }
-        // Stamp sheet: if every assigned reader-slot on a side is
-        // kind: 'blank' (which happens for small passports where a
-        // signature's outer or inner slots all fall in the pad
-        // region beyond the real reader pages), that PDF page is
-        // fully blank. Skip its emission, gated on the slot data.
-        const upperSig = signatureSlots(sheet.upperSignatureK, ctx.pPadded, ctx.readerPages)
-        const lowerSig = sheet.lowerSignatureK !== null
-          ? signatureSlots(sheet.lowerSignatureK, ctx.pPadded, ctx.readerPages)
-          : null
-        const sideASlots = [
-          upperSig.sideA_left, upperSig.sideA_right,
-          ...(lowerSig ? [lowerSig.sideA_left, lowerSig.sideA_right] : []),
-        ]
-        const sideBSlots = [
-          upperSig.sideB_left, upperSig.sideB_right,
-          ...(lowerSig ? [lowerSig.sideB_left, lowerSig.sideB_right] : []),
-        ]
-        const sideAHasContent = sideASlots.some((s) => s.kind !== 'blank')
-        const sideBHasContent = sideBSlots.some((s) => s.kind !== 'blank')
         return (
           <React.Fragment key={`sheet-${sheetIndex}`}>
-            {sideAHasContent && <StampSheetSideA ctx={ctx} sheet={sheet} sheetIndex={sheetIndex} />}
-            {sideBHasContent && <StampSheetSideB ctx={ctx} sheet={sheet} sheetIndex={sheetIndex} />}
+            <StampSheetSideA ctx={ctx} sheet={sheet} sheetIndex={sheetIndex} />
+            <StampSheetSideB ctx={ctx} sheet={sheet} sheetIndex={sheetIndex} />
           </React.Fragment>
         )
       })}
@@ -926,13 +834,8 @@ async function handlePrintRequest(request: Request, passportId: string) {
     return new Response(JSON.stringify({ error: 'Failed to fetch stops' }), { status: 500, headers: { 'Content-Type': 'application/json' } })
   }
 
-  // Build per-page data. EVERY page the designer created prints, in
-  // page_order, regardless of whether it has stops. Stops are things ON
-  // a page; their presence or absence does NOT gate whether the page is
-  // included. Stamp pages with no stops render their canvas + designer-
-  // placed elements; information / intro / divider / blank-writing pages
-  // print whatever the designer put on them (or nothing if intentionally
-  // empty). Do not add a stop-count filter back here.
+  // Build per-page data. Every stop is always included now; the old
+  // selectedIds filter is gone alongside the modal's stop checkboxes.
   const pagesForPrint: PassportPageForPrint[] = pagesRaw
     .map((page) => {
       const pageStops = (stopsRaw ?? [])
@@ -964,101 +867,6 @@ async function handlePrintRequest(request: Request, passportId: string) {
   const passportType: PassportType = (passport.passport_type ?? 'location') as PassportType
   const includeCert = decideIncludeCert(passportType, institutionType, passport.print_certificate)
   const paperColorHex = `#${passport.cover_paper_color ?? 'F5F2EC'}`
-
-  console.log(
-    `[print-pdf] passport ${passportId}: ${pagesRaw.length} pages, ${(stopsRaw ?? []).length} stops, includeCert=${includeCert}`,
-    pagesForPrint.map((p) => ({ order: p.page_order, type: p.page_type, stops: p.stops.length, els: p.elements.length })),
-  )
-
-  // Diagnostic: predict the per-PDF-page emission. Mirrors
-  // PrintPassportDoc + planSheets exactly.
-  //   - Cover sheet is always one separate duplex sheet (2 PDF pages).
-  //   - Stamp sheets pair signatures 2-up; when numSig is odd the
-  //     last stamp sheet has only the upper signature, and its lower
-  //     strip is an empty half-strip (the spec's "ACCEPTABLE" case).
-  //   - Reader sequence puts Name at slot 1 and Cert at slot pPadded
-  //     so saddle pairing reads "Name ↔ Cert" on the outermost strip;
-  //     pad blanks live in slots between the last content page and
-  //     the cert.
-  {
-    const certReserved = includeCert ? 1 : 0
-    const P_predict = 1 /* name */ + pagesForPrint.length + certReserved
-    const numSig_predict = Math.max(1, Math.ceil(P_predict / 4))
-    const pPadded_predict = numSig_predict * 4
-    const padBlanks = pPadded_predict - P_predict
-    const insideHasContent = !!passport.cover_inside_data &&
-      (!!passport.cover_inside_data.image_url ||
-       (passport.cover_inside_data.elements ?? []).length > 0)
-    // Predict the SKIP gates: emission of cover sideB / stamp sides is
-    // suppressed when the imposition slots assigned to that page are
-    // all 'blank' (no real reader page maps to them). Show what's
-    // skipped so the log is a reliable witness.
-    const sheetPlan: string[] = ['cover-sideA']
-    if (insideHasContent) sheetPlan.push('cover-sideB')
-    else sheetPlan.push('cover-sideB (SKIPPED — no inside-cover content)')
-    const sigDetails: string[] = []
-    // Build the same readerPages-with-pads array the runtime builds so
-    // we can ask the same content questions about each stamp sheet.
-    const realCount = P_predict
-    const isPad = (slot: number) => {
-      // Reader sequence at runtime: name(1), stamps..., pads..., cert(pPadded).
-      // Pads occupy slots realCountWithoutCert+1 .. pPadded-1 when cert is included.
-      const lastContentBeforeCert = realCount - (includeCert ? 1 : 0)
-      const certSlot = includeCert ? pPadded_predict : null
-      if (certSlot !== null && slot === certSlot) return false  // Cert
-      if (slot === 1) return false                              // Name
-      if (slot >= 2 && slot <= lastContentBeforeCert) return false  // stamp
-      return true                                                // pad
-    }
-    let k = 1
-    while (k <= numSig_predict) {
-      const hasLower = k + 1 <= numSig_predict
-      const sigs = hasLower ? `sig${k}+sig${k + 1}` : `sig${k} + BLANK-HALF`
-      // Compute the 4 (or 2 if no lower) slots per side.
-      const oL_u = pPadded_predict - 2 * k + 2, oR_u = 2 * k - 1
-      const iL_u = pPadded_predict - 2 * k + 1, iR_u = 2 * k
-      const sideASlots = hasLower
-        ? [oL_u, oR_u, pPadded_predict - 2 * (k + 1) + 2, 2 * (k + 1) - 1]
-        : [oL_u, oR_u]
-      const sideBSlots = hasLower
-        ? [iR_u, iL_u, 2 * (k + 1), pPadded_predict - 2 * (k + 1) + 1]
-        : [iR_u, iL_u]
-      const sideAHasContent = sideASlots.some((s) => !isPad(s))
-      const sideBHasContent = sideBSlots.some((s) => !isPad(s))
-      sheetPlan.push(sideAHasContent
-        ? `stamp-sideA(${sigs})`
-        : `stamp-sideA(${sigs}) (SKIPPED — all pad)`)
-      sheetPlan.push(sideBHasContent
-        ? `stamp-sideB(${sigs})`
-        : `stamp-sideB(${sigs}) (SKIPPED — all pad)`)
-      k += 2
-    }
-    // Show the saddle-stitch slot assignments per sig
-    const formatSig = (kk: number) => {
-      const oL = pPadded_predict - 2 * kk + 2
-      const oR = 2 * kk - 1
-      const iL = pPadded_predict - 2 * kk + 1
-      const iR = 2 * kk
-      const tag = (i: number) => {
-        // Reader-pages array order: [name, stamps..., pads..., cert]
-        // Cert lives at slot pPadded (last). Pads live in the slots
-        // (last-content-stamp-slot+1 .. pPadded-1).
-        if (includeCert && i === pPadded_predict) return `${i}=CERT`
-        if (i > P_predict) return `${i}=PAD`
-        if (i === 1) return `${i}=NAME`
-        return `${i}`
-      }
-      return `sig${kk}{outer[${tag(oL)},${tag(oR)}] inner[${tag(iL)},${tag(iR)}]}`
-    }
-    for (let kk = 1; kk <= numSig_predict; kk++) sigDetails.push(formatSig(kk))
-    const contentSheetCount = Math.ceil(numSig_predict / 2)
-    console.log(
-      `[print-pdf] P=${P_predict} numSig=${numSig_predict} pPadded=${pPadded_predict} padBlanks=${padBlanks} insideCoverContent=${insideHasContent}`,
-      `→ ${sheetPlan.length} PDF pages = ${1 + contentSheetCount} duplex sheets (1 cover + ${contentSheetCount} content):`,
-      sheetPlan,
-      'signatures:', sigDetails,
-    )
-  }
 
   // ── Pre-normalize every image in the doc ─────────────────────────────────
   // pdfkit's PNG decoder silently drops certain user-uploaded variants
