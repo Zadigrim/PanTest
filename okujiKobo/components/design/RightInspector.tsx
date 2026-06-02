@@ -115,13 +115,16 @@ const SUBJECT_AREA_OPTIONS = [
 
 // ── Stop Inspector ─────────────────────────────────────────────────────────────
 
-const EVIDENCE_TIERS = [
-  { tier: 1, label: 'Honor',      hint: 'Visitor self-reports being present' },
-  { tier: 2, label: 'GPS',        hint: 'Phone confirms location within radius' },
-  { tier: 3, label: 'QR Code',    hint: 'Scan a code posted at the site' },
-  { tier: 4, label: 'Witnessed',  hint: 'Staff or host confirms visit' },
-  { tier: 5, label: 'Documented', hint: 'Photo or receipt submitted' },
+// Canonical Level-2 method options shown when stop type = Location.
+// The DB sync trigger (migration 046) derives verification_tier from
+// these values so verify-stamp keeps its existing T1-T5 branch logic.
+const LOCATION_METHODS = [
+  { value: 'gps',        label: 'GPS',                hint: 'Phone confirms location within the radius. Coordinates required.' },
+  { value: 'qr',         label: 'QR code',            hint: 'Visitor scans a code on-site. Address required for wayfinding.' },
+  { value: 'witnessed',  label: 'Staff-witnessed',    hint: 'Staff or host signs off the visit on the terminal.' },
+  { value: 'documented', label: 'Evidence-documented',hint: 'Visitor submits a photo or receipt as proof.' },
 ] as const
+type LocationMethod = typeof LOCATION_METHODS[number]['value']
 
 const PRESET_COLORS = [
   '1D9E75', '0D1B2A', 'C9A84C', 'D85A30',
@@ -277,21 +280,47 @@ function StampPicker({
 
 // ── Location section ──────────────────────────────────────────────────────────
 //
-// Three location types:
-//   address     → text place; lat/lng not required
-//   coordinates → GPS target; address fields not required
-//   honor       → self-reported; neither needed (verification_tier=5)
+// Canonical two-level model (migration 046):
+//   Level 1 — experience_type:
+//     'location'   → physical place; surfaces method + address + coords
+//     'experience' → not a physical place (book, workshop, activity);
+//                    forced honor-system, no address / coords inputs
+//   Level 2 — experience_verification_method (only when Location):
+//     'gps'        → lat/lng REQUIRED  (drives verification_tier = 3)
+//     'qr'         → address REQUIRED  (drives verification_tier = 2)
+//     'witnessed'  → both OPTIONAL     (drives verification_tier = 4)
+//     'documented' → both OPTIONAL     (drives verification_tier = 5)
 //
-// When location_type is null (existing stops pre-migration 042), derive a
-// sensible default at render time so old stops don't drop into 'honor'
-// by accident: coords if lat/lng set, else address.
+// verification_tier is derived server-side by the migration-046 trigger,
+// so the designer never reads or writes it directly. The legacy
+// location_type column (migration 042) is retired.
+//
+// Address is offered for every Location method because it's useful
+// wayfinding even when not required for verification.
 
-type LocationType = 'address' | 'coordinates' | 'honor'
+type ExpType = 'location' | 'experience'
 
-function deriveLocationType(stop: DesignerStop): LocationType {
-  if (stop.location_type) return stop.location_type
-  if (stop.lat != null && stop.lng != null) return 'coordinates'
-  return 'address'
+function deriveExpType(stop: DesignerStop): ExpType {
+  if (stop.experience_type === 'location' || stop.experience_type === 'experience') {
+    return stop.experience_type
+  }
+  // Legacy fallback for rows that pre-date migration 046 backfill:
+  // any verification_tier other than 5 implies a physical location.
+  if (stop.verification_tier === 5) return 'experience'
+  return 'location'
+}
+
+function deriveMethod(stop: DesignerStop): LocationMethod {
+  const m = stop.experience_verification_method
+  if (m === 'gps' || m === 'qr' || m === 'witnessed' || m === 'documented') return m
+  // Legacy fallback — map verification_tier back to a method.
+  switch (stop.verification_tier) {
+    case 1:
+    case 2: return 'qr'
+    case 3: return 'gps'
+    case 4: return 'witnessed'
+    default: return 'gps'
+  }
 }
 
 function LocationSection({
@@ -303,35 +332,73 @@ function LocationSection({
   updateStop: (id: string, patch: Partial<DesignerStop>) => void
   persist: (patch: Partial<DesignerStop>) => Promise<void>
 }) {
-  const locType = deriveLocationType(stop)
+  const expType = deriveExpType(stop)
+  const method = expType === 'location' ? deriveMethod(stop) : null
   const [pickerOpen, setPickerOpen] = useState(false)
 
-  const handleTypeChange = (next: LocationType) => {
-    const patch: Partial<DesignerStop> = { location_type: next }
-    // Honor system: tier 5 is the existing self-reported bypass in
-    // verify-stamp. Switching INTO honor sets it; switching OUT of honor
-    // leaves verification_tier alone so the user's prior choice survives.
-    if (next === 'honor') patch.verification_tier = 5
-    void persist(patch)
+  const handleTypeChange = (next: ExpType) => {
+    if (next === 'experience') {
+      // Event/Activity: forced honor. Trigger sets verification_tier=5
+      // and experience_verification_method='honor'; we send both for
+      // immediate local consistency before the server roundtrip.
+      void persist({ experience_type: 'experience', experience_verification_method: 'honor' })
+    } else {
+      // Location: if no valid method is already set, default to GPS.
+      // Preserve any prior method choice when swapping back.
+      const prior = stop.experience_verification_method
+      const carryMethod =
+        prior === 'gps' || prior === 'qr' || prior === 'witnessed' || prior === 'documented'
+          ? prior
+          : 'gps'
+      void persist({ experience_type: 'location', experience_verification_method: carryMethod })
+    }
   }
 
+  const handleMethodChange = (next: LocationMethod) => {
+    void persist({ experience_verification_method: next })
+  }
+
+  const requireAddress = method === 'qr'
+  const requireCoords = method === 'gps'
+
   return (
-    <Section title="Location">
-      <Field label="Location type">
+    <Section title="Location & verification">
+      <Field label="Stop type">
         <select
-          value={locType}
-          onChange={(e) => handleTypeChange(e.target.value as LocationType)}
+          value={expType}
+          onChange={(e) => handleTypeChange(e.target.value as ExpType)}
           className="h-8 w-full rounded-card border border-hairline bg-white px-2 text-sm"
         >
-          <option value="address">Address</option>
-          <option value="coordinates">Coordinates (lat/long)</option>
-          <option value="honor">Honor system (self-reported)</option>
+          <option value="location">Location (a place you go)</option>
+          <option value="experience">Event / Activity (not physical)</option>
         </select>
       </Field>
 
-      {locType === 'address' && (
+      {expType === 'experience' && (
+        <p className="text-xs text-muted">
+          Self-reported. Visitors confirm completion on the honor system — no address, coordinates, or verification needed.
+        </p>
+      )}
+
+      {expType === 'location' && method && (
         <>
-          <Field label="Street address">
+          <Field label="Verification method">
+            <select
+              value={method}
+              onChange={(e) => handleMethodChange(e.target.value as LocationMethod)}
+              className="h-8 w-full rounded-card border border-hairline bg-white px-2 text-sm"
+            >
+              {LOCATION_METHODS.map((m) => (
+                <option key={m.value} value={m.value}>{m.label}</option>
+              ))}
+            </select>
+            <p className="mt-1 text-xs text-muted">
+              {LOCATION_METHODS.find((m) => m.value === method)?.hint}
+            </p>
+          </Field>
+
+          {/* Address — available for every Location method; required for QR */}
+          <Field label={`Street address${requireAddress ? ' *' : ''}`}>
             <Input
               value={stop.address_street ?? ''}
               placeholder="123 Main St"
@@ -341,7 +408,7 @@ function LocationSection({
             />
           </Field>
           <div className="grid grid-cols-2 gap-2">
-            <Field label="City">
+            <Field label={`City${requireAddress ? ' *' : ''}`}>
               <Input
                 value={stop.address_city ?? ''}
                 placeholder="Springfield"
@@ -381,13 +448,10 @@ function LocationSection({
               />
             </Field>
           </div>
-        </>
-      )}
 
-      {locType === 'coordinates' && (
-        <>
+          {/* Coordinates — available for every Location method; required for GPS */}
           <div className="grid grid-cols-2 gap-2">
-            <Field label="Lat">
+            <Field label={`Lat${requireCoords ? ' *' : ''}`}>
               <Input
                 type="number"
                 step="0.000001"
@@ -401,7 +465,7 @@ function LocationSection({
                 className="h-8 text-xs"
               />
             </Field>
-            <Field label="Lng">
+            <Field label={`Lng${requireCoords ? ' *' : ''}`}>
               <Input
                 type="number"
                 step="0.000001"
@@ -440,13 +504,23 @@ function LocationSection({
               Map picker unavailable — enter coordinates manually.
             </p>
           )}
-        </>
-      )}
 
-      {locType === 'honor' && (
-        <p className="text-xs text-muted">
-          Self-reported. Visitors confirm they were here without a location check.
-        </p>
+          {(method === 'gps' || method === 'qr') && (
+            <Field label="GPS radius (meters)">
+              <Input
+                type="number"
+                value={stop.verification_radius_meters ?? 150}
+                min={10}
+                max={5000}
+                onChange={(e) =>
+                  updateStop(stop.id, { verification_radius_meters: Number(e.target.value) })
+                }
+                onBlur={(e) => persist({ verification_radius_meters: Number(e.target.value) })}
+                className="h-8 text-sm"
+              />
+            </Field>
+          )}
+        </>
       )}
     </Section>
   )
@@ -515,60 +589,17 @@ function StopInspector({
         />
       </Field>
 
-      <Section title="Verification">
-        <div className="space-y-1.5">
-          {EVIDENCE_TIERS.map(({ tier, label, hint }) => (
-            <button
-              key={tier}
-              onClick={() => persist({ verification_tier: tier })}
-              className={`w-full rounded-card border px-3 py-2 text-left transition-colors ${
-                stop.verification_tier === tier
-                  ? 'border-green bg-cream'
-                  : 'border-hairline hover:border-green/40'
-              }`}
-            >
-              <div className="flex items-center gap-2">
-                <span
-                  className={`text-xs font-bold ${
-                    stop.verification_tier === tier
-                      ? 'text-green'
-                      : 'text-muted'
-                  }`}
-                >
-                  T{tier}
-                </span>
-                <span
-                  className={`text-sm font-medium ${
-                    stop.verification_tier === tier ? 'text-green' : 'text-navy'
-                  }`}
-                >
-                  {label}
-                </span>
-              </div>
-              <p className="mt-0.5 text-xs text-muted">{hint}</p>
-            </button>
-          ))}
-        </div>
+      {/* Legacy 5-tier "Verification" radio (T1=Honor … T5=Documented)
+          was removed in migration 046's reconciliation. The labels there
+          did not match what verify-stamp actually does; the canonical
+          Stop type + method controls live in LocationSection above and
+          derive verification_tier via DB trigger. */}
 
-        {(stop.verification_tier ?? 1) >= 2 && (
-          <Field label="Radius (meters)">
-            <Input
-              type="number"
-              value={stop.verification_radius_meters ?? 100}
-              min={10}
-              max={5000}
-              onChange={(e) =>
-                updateStop(stop.id, { verification_radius_meters: Number(e.target.value) })
-              }
-              onBlur={(e) => persist({ verification_radius_meters: Number(e.target.value) })}
-              className="h-8 text-sm"
-            />
-          </Field>
-        )}
-      </Section>
-
-      {(stop.verification_tier ?? 1) >= 3 && (
-        <Section title="QR Code">
+      {/* QR token control — only when the canonical method is 'qr'. The
+          token is the canonical qr_code_id column; the legacy
+          qr_code_token column is not exposed. */}
+      {deriveExpType(stop) === 'location' && deriveMethod(stop) === 'qr' && (
+        <Section title="QR code">
           <div className="space-y-1.5">
             <Input
               value={stop.qr_code_id ?? ''}
@@ -626,22 +657,10 @@ function StopInspector({
       <LocationSection stop={stop} updateStop={updateStop} persist={persist} />
 
 
-      <Section title="Experience">
-        <Field label="Type">
-          <select
-            value={stop.experience_type ?? ''}
-            onChange={(e) =>
-              persist({
-                experience_type: (e.target.value || null) as DesignerStop['experience_type'],
-              })
-            }
-            className="h-8 w-full rounded-panel border border-hairline px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green"
-          >
-            <option value="">— None —</option>
-            <option value="location">Location visit</option>
-            <option value="experience">Activity / experience</option>
-          </select>
-        </Field>
+      {/* The duplicate "Type: Location / Activity" selector that lived
+          here is gone — the canonical stop type now lives in the
+          Location & Verification section above (migration 046). */}
+      <Section title="Learning">
         <Field label="Learning objective">
           <Input
             value={stop.learning_objective ?? ''}

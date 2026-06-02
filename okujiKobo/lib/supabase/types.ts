@@ -132,10 +132,12 @@ export type PassportStatus = string // open-ended; tighten if values are known
 export type TravelerType = string   // open-ended; tighten if values are known
 export type ExperienceType = 'location' | 'experience' | null
 export type ExperienceVerificationMethod =
-  | 'witnessed'
-  | 'documented'
-  | 'presence'
-  | 'honor'
+  | 'gps'         // migration 046: Location + GPS-radius verification (verify-stamp tier 3)
+  | 'qr'          // migration 046: Location + QR scan (verify-stamp tier 2; QR+GPS combined)
+  | 'witnessed'   // employee verification (verify-stamp tier 4)
+  | 'documented'  // evidence-documented (verify-stamp tier 5)
+  | 'presence'    // legacy; retained for backward compat with existing rows
+  | 'honor'       // self-reported (verify-stamp tier 5 bypass)
   | null
 export type BackgroundType = string  // open-ended; tighten if values are known
 export type EntryType = string       // open-ended; tighten if values are known

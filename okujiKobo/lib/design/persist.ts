@@ -241,17 +241,17 @@ export async function saveAll(): Promise<BatchError[]> {
           subject_areas:      stop.subject_areas ?? [],
           is_shared:          stop.is_shared ?? false,
           shared_at:          stop.shared_at ?? null,
-          // Location / address fields
+          // Location / address fields. location_type is retired by
+          // migration 046 — the canonical pair below replaces it.
           address_street:     s.address_street,
           address_city:       s.address_city,
           address_state:      s.address_state,
           address_zip:        s.address_zip,
           country:            s.country,
-          location_type:      s.location_type,
           lat:                stop.lat,
           lng:                stop.lng,
-          // Verification + stamp box
-          verification_tier:           stop.verification_tier,
+          // Verification — canonical pair drives verification_tier via
+          // the migration-046 sync trigger, so we don't send tier here.
           verification_radius_meters:  stop.verification_radius_meters,
           experience_type:             stop.experience_type,
           experience_verification_method: stop.experience_verification_method,

@@ -80,7 +80,20 @@ export type PassportType = 'location' | 'experience' | 'learning'
 export type BackgroundType = 'guilloche' | 'landscape' | 'none' | 'custom' | 'grid'
 export type SmudgeIntensity = 'none' | 'light' | 'medium' | 'heavy'
 export type ExperienceType = 'location' | 'experience'
-export type ExperienceVerification = 'witnessed' | 'documented' | 'presence' | 'honor'
+// Level-2 verification method on the canonical stop model (migration 046).
+// Drives the verification_tier value via the sync trigger:
+//   'gps'        → tier 3   (GPS-only radius check)
+//   'qr'         → tier 2   (QR + GPS)
+//   'witnessed'  → tier 4   (employee verification — separate flow)
+//   'documented' → tier 5   (verify-stamp bypass; evidence collection
+//                            is a separate future flow — flagged as
+//                            ambiguous in PR 046's mapping)
+//   'honor'      → tier 5   (self-reported bypass; the only valid method
+//                            when experience_type='experience')
+//   'presence'   → legacy; retained for backward compat with rows
+//                  written before 046. New designer code should not
+//                  emit this value.
+export type ExperienceVerification = 'gps' | 'qr' | 'witnessed' | 'documented' | 'presence' | 'honor'
 export type CreatorDecision = 'accepted' | 'adjusted' | 'overridden'
 export type PrintJournalSetting = 'include_all' | 'exclude_all' | 'per_stop'
 
@@ -161,10 +174,12 @@ export interface DesignerStop {
   address_state: string | null
   address_zip: string | null
   // International / location-type fields (migration 042).
-  // country is free text — no ISO-code enforcement. location_type drives
-  // which location fields the designer surfaces; null means "derive at
-  // render time" for stops created before the column existed.
+  // country is free text — no ISO-code enforcement.
   country: string | null
+  // RETIRED by migration 046 in favour of (experience_type +
+  // experience_verification_method). Designer no longer reads or writes
+  // this; the column stays for backward compat with existing rows and
+  // will be dropped in a later cleanup once nothing depends on it.
   location_type: 'address' | 'coordinates' | 'honor' | null
   lat: number | null
   lng: number | null
