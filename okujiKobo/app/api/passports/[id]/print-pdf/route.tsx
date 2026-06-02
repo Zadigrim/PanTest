@@ -515,39 +515,31 @@ function signatureSlots(k: number, pPadded: number, readerPages: ReaderPage[]): 
 }
 
 // ── Sheet plan ────────────────────────────────────────────────────────────────
-// When numSignatures is ODD the trailing sig used to land on its own
-// stamp sheet whose lower strip had nowhere to draw — the source of the
-// "contentless extra pages" Nathan saw. The fix at the imposition root:
-// the cover sheet's upper strip (currently the cut/fold instructions on
-// sideA and the duplex-check marker on sideB — discarded post-cut) is
-// the natural home for ONE extra leaf. Stash the trailing sig there.
-// Result: every stamp sheet emitted has both strips populated; no
-// sheet exists just to hold an empty strip.
-//
-// CoverSheet.trailingSignatureK:
-//   numSig odd  → the trailing sig number; cover-sheet upper strip
-//                 renders that sig's reader pages (saddle slot map
-//                 unchanged), and the instruction / duplex-check
-//                 strips disappear because the booklet doesn't need
-//                 them imposed in the print artifact.
-//   numSig even → null; cover-sheet upper strip is the instruction
-//                 strip (sideA) / duplex-check (sideB) as before.
-//
-// StampSheet upper/lower are now always populated (planSheets pairs
-// exhaustively after stashing any trailing odd sig on the cover).
-interface StampSheet { kind: 'stamp'; upperSignatureK: number; lowerSignatureK: number }
-interface CoverSheet { kind: 'cover'; trailingSignatureK: number | null }
+// Definitive imposition spec:
+//   - Cover sheet is ALWAYS its own first duplex sheet, separate from
+//     content signatures. It is NEVER merged with a content signature
+//     (that's the merge prior attempts tried; the spec forbids it).
+//   - Each subsequent ("content") duplex sheet carries two strips,
+//     each strip = 1 signature = 1 booklet leaf = 4 booklet pages.
+//   - When the number of strips (= numSignatures) is ODD, the LAST
+//     content sheet carries one used strip and one BLANK HALF-STRIP
+//     (front AND back of that half blank). The user cuts horizontally
+//     and discards the blank half. This blank HALF is the spec's
+//     "ACCEPTABLE" case (#2); it is NOT a separately-emitted PDF page
+//     and it is NOT a fully-blank PDF SHEET — the page itself carries
+//     content in the upper strip on BOTH sides.
+
+interface StampSheet { kind: 'stamp'; upperSignatureK: number; lowerSignatureK: number | null }
+interface CoverSheet { kind: 'cover' }
 type SheetPlan = CoverSheet | StampSheet
 
 function planSheets(numSignatures: number): SheetPlan[] {
-  const trailingSig = numSignatures % 2 === 1 ? numSignatures : null
-  const plan: SheetPlan[] = [{ kind: 'cover', trailingSignatureK: trailingSig }]
-  // When the trailing sig moves to the cover sheet, exclude it from
-  // the stamp-sheet pairing.
-  const lastPaired = trailingSig !== null ? numSignatures - 1 : numSignatures
+  const plan: SheetPlan[] = [{ kind: 'cover' }]
   let k = 1
-  while (k + 1 <= lastPaired) {
-    plan.push({ kind: 'stamp', upperSignatureK: k, lowerSignatureK: k + 1 })
+  while (k <= numSignatures) {
+    const upperK = k
+    const lowerK = k + 1 <= numSignatures ? k + 1 : null
+    plan.push({ kind: 'stamp', upperSignatureK: upperK, lowerSignatureK: lowerK })
     k += 2
   }
   return plan
@@ -562,30 +554,30 @@ interface RenderContext {
   paperColorHex: string
 }
 
-function CoverSheetSideA({ ctx, sheet, sheetIndex }: { ctx: RenderContext; sheet: CoverSheet; sheetIndex: number }) {
-  // When trailingSignatureK is set, the upper strip becomes a real
-  // booklet leaf (the trailing odd sig) — replacing the instructions
-  // strip that used to live here. The user's vertical fold and stack
-  // order are unchanged; the cover sheet now just supplies two leaves
-  // instead of one + instructions.
-  const trailingSlots = sheet.trailingSignatureK !== null
-    ? signatureSlots(sheet.trailingSignatureK, ctx.pPadded, ctx.readerPages)
-    : null
+// Cover sheet quadrant layout (per the definitive imposition spec):
+//   Front side (sideA):
+//     TOP half    = instructions (cut/stack/fold/staple — discarded
+//                                 after assembly)
+//     BOTTOM half = OUTSIDE COVER (back-cover panel + spine + front-
+//                                 cover panel of the spread)
+//   Back side (sideB):
+//     TOP half    = INTENTIONALLY BLANK (the back of the instructions
+//                                 strip — the user cuts and discards
+//                                 this strip, so its back doesn't
+//                                 need printer-alignment noise either)
+//     BOTTOM half = INSIDE COVER
+//
+// The cover sheet is ITS OWN duplex sheet, never merged with a content
+// signature.
+
+function CoverSheetSideA({ ctx, sheetIndex }: { ctx: RenderContext; sheetIndex: number }) {
   return (
     <Page size={[SHEET_W, SHEET_H]} style={S.sheet}>
       <CutGuide />
-      {trailingSlots && <FoldGuide top={0} />}
       <FoldGuide top={CUT_Y} />
-      <RegistrationMarks skipVertical={!trailingSlots} />
+      <RegistrationMarks skipVertical={true} />
       <Text style={S.sheetTag}>{`Sheet ${sheetIndex + 1} / ${ctx.totalSheets}`}</Text>
-      {trailingSlots ? (
-        <>
-          <ReaderPageSlot page={trailingSlots.sideA_left}  left={0}            top={0} />
-          <ReaderPageSlot page={trailingSlots.sideA_right} left={STRIP_HALF_W} top={0} />
-        </>
-      ) : (
-        <InstructionStrip top={0} />
-      )}
+      <InstructionStrip top={0} />
       <View style={{ position: 'absolute', left: 0, top: CUT_Y, width: SHEET_W, height: STRIP_H }}>
         <CoverCompositionContent side={ctx.outsideCover} fallbackTitle={ctx.passportTitle} paperColor={ctx.paperColorHex} />
       </View>
@@ -593,25 +585,17 @@ function CoverSheetSideA({ ctx, sheet, sheetIndex }: { ctx: RenderContext; sheet
   )
 }
 
-function CoverSheetSideB({ ctx, sheet, sheetIndex }: { ctx: RenderContext; sheet: CoverSheet; sheetIndex: number }) {
-  const trailingSlots = sheet.trailingSignatureK !== null
-    ? signatureSlots(sheet.trailingSignatureK, ctx.pPadded, ctx.readerPages)
-    : null
+function CoverSheetSideB({ ctx, sheetIndex }: { ctx: RenderContext; sheetIndex: number }) {
+  // Upper strip is intentionally blank per spec — no DuplexCheckStrip,
+  // no markings beyond cut/fold/registration guides. It's the back of
+  // the discardable instruction strip; leaving it blank matches what
+  // the user physically tolerates after the cut.
   return (
     <Page size={[SHEET_W, SHEET_H]} style={S.sheet}>
       <CutGuide />
-      {trailingSlots && <FoldGuide top={0} />}
       <FoldGuide top={CUT_Y} />
-      <RegistrationMarks skipVertical={!trailingSlots} />
+      <RegistrationMarks skipVertical={true} />
       <Text style={S.sheetTag}>{`Sheet ${sheetIndex + 1} / ${ctx.totalSheets} (back)`}</Text>
-      {trailingSlots ? (
-        <>
-          <ReaderPageSlot page={trailingSlots.sideB_left}  left={0}            top={0} />
-          <ReaderPageSlot page={trailingSlots.sideB_right} left={STRIP_HALF_W} top={0} />
-        </>
-      ) : (
-        <DuplexCheckStrip top={0} />
-      )}
       <View style={{ position: 'absolute', left: 0, top: CUT_Y, width: SHEET_W, height: STRIP_H }}>
         <CoverCompositionContent side={ctx.insideCover} fallbackTitle="" paperColor={ctx.paperColorHex} />
       </View>
@@ -627,43 +611,62 @@ function CoverSheetSideB({ ctx, sheet, sheetIndex }: { ctx: RenderContext; sheet
 // now rounds numSignatures up to even, so every stamp sheet has both
 // its upper and lower strips populated.
 
-// Both strips of every stamp sheet are guaranteed populated by
-// planSheets (the trailing odd sig, if any, lives on the cover sheet).
-// Defensive nullable handling removed — if upper or lower ever came up
-// null we'd see a TypeScript error, not a contentless slot.
+// Stamp sheet emission. When numSignatures is ODD, the trailing
+// signature occupies one strip (upper) on the last stamp sheet and the
+// other strip (lower) is the spec's "acceptable blank half-strip" — a
+// strip-area that has no signature mapped to it. The page itself still
+// has content (sig N in the upper strip on both sides), so it's a
+// half-used content sheet, NOT a fully-blank PDF sheet.
+//
+// The blank lower strip is gated on the imposition data: lowerSlots
+// is null exactly when lowerSignatureK is null. No empty slot ever
+// gets a ReaderPageSlot emitted; the half-strip area is left as
+// paper-color.
 
 function StampSheetSideA({ ctx, sheet, sheetIndex }: { ctx: RenderContext; sheet: StampSheet; sheetIndex: number }) {
   const upperSlots = signatureSlots(sheet.upperSignatureK, ctx.pPadded, ctx.readerPages)
-  const lowerSlots = signatureSlots(sheet.lowerSignatureK, ctx.pPadded, ctx.readerPages)
+  const lowerSlots = sheet.lowerSignatureK !== null
+    ? signatureSlots(sheet.lowerSignatureK, ctx.pPadded, ctx.readerPages)
+    : null
   return (
     <Page size={[SHEET_W, SHEET_H]} style={S.sheet}>
       <CutGuide />
       <FoldGuide top={0} />
-      <FoldGuide top={CUT_Y} />
+      {lowerSlots && <FoldGuide top={CUT_Y} />}
       <RegistrationMarks skipVertical={false} />
       <Text style={S.sheetTag}>{`Sheet ${sheetIndex + 1} / ${ctx.totalSheets}`}</Text>
       <ReaderPageSlot page={upperSlots.sideA_left}  left={0}            top={0} />
       <ReaderPageSlot page={upperSlots.sideA_right} left={STRIP_HALF_W} top={0} />
-      <ReaderPageSlot page={lowerSlots.sideA_left}  left={0}            top={CUT_Y} />
-      <ReaderPageSlot page={lowerSlots.sideA_right} left={STRIP_HALF_W} top={CUT_Y} />
+      {lowerSlots && (
+        <>
+          <ReaderPageSlot page={lowerSlots.sideA_left}  left={0}            top={CUT_Y} />
+          <ReaderPageSlot page={lowerSlots.sideA_right} left={STRIP_HALF_W} top={CUT_Y} />
+        </>
+      )}
     </Page>
   )
 }
 
 function StampSheetSideB({ ctx, sheet, sheetIndex }: { ctx: RenderContext; sheet: StampSheet; sheetIndex: number }) {
   const upperSlots = signatureSlots(sheet.upperSignatureK, ctx.pPadded, ctx.readerPages)
-  const lowerSlots = signatureSlots(sheet.lowerSignatureK, ctx.pPadded, ctx.readerPages)
+  const lowerSlots = sheet.lowerSignatureK !== null
+    ? signatureSlots(sheet.lowerSignatureK, ctx.pPadded, ctx.readerPages)
+    : null
   return (
     <Page size={[SHEET_W, SHEET_H]} style={S.sheet}>
       <CutGuide />
       <FoldGuide top={0} />
-      <FoldGuide top={CUT_Y} />
+      {lowerSlots && <FoldGuide top={CUT_Y} />}
       <RegistrationMarks skipVertical={false} />
       <Text style={S.sheetTag}>{`Sheet ${sheetIndex + 1} / ${ctx.totalSheets} (back)`}</Text>
       <ReaderPageSlot page={upperSlots.sideB_left}  left={0}            top={0} />
       <ReaderPageSlot page={upperSlots.sideB_right} left={STRIP_HALF_W} top={0} />
-      <ReaderPageSlot page={lowerSlots.sideB_left}  left={0}            top={CUT_Y} />
-      <ReaderPageSlot page={lowerSlots.sideB_right} left={STRIP_HALF_W} top={CUT_Y} />
+      {lowerSlots && (
+        <>
+          <ReaderPageSlot page={lowerSlots.sideB_left}  left={0}            top={CUT_Y} />
+          <ReaderPageSlot page={lowerSlots.sideB_right} left={STRIP_HALF_W} top={CUT_Y} />
+        </>
+      )}
     </Page>
   )
 }
@@ -678,34 +681,27 @@ interface PrintPassportDocProps {
 }
 
 function PrintPassportDoc({ passportTitle, institutionName, passportType, includeCert, outsideCover, insideCover, paperColorHex, stampPages }: PrintPassportDocProps) {
+  // The reader-page sequence drives the standard saddle-stitch slot
+  // assignment. Per the definitive imposition spec:
+  //   - Booklet page 1 = Name/owner page
+  //   - Last booklet page = Certificate (when included)
+  //   - Padding blanks land BEFORE the certificate so Cert always
+  //     occupies slot pPadded — that's what makes the outermost-strip
+  //     pairing read "Name ↔ Cert", with the saddle formula
+  //     k ↔ pPadded - k + 1 producing reading order 1..N after fold.
   const readerPages: ReaderPage[] = []
   readerPages.push({ kind: 'name', passportTitle, institutionName, passportType })
   let pageNum = 1
   for (const page of stampPages) {
     readerPages.push({ kind: 'stamp', page, pageNum: ++pageNum })
   }
-  if (includeCert) readerPages.push({ kind: 'cert', passportTitle, institutionName })
-
-  // numSignatures = ceil(P / 4) — the standard saddle-stitch count.
-  //
-  // An earlier attempt rounded this up to the next even number to make
-  // every stamp sheet have both upper and lower strips populated. That
-  // change DID eliminate the trailing-odd-sig half-empty sheet, but it
-  // also inflated pPadded (12 → 16 for P=9), reassigned every slot's
-  // booklet position via the saddle-stitch formula, and SCRAMBLED the
-  // physical reading order Nathan had already verified. Cert moved a
-  // sheet later, sigs landed on wrong sheets, etc.
-  //
-  // Revert: use the unrounded ceil. Pad blanks land at positions
-  // P+1 .. pPadded (the inside-back of the booklet, in order, not
-  // interleaved — per the brief's allowance for trailing pads).
-  // For odd numSig the trailing sheet has an empty lower strip on
-  // both sides; that strip is paper-cut waste, not a duplex back
-  // misalignment. Nathan's prior physical test tolerated it.
-  const P = readerPages.length
+  const certReserved = includeCert ? 1 : 0
+  const P = readerPages.length + certReserved
   const numSignatures = Math.max(1, Math.ceil(P / 4))
   const pPadded = numSignatures * 4
-  while (readerPages.length < pPadded) readerPages.push({ kind: 'blank' })
+  const padsNeeded = pPadded - P
+  for (let i = 0; i < padsNeeded; i++) readerPages.push({ kind: 'blank' })
+  if (includeCert) readerPages.push({ kind: 'cert', passportTitle, institutionName })
 
   const plan = planSheets(numSignatures)
   const totalSheets = plan.length
@@ -723,8 +719,8 @@ function PrintPassportDoc({ passportTitle, institutionName, passportType, includ
         if (sheet.kind === 'cover') {
           return (
             <React.Fragment key={`sheet-${sheetIndex}`}>
-              <CoverSheetSideA ctx={ctx} sheet={sheet} sheetIndex={sheetIndex} />
-              <CoverSheetSideB ctx={ctx} sheet={sheet} sheetIndex={sheetIndex} />
+              <CoverSheetSideA ctx={ctx} sheetIndex={sheetIndex} />
+              <CoverSheetSideB ctx={ctx} sheetIndex={sheetIndex} />
             </React.Fragment>
           )
         }
@@ -940,26 +936,32 @@ async function handlePrintRequest(request: Request, passportId: string) {
   )
 
   // Diagnostic: predict the per-PDF-page emission. Mirrors
-  // PrintPassportDoc + planSheets exactly. For odd numSig the trailing
-  // sig moves to the cover sheet's upper strip; the resulting sheet
-  // count is the same regardless of numSig parity.
+  // PrintPassportDoc + planSheets exactly.
+  //   - Cover sheet is always one separate duplex sheet (2 PDF pages).
+  //   - Stamp sheets pair signatures 2-up; when numSig is odd the
+  //     last stamp sheet has only the upper signature, and its lower
+  //     strip is an empty half-strip (the spec's "ACCEPTABLE" case).
+  //   - Reader sequence puts Name at slot 1 and Cert at slot pPadded
+  //     so saddle pairing reads "Name ↔ Cert" on the outermost strip;
+  //     pad blanks live in slots between the last content page and
+  //     the cert.
   {
-    const P_predict = 1 /* name */ + pagesForPrint.length + (includeCert ? 1 : 0)
+    const certReserved = includeCert ? 1 : 0
+    const P_predict = 1 /* name */ + pagesForPrint.length + certReserved
     const numSig_predict = Math.max(1, Math.ceil(P_predict / 4))
     const pPadded_predict = numSig_predict * 4
     const padBlanks = pPadded_predict - P_predict
-    const trailingSig = numSig_predict % 2 === 1 ? numSig_predict : null
     const insideHasContent = !!passport.cover_inside_data &&
       (!!passport.cover_inside_data.image_url ||
        (passport.cover_inside_data.elements ?? []).length > 0)
-    const coverTag = trailingSig !== null ? `cover+sig${trailingSig}` : 'cover'
-    const sheetPlan: string[] = [`${coverTag}-sideA`, `${coverTag}-sideB`]
+    const sheetPlan: string[] = ['cover-sideA', 'cover-sideB']
     const sigDetails: string[] = []
-    const lastPaired = trailingSig !== null ? numSig_predict - 1 : numSig_predict
     let k = 1
-    while (k + 1 <= lastPaired) {
-      sheetPlan.push(`stamp-sideA(sig${k}+sig${k + 1})`)
-      sheetPlan.push(`stamp-sideB(sig${k}+sig${k + 1})`)
+    while (k <= numSig_predict) {
+      const hasLower = k + 1 <= numSig_predict
+      const sigs = hasLower ? `sig${k}+sig${k + 1}` : `sig${k} + BLANK-HALF`
+      sheetPlan.push(`stamp-sideA(${sigs})`)
+      sheetPlan.push(`stamp-sideB(${sigs})`)
       k += 2
     }
     // Show the saddle-stitch slot assignments per sig
@@ -968,13 +970,22 @@ async function handlePrintRequest(request: Request, passportId: string) {
       const oR = 2 * kk - 1
       const iL = pPadded_predict - 2 * kk + 1
       const iR = 2 * kk
-      const tag = (i: number) => i > P_predict ? `${i}=PAD` : `${i}`
+      const tag = (i: number) => {
+        // Reader-pages array order: [name, stamps..., pads..., cert]
+        // Cert lives at slot pPadded (last). Pads live in the slots
+        // (last-content-stamp-slot+1 .. pPadded-1).
+        if (includeCert && i === pPadded_predict) return `${i}=CERT`
+        if (i > P_predict) return `${i}=PAD`
+        if (i === 1) return `${i}=NAME`
+        return `${i}`
+      }
       return `sig${kk}{outer[${tag(oL)},${tag(oR)}] inner[${tag(iL)},${tag(iR)}]}`
     }
     for (let kk = 1; kk <= numSig_predict; kk++) sigDetails.push(formatSig(kk))
+    const contentSheetCount = Math.ceil(numSig_predict / 2)
     console.log(
-      `[print-pdf] P=${P_predict} numSig=${numSig_predict} pPadded=${pPadded_predict} padBlanks=${padBlanks} trailingSigOnCover=${trailingSig ?? 'none'} insideCoverContent=${insideHasContent}`,
-      `→ ${sheetPlan.length} PDF pages, all full-letter:`,
+      `[print-pdf] P=${P_predict} numSig=${numSig_predict} pPadded=${pPadded_predict} padBlanks=${padBlanks} insideCoverContent=${insideHasContent}`,
+      `→ ${sheetPlan.length} PDF pages = ${1 + contentSheetCount} duplex sheets (1 cover + ${contentSheetCount} content):`,
       sheetPlan,
       'signatures:', sigDetails,
     )
