@@ -572,7 +572,7 @@ interface RenderContext {
 
 function CoverSheetSideA({ ctx, sheetIndex }: { ctx: RenderContext; sheetIndex: number }) {
   return (
-    <Page size={[SHEET_W, SHEET_H]} style={S.sheet}>
+    <Page size={[SHEET_W, SHEET_H]} style={S.sheet} wrap={false}>
       <CutGuide />
       <FoldGuide top={CUT_Y} />
       <RegistrationMarks skipVertical={true} />
@@ -591,7 +591,7 @@ function CoverSheetSideB({ ctx, sheetIndex }: { ctx: RenderContext; sheetIndex: 
   // the discardable instruction strip; leaving it blank matches what
   // the user physically tolerates after the cut.
   return (
-    <Page size={[SHEET_W, SHEET_H]} style={S.sheet}>
+    <Page size={[SHEET_W, SHEET_H]} style={S.sheet} wrap={false}>
       <CutGuide />
       <FoldGuide top={CUT_Y} />
       <RegistrationMarks skipVertical={true} />
@@ -629,7 +629,7 @@ function StampSheetSideA({ ctx, sheet, sheetIndex }: { ctx: RenderContext; sheet
     ? signatureSlots(sheet.lowerSignatureK, ctx.pPadded, ctx.readerPages)
     : null
   return (
-    <Page size={[SHEET_W, SHEET_H]} style={S.sheet}>
+    <Page size={[SHEET_W, SHEET_H]} style={S.sheet} wrap={false}>
       <CutGuide />
       <FoldGuide top={0} />
       {lowerSlots && <FoldGuide top={CUT_Y} />}
@@ -653,7 +653,7 @@ function StampSheetSideB({ ctx, sheet, sheetIndex }: { ctx: RenderContext; sheet
     ? signatureSlots(sheet.lowerSignatureK, ctx.pPadded, ctx.readerPages)
     : null
   return (
-    <Page size={[SHEET_W, SHEET_H]} style={S.sheet}>
+    <Page size={[SHEET_W, SHEET_H]} style={S.sheet} wrap={false}>
       <CutGuide />
       <FoldGuide top={0} />
       {lowerSlots && <FoldGuide top={CUT_Y} />}
