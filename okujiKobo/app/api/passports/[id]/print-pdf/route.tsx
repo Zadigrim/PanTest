@@ -570,29 +570,24 @@ function CoverSheetSideB({ ctx, sheetIndex }: { ctx: RenderContext; sheetIndex: 
   )
 }
 
-// When a stamp sheet has only an upper signature (lowerSignatureK is
-// null — this happens for the trailing signature when numSignatures is
-// odd), the lower strip would be entirely empty on both side A and side
-// B. Those two empty strip-surfaces have no folded-pair partner — they
-// are pure paper waste. Instead of rendering them as blank lower halves
-// the user has to cut away, we emit the sheet as a half-height PDF page
-// (SHEET_W × STRIP_H). The sheet IS the strip; nothing to cut from it.
-//
-// Full-height sheets (both strips populated) keep the horizontal cut
-// line so the user can separate upper/lower strips for stacking.
+// Every stamp sheet is FULL-LETTER. The half-height optimization for
+// trailing-odd-signature sheets was removed because it broke duplex
+// pairing: a printer auto-flipping (p1,p2),(p3,p4),(p5,p6) treats each
+// pair as one physical paper, and mixing a half-letter pair into a
+// full-letter sequence misaligns the rest. Instead, PrintPassportDoc
+// now rounds numSignatures up to even, so every stamp sheet has both
+// its upper and lower strips populated.
 
 function StampSheetSideA({ ctx, sheet, sheetIndex }: { ctx: RenderContext; sheet: StampSheet; sheetIndex: number }) {
   const upperK = sheet.upperSignatureK, lowerK = sheet.lowerSignatureK
   const upperSlots = upperK !== null ? signatureSlots(upperK, ctx.pPadded, ctx.readerPages) : null
   const lowerSlots = lowerK !== null ? signatureSlots(lowerK, ctx.pPadded, ctx.readerPages) : null
-  const halfHeight = !lowerSlots
-  const pageH = halfHeight ? STRIP_H : SHEET_H
   return (
-    <Page size={[SHEET_W, pageH]} style={[S.sheet, { height: pageH }]}>
-      {!halfHeight && <CutGuide />}
+    <Page size={[SHEET_W, SHEET_H]} style={S.sheet}>
+      <CutGuide />
       <FoldGuide top={0} />
-      {!halfHeight && <FoldGuide top={CUT_Y} />}
-      <RegistrationMarks skipVertical={false} sheetH={pageH} />
+      <FoldGuide top={CUT_Y} />
+      <RegistrationMarks skipVertical={false} />
       <Text style={S.sheetTag}>{`Sheet ${sheetIndex + 1} / ${ctx.totalSheets}`}</Text>
       {upperSlots && (
         <>
@@ -614,14 +609,12 @@ function StampSheetSideB({ ctx, sheet, sheetIndex }: { ctx: RenderContext; sheet
   const upperK = sheet.upperSignatureK, lowerK = sheet.lowerSignatureK
   const upperSlots = upperK !== null ? signatureSlots(upperK, ctx.pPadded, ctx.readerPages) : null
   const lowerSlots = lowerK !== null ? signatureSlots(lowerK, ctx.pPadded, ctx.readerPages) : null
-  const halfHeight = !lowerSlots
-  const pageH = halfHeight ? STRIP_H : SHEET_H
   return (
-    <Page size={[SHEET_W, pageH]} style={[S.sheet, { height: pageH }]}>
-      {!halfHeight && <CutGuide />}
+    <Page size={[SHEET_W, SHEET_H]} style={S.sheet}>
+      <CutGuide />
       <FoldGuide top={0} />
-      {!halfHeight && <FoldGuide top={CUT_Y} />}
-      <RegistrationMarks skipVertical={false} sheetH={pageH} />
+      <FoldGuide top={CUT_Y} />
+      <RegistrationMarks skipVertical={false} />
       <Text style={S.sheetTag}>{`Sheet ${sheetIndex + 1} / ${ctx.totalSheets} (back)`}</Text>
       {upperSlots && (
         <>
@@ -657,8 +650,16 @@ function PrintPassportDoc({ passportTitle, institutionName, passportType, includ
   }
   if (includeCert) readerPages.push({ kind: 'cert', passportTitle, institutionName })
 
+  // Duplex correctness: signatures must come in pairs so every stamp
+  // sheet has BOTH its upper and lower strips populated. If numSig is
+  // odd, the trailing sheet would have a fully empty lower strip on
+  // both sides — that's the "blank back" alternating pattern Nathan
+  // saw. Rounding numSig up to even adds a few more pad blanks (at
+  // quadrant level, folded-pair partners of real content slots — the
+  // fold tolerates these) and eliminates entire-page blanks.
   const P = readerPages.length
-  const numSignatures = Math.max(1, Math.ceil(P / 4))
+  const numSig_raw = Math.max(1, Math.ceil(P / 4))
+  const numSignatures = numSig_raw % 2 === 0 ? numSig_raw : numSig_raw + 1
   const pPadded = numSignatures * 4
   while (readerPages.length < pPadded) readerPages.push({ kind: 'blank' })
 
@@ -676,25 +677,18 @@ function PrintPassportDoc({ passportTitle, institutionName, passportType, includ
     <Document>
       {plan.map((sheet, sheetIndex) => {
         if (sheet.kind === 'cover') {
-          // CoverSheetSideB is the only consistently-blank PDF page in
-          // the previous output: when the passport has no inside-cover
-          // design, sideB shows only a small duplex-check SVG + paper-
-          // color background — nothing the booklet actually needs.
-          // Nathan's physical test (print only non-blank pages → fold
-          // → working booklet) confirms this page is removable. Skip
-          // it at the source unless the inside cover carries real
-          // content (an image, or designer-placed elements). The two
-          // prior "remove blank" PRs missed this because they operated
-          // on the imposition (pad-slot and trailing-strip filtering),
-          // not on the cover-sheet emission branch — which is where
-          // the blank actually comes from.
-          const hasInsideContent =
-            !!ctx.insideCover &&
-            (!!ctx.insideCover.image_url || (ctx.insideCover.elements ?? []).length > 0)
+          // Cover sheet ALWAYS emits BOTH sides so duplex pairing for
+          // every subsequent sheet stays aligned (printer auto-flip
+          // pairs (p1,p2), (p3,p4), … — dropping cover-sideB would
+          // shift the rest by one and put unrelated content on opposite
+          // faces of the same physical paper). When the passport has no
+          // inside-cover design, sideB renders the cut/fold/staple
+          // instructions in its lower strip — useful content rather
+          // than a blank backside.
           return (
             <React.Fragment key={`sheet-${sheetIndex}`}>
               <CoverSheetSideA ctx={ctx} sheetIndex={sheetIndex} />
-              {hasInsideContent && <CoverSheetSideB ctx={ctx} sheetIndex={sheetIndex} />}
+              <CoverSheetSideB ctx={ctx} sheetIndex={sheetIndex} />
             </React.Fragment>
           )
         }
@@ -910,28 +904,31 @@ async function handlePrintRequest(request: Request, passportId: string) {
   )
 
   // Diagnostic: predict the per-PDF-page emission so the deploy logs
-  // tell us exactly what the booklet imposition produces. Useful to
-  // confirm blank-page fixes without inspecting the binary PDF.
+  // tell us exactly what the booklet imposition produces. Mirrors the
+  // logic in PrintPassportDoc (numSig rounded up to even; always emit
+  // both cover sides; every stamp sheet is full-letter with both
+  // strips populated).
   {
     const P_predict = 1 /* name */ + pagesForPrint.length + (includeCert ? 1 : 0)
-    const numSig_predict = Math.max(1, Math.ceil(P_predict / 4))
+    const numSig_raw = Math.max(1, Math.ceil(P_predict / 4))
+    const numSig_predict = numSig_raw % 2 === 0 ? numSig_raw : numSig_raw + 1
+    const pPadded_predict = numSig_predict * 4
+    const padBlanks = pPadded_predict - P_predict
     const insideHasContent = !!passport.cover_inside_data &&
       (!!passport.cover_inside_data.image_url ||
        (passport.cover_inside_data.elements ?? []).length > 0)
-    const sheetPlan: string[] = ['cover-sideA']
-    if (insideHasContent) sheetPlan.push('cover-sideB')
+    const sheetPlan: string[] = ['cover-sideA', 'cover-sideB']
     let k = 1
     while (k <= numSig_predict) {
       const hasLower = k + 1 <= numSig_predict
       const sigs = hasLower ? `sig${k}+sig${k + 1}` : `sig${k}`
-      const heightTag = hasLower ? 'full' : 'half'
-      sheetPlan.push(`stamp-sideA(${sigs},${heightTag})`)
-      sheetPlan.push(`stamp-sideB(${sigs},${heightTag})`)
+      sheetPlan.push(`stamp-sideA(${sigs})`)
+      sheetPlan.push(`stamp-sideB(${sigs})`)
       k += 2
     }
     console.log(
-      `[print-pdf] P=${P_predict} numSig=${numSig_predict} insideCoverContent=${insideHasContent}`,
-      `→ ${sheetPlan.length} PDF pages:`,
+      `[print-pdf] P=${P_predict} numSig=${numSig_predict} pPadded=${pPadded_predict} padBlanks=${padBlanks} insideCoverContent=${insideHasContent}`,
+      `→ ${sheetPlan.length} PDF pages, all full-letter:`,
       sheetPlan,
     )
   }
