@@ -717,17 +717,44 @@ function PrintPassportDoc({ passportTitle, institutionName, passportType, includ
     <Document>
       {plan.map((sheet, sheetIndex) => {
         if (sheet.kind === 'cover') {
+          // Cover sideB is fully blank when there's no inside-cover
+          // design AND no instructions/duplex marker in the upper strip
+          // (b246cca made that strip BLANK per spec). Skip the emission
+          // at the source — gated on the imposition data
+          // (cover_inside_data), not on whiteness. SideA always has
+          // instructions + cover outside, so it always emits.
+          const insideHasContent = !!ctx.insideCover &&
+            (!!ctx.insideCover.image_url || (ctx.insideCover.elements ?? []).length > 0)
           return (
             <React.Fragment key={`sheet-${sheetIndex}`}>
               <CoverSheetSideA ctx={ctx} sheetIndex={sheetIndex} />
-              <CoverSheetSideB ctx={ctx} sheetIndex={sheetIndex} />
+              {insideHasContent && <CoverSheetSideB ctx={ctx} sheetIndex={sheetIndex} />}
             </React.Fragment>
           )
         }
+        // Stamp sheet: if every assigned reader-slot on a side is
+        // kind: 'blank' (which happens for small passports where a
+        // signature's outer or inner slots all fall in the pad
+        // region beyond the real reader pages), that PDF page is
+        // fully blank. Skip its emission, gated on the slot data.
+        const upperSig = signatureSlots(sheet.upperSignatureK, ctx.pPadded, ctx.readerPages)
+        const lowerSig = sheet.lowerSignatureK !== null
+          ? signatureSlots(sheet.lowerSignatureK, ctx.pPadded, ctx.readerPages)
+          : null
+        const sideASlots = [
+          upperSig.sideA_left, upperSig.sideA_right,
+          ...(lowerSig ? [lowerSig.sideA_left, lowerSig.sideA_right] : []),
+        ]
+        const sideBSlots = [
+          upperSig.sideB_left, upperSig.sideB_right,
+          ...(lowerSig ? [lowerSig.sideB_left, lowerSig.sideB_right] : []),
+        ]
+        const sideAHasContent = sideASlots.some((s) => s.kind !== 'blank')
+        const sideBHasContent = sideBSlots.some((s) => s.kind !== 'blank')
         return (
           <React.Fragment key={`sheet-${sheetIndex}`}>
-            <StampSheetSideA ctx={ctx} sheet={sheet} sheetIndex={sheetIndex} />
-            <StampSheetSideB ctx={ctx} sheet={sheet} sheetIndex={sheetIndex} />
+            {sideAHasContent && <StampSheetSideA ctx={ctx} sheet={sheet} sheetIndex={sheetIndex} />}
+            {sideBHasContent && <StampSheetSideB ctx={ctx} sheet={sheet} sheetIndex={sheetIndex} />}
           </React.Fragment>
         )
       })}
@@ -954,14 +981,48 @@ async function handlePrintRequest(request: Request, passportId: string) {
     const insideHasContent = !!passport.cover_inside_data &&
       (!!passport.cover_inside_data.image_url ||
        (passport.cover_inside_data.elements ?? []).length > 0)
-    const sheetPlan: string[] = ['cover-sideA', 'cover-sideB']
+    // Predict the SKIP gates: emission of cover sideB / stamp sides is
+    // suppressed when the imposition slots assigned to that page are
+    // all 'blank' (no real reader page maps to them). Show what's
+    // skipped so the log is a reliable witness.
+    const sheetPlan: string[] = ['cover-sideA']
+    if (insideHasContent) sheetPlan.push('cover-sideB')
+    else sheetPlan.push('cover-sideB (SKIPPED — no inside-cover content)')
     const sigDetails: string[] = []
+    // Build the same readerPages-with-pads array the runtime builds so
+    // we can ask the same content questions about each stamp sheet.
+    const realCount = P_predict
+    const isPad = (slot: number) => {
+      // Reader sequence at runtime: name(1), stamps..., pads..., cert(pPadded).
+      // Pads occupy slots realCountWithoutCert+1 .. pPadded-1 when cert is included.
+      const lastContentBeforeCert = realCount - (includeCert ? 1 : 0)
+      const certSlot = includeCert ? pPadded_predict : null
+      if (certSlot !== null && slot === certSlot) return false  // Cert
+      if (slot === 1) return false                              // Name
+      if (slot >= 2 && slot <= lastContentBeforeCert) return false  // stamp
+      return true                                                // pad
+    }
     let k = 1
     while (k <= numSig_predict) {
       const hasLower = k + 1 <= numSig_predict
       const sigs = hasLower ? `sig${k}+sig${k + 1}` : `sig${k} + BLANK-HALF`
-      sheetPlan.push(`stamp-sideA(${sigs})`)
-      sheetPlan.push(`stamp-sideB(${sigs})`)
+      // Compute the 4 (or 2 if no lower) slots per side.
+      const oL_u = pPadded_predict - 2 * k + 2, oR_u = 2 * k - 1
+      const iL_u = pPadded_predict - 2 * k + 1, iR_u = 2 * k
+      const sideASlots = hasLower
+        ? [oL_u, oR_u, pPadded_predict - 2 * (k + 1) + 2, 2 * (k + 1) - 1]
+        : [oL_u, oR_u]
+      const sideBSlots = hasLower
+        ? [iR_u, iL_u, 2 * (k + 1), pPadded_predict - 2 * (k + 1) + 1]
+        : [iR_u, iL_u]
+      const sideAHasContent = sideASlots.some((s) => !isPad(s))
+      const sideBHasContent = sideBSlots.some((s) => !isPad(s))
+      sheetPlan.push(sideAHasContent
+        ? `stamp-sideA(${sigs})`
+        : `stamp-sideA(${sigs}) (SKIPPED — all pad)`)
+      sheetPlan.push(sideBHasContent
+        ? `stamp-sideB(${sigs})`
+        : `stamp-sideB(${sigs}) (SKIPPED — all pad)`)
       k += 2
     }
     // Show the saddle-stitch slot assignments per sig
