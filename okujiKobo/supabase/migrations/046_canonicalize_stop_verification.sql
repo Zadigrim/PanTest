@@ -1,3 +1,14 @@
+-- Ensure PostGIS types resolve when the legacy
+-- sync_stop_target_location trigger (migration 008) fires during the
+-- backfill UPDATE below. Supabase moved the postgis extension out of
+-- `public` into `extensions`, so an unqualified `geography` reference
+-- inside that trigger fails without `extensions` on the search_path.
+SET search_path = public, extensions, pg_catalog;
+
+-- Also harden the legacy trigger function so this can't bite again in
+-- future migrations: pin its own search_path. Idempotent — pure ALTER.
+ALTER FUNCTION public.sync_stop_target_location() SET search_path = public, extensions, pg_catalog;
+
 -- Reconcile three overlapping "how is this stop verified?" fields on
 -- public.stops into ONE canonical two-level model. Until now the
 -- designer could set:
