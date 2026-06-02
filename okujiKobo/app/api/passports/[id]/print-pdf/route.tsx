@@ -412,42 +412,65 @@ function DuplexCheckStrip({ top }: { top: number }) {
 }
 
 // ── Bindery aids ──────────────────────────────────────────────────────────────
-function CutGuide() { return <View style={[S.guideH, { top: CUT_Y - 0.25 }]} /> }
+// Keep cut/fold marks at least 0.5" (36pt) away from every sheet edge.
+// Inks too close to the edge get trimmed by the printer's unprintable
+// margin, and visually they crowd the cut/fold work area.
+const BINDERY_MARGIN = 36
+
+function CutGuide() {
+  return (
+    <View
+      style={{
+        position: 'absolute',
+        left: BINDERY_MARGIN,
+        top: CUT_Y - 0.25,
+        width: SHEET_W - BINDERY_MARGIN * 2,
+        height: 0.5,
+        backgroundColor: '#EEEEEE',
+      }}
+    />
+  )
+}
 
 function FoldGuide({ top }: { top: number }) {
+  // Upper strip (top=0): inset from the sheet's top edge.
+  // Lower strip (top=CUT_Y): inset from the sheet's bottom edge.
+  // The interior end (the CUT_Y horizon) runs flush so the fold
+  // reads continuously across the cut on each strip.
+  const isUpperStrip = top === 0
+  const renderTop = top + (isUpperStrip ? BINDERY_MARGIN : 0)
+  const renderH   = STRIP_H - BINDERY_MARGIN
   return (
-    <Svg style={{ position: 'absolute', left: VERT_FOLD_X - 1, top, width: 2, height: STRIP_H }} width={2} height={STRIP_H} viewBox={`0 0 2 ${STRIP_H}`}>
-      <Line x1={1} y1={0} x2={1} y2={STRIP_H} stroke="#DDDDDD" strokeWidth={0.5} strokeDasharray="3,3" />
+    <Svg
+      style={{ position: 'absolute', left: VERT_FOLD_X - 1, top: renderTop, width: 2, height: renderH }}
+      width={2} height={renderH} viewBox={`0 0 2 ${renderH}`}
+    >
+      <Line x1={1} y1={0} x2={1} y2={renderH} stroke="#DDDDDD" strokeWidth={0.5} strokeDasharray="3,3" />
     </Svg>
   )
 }
 
 function RegistrationMarks({ skipVertical }: { skipVertical: boolean }) {
   const len = 16, half = len / 2
+  // Anchor each mark BINDERY_MARGIN in from the sheet edge it
+  // references. Marks at the page edge proper extend 8pt past it and
+  // trip @react-pdf's wrap, emitting a phantom continuation page.
   const positions: { x: number; y: number }[] = [
-    { x: 0, y: CUT_Y },
-    { x: SHEET_W, y: CUT_Y },
+    { x: BINDERY_MARGIN,            y: CUT_Y },
+    { x: SHEET_W - BINDERY_MARGIN,  y: CUT_Y },
   ]
   if (!skipVertical) {
-    positions.push({ x: CUT_X, y: 0 })
-    positions.push({ x: CUT_X, y: SHEET_H })
+    positions.push({ x: CUT_X, y: BINDERY_MARGIN })
+    positions.push({ x: CUT_X, y: SHEET_H - BINDERY_MARGIN })
   }
   return (
     <>
-      {positions.map((pos, i) => {
-        // Clamp marks to stay within the page box. Without this, marks
-        // at y=0 / y=SHEET_H and x=0 / x=SHEET_W extend 8pt past the
-        // edge, which trips @react-pdf's wrap and emits a phantom
-        // continuation page after every stamp sheet.
-        const regHLeft = Math.max(0, Math.min(SHEET_W - len, pos.x - half))
-        const regVTop  = Math.max(0, Math.min(SHEET_H - len, pos.y - half))
-        return (
-          <React.Fragment key={i}>
-            <View style={[S.regH, { left: regHLeft, top: pos.y - 0.25, width: len }]} />
-            <View style={[S.regV, { left: pos.x - 0.25, top: regVTop, height: len }]} />
-          </React.Fragment>
-        )
-      })}
+      {positions.map((pos, i) => (
+        <React.Fragment key={i}>
+          <View style={[S.regH, { left: pos.x - half, top: pos.y - 0.25, width: len }]} />
+          <View style={[S.regV, { left: pos.x - 0.25, top: pos.y - half, height: len }]} />
+        </React.Fragment>
+      ))}
     </>
   )
 }
