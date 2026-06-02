@@ -16,13 +16,16 @@ const STRIP_H = 396, CUT_Y = STRIP_H
 const STRIP_HALF_W = SHEET_W / 2, VERT_FOLD_X = STRIP_HALF_W, CUT_X = STRIP_HALF_W
 const PAGE_SLOT_W = STRIP_HALF_W, PAGE_SLOT_H = STRIP_H, PAD = 14
 
-// Scaled artboard for stamp-page slot
-const CANVAS_AREA_H = PAGE_SLOT_H - 2 * PAD - 20
+// Scaled artboard for stamp-page slot. Now that the auto-injected
+// section title row is gone (only designer-placed text boxes render),
+// the canvas can use the full slot height. Fit by width so the canvas
+// never exceeds the slot's horizontal padded area.
+const CANVAS_AREA_H = PAGE_SLOT_H - 2 * PAD
 const CANVAS_AREA_W = PAGE_SLOT_W - 2 * PAD
-const FIT_BY_HEIGHT_W = CANVAS_AREA_H / (ARTBOARD_H / ARTBOARD_W)
-const CANVAS_H = CANVAS_AREA_H, CANVAS_W = FIT_BY_HEIGHT_W
+const FIT_BY_WIDTH_H = CANVAS_AREA_W * (ARTBOARD_H / ARTBOARD_W)
+const CANVAS_W = CANVAS_AREA_W
+const CANVAS_H = Math.min(FIT_BY_WIDTH_H, CANVAS_AREA_H)
 const CANVAS_SCALE = CANVAS_H / ARTBOARD_H
-const CANVAS_OFFSET_X = (PAGE_SLOT_W - 2 * PAD - CANVAS_W) / 2
 
 // Cover composition area: full sheet width, centered vertically in strip
 const COVER_RENDER_W = SHEET_W
@@ -37,11 +40,16 @@ const S = StyleSheet.create({
   guideH: { position: 'absolute', left: 0, height: 0.5, width: SHEET_W, backgroundColor: '#EEEEEE' },
   regH: { position: 'absolute', height: 0.5, backgroundColor: '#CCCCCC' },
   regV: { position: 'absolute', width: 0.5, backgroundColor: '#CCCCCC' },
-  stripLabel: { position: 'absolute', left: 0, width: SHEET_W, textAlign: 'center', fontSize: 6, color: '#888888', fontFamily: 'Helvetica' },
   sheetTag: { position: 'absolute', top: 4, right: 4, fontSize: 6, color: '#999999', fontFamily: 'Helvetica' },
   slot: { position: 'absolute', width: PAGE_SLOT_W, height: PAGE_SLOT_H, overflow: 'hidden', flexDirection: 'column' },
+  // slotContent is a column flex container — the actual child decides
+  // its own centering. NamePageContent and CertSlotContent use flex:1
+  // + justifyContent:'center' internally (they fill the slot and
+  // center their own labels/lines). PassportPageSlotContent wraps the
+  // page canvas in a centered View so the canvas sits in the middle of
+  // the strip; both upper and lower strips end up symmetric about the
+  // cut line, which is what aligns them after stack-and-fold.
   slotContent: { flex: 1, padding: PAD, flexDirection: 'column', overflow: 'hidden' },
-  sectionTitle: { fontSize: 9, fontFamily: 'Helvetica-Bold', color: '#333333', textAlign: 'center', marginBottom: 4 },
   pageCanvas: { position: 'relative', borderWidth: 0.5, borderColor: '#DDDDDD', borderStyle: 'solid' },
   locationBox: { position: 'absolute', borderWidth: 1, borderColor: '#999999', borderStyle: 'dashed', borderRadius: 2 },
   locationBoxName: { position: 'absolute', top: 2, left: 0, right: 0, textAlign: 'center', fontSize: 5, color: '#000000', fontFamily: 'Helvetica' },
@@ -63,14 +71,7 @@ const S = StyleSheet.create({
   instrPanelTitle: { fontSize: 10, fontFamily: 'Helvetica-Bold', color: '#1A1A1A', textAlign: 'center', marginTop: 10 },
   instrPanelText: { fontSize: 9, fontFamily: 'Helvetica', color: '#333333', textAlign: 'center', marginTop: 4 },
   instrLegend: { position: 'absolute', left: 0, width: SHEET_W, textAlign: 'center', fontSize: 8, fontFamily: 'Helvetica', color: '#444444' },
-  blankByDesign: { position: 'absolute', left: 0, width: SHEET_W, textAlign: 'center', fontSize: 7, fontFamily: 'Helvetica-Oblique', color: '#BBBBBB' },
 })
-
-// Used on structurally-empty strips so the user can tell "intentionally
-// blank" apart from "missing content bug". Drawn centered on the strip.
-function BlankByDesignLabel({ top, text }: { top: number; text: string }) {
-  return <Text style={[S.blankByDesign, { top: top + STRIP_H / 2 - 4 }]}>{text}</Text>
-}
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface StopForPrint { id: string; name: string; stop_order: number; box_x: number; box_y: number; box_width: number; box_height: number; rotation: number }
@@ -110,7 +111,10 @@ function clampOpacityPct(v: number | null | undefined, def = 100): number {
   const n = typeof v === 'number' ? v : def
   return Math.min(100, Math.max(10, n))
 }
-function truncateTitle(t: string, max = 60): string { return t.length <= max ? t : t.slice(0, max - 1) + '…' }
+// truncateTitle and totalStrips were used by the per-page STRIP labels;
+// the labels are gone (assembly is documented on the front instruction
+// sheet only) but the totalStrips field is kept on RenderContext as
+// metadata for anything that wants it.
 
 // Image-handling note: every image URL in the doc data (cover image,
 // cover-side elements, page backgrounds, page-element images) is
@@ -235,15 +239,20 @@ function GridOverlay({ color, opacity }: { color: string; opacity: number }) {
 
 // ── Stamp page slot ───────────────────────────────────────────────────────────
 function PassportPageSlotContent({ page }: { page: PassportPageForPrint }) {
-  const label = page.section_title || page.section_name || `Page ${page.page_order}`
+  // No auto-generated header: page titles come only from designer-placed
+  // text boxes (rendered via PageElementsLayer below). The internal
+  // section_name / section_title fields are organizational labels used
+  // in the designer chrome — they don't render onto the printed page.
   const paperColor = `#${page.paper_color ?? 'F5F2EC'}`
   const bgColor = `#${page.background_color ?? '0D1B2A'}`
   const bgOpacity = clampOpacityPct(page.background_opacity)
   const customBgOpacity = clampOpacityPct(page.custom_background_opacity)
+  // Outer wrapper fills the slot and centers the canvas horizontally
+  // + vertically; that's what gives upper-strip and lower-strip content
+  // matching Y positions about the horizontal cut line.
   return (
-    <>
-      <Text style={S.sectionTitle}>{label}</Text>
-      <View style={[S.pageCanvas, { width: CANVAS_W, height: CANVAS_H, marginLeft: CANVAS_OFFSET_X, backgroundColor: paperColor }]}>
+    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+      <View style={[S.pageCanvas, { width: CANVAS_W, height: CANVAS_H, backgroundColor: paperColor }]}>
         {page.background_type === 'guilloche' && <GuillocheOverlay color={bgColor} opacity={bgOpacity} />}
         {page.background_type === 'grid' && <GridOverlay color={bgColor} opacity={bgOpacity} />}
         {page.background_type === 'custom' && page.background_image_url && (
@@ -260,7 +269,7 @@ function PassportPageSlotContent({ page }: { page: PassportPageForPrint }) {
           )
         })}
       </View>
-    </>
+    </View>
   )
 }
 
@@ -422,15 +431,19 @@ function FoldGuide({ top }: { top: number }) {
   )
 }
 
-function RegistrationMarks({ skipVertical }: { skipVertical: boolean }) {
+function RegistrationMarks({ skipVertical, sheetH = SHEET_H }: { skipVertical: boolean; sheetH?: number }) {
   const len = 16, half = len / 2
-  const positions: { x: number; y: number }[] = [
-    { x: 0, y: CUT_Y },
-    { x: SHEET_W, y: CUT_Y },
-  ]
+  const positions: { x: number; y: number }[] = []
+  // Half-height sheets have no horizontal cut, so we skip the cut-line
+  // registration marks. The vertical-fold marks still help align the
+  // strip when stacked with the others.
+  if (sheetH > STRIP_H) {
+    positions.push({ x: 0, y: CUT_Y })
+    positions.push({ x: SHEET_W, y: CUT_Y })
+  }
   if (!skipVertical) {
     positions.push({ x: CUT_X, y: 0 })
-    positions.push({ x: CUT_X, y: SHEET_H })
+    positions.push({ x: CUT_X, y: sheetH })
   }
   return (
     <>
@@ -444,13 +457,11 @@ function RegistrationMarks({ skipVertical }: { skipVertical: boolean }) {
   )
 }
 
-function StripLabel({ stripPosition, totalStrips, passportTitle, stripIndex }: { stripPosition: number; totalStrips: number; passportTitle: string; stripIndex: 0 | 1 }) {
-  const directional = stripPosition === 1 ? '▼ Place on top' : '▲ Place underneath previous'
-  const title = truncateTitle(passportTitle, 60)
-  const text = `STRIP ${stripPosition} of ${totalStrips} — ${title} · ${directional}`
-  const top = stripIndex === 0 ? 2 : STRIP_H + 2
-  return <Text style={[S.stripLabel, { top }]}>{text}</Text>
-}
+// Per-page STRIP labels ("STRIP 2 of 4 — Title · ▼ Place on top") were
+// removed. The cut/stack/fold/staple instruction sheet on the front of
+// the bundle is still rendered (InstructionStrip on the cover sheet)
+// and is sufficient — labels on every page made the artifact look like
+// production scaffolding.
 
 // ── Reader-page slot wrapper ──────────────────────────────────────────────────
 function ReaderPageSlot({ page, left, top }: { page: ReaderPage; left: number; top: number }) {
@@ -460,13 +471,10 @@ function ReaderPageSlot({ page, left, top }: { page: ReaderPage; left: number; t
         {page.kind === 'name' && <NamePageContent passportTitle={page.passportTitle} institutionName={page.institutionName} passportType={page.passportType} />}
         {page.kind === 'stamp' && <PassportPageSlotContent page={page.page} />}
         {page.kind === 'cert' && <CertSlotContent title={page.passportTitle} institutionName={page.institutionName} />}
-        {page.kind === 'blank' && (
-          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-            <Text style={{ fontSize: 7, fontFamily: 'Helvetica-Oblique', color: '#BBBBBB' }}>
-              Blank by design — pads to signature
-            </Text>
-          </View>
-        )}
+        {/* page.kind === 'blank': render nothing. These slots are padding
+            blanks that are the folded-pair partner of a content slot on
+            the same strip — they must stay (removing them would force a
+            vertical cut), but they are silently blank with no annotation. */}
       </View>
     </View>
   )
@@ -543,7 +551,6 @@ function CoverSheetSideA({ ctx, sheetIndex }: { ctx: RenderContext; sheetIndex: 
       <View style={{ position: 'absolute', left: 0, top: CUT_Y, width: SHEET_W, height: STRIP_H }}>
         <CoverCompositionContent side={ctx.outsideCover} fallbackTitle={ctx.passportTitle} paperColor={ctx.paperColorHex} />
       </View>
-      <StripLabel stripPosition={1} totalStrips={ctx.totalStrips} passportTitle={ctx.passportTitle} stripIndex={1} />
     </Page>
   )
 }
@@ -563,34 +570,42 @@ function CoverSheetSideB({ ctx, sheetIndex }: { ctx: RenderContext; sheetIndex: 
   )
 }
 
+// When a stamp sheet has only an upper signature (lowerSignatureK is
+// null — this happens for the trailing signature when numSignatures is
+// odd), the lower strip would be entirely empty on both side A and side
+// B. Those two empty strip-surfaces have no folded-pair partner — they
+// are pure paper waste. Instead of rendering them as blank lower halves
+// the user has to cut away, we emit the sheet as a half-height PDF page
+// (SHEET_W × STRIP_H). The sheet IS the strip; nothing to cut from it.
+//
+// Full-height sheets (both strips populated) keep the horizontal cut
+// line so the user can separate upper/lower strips for stacking.
+
 function StampSheetSideA({ ctx, sheet, sheetIndex }: { ctx: RenderContext; sheet: StampSheet; sheetIndex: number }) {
   const upperK = sheet.upperSignatureK, lowerK = sheet.lowerSignatureK
-  const upperStripPos = upperK !== null ? upperK + 1 : null
-  const lowerStripPos = lowerK !== null ? lowerK + 1 : null
   const upperSlots = upperK !== null ? signatureSlots(upperK, ctx.pPadded, ctx.readerPages) : null
   const lowerSlots = lowerK !== null ? signatureSlots(lowerK, ctx.pPadded, ctx.readerPages) : null
+  const halfHeight = !lowerSlots
+  const pageH = halfHeight ? STRIP_H : SHEET_H
   return (
-    <Page size={[SHEET_W, SHEET_H]} style={S.sheet}>
-      <CutGuide />
+    <Page size={[SHEET_W, pageH]} style={[S.sheet, { height: pageH }]}>
+      {!halfHeight && <CutGuide />}
       <FoldGuide top={0} />
-      <FoldGuide top={CUT_Y} />
-      <RegistrationMarks skipVertical={false} />
+      {!halfHeight && <FoldGuide top={CUT_Y} />}
+      <RegistrationMarks skipVertical={false} sheetH={pageH} />
       <Text style={S.sheetTag}>{`Sheet ${sheetIndex + 1} / ${ctx.totalSheets}`}</Text>
       {upperSlots && (
         <>
           <ReaderPageSlot page={upperSlots.sideA_left}  left={0}            top={0} />
           <ReaderPageSlot page={upperSlots.sideA_right} left={STRIP_HALF_W} top={0} />
-          {upperStripPos !== null && <StripLabel stripPosition={upperStripPos} totalStrips={ctx.totalStrips} passportTitle={ctx.passportTitle} stripIndex={0} />}
         </>
       )}
       {lowerSlots && (
         <>
           <ReaderPageSlot page={lowerSlots.sideA_left}  left={0}            top={CUT_Y} />
           <ReaderPageSlot page={lowerSlots.sideA_right} left={STRIP_HALF_W} top={CUT_Y} />
-          {lowerStripPos !== null && <StripLabel stripPosition={lowerStripPos} totalStrips={ctx.totalStrips} passportTitle={ctx.passportTitle} stripIndex={1} />}
         </>
       )}
-      {!lowerSlots && <BlankByDesignLabel top={CUT_Y} text="Blank by design — cut and discard" />}
     </Page>
   )
 }
@@ -599,12 +614,14 @@ function StampSheetSideB({ ctx, sheet, sheetIndex }: { ctx: RenderContext; sheet
   const upperK = sheet.upperSignatureK, lowerK = sheet.lowerSignatureK
   const upperSlots = upperK !== null ? signatureSlots(upperK, ctx.pPadded, ctx.readerPages) : null
   const lowerSlots = lowerK !== null ? signatureSlots(lowerK, ctx.pPadded, ctx.readerPages) : null
+  const halfHeight = !lowerSlots
+  const pageH = halfHeight ? STRIP_H : SHEET_H
   return (
-    <Page size={[SHEET_W, SHEET_H]} style={S.sheet}>
-      <CutGuide />
+    <Page size={[SHEET_W, pageH]} style={[S.sheet, { height: pageH }]}>
+      {!halfHeight && <CutGuide />}
       <FoldGuide top={0} />
-      <FoldGuide top={CUT_Y} />
-      <RegistrationMarks skipVertical={false} />
+      {!halfHeight && <FoldGuide top={CUT_Y} />}
+      <RegistrationMarks skipVertical={false} sheetH={pageH} />
       <Text style={S.sheetTag}>{`Sheet ${sheetIndex + 1} / ${ctx.totalSheets} (back)`}</Text>
       {upperSlots && (
         <>
@@ -618,7 +635,6 @@ function StampSheetSideB({ ctx, sheet, sheetIndex }: { ctx: RenderContext; sheet
           <ReaderPageSlot page={lowerSlots.sideB_right} left={STRIP_HALF_W} top={CUT_Y} />
         </>
       )}
-      {!lowerSlots && <BlankByDesignLabel top={CUT_Y} text="Blank by design — cut and discard" />}
     </Page>
   )
 }
