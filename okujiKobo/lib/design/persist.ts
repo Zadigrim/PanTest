@@ -27,6 +27,28 @@ function describeError(err: { message?: string | null; code?: string | null; det
 let inflight = 0
 const pendingResolvers: Array<() => void> = []
 
+// ── Write serialization ──────────────────────────────────────────────────────
+//
+// Concurrent UPDATEs against Supabase chain row locks behind each other
+// and one of them eventually exceeds the 8s statement timeout (Postgres
+// error 57014). The 30f80e1 fix made saveAll's internal loop sequential
+// for that reason; this serialize wrapper extends the same guarantee to
+// every write the persistence layer issues — saveAll, safeUpdate,
+// safeInsert, and the debounced per-mutation writes — so a burst of
+// drag/blur edits or a Promise.all flush never piles up against the
+// timeout wall. The chain is bounded; each write only references the
+// previous one, so finished writes are garbage-collected as the chain
+// advances.
+let writeChain: Promise<unknown> = Promise.resolve()
+function serialize<T>(fn: () => Promise<T>): Promise<T> {
+  const result = writeChain.catch(() => undefined).then(fn)
+  // Don't let one failure poison the chain — subsequent writes start
+  // from a fresh resolved tail. Each write still surfaces its own error
+  // via its caller's try/catch.
+  writeChain = result.then(() => undefined, () => undefined)
+  return result
+}
+
 function inc() {
   inflight++
   usePassportStore.getState().setSaving(true)
@@ -188,26 +210,29 @@ export async function safeUpdate(
   eqValue: string | number,
 ): Promise<boolean> {
   inc()
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const db = createClient() as any
   try {
-    const { error } = await db.from(table).update(patch).eq(eqColumn, eqValue)
-    if (error) {
-      console.error('[persist] safeUpdate failed', { table, eqColumn, eqValue, patch, error })
-      usePassportStore.getState().setSaveError(describeError(error))
-      retryQueue.push({ kind: 'update', table, patch, eqColumn, eqValue })
-      dec()
-      return false
-    }
+    return await serialize(async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const db = createClient() as any
+      try {
+        const { error } = await db.from(table).update(patch).eq(eqColumn, eqValue)
+        if (error) {
+          console.error('[persist] safeUpdate failed', { table, eqColumn, eqValue, patch, error })
+          usePassportStore.getState().setSaveError(describeError(error))
+          retryQueue.push({ kind: 'update', table, patch, eqColumn, eqValue })
+          return false
+        }
+        return true
+      } catch (err) {
+        console.error('[persist] safeUpdate threw', { table, eqColumn, eqValue, patch, err })
+        const msg = err instanceof Error ? err.message : 'Save failed'
+        usePassportStore.getState().setSaveError(msg)
+        retryQueue.push({ kind: 'update', table, patch, eqColumn, eqValue })
+        return false
+      }
+    })
+  } finally {
     dec()
-    return true
-  } catch (err) {
-    console.error('[persist] safeUpdate threw', { table, eqColumn, eqValue, patch, err })
-    const msg = err instanceof Error ? err.message : 'Save failed'
-    usePassportStore.getState().setSaveError(msg)
-    retryQueue.push({ kind: 'update', table, patch, eqColumn, eqValue })
-    dec()
-    return false
   }
 }
 
@@ -217,27 +242,30 @@ export async function safeInsert<T = unknown>(
   selectClause?: string,
 ): Promise<T | null> {
   inc()
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const db = createClient() as any
   try {
-    const q = db.from(table).insert(row)
-    const { data, error } = selectClause ? await q.select(selectClause).single() : await q
-    if (error) {
-      console.error('[persist] safeInsert failed', { table, row, error })
-      usePassportStore.getState().setSaveError(describeError(error))
-      retryQueue.push({ kind: 'insert', table, row, selectClause })
-      dec()
-      return null
-    }
+    return await serialize(async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const db = createClient() as any
+      try {
+        const q = db.from(table).insert(row)
+        const { data, error } = selectClause ? await q.select(selectClause).single() : await q
+        if (error) {
+          console.error('[persist] safeInsert failed', { table, row, error })
+          usePassportStore.getState().setSaveError(describeError(error))
+          retryQueue.push({ kind: 'insert', table, row, selectClause })
+          return null
+        }
+        return (data ?? null) as T | null
+      } catch (err) {
+        console.error('[persist] safeInsert threw', { table, row, err })
+        const msg = err instanceof Error ? err.message : 'Save failed'
+        usePassportStore.getState().setSaveError(msg)
+        retryQueue.push({ kind: 'insert', table, row, selectClause })
+        return null
+      }
+    })
+  } finally {
     dec()
-    return (data ?? null) as T | null
-  } catch (err) {
-    console.error('[persist] safeInsert threw', { table, row, err })
-    const msg = err instanceof Error ? err.message : 'Save failed'
-    usePassportStore.getState().setSaveError(msg)
-    retryQueue.push({ kind: 'insert', table, row, selectClause })
-    dec()
-    return null
   }
 }
 
@@ -266,7 +294,7 @@ export async function saveAll(): Promise<BatchError[]> {
   const errors: BatchError[] = []
 
   try {
-    const { error: passportErr } = await db
+    const { error: passportErr } = await serialize<{ error: { message?: string } | null }>(() => db
       .from('passports')
       .update({
         title:                  passport.title,
@@ -283,18 +311,20 @@ export async function saveAll(): Promise<BatchError[]> {
         print_journal_setting:  passport.print_journal_setting,
         updated_at:             new Date().toISOString(),
       })
-      .eq('id', passport.id)
+      .eq('id', passport.id))
     if (passportErr) {
       console.error('[persist] saveAll passports failed', { id: passport.id, error: passportErr })
       errors.push({ table: 'passports', id: passport.id, message: passportErr.message ?? 'unknown' })
     }
 
-    // Pages — issue updates sequentially. Parallel writes are what caused
-    // the 57014 statement-timeout pile-up: row locks chained behind each
-    // other and one would eventually exceed the 8s Supabase timeout.
-    // Sequential is slower but reliable.
+    // Pages — issue updates sequentially through the shared write chain.
+    // Parallel writes are what caused the 57014 statement-timeout pile-up:
+    // row locks chained behind each other and one would eventually exceed
+    // the 8s Supabase timeout. serialize() guarantees only one update is
+    // in flight at a time across both saveAll AND the per-mutation
+    // debounced writes from updateStop / updatePage / etc.
     for (const page of pages) {
-      const { error: pageErr } = await db
+      const { error: pageErr } = await serialize<{ error: { message?: string } | null }>(() => db
         .from('passport_pages')
         .update({
           section_title:             page.section_title,
@@ -310,7 +340,7 @@ export async function saveAll(): Promise<BatchError[]> {
           page_order:                page.page_order,
           elements:                  page.elements ?? [],
         })
-        .eq('id', page.id)
+        .eq('id', page.id))
       if (pageErr) {
         console.error('[persist] saveAll page failed', { id: page.id, error: pageErr })
         errors.push({ table: 'passport_pages', id: page.id, message: pageErr.message ?? 'unknown' })
@@ -320,7 +350,7 @@ export async function saveAll(): Promise<BatchError[]> {
     for (const stop of stops) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const s: any = stop
-      const { error: stopErr } = await db
+      const { error: stopErr } = await serialize<{ error: { message?: string } | null }>(() => db
         .from('stops')
         .update({
           name:               stop.name,
@@ -361,7 +391,7 @@ export async function saveAll(): Promise<BatchError[]> {
           rotation:           stop.rotation,
           print_include_journal: stop.print_include_journal,
         })
-        .eq('id', stop.id)
+        .eq('id', stop.id))
       if (stopErr) {
         console.error('[persist] saveAll stop failed', { id: stop.id, error: stopErr })
         errors.push({ table: 'stops', id: stop.id, message: stopErr.message ?? 'unknown' })
