@@ -676,10 +676,25 @@ function PrintPassportDoc({ passportTitle, institutionName, passportType, includ
     <Document>
       {plan.map((sheet, sheetIndex) => {
         if (sheet.kind === 'cover') {
+          // CoverSheetSideB is the only consistently-blank PDF page in
+          // the previous output: when the passport has no inside-cover
+          // design, sideB shows only a small duplex-check SVG + paper-
+          // color background — nothing the booklet actually needs.
+          // Nathan's physical test (print only non-blank pages → fold
+          // → working booklet) confirms this page is removable. Skip
+          // it at the source unless the inside cover carries real
+          // content (an image, or designer-placed elements). The two
+          // prior "remove blank" PRs missed this because they operated
+          // on the imposition (pad-slot and trailing-strip filtering),
+          // not on the cover-sheet emission branch — which is where
+          // the blank actually comes from.
+          const hasInsideContent =
+            !!ctx.insideCover &&
+            (!!ctx.insideCover.image_url || (ctx.insideCover.elements ?? []).length > 0)
           return (
             <React.Fragment key={`sheet-${sheetIndex}`}>
               <CoverSheetSideA ctx={ctx} sheetIndex={sheetIndex} />
-              <CoverSheetSideB ctx={ctx} sheetIndex={sheetIndex} />
+              {hasInsideContent && <CoverSheetSideB ctx={ctx} sheetIndex={sheetIndex} />}
             </React.Fragment>
           )
         }
@@ -893,6 +908,33 @@ async function handlePrintRequest(request: Request, passportId: string) {
     `[print-pdf] passport ${passportId}: ${pagesRaw.length} pages, ${(stopsRaw ?? []).length} stops, includeCert=${includeCert}`,
     pagesForPrint.map((p) => ({ order: p.page_order, type: p.page_type, stops: p.stops.length, els: p.elements.length })),
   )
+
+  // Diagnostic: predict the per-PDF-page emission so the deploy logs
+  // tell us exactly what the booklet imposition produces. Useful to
+  // confirm blank-page fixes without inspecting the binary PDF.
+  {
+    const P_predict = 1 /* name */ + pagesForPrint.length + (includeCert ? 1 : 0)
+    const numSig_predict = Math.max(1, Math.ceil(P_predict / 4))
+    const insideHasContent = !!passport.cover_inside_data &&
+      (!!passport.cover_inside_data.image_url ||
+       (passport.cover_inside_data.elements ?? []).length > 0)
+    const sheetPlan: string[] = ['cover-sideA']
+    if (insideHasContent) sheetPlan.push('cover-sideB')
+    let k = 1
+    while (k <= numSig_predict) {
+      const hasLower = k + 1 <= numSig_predict
+      const sigs = hasLower ? `sig${k}+sig${k + 1}` : `sig${k}`
+      const heightTag = hasLower ? 'full' : 'half'
+      sheetPlan.push(`stamp-sideA(${sigs},${heightTag})`)
+      sheetPlan.push(`stamp-sideB(${sigs},${heightTag})`)
+      k += 2
+    }
+    console.log(
+      `[print-pdf] P=${P_predict} numSig=${numSig_predict} insideCoverContent=${insideHasContent}`,
+      `→ ${sheetPlan.length} PDF pages:`,
+      sheetPlan,
+    )
+  }
 
   // ── Pre-normalize every image in the doc ─────────────────────────────────
   // pdfkit's PNG decoder silently drops certain user-uploaded variants
