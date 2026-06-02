@@ -408,6 +408,11 @@ export type PassportWithDetails = Passport & {
   quality_score?: CreatorQualityScore | null
   /** True when the creator holds at least one completed certification */
   creator_is_certified: boolean
+  /** True when the passport's creator has an active, non-expired Studio
+   *  subscription (paid or comp). Computed in the marketplace query
+   *  (lib/roles.isStudio against the fetched creator profile). Drives
+   *  the Studio badge on the marketplace card. */
+  creator_is_studio: boolean
 }
 
 // ---------------------------------------------------------------------------

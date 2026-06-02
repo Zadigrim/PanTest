@@ -8,6 +8,7 @@ import { PassportCoverThumbnail } from '@/components/design/PassportCoverThumbna
 import { passportTypeIconFromClassifiers } from '@/lib/design/passport-type-icon'
 import type { PassportWithDetails, CreatorQualityScore } from '@/lib/supabase/types'
 import type { CoverSideData } from '@/lib/design/types'
+import { isStudio, type SubscriptionFields } from '@/lib/roles'
 
 // ─── Default filter state ─────────────────────────────────────────────────────
 
@@ -247,11 +248,13 @@ export default function ExplorePage() {
 
     const supabase = createClient()
 
+    // creator subscription fields are pulled into the join so the card
+    // can show a Studio badge for creators with active Studio subs.
     const { data: rawPassports, error: passportsError } = await supabase
       .from('passports')
       .select(`
         *,
-        creator:profiles!creator_id ( id, display_name, avatar_url ),
+        creator:profiles!creator_id ( id, display_name, avatar_url, studio_status, studio_expires_at ),
         pages_count:passport_pages(count)
       `)
       .eq('is_published', true)
@@ -267,14 +270,16 @@ export default function ExplorePage() {
       const r = raw as Record<string, unknown>
       const pagesArr = r['pages_count'] as Array<{ count: number }> | number | null
       const pages_count = Array.isArray(pagesArr) ? (pagesArr[0]?.count ?? 0) : (typeof pagesArr === 'number' ? pagesArr : 0)
+      const creator = r['creator'] as (SubscriptionFields & Record<string, unknown>) | null
 
       return {
-        ...(r as Omit<PassportWithDetails, 'pages_count' | 'stops_count' | 'stop_count' | 'quality_score' | 'creator_is_certified'>),
+        ...(r as Omit<PassportWithDetails, 'pages_count' | 'stops_count' | 'stop_count' | 'quality_score' | 'creator_is_certified' | 'creator_is_studio'>),
         pages_count,
         stops_count:         0,
         stop_count:          0,
         quality_score:       null,
         creator_is_certified:false,
+        creator_is_studio:   isStudio(creator),
       } as PassportWithDetails
     })
 

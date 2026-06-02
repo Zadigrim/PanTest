@@ -68,6 +68,7 @@ export function PassportCard({ passport, isOwned = false }: PassportCardProps) {
     stop_count,
     quality_score,
     creator_is_certified,
+    creator_is_studio,
     award_year,
     expected_spend_tier,
     estimated_hours,
@@ -78,6 +79,7 @@ export function PassportCard({ passport, isOwned = false }: PassportCardProps) {
   const completion = quality_score?.completion_rate ?? null
   const showFree   = Boolean(is_free)
   const showA11y   = Boolean(transit_accessible && wheelchair_accessible)
+  const showStudio = Boolean(creator_is_studio)
 
   return (
     <Link
@@ -121,10 +123,11 @@ export function PassportCard({ passport, isOwned = false }: PassportCardProps) {
         </p>
 
         {/* Badge row */}
-        {(showFree || showA11y || creator_is_certified || award_year) && (
+        {(showFree || showA11y || showStudio || creator_is_certified || award_year) && (
           <div className="flex flex-wrap gap-1">
             {showFree && <Badge variant="free">Free</Badge>}
             {showA11y && <Badge variant="accessible">Accessible</Badge>}
+            {showStudio && <Badge variant="studio">Studio</Badge>}
             {creator_is_certified && <Badge variant="certified">Design Certified</Badge>}
             {award_year && <Badge variant="award">Award {award_year}</Badge>}
           </div>

@@ -120,3 +120,59 @@ export const ROLE_LABELS: Record<OkujiKoboRole, string> = {
   designer:              'Designer',
   platform_admin:        'Okuji Admin',
 }
+
+// ─── Subscription tier helpers (Studio / Pro) ─────────────────────────────────
+//
+// migration 035 added studio_status / studio_source / studio_expires_at and
+// the parallel pro_* columns on profiles. The comp grant UI at
+// /access/comp-subscriptions writes these via the migration-036 trigger.
+// These helpers are the single source of truth for "is this user effectively
+// Studio (or Pro) right now" — everywhere that needs to gate by tier should
+// call isStudio/isPro and never re-implement the status logic inline.
+//
+// Source ('paid' vs 'comp') does NOT change eligibility; the comp trigger
+// sets source='comp' and status='active' so a comp user is indistinguishable
+// from a paid user from a privileges standpoint.
+
+export interface SubscriptionFields {
+  studio_status?: string | null
+  studio_source?: string | null
+  studio_expires_at?: string | null
+  pro_status?: string | null
+  pro_source?: string | null
+  pro_expires_at?: string | null
+}
+
+function activeAndUnexpired(status: string | null | undefined, expiresAt: string | null | undefined): boolean {
+  if (status !== 'active') return false
+  if (!expiresAt) return true
+  return new Date(expiresAt).getTime() > Date.now()
+}
+
+export function isStudio(profile: SubscriptionFields | null | undefined): boolean {
+  if (!profile) return false
+  return activeAndUnexpired(profile.studio_status, profile.studio_expires_at)
+}
+
+export function isPro(profile: SubscriptionFields | null | undefined): boolean {
+  if (!profile) return false
+  return activeAndUnexpired(profile.pro_status, profile.pro_expires_at)
+}
+
+/**
+ * Server-side fetch of the current user's subscription state — used by the
+ * publish path's pre-flight check and any other gate that needs a fresh read.
+ * Returns null if the profile lookup fails (treated as non-Studio).
+ */
+export async function fetchSubscriptionState(
+  supabase: SupabaseClient,
+  userId: string,
+): Promise<SubscriptionFields | null> {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('studio_status, studio_source, studio_expires_at, pro_status, pro_source, pro_expires_at')
+    .eq('id', userId)
+    .single()
+  if (error || !data) return null
+  return data as SubscriptionFields
+}

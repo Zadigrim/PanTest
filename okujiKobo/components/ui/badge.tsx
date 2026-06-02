@@ -13,6 +13,11 @@ const badgeVariants = cva(
         certified:  'bg-amber-100 text-amber-800',
         award:      'bg-yellow-100 text-yellow-800',
         challenge:  'bg-red-100 text-accent',
+        // Studio creator badge — placeholder visual using the existing
+        // pill style. The Claude Design team may replace this with a
+        // bespoke emblem once finalized; swap point is just the variant
+        // class string here.
+        studio:     'bg-navy text-white',
       },
     },
     defaultVariants: { variant: 'default' },

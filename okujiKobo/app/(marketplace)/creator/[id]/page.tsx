@@ -3,13 +3,14 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { PassportCard } from '@/components/marketplace/PassportCard'
 import type { PassportWithDetails } from '@/lib/supabase/types'
+import { isStudio } from '@/lib/roles'
 
 export default async function CreatorPage({ params }: { params: { id: string } }) {
   const supabase = await createClient()
 
   const { data: creator } = await supabase
     .from('profiles')
-    .select('id, display_name, avatar_url, bio, website_url')
+    .select('id, display_name, avatar_url, bio, website_url, studio_status, studio_expires_at')
     .eq('id', params.id)
     .single()
 
@@ -83,7 +84,9 @@ export default async function CreatorPage({ params }: { params: { id: string } }
           {(passports as PassportWithDetails[]).map((passport) => (
             <PassportCard
               key={passport.id}
-              passport={passport}
+              // Creator is the page subject — every passport here is by the
+              // same creator, so creator_is_studio is uniform.
+              passport={{ ...passport, creator_is_studio: isStudio(creator as Parameters<typeof isStudio>[0]) }}
               isOwned={ownedIds.has(passport.id)}
             />
           ))}

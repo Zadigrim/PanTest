@@ -1,10 +1,11 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { usePassportStore } from '@/lib/design/passport-store'
 import { Button } from './ui/Button'
 import { spendTierLabel } from '@/lib/design/spend-tiers'
+import { isStudio, type SubscriptionFields } from '@/lib/roles'
 
 interface Props {
   onClose: () => void
@@ -22,6 +23,25 @@ export function PublishFlow({ onClose }: Props) {
   const [priceCents, setPriceCents] = useState(passport?.price_cents ?? 0)
   const [publishing, setPublishing] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Pre-flight: fetch the current user's subscription state once so the
+  // validate step can surface the Studio gate up-front instead of leaving
+  // it for the trigger to throw at publish time. The trigger is still the
+  // real enforcement; this just turns a confusing error into clear UX.
+  const [actorStudio, setActorStudio] = useState<boolean | null>(null)
+  useEffect(() => {
+    const supabase = createClient()
+    void (async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) { setActorStudio(false); return }
+      const { data } = await supabase
+        .from('profiles')
+        .select('studio_status, studio_expires_at')
+        .eq('id', user.id)
+        .single()
+      setActorStudio(isStudio((data ?? null) as SubscriptionFields | null))
+    })()
+  }, [])
 
   if (!passport) return null
 
@@ -44,6 +64,16 @@ export function PublishFlow({ onClose }: Props) {
     )
   if (!passport.expected_spend_tier)
     validationIssues.push('Set an expected spend tier (Settings → Expected Spend).')
+  // BLD-10 publish gate: personal passports require active Studio on the
+  // actor. Institutional passports are handled by can_design (RLS) and
+  // by the migration-045 trigger; no client check needed here. The
+  // trigger is the real enforcement — this is a pre-flight so the user
+  // sees the requirement before reaching Confirm.
+  if (passport.proprietor_id === null && actorStudio === false) {
+    validationIssues.push(
+      'Publishing a personal passport to the marketplace requires Studio. Ask an admin for a Studio comp at /access/comp-subscriptions.',
+    )
+  }
 
   const handlePublish = async () => {
     setPublishing(true)
