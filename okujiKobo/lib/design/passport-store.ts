@@ -1,12 +1,20 @@
 'use client'
 
 import { create } from 'zustand'
+import { debouncedUpdate } from './persist'
 import type {
   DesignerPassport,
   DesignerPassportPage,
   DesignerStop,
   DesignerPageElement,
 } from './types'
+
+// Store-level auto-persist: every user-facing mutation also schedules a
+// debounced write to the DB. This is what makes form edits, canvas drags,
+// cover edits, and image-position drags all persist without the user
+// needing to click Save — the explicit Save button is now just an
+// instant-flush. saveAll() still exists as the manual flush + sweep that
+// the Save button calls, and as the autosave backstop's last resort.
 
 interface PassportStore {
   passport: DesignerPassport | null
@@ -90,17 +98,22 @@ export const usePassportStore = create<PassportStore>((set, get) => ({
   setSelectedStop: (id) => set({ selectedStopId: id, selectedElementId: null }),
   setSelectedElement: (id) => set({ selectedElementId: id, selectedStopId: null }),
 
-  updatePassport: (patch) =>
+  updatePassport: (patch) => {
     set((s) => ({
       passport: s.passport ? { ...s.passport, ...patch } : null,
       isDirty: true,
-    })),
+    }))
+    const id = get().passport?.id
+    if (id) debouncedUpdate('passports', patch, 'id', id)
+  },
 
-  updatePage: (id, patch) =>
+  updatePage: (id, patch) => {
     set((s) => ({
       pages: s.pages.map((p) => (p.id === id ? { ...p, ...patch } : p)),
       isDirty: true,
-    })),
+    }))
+    debouncedUpdate('passport_pages', patch, 'id', id)
+  },
 
   addPage: (page) =>
     set((s) => ({
@@ -124,20 +137,25 @@ export const usePassportStore = create<PassportStore>((set, get) => ({
       }
     }),
 
-  reorderPages: (orderedIds) =>
-    set((s) => ({
-      pages: orderedIds.map((id, idx) => {
-        const p = s.pages.find((pg) => pg.id === id)!
-        return { ...p, page_order: idx }
-      }),
-      isDirty: true,
-    })),
+  reorderPages: (orderedIds) => {
+    const newPages = orderedIds.map((id, idx) => {
+      const p = get().pages.find((pg) => pg.id === id)!
+      return { ...p, page_order: idx }
+    })
+    set({ pages: newPages, isDirty: true })
+    // Each page is a distinct row; the keys don't coalesce.
+    newPages.forEach((p, idx) => {
+      debouncedUpdate('passport_pages', { page_order: idx }, 'id', p.id)
+    })
+  },
 
-  updateStop: (id, patch) =>
+  updateStop: (id, patch) => {
     set((s) => ({
       stops: s.stops.map((st) => (st.id === id ? { ...st, ...patch } : st)),
       isDirty: true,
-    })),
+    }))
+    debouncedUpdate('stops', patch, 'id', id)
+  },
 
   addStop: (stop) => set((s) => ({ stops: [...s.stops, stop], isDirty: true })),
 
@@ -154,7 +172,9 @@ export const usePassportStore = create<PassportStore>((set, get) => ({
       return { ...p, elements: [...(p.elements ?? []), element] }
     })
     set({ pages, isDirty: true })
-    return pages.find((p) => p.id === pageId)!.elements
+    const elements = pages.find((p) => p.id === pageId)!.elements
+    debouncedUpdate('passport_pages', { elements }, 'id', pageId)
+    return elements
   },
 
   updateElement: (pageId, elementId, patch) => {
@@ -168,7 +188,9 @@ export const usePassportStore = create<PassportStore>((set, get) => ({
       }
     })
     set({ pages, isDirty: true })
-    return pages.find((p) => p.id === pageId)!.elements
+    const elements = pages.find((p) => p.id === pageId)!.elements
+    debouncedUpdate('passport_pages', { elements }, 'id', pageId)
+    return elements
   },
 
   removeElement: (pageId, elementId) => {
@@ -180,7 +202,9 @@ export const usePassportStore = create<PassportStore>((set, get) => ({
       }
     })
     set({ pages, isDirty: true })
-    return pages.find((p) => p.id === pageId)!.elements
+    const elements = pages.find((p) => p.id === pageId)!.elements
+    debouncedUpdate('passport_pages', { elements }, 'id', pageId)
+    return elements
   },
 
   markDirty: () => set({ isDirty: true }),
@@ -199,6 +223,17 @@ export const selectActivePage = (s: PassportStore) =>
 
 export const selectSelectedStop = (s: PassportStore) =>
   s.stops.find((st) => st.id === s.selectedStopId) ?? null
+
+// Returns the page the currently-selected stop belongs to (not the page
+// currently shown in the workspace). Used by RightInspector so the stop
+// panel keeps rendering its controls even when the active tab is an
+// information page — selecting a stop on a stamp page from elsewhere in
+// the UI shouldn't be hidden by which tab the user happens to be on.
+export const selectSelectedStopPage = (s: PassportStore) => {
+  const stop = s.stops.find((st) => st.id === s.selectedStopId)
+  if (!stop) return null
+  return s.pages.find((p) => p.id === stop.page_id) ?? null
+}
 
 export const selectSelectedElement = (s: PassportStore) => {
   if (!s.selectedElementId) return null

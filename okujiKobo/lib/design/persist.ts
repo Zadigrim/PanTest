@@ -35,19 +35,107 @@ function inc() {
 function dec() {
   inflight = Math.max(0, inflight - 1)
   if (inflight === 0) {
-    if (retryQueue.length === 0 && !usePassportStore.getState().saveError) {
+    // Resolve awaitPending callers as soon as the writes they triggered
+    // finish — they wanted to wait for those specific writes, not for
+    // future debounces a user might schedule mid-await.
+    while (pendingResolvers.length) pendingResolvers.shift()?.()
+
+    const fullyInSync =
+      debounceTimers.size === 0 &&
+      retryQueue.length === 0 &&
+      !usePassportStore.getState().saveError
+    if (fullyInSync) {
       usePassportStore.getState().markSaved()
     } else {
+      // Either debounces still pending (store ahead of DB → keep
+      // isDirty=true), or a save failed (keep saveError visible). Either
+      // way, this batch of writes is done — drop the "Saving…" state.
+      // Critically: do NOT call markSaved here, since that would wipe
+      // isDirty even though edits made mid-save haven't been written
+      // yet — the silent-data-loss race we are fixing.
       usePassportStore.getState().setSaving(false)
     }
-    while (pendingResolvers.length) pendingResolvers.shift()?.()
   }
 }
 
 /** Resolves when all currently-running safeUpdate / safeInsert calls finish. */
-export function awaitPending(): Promise<void> {
-  if (inflight === 0) return Promise.resolve()
+export async function awaitPending(): Promise<void> {
+  // Flush pending debounced writes first so callers don't sit through
+  // the debounce window before in-flight tracking catches them.
+  await flushDebounced()
+  if (inflight === 0) return
   return new Promise<void>((resolve) => pendingResolvers.push(resolve))
+}
+
+// ── Debounced per-mutation persistence ───────────────────────────────────────
+//
+// High-frequency mutations (drags, slider/range inputs, every keystroke)
+// route through debouncedUpdate instead of safeUpdate. Updates targeting
+// the same (table, eqColumn, eqValue) coalesce: the patch is merged in
+// place and a single write fires DEBOUNCE_MS after the last call.
+//
+// The 30f80e1 loop fix replaced 10s polling with per-mutation writes;
+// this layer adds debouncing so 60Hz drag streams become one write at
+// drag-end instead of sixty. Loop-safe because each timer fires at
+// most once and clears itself before issuing safeUpdate.
+
+const DEBOUNCE_MS = 600
+
+interface DebounceMeta { table: string; eqColumn: string; eqValue: string | number }
+
+const debounceTimers  = new Map<string, ReturnType<typeof setTimeout>>()
+const pendingPatches  = new Map<string, Record<string, unknown>>()
+const pendingMeta     = new Map<string, DebounceMeta>()
+
+function debounceKey(table: string, eqColumn: string, eqValue: string | number): string {
+  return `${table}::${eqColumn}::${eqValue}`
+}
+
+/** Schedule a coalesced write. Repeated calls with the same target merge. */
+export function debouncedUpdate(
+  table: string,
+  patch: Record<string, unknown>,
+  eqColumn: string,
+  eqValue: string | number,
+): void {
+  if (Object.keys(patch).length === 0) return
+  const key = debounceKey(table, eqColumn, eqValue)
+  pendingPatches.set(key, { ...(pendingPatches.get(key) ?? {}), ...patch })
+  pendingMeta.set(key, { table, eqColumn, eqValue })
+
+  const prev = debounceTimers.get(key)
+  if (prev) clearTimeout(prev)
+
+  const timer = setTimeout(() => {
+    debounceTimers.delete(key)
+    const merged = pendingPatches.get(key)
+    const meta   = pendingMeta.get(key)
+    pendingPatches.delete(key)
+    pendingMeta.delete(key)
+    if (merged && meta) void safeUpdate(meta.table, merged, meta.eqColumn, meta.eqValue)
+  }, DEBOUNCE_MS)
+  debounceTimers.set(key, timer)
+}
+
+/** Drain pending debounced writes immediately; resolves once their writes finish. */
+export function flushDebounced(): Promise<void> {
+  const promises: Promise<unknown>[] = []
+  for (const [key, timer] of Array.from(debounceTimers.entries())) {
+    clearTimeout(timer)
+    debounceTimers.delete(key)
+    const merged = pendingPatches.get(key)
+    const meta   = pendingMeta.get(key)
+    pendingPatches.delete(key)
+    pendingMeta.delete(key)
+    if (merged && meta) {
+      promises.push(safeUpdate(meta.table, merged, meta.eqColumn, meta.eqValue))
+    }
+  }
+  return Promise.all(promises).then(() => undefined)
+}
+
+export function pendingDebouncedCount(): number {
+  return debounceTimers.size
 }
 
 // ── Retry queue ──────────────────────────────────────────────────────────────
@@ -166,6 +254,9 @@ export async function safeInsert<T = unknown>(
 interface BatchError { table: string; id: string; message: string }
 
 export async function saveAll(): Promise<BatchError[]> {
+  // Drain pending debounced writes before snapshotting the store so we
+  // don't race with their results landing after our own UPDATEs.
+  await flushDebounced()
   const { passport, pages, stops } = usePassportStore.getState()
   if (!passport) return []
 

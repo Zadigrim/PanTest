@@ -6,6 +6,7 @@ import {
   usePassportStore,
   selectActivePage,
   selectSelectedStop,
+  selectSelectedStopPage,
   selectSelectedElement,
 } from '@/lib/design/passport-store'
 import { CLASSIFIERS } from '@/lib/design/classifiers'
@@ -35,6 +36,12 @@ export function RightInspector({
 }) {
   const activePage = usePassportStore(selectActivePage)
   const selectedStop = usePassportStore(selectSelectedStop)
+  // The page the selected STOP belongs to — not the active tab. The
+  // previous guard checked activePage.page_type, which hid this panel
+  // (and its Stop type / verification-method controls from migration
+  // 046) whenever the user happened to be on an information tab, even
+  // for a stop that lives on a stamp page.
+  const selectedStopPage = usePassportStore(selectSelectedStopPage)
   const selectedElement = usePassportStore(selectSelectedElement)
 
   const label = selectedStop
@@ -71,7 +78,7 @@ export function RightInspector({
       </div>
 
       <div className="flex-1 overflow-y-auto">
-        {selectedStop && activePage?.page_type !== 'information' ? (
+        {selectedStop && selectedStopPage?.page_type !== 'information' ? (
           <StopInspector stop={selectedStop} creatorInstitutionId={creatorInstitutionId} />
         ) : selectedElement && activePage ? (
           <ElementInspector element={selectedElement} pageId={activePage.id} />
@@ -554,6 +561,7 @@ function StopInspector({
     // Server-side provisioning: see supabase/functions/provision-qr-token.
     // Math.random was predictable; tokens are now crypto.getRandomValues
     // server-side and stored in stops.qr_code_id (the production column).
+    const db = createClient()
     const { data, error } = await db.functions.invoke('provision-qr-token', {
       body: { stopId: stop.id, regenerate: !!stop.qr_code_id },
     })
