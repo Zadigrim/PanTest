@@ -850,8 +850,13 @@ async function handlePrintRequest(request: Request, passportId: string) {
     return new Response(JSON.stringify({ error: 'Failed to fetch stops' }), { status: 500, headers: { 'Content-Type': 'application/json' } })
   }
 
-  // Build per-page data. Every stop is always included now; the old
-  // selectedIds filter is gone alongside the modal's stop checkboxes.
+  // Build per-page data. EVERY page the designer created prints, in
+  // page_order, regardless of whether it has stops. Stops are things ON
+  // a page; their presence or absence does NOT gate whether the page is
+  // included. Stamp pages with no stops render their canvas + designer-
+  // placed elements; information / intro / divider / blank-writing pages
+  // print whatever the designer put on them (or nothing if intentionally
+  // empty). Do not add a stop-count filter back here.
   const pagesForPrint: PassportPageForPrint[] = pagesRaw
     .map((page) => {
       const pageStops = (stopsRaw ?? [])
@@ -883,6 +888,11 @@ async function handlePrintRequest(request: Request, passportId: string) {
   const passportType: PassportType = (passport.passport_type ?? 'location') as PassportType
   const includeCert = decideIncludeCert(passportType, institutionType, passport.print_certificate)
   const paperColorHex = `#${passport.cover_paper_color ?? 'F5F2EC'}`
+
+  console.log(
+    `[print-pdf] passport ${passportId}: ${pagesRaw.length} pages, ${(stopsRaw ?? []).length} stops, includeCert=${includeCert}`,
+    pagesForPrint.map((p) => ({ order: p.page_order, type: p.page_type, stops: p.stops.length, els: p.elements.length })),
+  )
 
   // ── Pre-normalize every image in the doc ─────────────────────────────────
   // pdfkit's PNG decoder silently drops certain user-uploaded variants
