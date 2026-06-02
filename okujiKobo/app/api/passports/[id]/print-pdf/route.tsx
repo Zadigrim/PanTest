@@ -650,16 +650,24 @@ function PrintPassportDoc({ passportTitle, institutionName, passportType, includ
   }
   if (includeCert) readerPages.push({ kind: 'cert', passportTitle, institutionName })
 
-  // Duplex correctness: signatures must come in pairs so every stamp
-  // sheet has BOTH its upper and lower strips populated. If numSig is
-  // odd, the trailing sheet would have a fully empty lower strip on
-  // both sides — that's the "blank back" alternating pattern Nathan
-  // saw. Rounding numSig up to even adds a few more pad blanks (at
-  // quadrant level, folded-pair partners of real content slots — the
-  // fold tolerates these) and eliminates entire-page blanks.
+  // numSignatures = ceil(P / 4) — the standard saddle-stitch count.
+  //
+  // An earlier attempt rounded this up to the next even number to make
+  // every stamp sheet have both upper and lower strips populated. That
+  // change DID eliminate the trailing-odd-sig half-empty sheet, but it
+  // also inflated pPadded (12 → 16 for P=9), reassigned every slot's
+  // booklet position via the saddle-stitch formula, and SCRAMBLED the
+  // physical reading order Nathan had already verified. Cert moved a
+  // sheet later, sigs landed on wrong sheets, etc.
+  //
+  // Revert: use the unrounded ceil. Pad blanks land at positions
+  // P+1 .. pPadded (the inside-back of the booklet, in order, not
+  // interleaved — per the brief's allowance for trailing pads).
+  // For odd numSig the trailing sheet has an empty lower strip on
+  // both sides; that strip is paper-cut waste, not a duplex back
+  // misalignment. Nathan's prior physical test tolerated it.
   const P = readerPages.length
-  const numSig_raw = Math.max(1, Math.ceil(P / 4))
-  const numSignatures = numSig_raw % 2 === 0 ? numSig_raw : numSig_raw + 1
+  const numSignatures = Math.max(1, Math.ceil(P / 4))
   const pPadded = numSignatures * 4
   while (readerPages.length < pPadded) readerPages.push({ kind: 'blank' })
 
@@ -903,33 +911,49 @@ async function handlePrintRequest(request: Request, passportId: string) {
     pagesForPrint.map((p) => ({ order: p.page_order, type: p.page_type, stops: p.stops.length, els: p.elements.length })),
   )
 
-  // Diagnostic: predict the per-PDF-page emission so the deploy logs
-  // tell us exactly what the booklet imposition produces. Mirrors the
-  // logic in PrintPassportDoc (numSig rounded up to even; always emit
-  // both cover sides; every stamp sheet is full-letter with both
-  // strips populated).
+  // Diagnostic: predict the per-PDF-page emission. Mirrors
+  // PrintPassportDoc exactly: numSig = ceil(P/4), pPadded = 4*numSig,
+  // always emit both cover sides for duplex pairing, planSheets pairs
+  // sigs 2-up where possible (the trailing odd sig sits alone on a
+  // full-letter sheet with an empty lower strip).
+  //
+  // Per-slot booklet position is shown so any future regression
+  // affecting reading order shows up in the log instead of in
+  // physical assembly.
   {
     const P_predict = 1 /* name */ + pagesForPrint.length + (includeCert ? 1 : 0)
-    const numSig_raw = Math.max(1, Math.ceil(P_predict / 4))
-    const numSig_predict = numSig_raw % 2 === 0 ? numSig_raw : numSig_raw + 1
+    const numSig_predict = Math.max(1, Math.ceil(P_predict / 4))
     const pPadded_predict = numSig_predict * 4
     const padBlanks = pPadded_predict - P_predict
     const insideHasContent = !!passport.cover_inside_data &&
       (!!passport.cover_inside_data.image_url ||
        (passport.cover_inside_data.elements ?? []).length > 0)
     const sheetPlan: string[] = ['cover-sideA', 'cover-sideB']
+    const sigDetails: string[] = []
     let k = 1
     while (k <= numSig_predict) {
       const hasLower = k + 1 <= numSig_predict
       const sigs = hasLower ? `sig${k}+sig${k + 1}` : `sig${k}`
       sheetPlan.push(`stamp-sideA(${sigs})`)
       sheetPlan.push(`stamp-sideB(${sigs})`)
+      // Show the saddle-stitch slot assignments for each sig in the pair
+      const formatSig = (kk: number) => {
+        const oL = pPadded_predict - 2 * kk + 2
+        const oR = 2 * kk - 1
+        const iL = pPadded_predict - 2 * kk + 1
+        const iR = 2 * kk
+        const tag = (i: number) => i > P_predict ? `${i}=PAD` : `${i}`
+        return `sig${kk}{outer[${tag(oL)},${tag(oR)}] inner[${tag(iL)},${tag(iR)}]}`
+      }
+      sigDetails.push(formatSig(k))
+      if (hasLower) sigDetails.push(formatSig(k + 1))
       k += 2
     }
     console.log(
       `[print-pdf] P=${P_predict} numSig=${numSig_predict} pPadded=${pPadded_predict} padBlanks=${padBlanks} insideCoverContent=${insideHasContent}`,
       `→ ${sheetPlan.length} PDF pages, all full-letter:`,
       sheetPlan,
+      'signatures:', sigDetails,
     )
   }
 
