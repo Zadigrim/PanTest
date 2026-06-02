@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import * as Dialog from '@radix-ui/react-dialog'
 import { INSTITUTION_TYPE_LABELS } from '@/lib/supabase/types'
 import type { Institution } from '@/lib/supabase/types'
+import { UserCompPanel } from './UserCompPanel'
 import {
   computePricingModel,
   isAdmissionDependent,
@@ -637,13 +638,25 @@ function UsersTab({ isAdmin }: { isAdmin: boolean }) {
   return (
     <div className="flex gap-4">
       <div className="flex-1 min-w-0">
-        <div className="mb-4">
+        <div className="mb-4 flex items-center justify-between gap-3">
           <input
-            className={`${INPUT_CLS} max-w-xs`}
+            className={`${INPUT_CLS} max-w-xs flex-1`}
             placeholder="Search by name…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
+          {/* The per-user Premium tiers section on the right covers the
+              normal grant flow. This link surfaces the full overview
+              (all active + revoked comp grants across users) for
+              auditing — same underlying table, different view. */}
+          {isAdmin && (
+            <Link
+              href="/access/comp-subscriptions"
+              className="shrink-0 text-xs text-green hover:underline"
+            >
+              View all comp grants →
+            </Link>
+          )}
         </div>
 
         {fetchError && (
@@ -744,6 +757,19 @@ function UsersTab({ isAdmin }: { isAdmin: boolean }) {
                 ))}
               </ul>
             )}
+          </div>
+
+          {/* Premium tier (Pro / Studio) grant + revoke. Reads the real
+              subscription model on profiles (status/source/expires_at);
+              the legacy profiles.role string above this stays unchanged
+              and is cleanup-tracked separately (DEC-01 / CLN-01).
+              Grant/revoke go through the existing comp_subscriptions
+              table — same path as /access/comp-subscriptions. */}
+          <div className="mt-4 border-t border-hairline pt-3">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted">
+              Premium tiers
+            </p>
+            <UserCompPanel userId={selected.id} />
           </div>
         </div>
       )}
