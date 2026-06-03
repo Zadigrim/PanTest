@@ -50,6 +50,12 @@ interface PassportRow {
   expected_spend_tier: string | null
   estimated_hours: number | null
   creator_id: string
+  // Pre-rendered images written by lib/explore/publish-images at the
+  // last publish/republish. Null when the passport hasn't been
+  // republished since the image pipeline shipped — the viewer falls
+  // back to live-render in that case so existing passports still work.
+  cover_image_url: string | null
+  page_image_urls: string[] | null
 }
 
 interface CreatorRow {
@@ -260,12 +266,18 @@ export default async function ExplorePassportDetailPage({
     <div className="min-h-screen bg-white">
 
       {/* ── Viewer — opens to the front cover, flips two pages at a time ──── */}
+      {/* Prefers the pre-rendered cover + page images written at
+          publish/republish; falls back to live-render with cover +
+          page data when those URLs aren't set (pre-pipeline passports
+          or a publish where the image step errored). */}
       <PassportViewer
         cover={viewerCover}
         pages={viewerPages}
         fallbackBg={passport.cover_bg_color}
         emblem={passport.cover_emblem}
         title={passport.title}
+        coverImageUrl={passport.cover_image_url}
+        pageImageUrls={passport.page_image_urls}
       />
 
       {/* ── Main content ────────────────────────────────────────────────────── */}

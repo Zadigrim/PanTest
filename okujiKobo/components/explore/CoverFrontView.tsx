@@ -23,19 +23,34 @@ export interface ViewerCover {
 }
 
 interface Props {
-  cover:        ViewerCover | null
-  fallbackBg:   string | null
-  emblem:       string | null
-  title:        string
+  cover:       ViewerCover | null
+  fallbackBg:  string | null
+  emblem:      string | null
+  title:       string
+  /** Pre-rendered front-cover PNG from publish-images. When provided,
+   *  the viewer shows it instead of compositing the cover live.
+   *  Null falls back to the live composition below. */
+  imageUrl?:   string | null
 }
 
-/** Renders the FRONT panel of the saved cover (rightmost 612×792 of
- *  the 1248×792 wrap), using the same composition CoverCanvas uses in
- *  the designer. Coordinates are preserved by rendering the full
- *  1248×792 inner canvas inside a 612-wide clipping viewport, with
- *  the inner canvas pinned to the right so its front half is what's
- *  visible. */
-export function CoverFrontView({ cover, fallbackBg, emblem, title }: Props) {
+/** Renders the FRONT panel of the saved cover. Prefers the
+ *  pre-rendered image stored at publish; falls back to the same
+ *  composition CoverCanvas uses in the designer (full 1248×792 inner
+ *  canvas inside a 612-wide clipping viewport pinned to the right). */
+export function CoverFrontView({ cover, fallbackBg, emblem, title, imageUrl }: Props) {
+  if (imageUrl) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={imageUrl}
+        alt={title}
+        className="block shadow-lg"
+        style={{ width: COVER_W, height: COVER_H, objectFit: 'cover' }}
+        draggable={false}
+      />
+    )
+  }
+
   const front_bg = cover?.front_bg ?? fallbackBg ?? '0D1B2A'
 
   // No cover composition yet — show a stand-in with title + emblem.

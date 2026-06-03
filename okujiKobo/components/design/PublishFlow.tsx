@@ -149,12 +149,27 @@ export function PublishFlow({ onClose }: Props) {
       })
       .eq('id', passport.id)
 
-    setPublishing(false)
     if (err) {
+      setPublishing(false)
       setError(err.message)
       return
     }
     updatePassport({ status: 'published', is_published: true, price_cents: priceCents })
+
+    // Generate + upload page images after the publish itself has
+    // landed. Dynamically imported so react-dom/server isn't pulled
+    // into the main designer bundle. The publish is already complete
+    // by this point — image failures don't block the user; Explore
+    // falls back to live-render for any missing slot and the next
+    // republish retries.
+    try {
+      const { generateAndUploadPassportImages } = await import('@/lib/explore/publish-images')
+      await generateAndUploadPassportImages(passport, pages, stops)
+    } catch (imgErr) {
+      console.warn('[publish] page-image generation failed:', imgErr)
+    }
+
+    setPublishing(false)
     setStep('published')
   }
 

@@ -33,12 +33,18 @@ const PAGE_W = 612
 const PAGE_H = 792
 
 interface Props {
-  page: ViewerPage | null
+  page:     ViewerPage | null
+  /** Pre-rendered page PNG from publish-images. When provided, the
+   *  viewer shows it instead of live-rendering the React tree —
+   *  matching what the user designed without paying the SVG/font
+   *  paint cost each view. Null falls back to live-render. */
+  imageUrl?: string | null
 }
 
-/** Renders one design-unit page using the same background tree as the
- *  designer, with non-interactive renderers for stops and elements. */
-export function PageView({ page }: Props) {
+/** Renders one design-unit page either from the pre-rendered PNG
+ *  (preferred) or, when unavailable, by live-rendering the same
+ *  PageBackground + read-only element/stop layers the designer uses. */
+export function PageView({ page, imageUrl }: Props) {
   if (!page) {
     // Last spread on an odd page count: render an empty paper slot so
     // the spread still reads as a 2-page book opening.
@@ -46,6 +52,20 @@ export function PageView({ page }: Props) {
       <div
         className="relative bg-paper shadow-lg"
         style={{ width: PAGE_W, height: PAGE_H }}
+      />
+    )
+  }
+
+  if (imageUrl) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={imageUrl}
+        alt={page.section_title ?? page.section_name ?? `Page ${page.page_order + 1}`}
+        className="block shadow-lg"
+        style={{ width: PAGE_W, height: PAGE_H, objectFit: 'cover' }}
+        loading="lazy"
+        draggable={false}
       />
     )
   }

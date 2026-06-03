@@ -6,11 +6,16 @@ import { CoverFrontView, COVER_FRONT_W, COVER_FRONT_H, type ViewerCover } from '
 import { PageView, type ViewerPage } from './PageView'
 
 interface Props {
-  cover:        ViewerCover | null
-  pages:        ViewerPage[]
-  fallbackBg:   string | null
-  emblem:       string | null
-  title:        string
+  cover:           ViewerCover | null
+  pages:           ViewerPage[]
+  fallbackBg:      string | null
+  emblem:          string | null
+  title:           string
+  // Pre-rendered image URLs from the publish-time pipeline. When
+  // present they're used instead of live-rendering the page tree.
+  // null entries fall through to live-render for that slot.
+  coverImageUrl?:  string | null
+  pageImageUrls?:  string[] | null
 }
 
 // Spread gutter (px between left and right pages of a 2-page spread).
@@ -29,7 +34,10 @@ const STAGE_H = COVER_FRONT_H
 // Left arrow walks back. The cover and the spreads share the same stage
 // dimensions so the surrounding chrome doesn't reflow on each flip.
 
-export function PassportViewer({ cover, pages, fallbackBg, emblem, title }: Props) {
+export function PassportViewer({
+  cover, pages, fallbackBg, emblem, title,
+  coverImageUrl, pageImageUrls,
+}: Props) {
   const [viewIdx, setViewIdx] = useState(0)
   const spreadCount = Math.ceil(pages.length / 2)
   const maxViewIdx  = spreadCount   // 0 = cover, then 1..spreadCount spreads
@@ -105,12 +113,19 @@ export function PassportViewer({ cover, pages, fallbackBg, emblem, title }: Prop
                     fallbackBg={fallbackBg}
                     emblem={emblem}
                     title={title}
+                    imageUrl={coverImageUrl ?? null}
                   />
                 </div>
               ) : (
                 <div className="absolute inset-0 flex items-start justify-center gap-[12px]">
-                  <PageView page={leftPage}  />
-                  <PageView page={rightPage} />
+                  <PageView
+                    page={leftPage}
+                    imageUrl={pickPageUrl(pageImageUrls, leftPage)}
+                  />
+                  <PageView
+                    page={rightPage}
+                    imageUrl={pickPageUrl(pageImageUrls, rightPage)}
+                  />
                 </div>
               )}
             </div>
@@ -147,6 +162,15 @@ export function PassportViewer({ cover, pages, fallbackBg, emblem, title }: Prop
       </div>
     </div>
   )
+}
+
+function pickPageUrl(urls: string[] | null | undefined, page: ViewerPage | null): string | null {
+  if (!page || !urls) return null
+  // page_image_urls is indexed by page_order — the publish-images
+  // upload preserves that ordering. If the slot is missing or empty
+  // we fall through to live-render.
+  const u = urls[page.page_order]
+  return typeof u === 'string' && u.length > 0 ? u : null
 }
 
 function spreadLabel(viewIdx: number, totalPages: number): string {
