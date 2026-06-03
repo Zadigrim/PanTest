@@ -196,6 +196,34 @@ export function CoverInspector({ face, panel }: Props) {
                 ))}
               </div>
             </div>
+            {/* Text color — mirrors the inside-page ElementInspector's
+                Color field so cover text blocks have the same control
+                they do on inner pages. */}
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted">Color</Label>
+              <div className="flex gap-2">
+                <Input
+                  value={selectedElement.color ?? '0D1B2A'}
+                  maxLength={6}
+                  onChange={(e) =>
+                    updateElementLocal(selectedElement.id, { color: e.target.value })
+                  }
+                  onBlur={(e) =>
+                    void persistElement(selectedElement.id, { color: e.target.value })
+                  }
+                  className="h-8 flex-1 font-mono text-sm uppercase"
+                />
+                <ColorPickerInput
+                  value={selectedElement.color ?? '0D1B2A'}
+                  onChange={(hex) =>
+                    updateElementLocal(selectedElement.id, { color: hex })
+                  }
+                  onCommit={(hex) =>
+                    void persistElement(selectedElement.id, { color: hex })
+                  }
+                />
+              </div>
+            </div>
           </div>
         )}
 
