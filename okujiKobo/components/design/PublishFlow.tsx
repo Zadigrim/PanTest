@@ -85,17 +85,15 @@ export function PublishFlow({ onClose }: Props) {
   if (!passport) return null
 
   // ── Validation checks ──────────────────────────────────────────────────────
-  const stampPages = pages.filter((p) => p.page_type !== 'information')
-
   const validationIssues: string[] = []
   if (!passport.title.trim() || passport.title === 'Untitled Passport')
     validationIssues.push('Give your passport a real title.')
   if (pages.length === 0)
     validationIssues.push('Add at least one page.')
-  if (stampPages.length === 0)
-    validationIssues.push('Add at least one stamp page — information-only passports cannot be published.')
-  if (stops.length === 0)
-    validationIssues.push('Add at least one stop.')
+
+  // Info-only passports are valid (e.g. a guide booklet). Stamp pages
+  // and stops are optional — only the per-stop location rules below
+  // apply, and they only check the stops that DO exist.
 
   // Per-stop location requirement is CONDITIONAL on the stop's canonical
   // type + method (migration 046), matching the rules the right-inspector
