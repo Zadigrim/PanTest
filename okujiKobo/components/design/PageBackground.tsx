@@ -1,10 +1,24 @@
 'use client'
 
 import { GuillochePattern } from './GuillochePattern'
-import type { DesignerPassportPage } from '@/lib/design/types'
+import type { BackgroundType } from '@/lib/design/types'
+
+// Narrow structural type — every field this component actually reads,
+// with nullability matched to both the designer's hydrated shape and
+// the Explore viewer's read-only shape that comes straight from the
+// DB. Defaults applied below cover null values either way.
+interface PageBackgroundFields {
+  id: string
+  paper_color: string | null
+  background_color: string | null
+  background_opacity: number | null
+  custom_background_opacity: number | null
+  background_type: BackgroundType
+  background_image_url: string | null
+}
 
 interface Props {
-  page: DesignerPassportPage
+  page: PageBackgroundFields
   children?: React.ReactNode
 }
 

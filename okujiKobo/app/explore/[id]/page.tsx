@@ -5,6 +5,10 @@ import type { ReactNode } from 'react'
 import { createClient } from '@/lib/supabase/server'
 import { cn } from '@/lib/cn'
 import { passportTypeIcon } from '@/lib/design/passport-type-icon'
+import { PassportViewer } from '@/components/explore/PassportViewer'
+import type { ViewerPage } from '@/components/explore/PageView'
+import type { ViewerCover } from '@/components/explore/CoverFrontView'
+import type { DesignerPageElement } from '@/lib/design/types'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -122,9 +126,17 @@ export default async function ExplorePassportDetailPage({
   const passport = passportRaw as unknown as PassportRow
 
   // ── Fetch pages + stops separately ────────────────────────────────────────
+  // Pull every visual / layout field the viewer renders. Cheap — published
+  // passports are immutable until republish, so this query reflects the
+  // canonical content.
   const { data: pagesRaw } = await supabase
     .from('passport_pages')
-    .select('id, page_order, section_title, section_name, prize_description')
+    .select(
+      'id, page_order, page_type, section_title, section_name, section_subtitle, ' +
+        'prize_description, prize_location_constraint, ' +
+        'background_type, background_color, background_opacity, background_image_url, ' +
+        'custom_background_opacity, paper_color, elements',
+    )
     .eq('passport_id', id)
     .order('page_order', { ascending: true })
 
@@ -135,7 +147,10 @@ export default async function ExplorePassportDetailPage({
       ? await supabase
           .from('stops')
           .select(
-            'id, name, stop_order, address_street, address_city, address_state, learning_objective, stamp_icon, classifiers, is_shared, page_id',
+            'id, name, stop_order, page_id, ' +
+              'address_street, address_city, address_state, learning_objective, ' +
+              'stamp_icon, stamp_color, classifiers, is_shared, ' +
+              'box_x, box_y, box_width, box_height, rotation',
           )
           .in('page_id', pageIds)
           .order('stop_order', { ascending: true })
@@ -154,7 +169,7 @@ export default async function ExplorePassportDetailPage({
     // profile read failed — continue without creator info
   }
 
-  // ── Assemble pages with stops ─────────────────────────────────────────────
+  // ── Assemble pages with stops (metadata view) ─────────────────────────────
   const pages: PageRow[] = (pagesRaw ?? []).map((p: Record<string, unknown>) => ({
     id: p['id'] as string,
     page_order: p['page_order'] as number,
@@ -178,47 +193,80 @@ export default async function ExplorePassportDetailPage({
       })),
   }))
 
+  // ── Assemble viewer-shaped pages (with full layout + visual fields) ──────
+  // Stamp pages drive the spread renderer; information pages also flow
+  // through (page.page_type carries through to PageBackground / stop layer).
+  const viewerPages: ViewerPage[] = (pagesRaw ?? []).map((p) => {
+    const r = p as Record<string, unknown>
+    const pageId = r['id'] as string
+    const stops = ((stopsRaw ?? []) as Array<Record<string, unknown>>)
+      .filter((s) => s['page_id'] === pageId)
+      .sort((a, b) => (a['stop_order'] as number) - (b['stop_order'] as number))
+      .map((s) => ({
+        id:           s['id']         as string,
+        name:         s['name']       as string,
+        box_x:        s['box_x']      as number | null,
+        box_y:        s['box_y']      as number | null,
+        box_width:    s['box_width']  as number | null,
+        box_height:   s['box_height'] as number | null,
+        rotation:     s['rotation']   as number | null,
+        stamp_icon:   s['stamp_icon'] as string | null,
+        stamp_color:  s['stamp_color'] as string | null,
+      }))
+    return {
+      id:                         pageId,
+      page_order:                 r['page_order']                 as number,
+      page_type:                  (r['page_type'] as 'stamp' | 'information') ?? 'stamp',
+      section_name:               r['section_name']               as string,
+      section_title:              r['section_title']              as string | null,
+      section_subtitle:           r['section_subtitle']           as string | null,
+      prize_description:          r['prize_description']          as string | null,
+      prize_location_constraint:  r['prize_location_constraint']  as string | null,
+      background_type:            (r['background_type'] ?? 'none') as ViewerPage['background_type'],
+      background_color:           r['background_color']           as string | null,
+      background_opacity:         r['background_opacity']         as number | null,
+      background_image_url:       r['background_image_url']       as string | null,
+      custom_background_opacity:  r['custom_background_opacity']  as number | null,
+      paper_color:                r['paper_color']                as string | null,
+      elements:                   ((r['elements'] as DesignerPageElement[] | null) ?? []),
+      stops,
+    }
+  })
+
+  // ── Cover composition for the viewer's front-cover page ──────────────────
+  // cover_outside_data carries the saved 1248×792 wrap (back | spine | front).
+  // The viewer extracts the front (rightmost 612×792) via overflow clipping.
+  const coverDataRaw = passport.cover_outside_data as Record<string, unknown> | null
+  const viewerCover: ViewerCover | null = coverDataRaw
+    ? {
+        front_bg:         (coverDataRaw['front_bg']        as string | null) ?? null,
+        back_bg:          (coverDataRaw['back_bg']         as string | null) ?? null,
+        image_url:        (coverDataRaw['image_url']       as string | null) ?? null,
+        image_opacity:    (coverDataRaw['image_opacity']   as number)        ?? 80,
+        image_position_x: (coverDataRaw['image_position_x'] as number)       ?? 0.5,
+        image_position_y: (coverDataRaw['image_position_y'] as number)       ?? 0.5,
+        image_scale:      (coverDataRaw['image_scale']     as number)        ?? 1,
+        elements:         ((coverDataRaw['elements'] as DesignerPageElement[] | null) ?? []),
+      }
+    : null
+
   const allStops = pages.flatMap((p) => p.stops)
   const prizePages = pages.filter((p) => p.prize_description)
   const hasSharedStops = allStops.some((s) => s.is_shared)
-
-  const coverBg = (passport.cover_outside_data as Record<string, string> | null)?.['front_bg']
-    ?? passport.cover_bg_color
-    ?? '0D1B2A'
-  const coverImageUrl = (passport.cover_outside_data as Record<string, string | null> | null)?.['image_url'] ?? null
 
   const typeIcon = passportTypeIcon(passport.passport_type ?? null)
 
   return (
     <div className="min-h-screen bg-white">
 
-      {/* ── Hero cover — 2:3 proportions, full width ─────────────────────── */}
-      <div
-        className="relative w-full"
-        style={{ paddingBottom: '66.67%', backgroundColor: `#${coverBg}` }}
-      >
-        {coverImageUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={coverImageUrl}
-            alt=""
-            className="absolute inset-0 h-full w-full object-cover"
-          />
-        ) : passport.cover_emblem ? (
-          <span className="absolute inset-0 flex items-center justify-center text-8xl leading-none select-none">
-            {passport.cover_emblem}
-          </span>
-        ) : null}
-
-        {/* Type icon badge */}
-        <span
-          className="absolute bottom-3 left-3 flex h-9 w-9 items-center justify-center rounded-full text-xl"
-          style={{ backgroundColor: 'rgba(255,255,255,0.9)' }}
-          aria-label={`Passport type: ${passport.passport_type ?? 'general'}`}
-        >
-          {typeIcon}
-        </span>
-      </div>
+      {/* ── Viewer — opens to the front cover, flips two pages at a time ──── */}
+      <PassportViewer
+        cover={viewerCover}
+        pages={viewerPages}
+        fallbackBg={passport.cover_bg_color}
+        emblem={passport.cover_emblem}
+        title={passport.title}
+      />
 
       {/* ── Main content ────────────────────────────────────────────────────── */}
       <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6">
