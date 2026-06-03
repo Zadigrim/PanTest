@@ -9,6 +9,7 @@ import { PassportViewer } from '@/components/explore/PassportViewer'
 import type { ViewerPage } from '@/components/explore/PageView'
 import type { ViewerCover } from '@/components/explore/CoverFrontView'
 import type { DesignerPageElement } from '@/lib/design/types'
+import { DownloadFreePdfButton } from '@/components/explore/DownloadFreePdfButton'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -116,6 +117,12 @@ export default async function ExplorePassportDetailPage({
 }) {
   const { id } = await params
   const supabase = await createClient()
+
+  // Auth status — Explore detail is viewable logged-out, but the
+  // free-PDF download button only renders for logged-in users. The
+  // print-pdf route also independently requires auth + the
+  // published+free conditions before returning bytes.
+  const { data: { user: viewer } } = await supabase.auth.getUser()
 
   // ── Fetch passport (simple select, no profile join to avoid RLS issues) ────
   const { data: passportRaw, error: passportError } = await supabase
@@ -493,6 +500,17 @@ export default async function ExplorePassportDetailPage({
               'sm:flex-row sm:items-center',
             )}
           >
+            {/* Download printable PDF — published + FREE passports only,
+                logged-in viewers only. Paid passports show no download
+                button (the PDF is part of what's paid for). The
+                print-pdf route enforces these conditions independently
+                so this UI is a surface, not a gate. */}
+            {viewer && passport.is_published && (passport.price_cents ?? 0) === 0 && (
+              <DownloadFreePdfButton
+                passportId={passport.id}
+                title={passport.title}
+              />
+            )}
             <Link
               href={`/stops?passport=${passport.id}`}
               className={cn(

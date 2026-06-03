@@ -763,7 +763,7 @@ async function handlePrintRequest(request: Request, passportId: string) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: passport, error: passportError } = await (supabase as any)
     .from('passports')
-    .select('id, title, creator_id, proprietor_id, passport_type, print_certificate, cover_outside_data, cover_inside_data, cover_paper_color')
+    .select('id, title, creator_id, proprietor_id, passport_type, print_certificate, cover_outside_data, cover_inside_data, cover_paper_color, is_published, price_cents')
     .eq('id', passportId)
     .single() as {
       data: {
@@ -771,6 +771,7 @@ async function handlePrintRequest(request: Request, passportId: string) {
         passport_type: PassportType | null; print_certificate: boolean | null
         cover_outside_data: CoverSideData | null; cover_inside_data: CoverSideData | null
         cover_paper_color: string | null
+        is_published: boolean | null; price_cents: number | null
       } | null
       error: unknown
     }
@@ -779,9 +780,17 @@ async function handlePrintRequest(request: Request, passportId: string) {
     return new Response(JSON.stringify({ error: 'Passport not found' }), { status: 404, headers: { 'Content-Type': 'application/json' } })
   }
 
-  // Authz
-  const isCreator = passport.creator_id === user.id
-  if (!isCreator) {
+  // Authz — three branches:
+  //   1. Creator of the passport.
+  //   2. Employee of the passport's proprietor (institutional content).
+  //   3. Any authenticated user IFF the passport is PUBLISHED and FREE
+  //      (price_cents = 0). This is the "kindergarten teacher finds it
+  //      on Explore and prints it" path. Drafts and paid passports are
+  //      still gated — only published + price_cents=0 opens up.
+  const isCreator         = passport.creator_id === user.id
+  const isPublishedAndFree =
+    passport.is_published === true && (passport.price_cents ?? 0) === 0
+  if (!isCreator && !isPublishedAndFree) {
     if (!passport.proprietor_id) {
       return new Response(JSON.stringify({ error: 'Not authorized to print this passport' }), { status: 403, headers: { 'Content-Type': 'application/json' } })
     }
