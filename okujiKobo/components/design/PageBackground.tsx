@@ -50,8 +50,14 @@ export function PageBackground({ page, children }: Props) {
         />
       )}
 
-      {/* Grain texture */}
-      <GrainOverlay />
+      {/* Grain overlay removed. It was a 4%-opacity SVG turbulence
+          filter intended as paper texture, but the feBlend mode=multiply
+          step with the rect's default-black SourceGraphic produced a
+          perceptible warm/pink cast on pure-white paper in real
+          browsers. The print PDF never had this overlay, so removing
+          it also brings the live designer in line with what gets
+          printed. If we want paper texture back, do it as a CSS
+          background-image with a known-neutral PNG. */}
 
       <div className="relative z-10 h-full w-full">{children}</div>
     </div>
@@ -92,24 +98,3 @@ function GridPattern({
   )
 }
 
-function GrainOverlay() {
-  return (
-    <svg
-      aria-hidden
-      className="absolute inset-0 h-full w-full pointer-events-none z-[1]"
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      <filter id="grain-filter">
-        <feTurbulence
-          type="fractalNoise"
-          baseFrequency="0.65"
-          numOctaves="3"
-          stitchTiles="stitch"
-        />
-        <feColorMatrix type="saturate" values="0" />
-        <feBlend in="SourceGraphic" mode="multiply" />
-      </filter>
-      <rect width="100%" height="100%" filter="url(#grain-filter)" opacity="0.04" />
-    </svg>
-  )
-}
