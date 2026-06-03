@@ -30,9 +30,28 @@ const MAX_DIMENSION = 1600
 
 export interface NormalizeContext {
   /** Hex color (no leading #) used as the flattening background when
-   *  the source has alpha. Cover/page images use the relevant
-   *  paper_color so the flattened pixels match what the user designed. */
+   *  the source has alpha. The route passes each image's destination
+   *  paper color so flattened pixels match what the user designed —
+   *  page element images use their page's paper_color, cover images
+   *  use cover_paper_color, etc. */
   paperHex: string
+}
+
+/** A single image to normalize, with the paper colour its transparent
+ *  pixels should blend into. Different pages on the same passport can
+ *  have different paper colours; flattening on the wrong one shows
+ *  up as a visible bounding rectangle where the alpha-flattened pixels
+ *  meet the actual page background. */
+export interface NormalizeItem {
+  url: string
+  paperHex: string
+}
+
+/** Key for the Map returned by normalizeAll. Exposed so callers can
+ *  look up images they queued. Lowercased so 'FFFFFF' and 'ffffff'
+ *  collapse to one cache key. */
+export function normalizeKey(url: string, paperHex: string): string {
+  return `${url}::${paperHex.replace(/^#/, '').toLowerCase()}`
 }
 
 function paperHexToRgb(hex: string): { r: number; g: number; b: number } {
@@ -94,21 +113,32 @@ export async function normalizeImage(
   }
 }
 
-/** Concurrency-limited batch normalize. Returns a map: original URL → data URL. */
+/** Concurrency-limited batch normalize.
+ *  Returns a map keyed by `${url}::${paperHex}` (use normalizeKey()) so
+ *  the same image flattened onto different paper colours stays
+ *  distinct. Each (url, paperHex) pair is normalized at most once. */
 export async function normalizeAll(
-  urls: string[],
-  ctx: NormalizeContext,
+  items: NormalizeItem[],
 ): Promise<Map<string, string>> {
-  const unique = Array.from(new Set(urls.filter(Boolean)))
+  const seen = new Set<string>()
+  const unique: NormalizeItem[] = []
+  for (const it of items) {
+    if (!it.url) continue
+    const k = normalizeKey(it.url, it.paperHex)
+    if (seen.has(k)) continue
+    seen.add(k)
+    unique.push(it)
+  }
+
   const out = new Map<string, string>()
   let cursor = 0
 
   async function worker() {
     while (cursor < unique.length) {
       const i = cursor++
-      const url = unique[i]
-      const result = await normalizeImage(url, ctx)
-      if (result) out.set(url, result)
+      const it = unique[i]
+      const result = await normalizeImage(it.url, { paperHex: it.paperHex })
+      if (result) out.set(normalizeKey(it.url, it.paperHex), result)
     }
   }
 

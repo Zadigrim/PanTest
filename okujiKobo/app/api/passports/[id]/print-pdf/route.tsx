@@ -4,7 +4,7 @@ import {
   Svg, Ellipse, Path, Line, Polyline, Polygon, Rect, Image,
 } from '@react-pdf/renderer'
 import { createClient } from '@/lib/supabase/server'
-import { normalizeAll } from '@/lib/print/normalize-images'
+import { normalizeAll, normalizeKey, type NormalizeItem } from '@/lib/print/normalize-images'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const ARTBOARD_W = 612, ARTBOARD_H = 792
@@ -904,40 +904,54 @@ async function handlePrintRequest(request: Request, passportId: string) {
   // (alpha + ICC profile, interlaced, 16-bit, etc.). Fetch every image
   // ahead of render and flatten/re-encode as JPEG so the rendering pass
   // gets a guaranteed-decodable buffer.
-  const imageUrls: string[] = []
-  const pushUrl = (u: string | null | undefined) => { if (u) imageUrls.push(u) }
-  pushUrl(passport.cover_outside_data?.image_url)
-  for (const el of passport.cover_outside_data?.elements ?? []) {
-    if ((el as { type?: string }).type === 'image') pushUrl((el as ImagePageElement).imageUrl)
+  //
+  // Each image is normalized against the paper colour it actually
+  // sits on — cover images on cover_paper_color, page element images
+  // on that page's paper_color. Before this fix every image got the
+  // cover paper colour, which made transparent PNGs placed on a white
+  // page render with a cream rectangle around them.
+  const coverPaperHex = (passport.cover_paper_color ?? 'F5F2EC').replace(/^#/, '')
+
+  const items: NormalizeItem[] = []
+  const pushCover = (u: string | null | undefined) => {
+    if (u) items.push({ url: u, paperHex: coverPaperHex })
   }
-  pushUrl(passport.cover_inside_data?.image_url)
+  pushCover(passport.cover_outside_data?.image_url)
+  for (const el of passport.cover_outside_data?.elements ?? []) {
+    if ((el as { type?: string }).type === 'image') pushCover((el as ImagePageElement).imageUrl)
+  }
+  pushCover(passport.cover_inside_data?.image_url)
   for (const el of passport.cover_inside_data?.elements ?? []) {
-    if ((el as { type?: string }).type === 'image') pushUrl((el as ImagePageElement).imageUrl)
+    if ((el as { type?: string }).type === 'image') pushCover((el as ImagePageElement).imageUrl)
   }
   for (const page of pagesForPrint) {
-    if (page.background_type === 'custom') pushUrl(page.background_image_url)
+    const pageHex = (page.paper_color ?? 'F5F2EC').replace(/^#/, '')
+    if (page.background_type === 'custom' && page.background_image_url) {
+      items.push({ url: page.background_image_url, paperHex: pageHex })
+    }
     for (const el of page.elements ?? []) {
-      if (el.type === 'image') pushUrl((el as ImagePageElement).imageUrl)
+      if (el.type === 'image') {
+        const u = (el as ImagePageElement).imageUrl
+        if (u) items.push({ url: u, paperHex: pageHex })
+      }
     }
   }
 
-  const normalized = await normalizeAll(imageUrls, {
-    paperHex: (passport.cover_paper_color ?? 'F5F2EC').replace(/^#/, ''),
-  })
-  console.log(`[print-pdf] normalized ${normalized.size}/${new Set(imageUrls).size} images`)
+  const normalized = await normalizeAll(items)
+  console.log(`[print-pdf] normalized ${normalized.size}/${items.length} image variants`)
 
   // Rewrite URLs in the doc data: each original URL becomes the
-  // data:image/jpeg;base64,... URL from the normalizer, or null if
-  // normalization failed (so the component skips rather than rendering
-  // a broken slot).
-  const remap = (u: string | null | undefined): string | null => {
+  // data:image/jpeg;base64,... URL from the normalizer for the specific
+  // paper colour it was flattened against, or null if normalization
+  // failed (so the component skips rather than rendering a broken slot).
+  const remap = (u: string | null | undefined, paperHex: string): string | null => {
     if (!u) return null
-    return normalized.get(u) ?? null
+    return normalized.get(normalizeKey(u, paperHex)) ?? null
   }
-  const remapElements = (els: PageElement[]): PageElement[] =>
+  const remapElements = (els: PageElement[], paperHex: string): PageElement[] =>
     (els ?? []).map((el) => {
       if (el.type === 'image') {
-        return { ...el, imageUrl: remap((el as ImagePageElement).imageUrl) ?? undefined }
+        return { ...el, imageUrl: remap((el as ImagePageElement).imageUrl, paperHex) ?? undefined }
       }
       return el
     })
@@ -945,17 +959,20 @@ async function handlePrintRequest(request: Request, passportId: string) {
     if (!side) return null
     return {
       ...side,
-      image_url: remap(side.image_url),
-      elements: remapElements(side.elements ?? []),
+      image_url: remap(side.image_url, coverPaperHex),
+      elements: remapElements(side.elements ?? [], coverPaperHex),
     }
   }
   const outsideCover = remapCover(passport.cover_outside_data ?? null)
   const insideCover = remapCover(passport.cover_inside_data ?? null)
-  const remappedPages: PassportPageForPrint[] = pagesForPrint.map((p) => ({
-    ...p,
-    background_image_url: remap(p.background_image_url),
-    elements: remapElements(p.elements ?? []),
-  }))
+  const remappedPages: PassportPageForPrint[] = pagesForPrint.map((p) => {
+    const pageHex = (p.paper_color ?? 'F5F2EC').replace(/^#/, '')
+    return {
+      ...p,
+      background_image_url: remap(p.background_image_url, pageHex),
+      elements: remapElements(p.elements ?? [], pageHex),
+    }
+  })
 
   // Render PDF
   let pdfBuffer: Buffer
