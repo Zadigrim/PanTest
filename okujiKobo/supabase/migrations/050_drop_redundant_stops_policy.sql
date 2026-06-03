@@ -1,0 +1,24 @@
+-- Drop the redundant ALL-command policy on public.stops.
+--
+-- `stops` had two PERMISSIVE policies for `ALL`:
+--
+--   stops_creator         — is_admin() OR creator-via-join OR
+--                           employee-via-institution
+--   stops_creator_manage  — creator-via-join (a strict subset of the
+--                           creator branch of stops_creator)
+--
+-- For every UPDATE Postgres evaluated BOTH policies' USING clauses
+-- against the OLD row AND the NEW row (the second policy had no
+-- WITH CHECK, so USING was reused for both directions). Each clause
+-- ran a multi-join EXISTS / IN-subquery against passport_pages +
+-- passports, plus the admin and employee checks in stops_creator.
+-- The compounded RLS cost on small UPDATEs was tripping the 8 s
+-- Supabase statement timeout (Postgres 57014) on single-field
+-- saves like { lng: ... }.
+--
+-- Anything stops_creator_manage permits, stops_creator already
+-- permits via its creator-via-join branch. Dropping it halves the
+-- per-row RLS cost on UPDATE without changing the access surface.
+-- Idempotent — safe to re-run.
+
+DROP POLICY IF EXISTS "stops_creator_manage" ON public.stops;
