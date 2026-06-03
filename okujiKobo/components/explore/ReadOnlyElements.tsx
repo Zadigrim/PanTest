@@ -94,7 +94,11 @@ export function ReadOnlyElement({ element }: { element: DesignerPageElement }) {
           transform: el.rotation ? `rotate(${el.rotation}deg)` : undefined,
           transformOrigin: 'top left',
           opacity: (el.opacity ?? 100) / 100,
-          objectFit: 'cover',
+          // Match the designer's PageElementBox which uses object-contain
+          // — the whole image fits inside its box with letterboxing if
+          // aspect ratios differ. 'cover' would silently crop the top
+          // and bottom of taller images, which is the bug this fixes.
+          objectFit: 'contain',
         }}
         draggable={false}
       />
