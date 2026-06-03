@@ -13,41 +13,10 @@ import { useEffect, useRef, useState } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { loadGoogleMaps, MAPS_API_KEY, MAPS_PICKER_AVAILABLE } from '@/lib/maps/loader'
 
-// Public env var — exposed to the browser bundle. Empty string when unset.
-export const MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ?? ''
-export const MAPS_PICKER_AVAILABLE = MAPS_API_KEY.length > 0
-
-// Module-level loader promise so multiple opens share a single <script> tag.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let mapsLoader: Promise<any> | null = null
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function loadGoogleMaps(): Promise<any> {
-  if (!MAPS_PICKER_AVAILABLE) return Promise.reject(new Error('NEXT_PUBLIC_GOOGLE_MAPS_API_KEY unset'))
-  if (mapsLoader) return mapsLoader
-
-  mapsLoader = new Promise((resolve, reject) => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const w = window as unknown as { google?: { maps: any } }
-    if (w.google?.maps) {
-      resolve(w.google.maps)
-      return
-    }
-    const script = document.createElement('script')
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(MAPS_API_KEY)}&v=weekly`
-    script.async = true
-    script.defer = true
-    script.onload = () => {
-      if (w.google?.maps) resolve(w.google.maps)
-      else reject(new Error('google.maps unavailable after script load'))
-    }
-    script.onerror = () => reject(new Error('Failed to load Google Maps script'))
-    document.head.appendChild(script)
-  })
-
-  return mapsLoader
-}
+// Back-compat re-exports so existing imports still work.
+export { MAPS_API_KEY, MAPS_PICKER_AVAILABLE }
 
 interface MapPickerDialogProps {
   open: boolean

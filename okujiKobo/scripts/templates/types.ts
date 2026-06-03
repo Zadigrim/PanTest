@@ -30,6 +30,16 @@ interface PhysicalStopBase extends StopBase {
   address?: AddressFields
   lat?: number | null
   lng?: number | null
+  /** Free-form place query the seeder resolves via server-side
+   *  Geocoding at run time, filling whichever of address / lat / lng
+   *  aren't explicitly set. Example: 'Bainbridge Island Museum of
+   *  Art, Bainbridge Island, WA'. Skipped when GOOGLE_MAPS_SERVER_KEY
+   *  isn't set — the row is still seeded with whatever fields the
+   *  template did include (or null).
+   *  Explicit address / lat / lng on the same stop WIN over
+   *  resolution, so a template can override the geocoder when it
+   *  knows better. */
+  place?: string
 }
 
 export type StopTemplate =

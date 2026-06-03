@@ -30,6 +30,8 @@ import type {
   AddressFields,
 } from './templates/types'
 import { bainbridge } from './templates/bainbridge'
+import { geocode, geocodeAvailable } from '@/lib/maps/server-geocode'
+import type { ResolvedPlace } from '@/lib/maps/types'
 
 const TEMPLATES: Record<string, PassportTemplate> = {
   bainbridge,
@@ -77,6 +79,30 @@ function expandAddress(
     // Default country when any address field is set and country wasn't
     // explicitly given. Templates can override (e.g. Mexico stops).
     country: addr.country ?? (anySet ? 'USA' : null),
+  }
+}
+
+/** expandAddress, but with a fallback from a place-resolution result.
+ *  Explicit AddressFields beat the resolver field-by-field; whatever
+ *  the template DIDN'T set falls back to whatever Google found. */
+function expandAddressMerged(
+  addr: AddressFields | undefined,
+  resolved: ResolvedPlace | null,
+): {
+  address_street: string | null
+  address_city:   string | null
+  address_state:  string | null
+  address_zip:    string | null
+  country:        string | null
+} {
+  const base = expandAddress(addr)
+  if (!resolved) return base
+  return {
+    address_street: base.address_street ?? resolved.street  ?? null,
+    address_city:   base.address_city   ?? resolved.city    ?? null,
+    address_state:  base.address_state  ?? resolved.state   ?? null,
+    address_zip:    base.address_zip    ?? resolved.zip     ?? null,
+    country:        base.country        ?? resolved.country ?? null,
   }
 }
 
@@ -179,13 +205,38 @@ async function main() {
     console.log(`  ✓ Page ${pageIdx + 1}: ${page.title}`)
 
     // 4. Insert stops for this page.
+    // Honor stops have no location; physical stops (gps/qr) MAY carry
+    // a `place` query that the seeder resolves into address + lat/lng
+    // when GOOGLE_MAPS_SERVER_KEY is configured. Explicit address /
+    // lat / lng on the template always win over the resolver.
+    const canGeocode = geocodeAvailable()
+    if (!canGeocode) {
+      console.log(
+        '  · GOOGLE_MAPS_SERVER_KEY unset — skipping place resolution; ' +
+          'lat/lng left null for any stops that relied on it.',
+      )
+    }
+
     for (let stopIdx = 0; stopIdx < page.stops.length; stopIdx++) {
       const stop = page.stops[stopIdx]
       const verification = mapKindToVerification(stop)
+
+      // Try to resolve a `place` query into a structured result.
+      // Failure (no key, ambiguous, ZERO_RESULTS, network) returns
+      // null and the seed continues with whatever the template
+      // explicitly provided.
+      let resolved: ResolvedPlace | null = null
+      if (stop.kind !== 'honor' && stop.place && canGeocode) {
+        resolved = await geocode(stop.place)
+        if (resolved) {
+          console.log(`      ↳ resolved "${stop.place}" → (${resolved.lat.toFixed(5)}, ${resolved.lng.toFixed(5)})`)
+        }
+      }
+
       const addrFields =
         stop.kind === 'honor'
           ? expandAddress(undefined)
-          : expandAddress(stop.address)
+          : expandAddressMerged(stop.address, resolved)
 
       const row = {
         page_id:                        pageId,
@@ -196,10 +247,11 @@ async function main() {
         verification_radius_meters:
           stop.kind === 'gps' ? (stop.radius ?? 100) : 100,
         ...addrFields,
-        // lat/lng intentionally left NULL — Nathan drops precise
-        // coordinates via the designer's map picker after seeding.
-        lat: stop.kind !== 'honor' ? (stop.lat ?? null) : null,
-        lng: stop.kind !== 'honor' ? (stop.lng ?? null) : null,
+        // Explicit lat/lng on the template wins over the resolver.
+        // When both are absent, leave null — Nathan can drop a precise
+        // pin via the designer's map picker.
+        lat: stop.kind !== 'honor' ? (stop.lat ?? resolved?.lat ?? null) : null,
+        lng: stop.kind !== 'honor' ? (stop.lng ?? resolved?.lng ?? null) : null,
         // Layout — 4-column grid mirroring LeftPalette.handleAddStop
         // so seeded stops land placed-but-arrangeable.
         box_x:      40 + (stopIdx % 4) * 130,
