@@ -844,6 +844,18 @@ function StopInspector({
 
 // ── Custom background image picker ────────────────────────────────────────────
 
+// Built-in preset grounds from public/presets/png/. Free for any creator
+// to pick — no upload required. Labels mirror public/presets/README.md
+// so the in-app copy matches the asset filenames.
+const PRESET_BACKGROUNDS: { url: string; label: string }[] = [
+  { url: '/presets/png/okuji-ground-01-guilloche-medallion.png',  label: 'Guilloche medallion' },
+  { url: '/presets/png/okuji-ground-02-topographic-contours.png', label: 'Topographic contours' },
+  { url: '/presets/png/okuji-ground-03-woven-waves.png',          label: 'Woven waves' },
+  { url: '/presets/png/okuji-ground-04-trail-waypoints.png',      label: 'Trail waypoints' },
+  { url: '/presets/png/okuji-ground-05-rosette-tiling.png',       label: 'Rosette tiling' },
+  { url: '/presets/png/okuji-ground-06-field-rule.png',           label: 'Field rule' },
+]
+
 interface BgAsset { id: string; url: string | null; name: string | null }
 
 function CustomBgPicker({
@@ -905,7 +917,27 @@ function CustomBgPicker({
 
   return (
     <div className="space-y-2">
-      <Label className="text-xs text-muted">Background image</Label>
+      <Label className="text-xs text-muted">Okuji presets</Label>
+      <div className="grid grid-cols-3 gap-1.5">
+        {PRESET_BACKGROUNDS.map((preset) => {
+          const selected = page.background_image_url === preset.url
+          return (
+            <button
+              key={preset.url}
+              onClick={() => void persist({ background_image_url: preset.url })}
+              className={`relative aspect-[3/4] w-full overflow-hidden rounded border-2 transition-colors ${
+                selected ? 'border-green' : 'border-transparent hover:border-green/40'
+              }`}
+              title={preset.label}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={preset.url} alt={preset.label} className="h-full w-full object-cover" />
+            </button>
+          )
+        })}
+      </div>
+
+      <Label className="text-xs text-muted pt-2">Your uploads</Label>
       {loading ? (
         <p className="text-xs text-muted">Loading…</p>
       ) : assets.length === 0 ? (
