@@ -106,8 +106,8 @@ function EnabledTile({ tile }: { tile: Tile }) {
     >
       <Letter letter={tile.letter} />
       <div className="min-w-0">
-        <p className="truncate text-[13px] font-semibold text-ink">{tile.name}</p>
-        <p className="truncate text-[11px] text-muted">{tile.one}</p>
+        <p className="text-[13px] font-semibold text-ink">{tile.name}</p>
+        <p className="text-[11px] leading-snug text-muted">{tile.one}</p>
       </div>
     </Link>
   )
@@ -122,8 +122,8 @@ function DisabledTile({ tile }: { tile: Tile }) {
     >
       <Letter letter={tile.letter} muted />
       <div className="min-w-0">
-        <p className="truncate text-[13px] font-semibold text-ink">{tile.name}</p>
-        <p className="truncate text-[10.5px] text-muted">No access</p>
+        <p className="text-[13px] font-semibold text-ink">{tile.name}</p>
+        <p className="text-[10.5px] leading-snug text-muted">No access</p>
       </div>
     </div>
   )
@@ -132,7 +132,7 @@ function DisabledTile({ tile }: { tile: Tile }) {
 function Letter({ letter, muted = false }: { letter: string; muted?: boolean }) {
   return (
     <span
-      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-[6px] border border-hairline bg-white text-[14px] font-semibold ${
+      className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-[7px] border border-hairline bg-white text-[17px] font-semibold ${
         muted ? 'text-muted' : 'text-ink'
       }`}
       aria-hidden="true"
