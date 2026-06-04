@@ -1,10 +1,33 @@
 import React from 'react'
+import { promises as fs } from 'fs'
+import path from 'path'
 import {
   renderToBuffer, Document, Page, View, Text, StyleSheet,
   Svg, Ellipse, Path, Line, Polyline, Polygon, Rect, Image,
 } from '@react-pdf/renderer'
 import { createClient } from '@/lib/supabase/server'
 import { normalizeAll, normalizeKey, type NormalizeItem } from '@/lib/print/normalize-images'
+
+// ── Marketing mark loader ────────────────────────────────────────────────────
+// The okuji-ground-03 woven-waves PNG used on the free-passport
+// discardable strip. Loaded from public/presets/png/ via the Node
+// filesystem (process.cwd() is the okujiKobo project root in dev and
+// on Vercel). Returns null on failure so the renderer falls back to
+// the original full-width instructions instead of breaking PDF
+// generation.
+let cachedMarkDataUri: string | null | undefined = undefined
+async function loadMarketingMark(): Promise<string | null> {
+  if (cachedMarkDataUri !== undefined) return cachedMarkDataUri
+  try {
+    const p = path.join(process.cwd(), 'public', 'presets', 'png', 'okuji-ground-03-woven-waves.png')
+    const bytes = await fs.readFile(p)
+    cachedMarkDataUri = `data:image/png;base64,${bytes.toString('base64')}`
+  } catch (err) {
+    console.warn('[print-pdf] marketing mark load failed:', err instanceof Error ? err.message : String(err))
+    cachedMarkDataUri = null
+  }
+  return cachedMarkDataUri
+}
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const ARTBOARD_W = 612, ARTBOARD_H = 792
@@ -369,7 +392,7 @@ function StapleIcon() {
   )
 }
 
-function InstructionStrip({ top }: { top: number }) {
+function InstructionStrip({ top, left = 0, width = SHEET_W }: { top: number; left?: number; width?: number }) {
   const panels = [
     { Icon: CutIcon, title: '1. Cut', body: 'Cut along the horizontal line on every sheet' },
     { Icon: StackIcon, title: '2. Stack', body: 'Stack strips in numbered order (lowest on top)' },
@@ -378,7 +401,7 @@ function InstructionStrip({ top }: { top: number }) {
   ]
   return (
     <>
-      <View style={[S.instrStrip, { left: 0, top, width: SHEET_W, height: STRIP_H - 28 }]}>
+      <View style={[S.instrStrip, { left, top, width, height: STRIP_H - 28 }]}>
         {panels.map((p, i) => (
           <View key={i} style={S.instrPanel}>
             <p.Icon />
@@ -387,10 +410,77 @@ function InstructionStrip({ top }: { top: number }) {
           </View>
         ))}
       </View>
-      <Text style={[S.instrLegend, { top: top + STRIP_H - 24 }]}>
+      <Text style={[S.instrLegend, { left, top: top + STRIP_H - 24, width }]}>
         Print at 100% scale  ·  Duplex: long-edge / book  ·  Portrait orientation
       </Text>
     </>
+  )
+}
+
+// ── Marketing strip (left half, free-passport only) ──────────────────────────
+// Free passports — printed by anyone via Explore — get a small marketing
+// block on the discardable cut-off strip. The strip is cut and thrown
+// out after assembly, so the marketing is high-visibility-then-gone:
+// people see it, print, cut, and toss it (or save it as a bookmark, or
+// share it). Paid passports keep the original full-width instructions.
+//
+// Background is okuji-ground-03-woven-waves.png — the banknote-style
+// woven design with the okuji wordmark centered. URL goes below.
+function MarketingStrip({
+  top, left, width, height, imageDataUri,
+}: {
+  top: number; left: number; width: number; height: number
+  imageDataUri: string | null
+}) {
+  return (
+    <View
+      style={{
+        position: 'absolute',
+        left, top, width, height,
+        overflow: 'hidden',
+      }}
+    >
+      {imageDataUri && (
+        <Image
+          src={imageDataUri}
+          style={{
+            position: 'absolute',
+            left: 0,
+            top: -(height * 0.22),  // shift up so the wordmark sits in the visible window
+            width,
+            height: width * (792 / 612),
+          }}
+        />
+      )}
+      <Text
+        style={{
+          position: 'absolute',
+          bottom: 18,
+          left: 0,
+          width,
+          textAlign: 'center',
+          fontSize: 9,
+          fontFamily: 'Helvetica',
+          color: '#1F1D1A',
+        }}
+      >
+        okujikobo.okuji.app
+      </Text>
+      <Text
+        style={{
+          position: 'absolute',
+          bottom: 6,
+          left: 0,
+          width,
+          textAlign: 'center',
+          fontSize: 6,
+          fontFamily: 'Helvetica',
+          color: '#6B6356',
+        }}
+      >
+        Designed with Okuji · printable passports for real adventures
+      </Text>
+    </View>
   )
 }
 
@@ -561,16 +651,38 @@ interface RenderContext {
   totalSheets: number; totalStrips: number
   outsideCover: CoverSideData | null; insideCover: CoverSideData | null
   paperColorHex: string
+  /** Set when the passport is FREE — drives the split top strip
+   *  (left half = marketing, right half = instructions) on cover
+   *  sheet side A. Null on paid passports keeps the original
+   *  full-width instructions. */
+  marketingImageDataUri: string | null
 }
 
 function CoverSheetSideA({ ctx, sheetIndex }: { ctx: RenderContext; sheetIndex: number }) {
+  // Free passports: split the discardable top strip in half. The cut
+  // line is unchanged at CUT_Y; both halves get cut off together
+  // post-print. Paid passports keep the full-width instructions.
+  const splitStrip = ctx.marketingImageDataUri !== null
   return (
     <Page size={[SHEET_W, SHEET_H]} style={S.sheet}>
       <CutGuide />
       <FoldGuide top={CUT_Y} />
       <RegistrationMarks skipVertical={true} />
       <Text style={S.sheetTag}>{`Sheet ${sheetIndex + 1} / ${ctx.totalSheets}`}</Text>
-      <InstructionStrip top={0} />
+      {splitStrip ? (
+        <>
+          <MarketingStrip
+            top={0}
+            left={0}
+            width={SHEET_W / 2}
+            height={STRIP_H}
+            imageDataUri={ctx.marketingImageDataUri}
+          />
+          <InstructionStrip top={0} left={SHEET_W / 2} width={SHEET_W / 2} />
+        </>
+      ) : (
+        <InstructionStrip top={0} />
+      )}
       <View style={{ position: 'absolute', left: 0, top: CUT_Y, width: SHEET_W, height: STRIP_H }}>
         <CoverCompositionContent side={ctx.outsideCover} fallbackTitle={ctx.passportTitle} paperColor={ctx.paperColorHex} />
       </View>
@@ -661,9 +773,10 @@ interface PrintPassportDocProps {
   outsideCover: CoverSideData | null; insideCover: CoverSideData | null
   paperColorHex: string
   stampPages: PassportPageForPrint[]
+  marketingImageDataUri: string | null
 }
 
-function PrintPassportDoc({ passportTitle, institutionName, passportType, includeCert, outsideCover, insideCover, paperColorHex, stampPages }: PrintPassportDocProps) {
+function PrintPassportDoc({ passportTitle, institutionName, passportType, includeCert, outsideCover, insideCover, paperColorHex, stampPages, marketingImageDataUri }: PrintPassportDocProps) {
   const readerPages: ReaderPage[] = []
   readerPages.push({ kind: 'name', passportTitle, institutionName, passportType })
   let pageNum = 1
@@ -685,6 +798,7 @@ function PrintPassportDoc({ passportTitle, institutionName, passportType, includ
     passportTitle, institutionName, passportType,
     readerPages, pPadded, numSignatures, totalSheets, totalStrips,
     outsideCover, insideCover, paperColorHex,
+    marketingImageDataUri,
   }
 
   return (
@@ -983,6 +1097,16 @@ async function handlePrintRequest(request: Request, passportId: string) {
     }
   })
 
+  // Marketing image — free passports get a split top strip on the
+  // cover sheet (left half marketing, right half instructions). The
+  // strip is the discardable cut-off after assembly so the marketing
+  // is high-visibility-then-gone. Paid passports get the original
+  // full-width instructions. Image is the okuji-ground-03 woven-waves
+  // design (banknote-style with the okuji wordmark centered).
+  const marketingImageDataUri = (passport.price_cents ?? 0) === 0
+    ? await loadMarketingMark()
+    : null
+
   // Render PDF
   let pdfBuffer: Buffer
   try {
@@ -996,6 +1120,7 @@ async function handlePrintRequest(request: Request, passportId: string) {
         insideCover={insideCover}
         paperColorHex={paperColorHex}
         stampPages={remappedPages}
+        marketingImageDataUri={marketingImageDataUri}
       />
     )
   } catch (err) {
