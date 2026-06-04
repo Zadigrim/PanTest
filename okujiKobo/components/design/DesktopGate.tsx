@@ -27,7 +27,7 @@ export function DesktopGate({ children }: Props) {
           🖥️
         </span>
         <h1 className="text-xl font-semibold text-[#F5F2EC]">
-          OkujiDesigner requires a desktop browser.
+          okuji Designer requires a desktop browser.
         </h1>
         <p className="mt-3 max-w-sm text-sm text-[#F5F2EC]/70">
           Please open this page on a larger screen (at least 1024 px wide) to use the

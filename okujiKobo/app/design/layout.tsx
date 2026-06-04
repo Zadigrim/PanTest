@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { DesktopGate } from '@/components/design/DesktopGate'
 
 export const metadata = {
-  title: 'OkujiDesigner',
+  title: 'okuji Designer',
 }
 
 /**

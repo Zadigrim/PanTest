@@ -36,6 +36,7 @@ const config: Config = {
           chrome:    '#e9e1c9',  // app top bar / window chrome strip
           canvas:    '#2a1f12',  // dark editor mat behind the passport spread
           page:      '#f5ecd0',  // the passport-page paper default sitting on the canvas
+          faintdiv:  '#e4dcc8',  // table row borders / faint section dividers on workspace bg
         },
 
         // Cover paper-stock swatches (the cover editor's paper-color

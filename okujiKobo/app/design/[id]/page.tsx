@@ -8,7 +8,7 @@ interface Props {
 }
 
 export async function generateMetadata({ params }: Props) {
-  return { title: 'Designer — OkujiDesigner' }
+  return { title: 'Designer — okuji' }
 }
 
 /**

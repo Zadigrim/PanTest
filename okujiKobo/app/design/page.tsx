@@ -1,106 +1,61 @@
-import Image from 'next/image'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
-import { NewPassportButton } from '@/components/design/NewPassportButton'
-import { PrintPassportButton } from '@/components/design/PrintPassportButton'
-import { PassportCoverThumbnail } from '@/components/design/PassportCoverThumbnail'
-import { spendTierLabel } from '@/lib/design/spend-tiers'
-import { passportTypeIconFromClassifiers } from '@/lib/design/passport-type-icon'
-import type { DesignerPassport, CoverSideData } from '@/lib/design/types'
+import { OkujiDesignerWordmark } from '@/components/design/OkujiDesignerWordmark'
+import { MyPassportsTable, type PassportRow } from '@/components/design/MyPassportsTable'
+import type { DesignerPassport } from '@/lib/design/types'
 
-export const metadata = { title: 'My Passports — OkujiDesigner' }
+export const metadata = { title: 'My passports — okuji Designer' }
 
-const STATUS_STYLES: Record<string, string> = {
-  draft:     'bg-hairline text-muted',
-  published: 'bg-cream text-green',
-  archived:  'bg-accent/15 text-accent',
-}
+// ── Draft completion heuristic ────────────────────────────────────────────────
+// Six steps tracked: cover, pages, pins, theme, pricing, publish. Each step
+// "done" is a defensive but generous check — anything beyond the seed default
+// counts. Drafts surface this in the Performance cell so the creator knows
+// where they are in the workshop without opening the editor.
+function countDraftSteps(
+  passport: DesignerPassport,
+  pageCount: number,
+  pinCount: number,
+): number {
+  let done = 0
 
-// ── Cover thumbnail — 2:3 proportions, full card width ───────────────────────
-
-function CoverThumbnail({ passport }: { passport: DesignerPassport }) {
+  // Cover: any image OR custom outside-cover data OR a non-default front bg.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const classifiers = (passport as any).classifiers as string[] | null | undefined
-  const typeIcon = passportTypeIconFromClassifiers(classifiers)
+  const outside = (passport as any).cover_outside_data as { image_url?: string | null; front_bg?: string | null } | null
+  const hasCover =
+    !!passport.cover_image_url ||
+    !!passport.cover_thumbnail ||
+    !!(outside?.image_url) ||
+    !!(outside?.front_bg && outside.front_bg !== '0D1B2A')
+  if (hasCover) done++
 
-  return (
-    <PassportCoverThumbnail
-      title={passport.title}
-      typeIcon={typeIcon}
-      outsideData={passport.cover_outside_data as CoverSideData | null}
-      coverImageUrl={passport.cover_image_url ?? null}
-      coverThumbnail={passport.cover_thumbnail ?? null}
-      fallbackBg={passport.cover_bg_color ?? '0D1B2A'}
-    />
-  )
+  // Pages: at least one user-added page.
+  if (pageCount > 0) done++
+
+  // Pins: at least one stop with location data (or any stop on an info-only
+  // book; we just count "any stop attached to any page of this passport").
+  if (pinCount > 0) done++
+
+  // Theme: paper color or pattern color customised (any non-default).
+  if (
+    (passport.cover_paper_color && passport.cover_paper_color !== 'F5F2EC') ||
+    (passport.cover_bg_color && passport.cover_bg_color !== '0D1B2A')
+  ) done++
+
+  // Pricing: expected spend tier explicitly chosen.
+  if (passport.expected_spend_tier) done++
+
+  // Publish: only true for already-published passports — drafts can't have
+  // this. Still counted so a freshly-unarchived draft can read 6/6.
+  if (passport.status === 'published') done++
+
+  return done
 }
-
-// ── Passport card ─────────────────────────────────────────────────────────────
-
-function PassportCard({ passport }: { passport: DesignerPassport }) {
-  return (
-    <div className="flex flex-col overflow-hidden rounded-panel border border-hairline bg-white transition-shadow hover:shadow-md">
-      {/* Cover thumbnail — full width, no padding, 2:3 ratio */}
-      <Link href={`/design/${passport.id}`} className="block">
-        <CoverThumbnail passport={passport} />
-      </Link>
-
-      {/* Info section — stretches to fill card height */}
-      <Link href={`/design/${passport.id}`} className="group flex flex-1 flex-col gap-2 px-4 pb-4 pt-3">
-        <div className="flex items-start justify-between gap-2">
-          <h3 className="font-semibold text-navy group-hover:text-green transition-colors line-clamp-2 leading-snug">
-            {passport.title}
-          </h3>
-          <span
-            className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${
-              STATUS_STYLES[passport.status ?? 'draft']
-            }`}
-          >
-            {passport.status ?? 'draft'}
-          </span>
-        </div>
-
-        {passport.description && (
-          <p className="text-sm text-muted line-clamp-2 leading-snug">
-            {passport.description}
-          </p>
-        )}
-
-        <div className="mt-auto flex flex-wrap items-center gap-2 text-xs text-muted pt-1">
-          <span>{spendTierLabel(passport.expected_spend_tier)}</span>
-          {passport.transit_accessible && <span title="Transit accessible">🚌</span>}
-          {passport.wheelchair_accessible && <span title="Wheelchair accessible">♿</span>}
-        </div>
-
-        <p className="text-xs text-muted">
-          Updated {new Date(passport.updated_at).toLocaleDateString()}
-        </p>
-      </Link>
-
-      {/* Card footer — always visible, print button lower-left */}
-      <div className="border-t border-hairline px-3 py-2 flex items-center">
-        <PrintPassportButton
-          compact
-          passport={{
-            id: passport.id,
-            title: passport.title,
-            institution_id: passport.institution_id ?? passport.proprietor_id ?? null,
-          }}
-        />
-      </div>
-    </div>
-  )
-}
-
-// ── Page ──────────────────────────────────────────────────────────────────────
 
 export default async function DesignIndexPage() {
   const supabase = await createClient()
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
   const { data: passports } = await supabase
@@ -110,70 +65,75 @@ export default async function DesignIndexPage() {
     .order('updated_at', { ascending: false })
 
   const list = (passports ?? []) as DesignerPassport[]
+  const ids = list.map((p) => p.id)
+
+  // Pre-fetch stats for the table in three batches. RLS handles
+  // ownership; we never request another user's collectors / tokens.
+  let pageCounts = new Map<string, number>()
+  let pinCounts = new Map<string, number>()
+  let soldCounts = new Map<string, number>()
+  let prizeCounts = new Map<string, number>()
+
+  if (ids.length > 0) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = supabase as any
+
+    const [pagesRes, stopsRes, collectorsRes, tokensRes] = await Promise.all([
+      db.from('passport_pages').select('passport_id').in('passport_id', ids),
+      // stops live on pages — round-trip via the page list. Doing this in
+      // two hops keeps RLS predictable; the alternative is a SQL view we
+      // don't have yet.
+      db
+        .from('passport_pages')
+        .select('id, passport_id, stops:stops(id)')
+        .in('passport_id', ids),
+      db.from('collector_passports').select('passport_id').in('passport_id', ids),
+      db
+        .from('completion_tokens')
+        .select('passport_id, prize_distributed')
+        .in('passport_id', ids)
+        .eq('prize_distributed', true),
+    ])
+
+    for (const r of (pagesRes.data ?? []) as { passport_id: string }[]) {
+      pageCounts.set(r.passport_id, (pageCounts.get(r.passport_id) ?? 0) + 1)
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    for (const r of (stopsRes.data ?? []) as { passport_id: string; stops: any[] }[]) {
+      pinCounts.set(r.passport_id, (pinCounts.get(r.passport_id) ?? 0) + (r.stops?.length ?? 0))
+    }
+    for (const r of (collectorsRes.data ?? []) as { passport_id: string }[]) {
+      soldCounts.set(r.passport_id, (soldCounts.get(r.passport_id) ?? 0) + 1)
+    }
+    for (const r of (tokensRes.data ?? []) as { passport_id: string }[]) {
+      prizeCounts.set(r.passport_id, (prizeCounts.get(r.passport_id) ?? 0) + 1)
+    }
+  }
+
+  const rows: PassportRow[] = list.map((p) => ({
+    passport: p,
+    soldCount:   soldCounts.get(p.id)  ?? 0,
+    prizesCount: prizeCounts.get(p.id) ?? 0,
+    draftStepsDone: countDraftSteps(p, pageCounts.get(p.id) ?? 0, pinCounts.get(p.id) ?? 0),
+  }))
 
   return (
     <div className="min-h-screen bg-surface-workspace">
       {/* Top bar */}
       <header className="border-b border-hairline bg-surface-chrome px-8 py-4">
         <div className="mx-auto flex max-w-6xl items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Image
-              src="/appicon/png-rounded/okuji-icon-rounded-180.png"
-              alt=""
-              width={32}
-              height={32}
-              className="h-8 w-8 rounded-[7px]"
-              aria-hidden="true"
-            />
-            <span className="font-serif text-xl font-bold text-navy tracking-wide">
-              OkujiDesigner
-            </span>
-          </div>
+          <OkujiDesignerWordmark />
           <Link
             href="/"
-            className="text-sm text-muted hover:text-navy transition-colors"
+            className="text-sm text-muted hover:text-ink transition-colors"
           >
-            ← Back to Okuji
+            ← Back to okuji
           </Link>
         </div>
       </header>
 
       <main className="mx-auto max-w-6xl px-8 py-10">
-        <div className="mb-8 flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-navy">My Passports</h1>
-            <p className="mt-1 text-sm text-muted">
-              {list.length === 0
-                ? 'Create your first passport to get started.'
-                : `${list.length} passport${list.length === 1 ? '' : 's'}`}
-            </p>
-          </div>
-          <NewPassportButton userId={user.id} />
-        </div>
-
-        {list.length === 0 && (
-          <div className="rounded-modal border-2 border-dashed border-hairline py-20 text-center">
-            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-cream text-3xl">
-              🗺
-            </div>
-            <h2 className="text-lg font-semibold text-navy">No passports yet</h2>
-            <p className="mt-2 text-sm text-muted">
-              Create your first passport to start building experiences.
-            </p>
-            <div className="mt-6">
-              <NewPassportButton userId={user.id} />
-            </div>
-          </div>
-        )}
-
-        {/* 4 columns on desktop (≥1280px), 2 on tablet */}
-        {list.length > 0 && (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            {list.map((p) => (
-              <PassportCard key={p.id} passport={p} />
-            ))}
-          </div>
-        )}
+        <MyPassportsTable rows={rows} />
       </main>
     </div>
   )

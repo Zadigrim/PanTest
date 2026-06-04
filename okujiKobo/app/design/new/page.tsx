@@ -1,10 +1,10 @@
-import Image from 'next/image'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { StartBlankButton } from '@/components/design/StartBlankButton'
+import { OkujiDesignerWordmark } from '@/components/design/OkujiDesignerWordmark'
 
-export const metadata = { title: 'New Passport — OkujiDesigner' }
+export const metadata = { title: 'New passport — okuji Designer' }
 
 // ---------------------------------------------------------------------------
 // Option cards
@@ -19,7 +19,7 @@ function OptionCard({
 }: {
   title: string
   description: string
-  action: React.ReactNode
+  action?: React.ReactNode
   disabled?: boolean
   disabledNote?: string
 }) {
@@ -68,22 +68,10 @@ export default async function DesignNewPage() {
       {/* Top bar */}
       <header className="border-b border-hairline bg-surface-chrome px-8 py-4">
         <div className="mx-auto flex max-w-6xl items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Image
-              src="/appicon/png-rounded/okuji-icon-rounded-180.png"
-              alt=""
-              width={32}
-              height={32}
-              className="h-8 w-8 rounded-[7px]"
-              aria-hidden="true"
-            />
-            <span className="font-serif text-xl font-bold text-navy tracking-wide">
-              OkujiDesigner
-            </span>
-          </div>
+          <OkujiDesignerWordmark />
           <Link
             href="/design"
-            className="text-sm text-muted hover:text-navy transition-colors"
+            className="text-sm text-muted hover:text-ink transition-colors"
           >
             ← Back to my passports
           </Link>
