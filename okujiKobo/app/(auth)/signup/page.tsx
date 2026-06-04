@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
+import Image from 'next/image'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/cn'
@@ -134,7 +135,15 @@ export default function SignupPage() {
     <div className="w-full max-w-sm">
       {/* ── Branding ──────────────────────────────────────────────────────── */}
       <div className="mb-8 text-center">
-        <span className="text-4xl leading-none" aria-hidden="true">🧭</span>
+        <Image
+          src="/appicon/png-rounded/okuji-icon-rounded-256.png"
+          alt=""
+          width={56}
+          height={56}
+          className="mx-auto h-14 w-14 rounded-[12px]"
+          priority
+          aria-hidden="true"
+        />
         <h1 className="mt-3 font-serif text-2xl font-bold text-white tracking-tight">
           okujiKobo
         </h1>

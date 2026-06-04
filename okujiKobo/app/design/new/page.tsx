@@ -1,3 +1,4 @@
+import Image from 'next/image'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
@@ -68,7 +69,14 @@ export default async function DesignNewPage() {
       <header className="border-b border-hairline bg-white px-8 py-4">
         <div className="mx-auto flex max-w-6xl items-center justify-between">
           <div className="flex items-center gap-3">
-            <span className="text-2xl" aria-hidden="true">🧭</span>
+            <Image
+              src="/appicon/png-rounded/okuji-icon-rounded-180.png"
+              alt=""
+              width={32}
+              height={32}
+              className="h-8 w-8 rounded-[7px]"
+              aria-hidden="true"
+            />
             <span className="font-serif text-xl font-bold text-navy tracking-wide">
               OkujiDesigner
             </span>
