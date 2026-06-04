@@ -165,6 +165,7 @@ function StampPicker({
   stop: DesignerStop
   persist: (patch: Partial<DesignerStop>) => Promise<void>
 }) {
+  const currentPassportId = usePassportStore((s) => s.passport?.id ?? null)
   const [myAssets, setMyAssets] = useState<StampAsset[]>([])
   const [instAssets, setInstAssets] = useState<StampAsset[]>([])
 
@@ -174,18 +175,22 @@ function StampPicker({
       const { data: { user } } = await (db as ReturnType<typeof createClient>).auth.getUser()
       if (!user) return
 
-      const { data } = await db
+      // Library-wide stamps + stamps scoped to the current passport.
+      let q = db
         .from('design_assets')
-        .select('id, name, url, thumbnail_data, file_format, is_monochrome, institution_id, owner_id')
+        .select('id, name, url, thumbnail_data, file_format, is_monochrome, institution_id, owner_id, scoped_passport_id')
         .eq('asset_type', 'stamp')
         .neq('is_built_in', true)
-        .order('created_at', { ascending: false })
+      q = currentPassportId
+        ? q.or(`scoped_passport_id.is.null,scoped_passport_id.eq.${currentPassportId}`)
+        : q.is('scoped_passport_id', null)
+      const { data } = await q.order('created_at', { ascending: false })
 
       const rows = (data ?? []) as StampAsset[]
       setMyAssets(rows.filter((r) => r.owner_id === user.id))
       setInstAssets(rows.filter((r) => r.owner_id !== user.id))
     })()
-  }, [])
+  }, [currentPassportId])
 
   const isCustom = stop.stamp_type === 'custom_asset'
 
@@ -865,23 +870,32 @@ function CustomBgPicker({
   page: DesignerPassportPage
   persist: (patch: Partial<DesignerPassportPage>) => Promise<void>
 }) {
+  const currentPassportId = usePassportStore((s) => s.passport?.id ?? null)
   const [assets, setAssets] = useState<BgAsset[]>([])
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
+  // Designer uploads default to scoped (this-passport-only). Opt-in
+  // checkbox below the upload promotes the next upload to library-wide.
+  const [uploadToLibrary, setUploadToLibrary] = useState(false)
 
   useEffect(() => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const db = createClient() as any
     void (async () => {
-      const { data } = await db
+      // Library-wide assets + assets scoped to the current passport.
+      // Assets scoped to OTHER passports do not appear in this picker.
+      let q = db
         .from('design_assets')
-        .select('id, url, name')
+        .select('id, url, name, scoped_passport_id')
         .eq('asset_type', 'background')
-        .order('created_at', { ascending: false })
+      q = currentPassportId
+        ? q.or(`scoped_passport_id.is.null,scoped_passport_id.eq.${currentPassportId}`)
+        : q.is('scoped_passport_id', null)
+      const { data } = await q.order('created_at', { ascending: false })
       setAssets((data ?? []) as BgAsset[])
       setLoading(false)
     })()
-  }, [])
+  }, [currentPassportId])
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -901,8 +915,15 @@ function CustomBgPicker({
       const { data: { publicUrl } } = supabase.storage.from('design-assets').getPublicUrl(path)
       const asset = await safeInsert<BgAsset>(
         'design_assets',
-        { asset_type: 'background', url: publicUrl, storage_path: path, name: file.name, owner_id: user.id },
-        'id, url, name',
+        {
+          asset_type:         'background',
+          url:                publicUrl,
+          storage_path:       path,
+          name:               file.name,
+          owner_id:           user.id,
+          scoped_passport_id: uploadToLibrary ? null : currentPassportId,
+        },
+        'id, url, name, scoped_passport_id',
       )
       if (asset) {
         setAssets((prev) => [asset, ...prev])
@@ -975,7 +996,43 @@ function CustomBgPicker({
         <input type="file" accept="image/*" className="hidden" onChange={handleUpload} disabled={uploading} />
         {uploading ? 'Uploading…' : '+ Upload background'}
       </label>
+      <UploadScopeToggle
+        checked={uploadToLibrary}
+        onChange={setUploadToLibrary}
+        disabled={uploading || !currentPassportId}
+      />
     </div>
+  )
+}
+
+// Small opt-in checkbox shown beneath designer uploads. Default
+// (unchecked) keeps the next upload scoped to the current passport;
+// checked promotes it to the user's library so it shows in every
+// passport's picker. Disabled when there's no current passport
+// context (defensive — shouldn't happen inside the inspector but
+// keeps the prop boundary honest).
+function UploadScopeToggle({
+  checked,
+  onChange,
+  disabled,
+}: {
+  checked: boolean
+  onChange: (v: boolean) => void
+  disabled?: boolean
+}) {
+  return (
+    <label
+      className={`flex items-center gap-2 text-xs ${disabled ? 'text-hairline cursor-not-allowed' : 'text-muted cursor-pointer hover:text-navy'}`}
+    >
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        disabled={disabled}
+        className="h-3.5 w-3.5 rounded accent-green"
+      />
+      <span>Also save to my general library</span>
+    </label>
   )
 }
 
@@ -1261,9 +1318,11 @@ function ImageElementPicker({
   element: ImagePageElement
   persist: (patch: Partial<ImagePageElement>) => Promise<void>
 }) {
+  const currentPassportId = usePassportStore((s) => s.passport?.id ?? null)
   const [uploading, setUploading] = useState(false)
   const [assets, setAssets] = useState<ImageAsset[]>([])
   const [loading, setLoading] = useState(true)
+  const [uploadToLibrary, setUploadToLibrary] = useState(false)
 
   useEffect(() => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1271,16 +1330,20 @@ function ImageElementPicker({
     void (async () => {
       const { data: { user } } = await (db as ReturnType<typeof createClient>).auth.getUser()
       if (!user) { setLoading(false); return }
-      const { data } = await db
+      // Library-wide + current-passport-scoped only.
+      let q = db
         .from('design_assets')
-        .select('id, url, name')
+        .select('id, url, name, scoped_passport_id')
         .eq('asset_type', 'image')
         .eq('owner_id', user.id)
-        .order('created_at', { ascending: false })
+      q = currentPassportId
+        ? q.or(`scoped_passport_id.is.null,scoped_passport_id.eq.${currentPassportId}`)
+        : q.is('scoped_passport_id', null)
+      const { data } = await q.order('created_at', { ascending: false })
       setAssets((data ?? []) as ImageAsset[])
       setLoading(false)
     })()
-  }, [])
+  }, [currentPassportId])
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -1301,8 +1364,15 @@ function ImageElementPicker({
       // Record the asset so future image elements can pick it without re-upload.
       const asset = await safeInsert<ImageAsset>(
         'design_assets',
-        { asset_type: 'image', url: publicUrl, storage_path: path, name: file.name, owner_id: user.id },
-        'id, url, name',
+        {
+          asset_type:         'image',
+          url:                publicUrl,
+          storage_path:       path,
+          name:               file.name,
+          owner_id:           user.id,
+          scoped_passport_id: uploadToLibrary ? null : currentPassportId,
+        },
+        'id, url, name, scoped_passport_id',
       )
       if (asset) setAssets((prev) => [asset, ...prev])
       await persist({ imageUrl: publicUrl })
@@ -1362,6 +1432,11 @@ function ImageElementPicker({
         <input type="file" accept="image/*" className="hidden" onChange={handleUpload} disabled={uploading} />
         {uploading ? 'Uploading…' : '+ Upload image'}
       </label>
+      <UploadScopeToggle
+        checked={uploadToLibrary}
+        onChange={setUploadToLibrary}
+        disabled={uploading || !currentPassportId}
+      />
     </div>
   )
 }

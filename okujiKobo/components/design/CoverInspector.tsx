@@ -26,6 +26,9 @@ export function CoverInspector({ face, panel }: Props) {
   const [uploading, startUpload] = useTransition()
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [confirmRemove, setConfirmRemove] = useState(false)
+  // Designer uploads default to scoped to this passport; opt-in to
+  // promote to the general library.
+  const [uploadToLibrary, setUploadToLibrary] = useState(false)
 
   if (!passport) return null
 
@@ -71,6 +74,9 @@ export function CoverInspector({ face, panel }: Props) {
     form.append('file', file)
     form.append('asset_type', 'cover')
     form.append('name', file.name.replace(/\.[^.]+$/, ''))
+    if (!uploadToLibrary && passport?.id) {
+      form.append('scoped_passport_id', passport.id)
+    }
     const res = await fetch('/api/assets/upload', { method: 'POST', body: form })
     if (!res.ok) {
       const json = (await res.json()) as { error?: string }
@@ -480,6 +486,19 @@ export function CoverInspector({ face, panel }: Props) {
               />
             </>
           )}
+
+          <label
+            className={`flex items-center gap-2 text-xs ${uploading || !passport?.id ? 'text-hairline cursor-not-allowed' : 'text-muted cursor-pointer hover:text-navy'}`}
+          >
+            <input
+              type="checkbox"
+              checked={uploadToLibrary}
+              onChange={(e) => setUploadToLibrary(e.target.checked)}
+              disabled={uploading || !passport?.id}
+              className="h-3.5 w-3.5 rounded accent-green"
+            />
+            <span>Also save to my general library</span>
+          </label>
 
           {uploadError && (
             <p className="text-xs text-accent">{uploadError}</p>

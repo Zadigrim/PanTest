@@ -101,6 +101,15 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const file = formData.get('file')
   const assetTypeRaw = formData.get('asset_type')
   const name = (formData.get('name') as string | null) ?? null
+  // scoped_passport_id: optional. If present and non-empty, the asset
+  // is restricted to that passport (won't appear in pickers for other
+  // passports). If absent or empty, the asset is library-wide. The
+  // assets-page upload always omits this — uploads there are library
+  // by definition; designer uploads default to scoped via this field.
+  const scopedPassportIdRaw = formData.get('scoped_passport_id')
+  const scopedPassportId = typeof scopedPassportIdRaw === 'string' && scopedPassportIdRaw.length > 0
+    ? scopedPassportIdRaw
+    : null
 
   if (!(file instanceof File)) {
     return NextResponse.json({ error: 'No file provided' }, { status: 400 })
@@ -123,6 +132,24 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       { error: 'asset_type must be one of: background, stamp, cover' },
       { status: 400 },
     )
+  }
+
+  // Validate scoped_passport_id (if provided) belongs to a passport the
+  // user can read. RLS on passports already enforces ownership/access;
+  // a successful SELECT is the authorization.
+  if (scopedPassportId !== null) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: passport, error: ppErr } = await (supabase as any)
+      .from('passports')
+      .select('id')
+      .eq('id', scopedPassportId)
+      .maybeSingle()
+    if (ppErr || !passport) {
+      return NextResponse.json(
+        { error: 'scoped_passport_id does not reference a passport you can access' },
+        { status: 400 },
+      )
+    }
   }
 
   const ext = file.name.split('.').pop() ?? 'bin'
@@ -158,15 +185,16 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const { data: asset, error: insertErr } = await (supabase as any)
     .from('design_assets')
     .insert({
-      owner_id:      user.id,
-      name:          name ?? file.name,
-      asset_type:    assetType,
-      url:           publicUrl,
-      storage_path:  storagePath,
-      file_format:   file.type,
-      is_monochrome: isMonochrome,
+      owner_id:           user.id,
+      name:               name ?? file.name,
+      asset_type:         assetType,
+      url:                publicUrl,
+      storage_path:       storagePath,
+      file_format:        file.type,
+      is_monochrome:      isMonochrome,
+      scoped_passport_id: scopedPassportId,
     })
-    .select('id, name, url, institution_id, is_monochrome')
+    .select('id, name, url, institution_id, is_monochrome, scoped_passport_id')
     .single()
 
   if (insertErr) {

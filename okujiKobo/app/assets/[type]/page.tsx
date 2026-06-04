@@ -5,6 +5,7 @@ import { cn } from '@/lib/cn'
 import { UploadAssetButton } from '@/components/assets/UploadAssetButton'
 import { DeleteAssetButton } from '@/components/assets/DeleteAssetButton'
 import { AssetUsageExpander } from '@/components/assets/AssetUsageExpander'
+import { AssetScopeEditor, type ScopeOption } from '@/components/assets/AssetScopeEditor'
 
 // ---------------------------------------------------------------------------
 // Config per asset type
@@ -87,16 +88,22 @@ interface AssetRow {
   institution_id: string | null
   owner_id: string | null
   is_built_in: boolean | null
+  scoped_passport_id: string | null
+  // Joined passport title (when scoped). Comes back as an object from
+  // PostgREST FK-embed; we flatten it server-side before the prop hop.
+  scoped_passport_title: string | null
 }
 
 function AssetCard({
   asset,
   userInstitutionId,
   currentUserId,
+  scopeOptions,
 }: {
   asset: AssetRow
   userInstitutionId: string | null
   currentUserId: string
+  scopeOptions: ScopeOption[]
 }) {
   const isShared =
     asset.institution_id !== null &&
@@ -141,6 +148,14 @@ function AssetCard({
           />
         </div>
       </div>
+      {canDelete && (
+        <AssetScopeEditor
+          assetId={asset.id}
+          initialScopedPassportId={asset.scoped_passport_id}
+          initialScopedPassportTitle={asset.scoped_passport_title}
+          options={scopeOptions}
+        />
+      )}
       {canDelete && <AssetUsageExpander assetId={asset.id} />}
     </div>
   )
@@ -204,12 +219,14 @@ export default async function AssetTypePage({ params }: Props) {
 
   const userInstitutionId = authz?.institution_id ?? null
 
-  // Query design_assets — table may not exist yet; treat any error as empty
+  // Query design_assets — table may not exist yet; treat any error as empty.
+  // FK-embed scoped_passport so we can show "scoped to {title}" without
+  // a second query per row.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabase as any
   const { data: assets, error: assetsError } = await db
     .from('design_assets')
-    .select('id, name, url, institution_id, owner_id, is_built_in')
+    .select('id, name, url, institution_id, owner_id, is_built_in, scoped_passport_id, scoped_passport:passports!design_assets_scoped_passport_id_fkey(id, title)')
     .eq('asset_type', meta.dbType)
     .or(
       [
@@ -223,7 +240,28 @@ export default async function AssetTypePage({ params }: Props) {
     console.error('design_assets query error:', assetsError)
   }
 
-  const assetList: AssetRow[] = (assets ?? []) as AssetRow[]
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const assetList: AssetRow[] = ((assets ?? []) as any[]).map((a) => ({
+    id:                     a.id,
+    name:                   a.name,
+    url:                    a.url,
+    institution_id:         a.institution_id,
+    owner_id:               a.owner_id,
+    is_built_in:            a.is_built_in,
+    scoped_passport_id:     a.scoped_passport_id,
+    scoped_passport_title:  a.scoped_passport?.title ?? null,
+  }))
+
+  // Passports the user can scope assets to. Same RLS as the upload
+  // route uses for validation, so anything we list here is acceptable
+  // to the PATCH endpoint.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: passports } = await (supabase as any)
+    .from('passports')
+    .select('id, title')
+    .order('updated_at', { ascending: false })
+  const scopeOptions: ScopeOption[] = ((passports ?? []) as { id: string; title: string | null }[])
+    .map((p) => ({ id: p.id, title: p.title ?? 'Untitled' }))
 
   return (
     <div className="min-h-screen bg-paper">
@@ -268,6 +306,7 @@ export default async function AssetTypePage({ params }: Props) {
                 asset={asset}
                 userInstitutionId={userInstitutionId}
                 currentUserId={user.id}
+                scopeOptions={scopeOptions}
               />
             ))}
           </div>
