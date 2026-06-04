@@ -37,13 +37,17 @@ export interface PassportRow {
   draftStepsDone: number
 }
 
-// ── Normalised status — folds DB 'archived' into the "paused" pill ───────────
+// ── Normalised status ────────────────────────────────────────────────────────
+// We only model two real buckets — published / draft. Archived rows still
+// appear in the "All" view with a muted pill, but they aren't counted in
+// the breakdown and don't get their own filter chip (the Archive action in
+// the ⋯ menu remains the only way to move a row out of an active state).
 
-type RowStatus = 'published' | 'draft' | 'paused'
+type RowStatus = 'published' | 'draft' | 'archived'
 
 function normalisedStatus(raw: string | null | undefined): RowStatus {
   if (raw === 'published') return 'published'
-  if (raw === 'archived' || raw === 'paused') return 'paused'
+  if (raw === 'archived') return 'archived'
   return 'draft'
 }
 
@@ -73,17 +77,16 @@ function compareRows(a: PassportRow, b: PassportRow, key: SortKey, dir: SortDir)
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-const FILTER_OPTIONS: { value: 'all' | RowStatus; label: string }[] = [
+const FILTER_OPTIONS: { value: 'all' | 'published' | 'draft'; label: string }[] = [
   { value: 'all',       label: 'All' },
   { value: 'published', label: 'Published' },
   { value: 'draft',     label: 'Drafts' },
-  { value: 'paused',    label: 'Paused' },
 ]
 
 export function MyPassportsTable({ rows: initialRows }: { rows: PassportRow[] }) {
   const [rows, setRows] = useState<PassportRow[]>(initialRows)
   const [search, setSearch] = useState('')
-  const [filter, setFilter] = useState<'all' | RowStatus>('all')
+  const [filter, setFilter] = useState<'all' | 'published' | 'draft'>('all')
   const [sortKey, setSortKey] = useState<SortKey>('updated')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
 
@@ -96,17 +99,16 @@ export function MyPassportsTable({ rows: initialRows }: { rows: PassportRow[] })
     return [...filtered].sort((a, b) => compareRows(a, b, sortKey, sortDir))
   }, [rows, search, filter, sortKey, sortDir])
 
-  // Status breakdown for the subheading — always over the FULL set, not
-  // the filtered view, so the user sees their library at a glance.
+  // Status breakdown for the subheading — counts only published + drafts
+  // over the full set. Archived rows are not bucketed here.
   const breakdown = useMemo(() => {
-    let p = 0, d = 0, pa = 0
+    let p = 0, d = 0
     for (const r of rows) {
       const s = normalisedStatus(r.passport.status)
       if (s === 'published') p++
-      else if (s === 'paused') pa++
-      else d++
+      else if (s === 'draft') d++
     }
-    return { total: rows.length, published: p, drafts: d, paused: pa }
+    return { total: rows.length, published: p, drafts: d }
   }, [rows])
 
   const toggleSort = (key: SortKey) => {
@@ -246,7 +248,7 @@ export function MyPassportsTable({ rows: initialRows }: { rows: PassportRow[] })
 
 // ── Subhead breakdown ────────────────────────────────────────────────────────
 
-function Breakdown({ b }: { b: { total: number; published: number; drafts: number; paused: number } }) {
+function Breakdown({ b }: { b: { total: number; published: number; drafts: number } }) {
   return (
     <>
       <span>{b.total} total</span>
@@ -254,8 +256,6 @@ function Breakdown({ b }: { b: { total: number; published: number; drafts: numbe
       <span className="font-semibold text-green">{b.published} published</span>
       <span className="mx-1.5">·</span>
       <span>{b.drafts} drafts</span>
-      <span className="mx-1.5">·</span>
-      <span>{b.paused} paused</span>
     </>
   )
 }
@@ -334,14 +334,17 @@ function Row({ row, onArchived }: { row: PassportRow; onArchived: (id: string) =
         <StatusPill status={status} />
       </div>
 
-      {/* Performance */}
+      {/* Performance. Free passports report "acquired" instead of "sold"
+          — the row count is the same (collector_passports), only the
+          verb shifts so the creator isn't told copies of a $0 passport
+          were "sold". */}
       <div className="text-sm">
         {status === 'draft' ? (
           <span className="text-muted">{draftStepsDone}/6 steps</span>
         ) : (
           <span className="text-ink">
             <span className="font-semibold">{soldCount}</span>
-            <span className="text-muted"> sold</span>
+            <span className="text-muted"> {(passport.price_cents ?? 0) > 0 ? 'sold' : 'acquired'}</span>
             <span className="mx-1.5 text-hairline">·</span>
             <span className="font-semibold">{prizesCount}</span>
             <span className="text-muted"> prizes</span>
@@ -391,19 +394,18 @@ function PassportMeta({ passport }: { passport: DesignerPassport }) {
 function StatusPill({ status }: { status: RowStatus }) {
   const color =
     status === 'published' ? 'text-green border-green'
-    : status === 'paused'  ? 'text-accent border-accent'
+    : status === 'archived' ? 'text-accent border-accent'
     : 'text-muted border-muted'
   const dot =
     status === 'published' ? 'bg-green'
-    : status === 'paused'  ? 'bg-accent'
+    : status === 'archived' ? 'bg-accent'
     : 'bg-muted'
-  const label = status === 'paused' ? 'PAUSED' : status.toUpperCase()
   return (
     <span
       className={`inline-flex items-center gap-1.5 rounded-full border-[1.5px] bg-white px-2 py-0.5 text-[10.5px] font-semibold ${color}`}
     >
       <span className={`h-[7px] w-[7px] rounded-full ${dot}`} aria-hidden="true" />
-      {label}
+      {status.toUpperCase()}
     </span>
   )
 }
@@ -468,7 +470,6 @@ function ActionsMenu({ passport, onArchived }: { passport: DesignerPassport; onA
           role="menu"
           className="absolute right-0 top-10 z-20 w-44 overflow-hidden rounded-[8px] border-[1.5px] border-ink bg-white py-1 shadow-md"
         >
-          <MenuItem disabled label="Duplicate" hint="Coming soon" />
           <MenuItem label={busy === 'print' ? 'Generating…' : 'Print posters'} onClick={handlePrint} disabled={busy !== null} />
           <Link
             href={`/explore/${passport.id}`}
