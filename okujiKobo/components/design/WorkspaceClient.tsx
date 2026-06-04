@@ -11,6 +11,7 @@ import { CoverInspector } from './CoverInspector'
 import { CoverPalette } from './CoverPalette'
 import { PassportSettingsPanel } from './PassportSettingsPanel'
 import { PublishFlow } from './PublishFlow'
+import { HelpDrawer } from './HelpDrawer'
 import { Button } from './ui/Button'
 import { downloadPrintPdf } from '@/lib/print/download'
 import { useAutosave } from '@/hooks/useAutosave'
@@ -42,6 +43,7 @@ export function WorkspaceClient({ passport, pages, stops, creatorInstitutionId }
 
   const [showSettings, setShowSettings] = useState(false)
   const [showPublish, setShowPublish] = useState(false)
+  const [showHelp, setShowHelp] = useState(false)
   const [printing, setPrinting] = useState(false)
   const [printError, setPrintError] = useState<string | null>(null)
   const [navigating, setNavigating] = useState(false)
@@ -168,6 +170,9 @@ export function WorkspaceClient({ passport, pages, stops, creatorInstitutionId }
               <button type="button" onClick={() => setPrintError(null)} className="ml-1 underline">×</button>
             </span>
           )}
+          <Button variant="ghost" size="sm" onClick={() => setShowHelp(true)} aria-label="Open help">
+            Help
+          </Button>
           <Button variant="ghost" size="sm" onClick={() => setShowSettings(true)}>
             Settings
           </Button>
@@ -240,6 +245,7 @@ export function WorkspaceClient({ passport, pages, stops, creatorInstitutionId }
       </div>
 
       {showSettings && <PassportSettingsPanel onClose={() => setShowSettings(false)} />}
+      {showHelp && <HelpDrawer onClose={() => setShowHelp(false)} />}
       {showPublish && <PublishFlow onClose={() => setShowPublish(false)} />}
     </div>
   )
