@@ -170,11 +170,11 @@ export function WorkspaceClient({ passport, pages, stops, creatorInstitutionId }
               <button type="button" onClick={() => setPrintError(null)} className="ml-1 underline">×</button>
             </span>
           )}
-          <Button variant="ghost" size="sm" onClick={() => setShowHelp(true)} aria-label="Open help">
-            Help
-          </Button>
           <Button variant="ghost" size="sm" onClick={() => setShowSettings(true)}>
             Settings
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => setShowHelp(true)} aria-label="Open help">
+            Help
           </Button>
           {!isPublished && (
             <Button size="sm" onClick={() => setShowPublish(true)}>
