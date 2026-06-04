@@ -3,51 +3,13 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { usePassportStore } from '@/lib/design/passport-store'
-import type { DesignerStop } from '@/lib/design/types'
 import { Button } from './ui/Button'
 import { spendTierLabel } from '@/lib/design/spend-tiers'
 import { isStudio, type SubscriptionFields } from '@/lib/roles'
+import { runPublishChecklist } from '@/lib/design/publish-checklist'
 
 interface Props {
   onClose: () => void
-}
-
-// Returns 'coords' / 'address' if the stop's canonical type + method
-// require a location field it doesn't have, or null if the stop is
-// fine. Honor / Event-Activity stops always return null because they
-// have no location by design. Logic mirrors the right-inspector's
-// deriveExpType/deriveMethod so the two paths agree on the model.
-type StopLocationIssue = 'coords' | 'address' | null
-
-function stopLocationIssue(stop: DesignerStop): StopLocationIssue {
-  const expType =
-    stop.experience_type === 'experience' ? 'experience'
-    : stop.experience_type === 'location' ? 'location'
-    // Legacy fallback: pre-046 rows that never got backfilled.
-    : stop.verification_tier === 5 ? 'experience'
-    : 'location'
-  if (expType === 'experience') return null
-
-  const m = stop.experience_verification_method
-  const method =
-    m === 'gps' || m === 'qr' || m === 'witnessed' || m === 'documented' ? m
-    : stop.verification_tier === 3 ? 'gps'
-    : stop.verification_tier === 1 || stop.verification_tier === 2 ? 'qr'
-    : stop.verification_tier === 4 ? 'witnessed'
-    : 'gps'
-
-  if (method === 'gps') {
-    // typeof check rather than truthiness so lat=0 / lng=0 (equator,
-    // prime meridian) counts as set.
-    const hasCoords = typeof stop.lat === 'number' && typeof stop.lng === 'number'
-    return hasCoords ? null : 'coords'
-  }
-  if (method === 'qr') {
-    const hasAddress = !!(stop.address_street?.trim() || stop.address_city?.trim())
-    return hasAddress ? null : 'address'
-  }
-  // witnessed / documented: location is OPTIONAL — never block.
-  return null
 }
 
 type Step = 'validate' | 'spend' | 'pricing' | 'confirm' | 'published'
@@ -84,54 +46,16 @@ export function PublishFlow({ onClose }: Props) {
 
   if (!passport) return null
 
-  // ── Validation checks ──────────────────────────────────────────────────────
-  const validationIssues: string[] = []
-  if (!passport.title.trim() || passport.title === 'Untitled Passport')
-    validationIssues.push('Give your passport a real title.')
-  if (pages.length === 0)
-    validationIssues.push('Add at least one page.')
-
-  // Info-only passports are valid (e.g. a guide booklet). Stamp pages
-  // and stops are optional — only the per-stop location rules below
-  // apply, and they only check the stops that DO exist.
-
-  // Per-stop location requirement is CONDITIONAL on the stop's canonical
-  // type + method (migration 046), matching the rules the right-inspector
-  // already enforces:
-  //   experience_type='experience' (honor / Event-Activity) → no location
-  //     required (these stops are location-less by design — e.g. a
-  //     reading-program book). Must NOT block publish for "missing"
-  //     location; that's the whole point of the type.
-  //   experience_type='location' + 'gps'        → coordinates required.
-  //   experience_type='location' + 'qr'         → address required.
-  //   experience_type='location' + 'witnessed' / 'documented' → optional.
-  //
-  // Falls back to verification_tier for any pre-046 row whose canonical
-  // pair never got backfilled (mirrors deriveExpType/deriveMethod in
-  // RightInspector so the panel and this validator agree on the model).
-  const gpsMissingCoords = stops.filter((s) => stopLocationIssue(s) === 'coords').length
-  const qrMissingAddress  = stops.filter((s) => stopLocationIssue(s) === 'address').length
-  if (gpsMissingCoords > 0)
-    validationIssues.push(
-      `${gpsMissingCoords} GPS stop(s) need coordinates. Open the stop and use the map picker.`,
-    )
-  if (qrMissingAddress > 0)
-    validationIssues.push(
-      `${qrMissingAddress} QR stop(s) need an address.`,
-    )
-
-  if (!passport.expected_spend_tier)
-    validationIssues.push('Set an expected spend tier (Settings → Expected Spend).')
-  // BLD-10 publish gate: personal passports require active Studio on the
-  // actor. Institutional passports are handled by can_design (RLS) and
-  // by the migration-045 trigger; no client check needed here. The
-  // trigger is the real enforcement — this is a pre-flight so the user
-  // sees the requirement before reaching Confirm.
-  if (passport.proprietor_id === null && actorStudio === false) {
-    validationIssues.push(
-      'Publishing a personal passport to the marketplace requires Studio. Ask an admin for a Studio comp at /access/comp-subscriptions.',
-    )
-  }
+  // Validation runs against the shared checklist — the dashboard
+  // calls the same function to flag near-publish drafts, so the
+  // editor and the dashboard cannot disagree about what blocks a
+  // publish.
+  const { blockers: validationIssues } = runPublishChecklist({
+    passport,
+    pageCount: pages.length,
+    stops,
+    actorIsStudio: actorStudio,
+  })
 
   const handlePublish = async () => {
     setPublishing(true)

@@ -9,9 +9,12 @@ import { cn } from '@/lib/cn'
 
 // ─── Nav section definitions ──────────────────────────────────────────────────
 
+// "Program" intentionally absent — the program-management surface
+// doesn't exist as a first-class concept in the app. The dashboard
+// surfaces operator concerns directly; institutional managers still
+// reach /manage from the Access section when needed.
 const BASE_NAV = [
   { label: 'My Passports', href: '/design' },
-  { label: 'Program',      href: '/manage' },
   { label: 'Assets',       href: '/assets' },
   { label: 'Explore',      href: '/explore' },
   { label: 'Stop Library', href: '/stops' },
@@ -85,8 +88,14 @@ export default async function AppNav() {
             priority
             aria-hidden="true"
           />
-          <span className="font-serif text-lg font-bold text-white tracking-tight hidden sm:inline">
-            Okuji
+          <span
+            className="hidden text-lg font-medium text-cream sm:inline"
+            style={{
+              letterSpacing: '-0.02em',
+              fontFamily: 'var(--font-inter), Inter, system-ui, sans-serif',
+            }}
+          >
+            okuji
           </span>
         </Link>
 
