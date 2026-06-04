@@ -9,22 +9,14 @@
     },
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
-    "jsx": "preserve",
-    "incremental": true,
-    "isolatedModules": true,
-    "plugins": [
-      {
-        "name": "next"
-      }
-    ]
+    "jsx": "react-native"
   },
   "include": [
     "**/*.ts",
     "**/*.tsx",
     ".expo/types/**/*.d.ts",
     "expo-env.d.ts",
-    ".expo/types/**/*.ts",
-    ".next/types/**/*.ts"
+    ".expo/types/**/*.ts"
   ],
   "exclude": [
     "node_modules",
