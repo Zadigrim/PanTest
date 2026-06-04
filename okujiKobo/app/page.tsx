@@ -63,9 +63,16 @@ export default async function DashboardPage() {
         <HeroAlert audit={data.audit} />
 
         {/* ── KPI row ──────────────────────────────────────────── */}
-        {/* 5-column-capable grid; v1 ships 3 cards. Dormant cards
-            (SOLD, PRIZES GIVEN, PENDING DISTRIBUTION) live in code
-            behind flags — see lib/dashboard/flags.ts. */}
+        {/* Five cards, all visible. Three carry live counts; two
+            (PRIZES GIVEN, PENDING DISTRIBUTION) render in honest-
+            zero state with a muted "tracking coming soon" delta
+            until their underlying mechanism ships. Flipping the
+            flag in lib/dashboard/flags.ts changes nothing visually
+            — the loader simply starts emitting real values.
+
+            PENDING DISTRIBUTION's accent top-border (the "needs
+            action" tone) is gated on value > 0 so the zero card
+            stays calm. A zero card is never an alert. */}
         <section
           aria-label="Key metrics"
           className="mb-8 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5"
@@ -73,29 +80,19 @@ export default async function DashboardPage() {
           <KpiCard kpi={data.kpis.published} href="/design" />
           <KpiCard kpi={data.kpis.acquired90d} />
           <KpiCard kpi={data.kpis.activeCollectors} />
+          <KpiCard kpi={data.kpis.prizesGiven} />
+          <KpiCard
+            kpi={data.kpis.pendingDistribution}
+            variant={typeof data.kpis.pendingDistribution.value === 'number' && data.kpis.pendingDistribution.value > 0 ? 'accent' : 'default'}
+          />
 
-          {/* DORMANT — TODO(activate-when-payments): expose paid
-              acquisition count (price_paid_cents > 0 OR
-              stripe_payment_intent_id IS NOT NULL) in the
-              loader once the payment system is the real path. */}
+          {/* DORMANT — TODO(activate-when-payments): SOLD remains
+              hidden until paid-acquisition framing is the canonical
+              one. The data exists (acquisitions.price_paid_cents +
+              stripe_payment_intent_id) — see DASHBOARD_REVIEW.md
+              review item 1. */}
           {flags.showSoldKpi && (
             <KpiCard kpi={{ label: 'Sold · 90d', value: '—' }} />
-          )}
-
-          {/* DORMANT — TODO(activate-when-prize-redemption): needs
-              a redemption-tracking table; today prize_distributed
-              is a flag on completion_tokens but "given vs
-              redeemed" doesn't exist. */}
-          {flags.showPrizesKpi && (
-            <KpiCard kpi={{ label: 'Prizes given', value: '—' }} />
-          )}
-
-          {/* DORMANT — TODO(activate-when-employee-terminal): the
-              employee distribution-terminal surface is unused
-              today. Wire the variant='accent' top border to mark
-              the action-required tone. */}
-          {flags.showPendingDistributionKpi && (
-            <KpiCard kpi={{ label: 'Pending distribution', value: '—' }} variant="accent" />
           )}
         </section>
 

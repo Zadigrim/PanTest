@@ -37,7 +37,7 @@ type AnySupabase = any
 export interface DashboardKpi {
   label: string
   value: number | string
-  delta?: { sign: 'up' | 'down' | 'flat'; text: string }
+  delta?: { sign: 'up' | 'down' | 'flat' | 'muted'; text: string }
 }
 
 export interface DashboardAttentionItem {
@@ -73,11 +73,18 @@ export interface DashboardData {
   generatedAt: string
   /** Roles surfaced for tile gating + any client UI that needs them. */
   roles: OkujiKoboRole[]
-  /** Counts for the KPI row — VISIBLE only. */
+  /** Counts for the KPI row — ALL VISIBLE. The two forward-looking
+   *  cards (prizesGiven, pendingDistribution) render an honest zero
+   *  with a "tracking coming soon" delta until their underlying
+   *  mechanism ships; flipping the matching flag in lib/dashboard/
+   *  flags.ts switches the loader to a real query without any UI
+   *  changes. They are NEVER hidden in any deployed environment. */
   kpis: {
-    published:       DashboardKpi
-    acquired90d:     DashboardKpi
-    activeCollectors: DashboardKpi
+    published:           DashboardKpi
+    acquired90d:         DashboardKpi
+    activeCollectors:    DashboardKpi
+    prizesGiven:         DashboardKpi
+    pendingDistribution: DashboardKpi
   }
   audit: DashboardAudit
   attention: DashboardAttentionItem[]
@@ -223,6 +230,13 @@ export async function loadDashboard(
       // pass against the prior window's distinct set; not cheap.
       // See DASHBOARD_REVIEW.md (review item 3).
     },
+    // ─── Forward-looking cards ────────────────────────────────────
+    // Visible in honest-zero state. Activate the real queries by
+    // flipping the matching flag in lib/dashboard/flags.ts; the
+    // card UI never changes — only the value + delta this loader
+    // emits. ZERO ILLUSTRATIVE NUMBERS in any deployed environment.
+    prizesGiven: buildPrizesGivenKpi(),
+    pendingDistribution: buildPendingDistributionKpi(),
   }
 
   // ── Audit ───────────────────────────────────────────────────────
@@ -506,6 +520,63 @@ function deltaPercent(curr: number, prev: number): DashboardKpi['delta'] {
   return {
     sign: pct > 0 ? 'up' : 'down',
     text: `${pct > 0 ? '↑' : '↓'} ${Math.abs(pct)}% vs prior 90d`,
+  }
+}
+
+// ── Forward-looking KPI stubs ───────────────────────────────────────────────
+//
+// These two cards render in honest-zero state in v1: value = 0,
+// muted "tracking coming soon" delta. The flag check is the
+// activation seam — flipping it switches this loader to run the
+// real query and emit the live count + a real delta line.
+//
+// PRIZES GIVEN activates with a redemption-tracking source (today,
+// `prize_distributed` on completion_tokens records that a staff
+// member handed a prize over, but the collector redemption event
+// isn't tracked — that's the missing mechanism). The /program
+// page already surfaces the staff-distribution count under the
+// honest label "Prizes handed out".
+//
+// PENDING DISTRIBUTION's data DOES exist
+// (completion_tokens.distribution_pending = true AND
+// prize_distributed = false), but the mechanism that resolves it
+// — the employee-facing distribution terminal — does not. Showing
+// the count without the action would be misleading, so the card
+// stays in honest-zero until that surface ships; flipping the flag
+// then activates the real query AND the "needs-action" accent
+// border (which only renders when value > 0).
+
+function buildPrizesGivenKpi(): DashboardKpi {
+  // TODO(activate-when-prize-redemption): replace the honest-zero
+  // shape below with a real query once redemption tracking lands.
+  // Shape it should take (preserve the type contract for the card):
+  //   { label: 'Prizes given',
+  //     value: <count of distinct prizes redeemed by collectors>,
+  //     delta: { sign: 'flat' | 'up' | 'down',
+  //              text: `${redeemedPct}% redeemed` } }
+  return {
+    label: 'Prizes given',
+    value: 0,
+    delta: { sign: 'muted', text: 'tracking coming soon' },
+  }
+}
+
+function buildPendingDistributionKpi(): DashboardKpi {
+  // TODO(activate-when-employee-terminal): the count below already
+  // queries cleanly — completion_tokens.distribution_pending=true
+  // AND prize_distributed=false, scoped to ownedIds. The reason
+  // we don't expose it in v1 is that the resolving surface (the
+  // employee distribution terminal) doesn't exist yet, so a
+  // nonzero card would point at nothing. Activation:
+  //   1. Build the terminal page + action.
+  //   2. Replace this function body with the real query.
+  //   3. (Optional) flip the flag in flags.ts to gate locally.
+  // The "needs-action" accent border in app/page.tsx is gated on
+  // value > 0 — a zero card stays calm, an active one alerts.
+  return {
+    label: 'Pending distribution',
+    value: 0,
+    delta: { sign: 'muted', text: 'tracking coming soon' },
   }
 }
 

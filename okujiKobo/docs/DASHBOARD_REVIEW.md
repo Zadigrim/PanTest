@@ -23,11 +23,11 @@ prompt.
 │  │                                          [ Review 4 stops →]│ │
 │  └─────────────────────────────────────────────────────────────┘ │
 │                                                                   │
-│  ┌──────────────┬──────────────┬──────────────┐                   │  KPI ROW
-│  │ PUBLISHED    │ ACQUIRED·90D │ ACTIVE COLL. │  (3 visible v1;   │
-│  │     7        │     142      │      89      │   layout reserves │
-│  │ ↑ 2 this mo  │ ↑ 18% prior  │              │   5 slots)        │
-│  └──────────────┴──────────────┴──────────────┘                   │
+│  ┌──────────┬──────────┬──────────┬──────────┬──────────────────┐│  KPI ROW
+│  │PUBLISHED │ACQ ·90D  │ACTIVE C. │PRIZES GVN│PENDING DISTRIB. ││  (5 visible; two
+│  │    7     │   142    │    89    │    0     │       0          ││   are honest-zero
+│  │↑ 2 this  │↑ 18% prr │          │tracking… │ tracking coming  ││   until mechanisms
+│  └──────────┴──────────┴──────────┴──────────┴──────────────────┘│   ship)
 │                                                                   │
 │  ┌─────────────────────────────────┬────────────────────────────┐ │  TWO-COL
 │  │ NEEDS ATTENTION                 │ RECENT ACTIVITY            │ │
@@ -124,19 +124,30 @@ disagree about whether a stop is blocked. See
 All hidden in production. Flip via `NEXT_PUBLIC_DASHBOARD_FLAG_*=1` to
 preview locally without a code change.
 
-| Flag | Render site | Activation TODO |
+| Flag | What it gates | Activation TODO |
 |---|---|---|
-| `showSoldKpi` | `app/page.tsx` KPI row (5-up grid) | Activate when paid acquisitions are first-class. The data already exists (`acquisitions.price_paid_cents` + `stripe_payment_intent_id`); the loader just needs a `where price_paid_cents > 0 OR stripe_payment_intent_id IS NOT NULL` filter. **Activation effort: ~10 lines + a delta calc.** See review item 1. |
-| `showPrizesKpi` | KPI row | Needs a `prize_redemptions` (or equivalent) source separating "given" from "redeemed." Today `prize_distributed` is a boolean flag on `completion_tokens` but redemption is not tracked. **Activation effort: a small migration + admin path to record redemption events.** |
-| `showPendingDistributionKpi` | KPI row (accent variant) | Needs the prize-distribution / employee-terminal mechanics — the unused employee-terminal surface mentioned in the prompt. The /program page is the v1 host this extends (it already surfaces "Prizes handed out" counts but not redemption tracking). **Activation effort: medium (an employee-facing terminal + atomic "mark distributed" path).** |
+| `showSoldKpi` | The **card** itself (hidden in v1) | Activate when paid acquisitions are first-class. The data already exists (`acquisitions.price_paid_cents` + `stripe_payment_intent_id`); the loader just needs a `where price_paid_cents > 0 OR stripe_payment_intent_id IS NOT NULL` filter. **Activation effort: ~10 lines + a delta calc.** See review item 1. |
+| `showPrizesKpi` | The **data hook** (card is always visible — honest zero in v1) | Needs a `prize_redemptions` (or equivalent) source separating "given" from "redeemed." Today `prize_distributed` is a boolean flag on `completion_tokens` recording staff delivery — not collector redemption. Activation = implement the query in `buildPrizesGivenKpi()` in load.ts; the card UI doesn't change. **Activation effort: a small migration + admin path to record redemption events.** |
+| `showPendingDistributionKpi` | The **data hook** (card always visible — honest zero in v1) + the accent "needs-action" border (separately gated on `value > 0`). | The COUNT itself is queryable today (completion_tokens where distribution_pending=true AND prize_distributed=false), but the resolving surface — the employee distribution terminal — doesn't exist. Showing the count without the action would be misleading, so the card stays honest-zero until that surface ships. The /program page is the v1 host the terminal extends. **Activation effort: medium (employee-facing terminal + atomic "mark distributed" path).** |
 | `showRoleSwitcherPills` | (header — currently rendered via the existing `RoleSwitcher` for multi-role users; the dormant flag is for a richer pill row in the dashboard header itself) | Needs a real "viewing as" mechanism (today, multi-role users get a small switcher in `AppNav`; a header-level pill row would require explicit context override per page render). **Activation effort: low if it just wraps the existing cookie, larger if it gains permission semantics.** |
 | `showPrizeActivity` | `ActivityFeed` event types | Needs the prize-given / gift-card-added mechanisms above. **Activation effort: piggy-backs on whichever mechanism lands first.** |
 
 Stub locations:
-- KPI cards live in [`app/page.tsx`](../app/page.tsx) (lines marked
-  `DORMANT — TODO(activate-when-…)`).
-- The matching loader fields are **not yet added** — the activation
-  TODO is in app/page.tsx; the loader change is single-line per slot.
+- The SOLD KPI card stub lives in [`app/page.tsx`](../app/page.tsx)
+  (flag-gated render) — the loader doesn't compute a value yet.
+- PRIZES GIVEN + PENDING DISTRIBUTION are emitted by the loader's
+  `buildPrizesGivenKpi()` / `buildPendingDistributionKpi()` helpers
+  in [`lib/dashboard/load.ts`](../lib/dashboard/load.ts). They
+  currently return `{ value: 0, delta: 'tracking coming soon' }`
+  unconditionally. The TODO at each helper names the source it
+  awaits.
+
+**Hard rule:** the two forward-looking cards NEVER display
+illustrative or sample numbers in a deployed environment. Local
+preview = no flag effect today (the queries don't exist); when a
+query is implemented inside one of those helpers, the matching
+flag is the on-off switch and the card flips to live data with no
+UI change.
 
 ---
 

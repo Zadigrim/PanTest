@@ -41,6 +41,7 @@ export function KpiCard({
           className={`mt-2 text-[11px] ${
             kpi.delta.sign === 'up' ? 'text-green'
             : kpi.delta.sign === 'down' ? 'text-red'
+            : kpi.delta.sign === 'muted' ? 'text-muted'
             : 'text-muted'
           }`}
         >

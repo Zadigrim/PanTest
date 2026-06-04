@@ -26,17 +26,28 @@ function envOn(name: string): boolean {
 }
 
 export interface DashboardFlags {
-  /** KPI: SOLD · 90D — needs a payment system that tags paid acquisitions. */
+  /** KPI: SOLD · 90D — gates the CARD itself. Hidden in v1 until
+   *  paid-acquisition framing is canonical (data already exists;
+   *  see DASHBOARD_REVIEW.md review item 1). */
   showSoldKpi: boolean
-  /** KPI: PRIZES GIVEN (+ "% redeemed") — needs prize-redemption tracking. */
+  /** KPI: PRIZES GIVEN — gates the DATA HOOK, not the card. The
+   *  card always renders; flipping this swaps the loader's
+   *  honest-zero stub for a real redemption-tracking query when
+   *  that source exists. */
   showPrizesKpi: boolean
-  /** KPI: PENDING DISTRIBUTION (accent variant) + the matching
-   *  attention-queue row "Open terminal →" — needs the prize
-   *  distribution / employee-terminal mechanism. */
+  /** KPI: PENDING DISTRIBUTION — gates the DATA HOOK, not the card.
+   *  The card always renders; flipping this swaps the loader's
+   *  honest-zero stub for a real query
+   *  (completion_tokens.distribution_pending = true AND
+   *  prize_distributed = false) once the employee-terminal
+   *  resolves the count. The accent "needs-action" top border
+   *  is gated separately on value > 0 in the page render. */
   showPendingDistributionKpi: boolean
-  /** Header role-switcher pills — needs a real "viewing as" mechanism. */
+  /** Header role-switcher pills — needs a real "viewing as"
+   *  mechanism. Gates the CARD. */
   showRoleSwitcherPills: boolean
-  /** Activity-feed event types "prize given" / "gift card added". */
+  /** Activity-feed event types "prize given" / "gift card added"
+   *  — gates the rows. */
   showPrizeActivity: boolean
 }
 
