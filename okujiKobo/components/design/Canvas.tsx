@@ -58,8 +58,8 @@ export function Canvas() {
 
   if (!activePage) {
     return (
-      <div className="flex flex-1 items-center justify-center bg-paper">
-        <p className="text-sm text-muted">No page selected</p>
+      <div className="flex flex-1 items-center justify-center bg-surface-canvas">
+        <p className="text-sm text-cream/70">No page selected</p>
       </div>
     )
   }
@@ -67,7 +67,7 @@ export function Canvas() {
   const elements = activePage.elements ?? []
 
   return (
-    <main className="relative flex flex-1 flex-col overflow-hidden bg-paper">
+    <main className="relative flex flex-1 flex-col overflow-hidden bg-surface-canvas">
       <div
         className="flex flex-1 items-center justify-center overflow-auto p-8"
         onClick={handleDeselect}

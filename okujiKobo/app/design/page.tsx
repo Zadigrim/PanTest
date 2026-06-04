@@ -112,9 +112,9 @@ export default async function DesignIndexPage() {
   const list = (passports ?? []) as DesignerPassport[]
 
   return (
-    <div className="min-h-screen bg-paper">
+    <div className="min-h-screen bg-surface-workspace">
       {/* Top bar */}
-      <header className="border-b border-hairline bg-white px-8 py-4">
+      <header className="border-b border-hairline bg-surface-chrome px-8 py-4">
         <div className="mx-auto flex max-w-6xl items-center justify-between">
           <div className="flex items-center gap-3">
             <Image

@@ -61,8 +61,8 @@ export function CoverCanvas({ face, onFaceChange, selectedPanel, onPanelChange }
 
   if (!passport) {
     return (
-      <div className="flex flex-1 items-center justify-center bg-paper">
-        <p className="text-sm text-muted">Loading…</p>
+      <div className="flex flex-1 items-center justify-center bg-surface-canvas">
+        <p className="text-sm text-cream/70">Loading…</p>
       </div>
     )
   }
@@ -139,9 +139,9 @@ export function CoverCanvas({ face, onFaceChange, selectedPanel, onPanelChange }
   }
 
   return (
-    <main className="relative flex flex-1 flex-col overflow-hidden bg-paper">
+    <main className="relative flex flex-1 flex-col overflow-hidden bg-surface-canvas">
       {/* Face toggle */}
-      <div className="flex shrink-0 items-center justify-center gap-1 border-b border-hairline bg-white py-2">
+      <div className="flex shrink-0 items-center justify-center gap-1 border-b border-hairline bg-surface-chrome py-2">
         {(['outside', 'inside'] as CoverFace[]).map((f) => (
           <button
             key={f}

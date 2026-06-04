@@ -22,9 +22,14 @@ interface Props {
   children?: React.ReactNode
 }
 
-/** Three-layer background: paper color → pattern/image → grain texture. */
+/** Three-layer background: paper color → pattern/image → grain texture.
+ *
+ *  Fallback hex (when page.paper_color is null) matches the Kōbō
+ *  surface.page token (#f5ecd0) defined in tailwind.config.ts. Users
+ *  who explicitly chose a paper color keep that choice; only unset
+ *  pages pick up the new default. */
 export function PageBackground({ page, children }: Props) {
-  const paper = `#${page.paper_color ?? 'F5F2EC'}`
+  const paper = `#${page.paper_color ?? 'F5ECD0'}`
   const patternColor = `#${page.background_color ?? '0D1B2A'}`
   const opacity = Math.min(100, Math.max(10, page.background_opacity ?? 100))
   const customOpacity = Math.min(100, Math.max(10, page.custom_background_opacity ?? 100))

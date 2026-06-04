@@ -99,9 +99,9 @@ export function WorkspaceClient({ passport, pages, stops, creatorInstitutionId }
   }
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-paper">
+    <div className="flex h-screen flex-col overflow-hidden bg-surface-workspace">
       {/* Top bar */}
-      <header className="flex shrink-0 items-center justify-between border-b border-hairline bg-white px-4 py-2">
+      <header className="flex shrink-0 items-center justify-between border-b border-hairline bg-surface-chrome px-4 py-2">
         <div className="flex items-center gap-3">
           <button
             type="button"
@@ -180,7 +180,7 @@ export function WorkspaceClient({ passport, pages, stops, creatorInstitutionId }
       </header>
 
       {/* Tabs: Cover + Pages */}
-      <div className="flex shrink-0 items-center gap-0 overflow-x-auto border-b border-hairline bg-white px-4">
+      <div className="flex shrink-0 items-center gap-0 overflow-x-auto border-b border-hairline bg-surface-chrome px-4">
         {/* Cover tab */}
         <button
           onClick={() => setViewMode('cover')}

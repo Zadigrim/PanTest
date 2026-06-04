@@ -278,7 +278,7 @@ export function LeftPalette() {
         />
       )}
 
-      <aside className="flex w-60 shrink-0 flex-col border-r border-hairline bg-white">
+      <aside className="flex w-60 shrink-0 flex-col border-r border-hairline bg-surface-rail">
         {/* Passport meta */}
         <div className="border-b border-hairline px-4 py-3">
           <p className="truncate text-xs font-semibold text-navy">

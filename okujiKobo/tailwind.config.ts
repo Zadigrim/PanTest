@@ -24,6 +24,29 @@ const config: Config = {
         red: '#9b2335',
         blue: '#2d5a8e',
         navy: '#0d1b2a',
+
+        // Kōbō (Designer-only) editor surface tones. These render the
+        // workshop chrome around the passport spread — they are NOT
+        // brand colors, never appear on the collector app, and should
+        // be used via the `bg-surface-*` utilities only on designer
+        // screens. Hue ladder runs warm-light → warm-deeper → espresso.
+        surface: {
+          workspace: '#fbfaf3',  // inspector panels + body of form-style designer screens
+          rail:      '#efe7d2',  // left rail / sidebar (one step deeper)
+          chrome:    '#e9e1c9',  // app top bar / window chrome strip
+          canvas:    '#2a1f12',  // dark editor mat behind the passport spread
+          page:      '#f5ecd0',  // the passport-page paper default sitting on the canvas
+        },
+
+        // Cover paper-stock swatches (the cover editor's paper-color
+        // picker). Named-not-hex so future tweaks happen in one place.
+        stock: {
+          forest:  '#1d4d2e',
+          oxblood: '#5a1a1f',
+          navy:    '#0d1b2a',
+          walnut:  '#5a3a1a',
+          jet:     '#2a1f12',
+        },
       },
       fontFamily: {
         sans:  ['Inter', 'system-ui', 'sans-serif'],

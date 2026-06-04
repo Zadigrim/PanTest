@@ -71,7 +71,7 @@ export function RightInspector({
     : 'No selection'
 
   return (
-    <aside className="flex w-[280px] shrink-0 flex-col border-l border-hairline bg-white">
+    <aside className="flex w-[280px] shrink-0 flex-col border-l border-hairline bg-surface-workspace">
       <div className="border-b border-hairline px-4 py-3">
         <p className="text-xs font-semibold uppercase tracking-wider text-muted">
           {label}
