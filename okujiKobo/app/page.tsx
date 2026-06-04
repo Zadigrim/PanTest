@@ -106,7 +106,7 @@ export default async function DashboardPage() {
         </section>
 
         {/* ── Jump tiles ───────────────────────────────────────── */}
-        <JumpTiles />
+        <JumpTiles roles={data.roles} />
       </main>
     </div>
   )

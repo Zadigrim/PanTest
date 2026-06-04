@@ -40,9 +40,9 @@ prompt.
 │  └─────────────────────────────────┴────────────────────────────┘ │
 │                                                                   │
 │  JUMP TO                                                          │  JUMP TILES
-│  ┌───────┬───────┬───────────────┬────────┐                       │  4-up; My Passports
-│  │Assets │Explore│ Stop Library  │ Access │                       │  is in nav, not here
-│  └───────┴───────┴───────────────┴────────┘                       │
+│  ┌───┬───┬───┬───┬───┬───┐                                         │  6-up legend row;
+│  │ M │ P │ A │ E │ S │ X │  Passports/Program/Assets/Explore/      │  gated by role.
+│  └───┴───┴───┴───┴───┴───┘  Stop Library/Access                    │  Admin sees all 6.
 └───────────────────────────────────────────────────────────────────┘
 ```
 
@@ -128,7 +128,7 @@ preview locally without a code change.
 |---|---|---|
 | `showSoldKpi` | `app/page.tsx` KPI row (5-up grid) | Activate when paid acquisitions are first-class. The data already exists (`acquisitions.price_paid_cents` + `stripe_payment_intent_id`); the loader just needs a `where price_paid_cents > 0 OR stripe_payment_intent_id IS NOT NULL` filter. **Activation effort: ~10 lines + a delta calc.** See review item 1. |
 | `showPrizesKpi` | KPI row | Needs a `prize_redemptions` (or equivalent) source separating "given" from "redeemed." Today `prize_distributed` is a boolean flag on `completion_tokens` but redemption is not tracked. **Activation effort: a small migration + admin path to record redemption events.** |
-| `showPendingDistributionKpi` | KPI row (accent variant) | Needs the prize-distribution / employee-terminal mechanics — the unused employee-terminal surface mentioned in the prompt. **Activation effort: medium (an employee-facing terminal + atomic "mark distributed" path).** |
+| `showPendingDistributionKpi` | KPI row (accent variant) | Needs the prize-distribution / employee-terminal mechanics — the unused employee-terminal surface mentioned in the prompt. The /program page is the v1 host this extends (it already surfaces "Prizes handed out" counts but not redemption tracking). **Activation effort: medium (an employee-facing terminal + atomic "mark distributed" path).** |
 | `showRoleSwitcherPills` | (header — currently rendered via the existing `RoleSwitcher` for multi-role users; the dormant flag is for a richer pill row in the dashboard header itself) | Needs a real "viewing as" mechanism (today, multi-role users get a small switcher in `AppNav`; a header-level pill row would require explicit context override per page render). **Activation effort: low if it just wraps the existing cookie, larger if it gains permission semantics.** |
 | `showPrizeActivity` | `ActivityFeed` event types | Needs the prize-given / gift-card-added mechanisms above. **Activation effort: piggy-backs on whichever mechanism lands first.** |
 
@@ -241,7 +241,25 @@ public profile lands, the feed can show display_name + avatar then.
 | `/api/dashboard` | Batched JSON for client refresh | API route |
 | `/dashboard/audit` | Coordinate-audit review list | Server component |
 | `/design` | My Passports (the table from the prior change set) | Server component |
+| `/program` | v1 Program overview — prize text + collector counts per passport | Server component |
 | (unchanged) `/transfers`, `/assets`, `/explore`, `/stops`, `/access`, `/design/[id]`, `/design/new` | | |
+
+### JumpTiles — role gating
+
+| Tile | Allow list | Notes |
+|---|---|---|
+| My Passports | individual_creator, institutional_manager, designer, institutional_employee | Everyone except platform_admin (admin bypass below) |
+| Program | individual_creator, institutional_manager | The two roles with prize-ownership semantics |
+| Assets | individual_creator, institutional_manager, designer, institutional_employee | Library-wide upload + reuse |
+| Explore | individual_creator, institutional_manager, designer, institutional_employee | Public-passport browse |
+| Stop Library | individual_creator, institutional_manager, designer, institutional_employee | Shared educational stops |
+| Access | institutional_manager, institutional_employee | Mirrors AppNav's `canAccessManagement` audience |
+
+**Platform-admin bypass:** when `roles` includes `platform_admin` the
+allow list is skipped entirely — every tile renders enabled. This
+matches the prompt requirement ("Platform admin NEVER sees a
+disabled tile"). Disabled tiles render with `opacity-50`, an
+`aria-disabled` attribute, and a small "No access" sub-line.
 
 The dashboard remains the post-login landing — no new redirect or
 route group needed.

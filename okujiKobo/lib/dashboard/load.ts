@@ -20,7 +20,7 @@
  *     proprietor_id is the durable institutional link.
  */
 
-import { detectRoles, type RoleContext } from '@/lib/roles'
+import { detectRoles, type RoleContext, type OkujiKoboRole } from '@/lib/roles'
 import { runPublishChecklist, stopLocationIssue, type PublishStop } from '@/lib/design/publish-checklist'
 
 // The dashboard loader accepts any Supabase client variant; the
@@ -71,6 +71,8 @@ export interface DashboardData {
   displayName: string | null
   firstName: string | null
   generatedAt: string
+  /** Roles surfaced for tile gating + any client UI that needs them. */
+  roles: OkujiKoboRole[]
   /** Counts for the KPI row — VISIBLE only. */
   kpis: {
     published:       DashboardKpi
@@ -472,6 +474,7 @@ export async function loadDashboard(
     displayName,
     firstName,
     generatedAt: now.toISOString(),
+    roles: roleContext.roles,
     kpis,
     audit,
     attention,
