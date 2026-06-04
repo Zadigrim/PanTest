@@ -15,6 +15,11 @@ interface Props {
   coverImageUrl?: string | null
   coverThumbnail?: string | null
   fallbackBg?: string | null
+  /** Render the round white type-icon badge in the bottom-right of the
+   *  thumbnail. Defaults to true. Surfaces that show the icon next to
+   *  the title (e.g. the My Passports list) pass false to keep the
+   *  cover art unobstructed. */
+  showTypeBadge?: boolean
 }
 
 function defaultThumbnailSvg(title: string): string {
@@ -60,6 +65,7 @@ export function PassportCoverThumbnail({
   coverImageUrl,
   coverThumbnail,
   fallbackBg,
+  showTypeBadge = true,
 }: Props) {
   const resolved = resolveCoverImage({
     cover_outside_data: outsideData,
@@ -68,7 +74,7 @@ export function PassportCoverThumbnail({
     cover_bg_color: fallbackBg ?? null,
   })
 
-  const badge = (
+  const badge = showTypeBadge ? (
     <span
       className="absolute bottom-2 right-2 flex h-7 w-7 items-center justify-center rounded-full text-base"
       style={{ backgroundColor: 'rgba(255,255,255,0.9)' }}
@@ -76,7 +82,7 @@ export function PassportCoverThumbnail({
     >
       {typeIcon}
     </span>
-  )
+  ) : null
 
   // Resolved cover image (any of cover_outside_data.image_url,
   // cover_image_url legacy field, or cover_thumbnail).

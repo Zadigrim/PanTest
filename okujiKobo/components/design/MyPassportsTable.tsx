@@ -309,8 +309,11 @@ function Row({ row, onArchived }: { row: PassportRow; onArchived: (id: string) =
       className="grid cursor-pointer items-center gap-3 rounded-[8px] border border-surface-faintdiv bg-white px-3 py-2.5 transition-shadow hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green"
       style={{ gridTemplateColumns: '60px 1fr 130px 200px 130px 110px' }}
     >
-      {/* Cover */}
-      <div className="overflow-hidden rounded-[3px] border-[1.5px] border-ink" style={{ width: 37, height: 48 }}>
+      {/* Cover. No border/radius — the artwork edge IS the edge. The
+          type-icon badge that used to overlay the bottom-right has
+          moved to the title cell as plain text so it stops covering
+          the cover art. */}
+      <div className="overflow-hidden" style={{ width: 41, height: 53 }}>
         <PassportCoverThumbnail
           title={passport.title}
           typeIcon={typeIcon}
@@ -318,12 +321,16 @@ function Row({ row, onArchived }: { row: PassportRow; onArchived: (id: string) =
           coverImageUrl={passport.cover_image_url ?? null}
           coverThumbnail={passport.cover_thumbnail ?? null}
           fallbackBg={passport.cover_bg_color ?? '0D1B2A'}
+          showTypeBadge={false}
         />
       </div>
 
       {/* Passport title + issuer + small meta */}
       <div className="min-w-0">
-        <p className="truncate text-sm font-bold text-ink">{passport.title}</p>
+        <p className="flex items-center gap-1.5 truncate text-sm font-bold text-ink">
+          <span className="text-base leading-none text-muted" aria-hidden="true">{typeIcon}</span>
+          <span className="truncate">{passport.title}</span>
+        </p>
         <p className="mt-0.5 truncate text-[11px] text-muted">
           <PassportMeta passport={passport} />
         </p>
