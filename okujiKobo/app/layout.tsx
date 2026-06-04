@@ -47,6 +47,14 @@ const abril = Abril_Fatface({
 export const metadata: Metadata = {
   title: 'okujiKobo',
   description: 'Discover and collect passport experiences',
+  icons: {
+    icon: [
+      { url: '/appicon/favicon.png', sizes: '32x32', type: 'image/png' },
+      { url: '/appicon/png/okuji-icon-192.png', sizes: '192x192', type: 'image/png' },
+      { url: '/appicon/png/okuji-icon-512.png', sizes: '512x512', type: 'image/png' },
+    ],
+    apple: '/appicon/png/okuji-icon-180.png',
+  },
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

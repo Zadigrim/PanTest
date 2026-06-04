@@ -77,11 +77,11 @@ export default async function AppNav() {
           aria-label="okujiKobo home"
         >
           <Image
-            src="/okuji-mark.png"
+            src="/appicon/png-rounded/okuji-icon-rounded-180.png"
             alt=""
             width={24}
             height={24}
-            className="h-6 w-6"
+            className="h-6 w-6 rounded-[5px]"
             priority
             aria-hidden="true"
           />
