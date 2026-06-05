@@ -108,6 +108,11 @@ export default async function PassportDetailPage({
   const { data: { user } } = await supabase.auth.getUser()
 
   // ── Fetch passport + pages + stops ─────────────────────────────────────────
+  // No `.eq('is_published', true)` filter here: holders must
+  // be able to view an UNPUBLISHED-for-correction passport
+  // they've acquired (migration 062 grants the RLS SELECT
+  // via acquisitions / collector_passports). The non-holder
+  // gate happens below, after we've checked ownership.
   const { data: passportRow, error: passportError } = await supabase
     .from('passports')
     .select(`
@@ -119,7 +124,6 @@ export default async function PassportDetailPage({
       )
     `)
     .eq('id', id)
-    .eq('is_published', true)
     .single()
 
   if (passportError || !passportRow) {
@@ -164,6 +168,28 @@ export default async function PassportDetailPage({
       .maybeSingle()
 
     isOwned = Boolean(acq)
+  }
+
+  // ── Non-holder visibility gate ──────────────────────────────────────────────
+  // The fetch above intentionally omits the is_published
+  // filter so a holder can see their unpublished-for-
+  // correction copy. Non-holders still get a 404 for an
+  // unpublished passport — the marketplace IS the delist
+  // surface.
+  // Creator + platform admin pass through too (they
+  // legitimately preview their own draft / any draft).
+  if (!passport.is_published && !isOwned && passport.creator_id !== user?.id) {
+    let viewerIsAdmin = false
+    if (user) {
+      const { data: prof } = await supabase
+        .from('profiles')
+        .select('is_platform_admin')
+        .eq('id', user.id)
+        .maybeSingle()
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      viewerIsAdmin = !!(prof as any)?.is_platform_admin
+    }
+    if (!viewerIsAdmin) notFound()
   }
 
   // ── Derived values ──────────────────────────────────────────────────────────
