@@ -230,8 +230,8 @@ export function StampComposer(props: DesignerMode | AssetsMode) {
                 ))}
               </div>
               <p className="mt-3 text-[10.5px] text-muted">
-                More starter compositions (badge, double-circle rim with curved text) land
-                with the text + icon elements in upcoming pushes.
+                Pick one to start — every element is fully editable after. Or
+                start blank.
               </p>
             </div>
           </div>
