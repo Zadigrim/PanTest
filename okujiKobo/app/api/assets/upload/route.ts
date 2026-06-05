@@ -191,10 +191,14 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       url:                publicUrl,
       storage_path:       storagePath,
       file_format:        file.type,
+      // Migration 053: captured at upload time going forward. width_px /
+      // height_px require sharp or a client-side measure step we don't
+      // ship yet — left null; the drawer meta line degrades gracefully.
+      bytes_size:         file.size,
       is_monochrome:      isMonochrome,
       scoped_passport_id: scopedPassportId,
     })
-    .select('id, name, url, institution_id, is_monochrome, scoped_passport_id')
+    .select('id, name, url, institution_id, is_monochrome, scoped_passport_id, bytes_size')
     .single()
 
   if (insertErr) {

@@ -1,233 +1,142 @@
 import { redirect, notFound } from 'next/navigation'
 import Link from 'next/link'
+import Image from 'next/image'
 import { createClient } from '@/lib/supabase/server'
 import { cn } from '@/lib/cn'
-import { UploadAssetButton } from '@/components/assets/UploadAssetButton'
-import { DeleteAssetButton } from '@/components/assets/DeleteAssetButton'
-import { AssetUsageExpander } from '@/components/assets/AssetUsageExpander'
-import { AssetScopeEditor, type ScopeOption } from '@/components/assets/AssetScopeEditor'
+import { AssetsClient, type ServerAsset } from '@/components/assets/AssetsClient'
+import type { ScopeOption } from '@/components/assets/AssetScopeEditor'
+import {
+  ASSET_TYPE_URL_SLUGS,
+  KIND_RULES,
+  SLUG_TO_DB,
+  isAssetSlug,
+  type AssetTypeSlug,
+} from '@/lib/assets/kinds'
+import { OKUJI_PAGE_BACKGROUNDS } from '@/lib/assets/okuji-presets'
 
-// ---------------------------------------------------------------------------
-// Config per asset type
-// ---------------------------------------------------------------------------
+// ─── Top-of-page slim section bar ─────────────────────────────────────────────
+//
+// Replaces AppNav for this section. The asset library is a creator-workflow
+// surface; "Back to designer" is the meaningful primary nav. Wordmark
+// matches the canonical "okuji" + small-caps section label pattern used in
+// the editor top bar.
 
-const ASSET_TYPES = ['backgrounds', 'stamps', 'covers'] as const
-type AssetType = (typeof ASSET_TYPES)[number]
-
-const TYPE_META: Record<
-  AssetType,
-  {
-    label: string
-    emptyHeading: string
-    emptyBody: string
-    dbType: string
-  }
-> = {
-  backgrounds: {
-    label: 'Backgrounds',
-    dbType: 'background',
-    emptyHeading: 'No custom backgrounds yet.',
-    emptyBody: 'Backgrounds set the mood for your passport pages.',
-  },
-  stamps: {
-    label: 'Stamps',
-    dbType: 'stamp',
-    emptyHeading: 'No custom stamps yet.',
-    emptyBody: 'Stamps are the visual moments collectors earn.',
-  },
-  covers: {
-    label: 'Covers',
-    dbType: 'cover',
-    emptyHeading: 'No custom covers yet.',
-    emptyBody: 'Cover images appear at the top of your passport in the marketplace.',
-  },
-}
-
-function isAssetType(value: string): value is AssetType {
-  return ASSET_TYPES.includes(value as AssetType)
-}
-
-// ---------------------------------------------------------------------------
-// Tab nav
-// ---------------------------------------------------------------------------
-
-function TabNav({ current }: { current: AssetType }) {
+function AssetsTopBar() {
   return (
-    <nav
-      className="flex gap-0.5 border-b border-hairline mb-8"
-      aria-label="Asset type tabs"
-    >
-      {ASSET_TYPES.map((type) => (
-        <Link
-          key={type}
-          href={`/assets/${type}`}
-          className={cn(
-            'px-5 py-2.5 text-sm font-medium rounded-t-panel transition-colors -mb-px',
-            current === type
-              ? 'bg-white border border-b-white border-hairline text-navy'
-              : 'text-muted hover:text-navy',
-          )}
-          aria-current={current === type ? 'page' : undefined}
-        >
-          {TYPE_META[type].label}
-        </Link>
-      ))}
-    </nav>
-  )
-}
-
-
-// ---------------------------------------------------------------------------
-// Asset card
-// ---------------------------------------------------------------------------
-
-interface AssetRow {
-  id: string
-  name: string | null
-  url: string | null
-  institution_id: string | null
-  owner_id: string | null
-  is_built_in: boolean | null
-  scoped_passport_id: string | null
-  // Joined passport title (when scoped). Comes back as an object from
-  // PostgREST FK-embed; we flatten it server-side before the prop hop.
-  scoped_passport_title: string | null
-}
-
-function AssetCard({
-  asset,
-  userInstitutionId,
-  currentUserId,
-  scopeOptions,
-}: {
-  asset: AssetRow
-  userInstitutionId: string | null
-  currentUserId: string
-  scopeOptions: ScopeOption[]
-}) {
-  const isShared =
-    asset.institution_id !== null &&
-    userInstitutionId !== null &&
-    asset.institution_id === userInstitutionId
-
-  const canDelete = asset.is_built_in !== true && asset.owner_id === currentUserId
-
-  return (
-    <div className="bg-white rounded-panel border border-hairline overflow-hidden group">
-      {/* Preview area */}
-      <div className="aspect-video bg-paper flex items-center justify-center">
-        {asset.url ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={asset.url}
-            alt={asset.name ?? 'Asset preview'}
-            className="w-full h-full object-cover"
+    <header className="border-b border-hairline bg-surface-chrome px-8 py-3">
+      <div className="mx-auto flex max-w-6xl items-center justify-between">
+        <div className="flex items-center gap-3">
+          <Image
+            src="/appicon/png-rounded/okuji-icon-rounded-180.png"
+            alt=""
+            width={32}
+            height={32}
+            className="h-8 w-8 rounded-[8px] border-[1.5px] border-ink bg-surface-workspace"
+            aria-hidden="true"
           />
-        ) : (
-          <span className="text-3xl text-hairline" aria-hidden="true">
-            🖼
-          </span>
-        )}
-      </div>
-
-      {/* Footer */}
-      <div className="px-3 py-2.5 flex items-center justify-between gap-2">
-        <p className="text-sm font-medium text-navy truncate">
-          {asset.name ?? 'Untitled'}
-        </p>
-        <div className="flex shrink-0 items-center gap-1.5">
-          {isShared && (
-            <span className="inline-flex items-center rounded-card bg-cream px-2 py-0.5 text-xs font-medium text-green">
-              Shared
+          <div className="flex items-baseline gap-2">
+            <span
+              className="text-[18px] font-medium text-ink"
+              style={{ letterSpacing: '-0.02em', fontFamily: 'var(--font-inter), Inter, system-ui, sans-serif' }}
+            >
+              okuji
             </span>
-          )}
-          <DeleteAssetButton
-            assetId={asset.id}
-            assetName={asset.name ?? 'Untitled'}
-            canDelete={canDelete}
-          />
+            <span
+              className="text-[11px] font-medium uppercase text-muted"
+              style={{ letterSpacing: '3px' }}
+            >
+              Assets
+            </span>
+          </div>
         </div>
+        <Link
+          href="/design"
+          className="text-sm text-muted hover:text-ink transition-colors"
+        >
+          ← Back to designer
+        </Link>
       </div>
-      {canDelete && (
-        <AssetScopeEditor
-          assetId={asset.id}
-          initialScopedPassportId={asset.scoped_passport_id}
-          initialScopedPassportTitle={asset.scoped_passport_title}
-          options={scopeOptions}
-        />
-      )}
-      {canDelete && <AssetUsageExpander assetId={asset.id} />}
-    </div>
+    </header>
   )
 }
 
-// ---------------------------------------------------------------------------
-// Empty state
-// ---------------------------------------------------------------------------
+// ─── Segmented tab control ────────────────────────────────────────────────────
 
-function EmptyState({ meta }: { meta: (typeof TYPE_META)[AssetType] }) {
+function Tabs({ current }: { current: AssetTypeSlug }) {
   return (
-    <div className="rounded-modal border-2 border-dashed border-hairline py-20 text-center">
-      <div
-        className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-paper text-3xl"
-        aria-hidden="true"
-      >
-        🖼
-      </div>
-      <h2 className="text-base font-semibold text-navy">{meta.emptyHeading}</h2>
-      <p className="mt-2 text-sm text-muted max-w-xs mx-auto">{meta.emptyBody}</p>
+    <div
+      role="tablist"
+      aria-label="Asset type"
+      className="mb-6 inline-flex rounded-[8px] border border-surface-faintdiv bg-surface-rail p-1"
+    >
+      {ASSET_TYPE_URL_SLUGS.map((slug) => {
+        const active = current === slug
+        const label = KIND_RULES[SLUG_TO_DB[slug]].sectionLabel
+        return (
+          <Link
+            key={slug}
+            href={`/assets/${slug}`}
+            role="tab"
+            aria-selected={active}
+            className={cn(
+              'rounded-[6px] px-3 py-1.5 text-[13px] font-medium transition-colors',
+              active
+                ? 'border border-hairline bg-white text-ink shadow-sm'
+                : 'text-muted hover:text-ink',
+            )}
+          >
+            {label}
+          </Link>
+        )
+      })}
     </div>
   )
 }
 
-// ---------------------------------------------------------------------------
-// Page
-// ---------------------------------------------------------------------------
+// ─── Page ─────────────────────────────────────────────────────────────────────
 
 interface Props {
   params: { type: string }
 }
 
 export async function generateMetadata({ params }: Props) {
-  const type = params.type
-  if (!isAssetType(type)) return {}
-  return { title: `${TYPE_META[type].label} — okujiKobo Assets` }
+  if (!isAssetSlug(params.type)) return {}
+  return { title: `${KIND_RULES[SLUG_TO_DB[params.type]].sectionLabel} — okuji Assets` }
 }
 
 export default async function AssetTypePage({ params }: Props) {
   const { type } = params
+  if (!isAssetSlug(type)) notFound()
 
-  if (!isAssetType(type)) notFound()
-
-  const meta = TYPE_META[type]
+  const dbType = SLUG_TO_DB[type]
   const supabase = await createClient()
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
+  const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login?next=/assets')
 
-  // Resolve user's institution (if any)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: authz } = await (supabase as any)
+  const db = supabase as any
+
+  // Resolve institution membership (drives the "Institution" group's
+  // visibility — RLS already lets the user read institution_id rows
+  // they have access to, but we use this id to tag rows as "owned"
+  // vs "institution" for the source pill on the card).
+  const { data: authz } = await db
     .from('employee_authorizations')
     .select('institution_id')
     .eq('user_id', user.id)
     .limit(1)
-    .maybeSingle() as { data: { institution_id: string } | null }
+    .maybeSingle()
+  const userInstitutionId = (authz?.institution_id ?? null) as string | null
 
-  const userInstitutionId = authz?.institution_id ?? null
-
-  // Query design_assets — table may not exist yet; treat any error as empty.
-  // FK-embed scoped_passport so we can show "scoped to {title}" without
-  // a second query per row.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const db = supabase as any
-  const { data: assets, error: assetsError } = await db
+  // Query the user's assets of this kind + institution-shared ones.
+  // Includes new metadata columns from migration 053 — null on
+  // legacy rows; the drawer's meta-line helper handles that.
+  const { data: assetRows } = await db
     .from('design_assets')
-    .select('id, name, url, institution_id, owner_id, is_built_in, scoped_passport_id, scoped_passport:passports!design_assets_scoped_passport_id_fkey(id, title)')
-    .eq('asset_type', meta.dbType)
+    .select(
+      'id, name, display_name, url, owner_id, institution_id, is_built_in, scoped_passport_id, file_format, bytes_size, width_px, height_px, created_at, scoped_passport:passports!design_assets_scoped_passport_id_fkey(id, title)',
+    )
+    .eq('asset_type', dbType)
     .or(
       [
         `owner_id.eq.${user.id}`,
@@ -236,81 +145,121 @@ export default async function AssetTypePage({ params }: Props) {
     )
     .order('created_at', { ascending: false })
 
-  if (assetsError) {
-    console.error('design_assets query error:', assetsError)
+  type Row = {
+    id: string
+    name: string | null
+    display_name: string | null
+    url: string | null
+    owner_id: string | null
+    institution_id: string | null
+    is_built_in: boolean | null
+    scoped_passport_id: string | null
+    file_format: string | null
+    bytes_size: number | null
+    width_px: number | null
+    height_px: number | null
+    created_at: string
+    scoped_passport: { id: string; title: string | null } | null
+  }
+  const rows = (assetRows ?? []) as Row[]
+
+  // Pre-fetch usage counts in one RPC batch so the card can show
+  // "{n} ↗" without each tile firing its own /usage round-trip.
+  // We call list_asset_references per row — the RPC is cheap and
+  // RLS-safe; this keeps the orchestrator's hover-delete UI mirror
+  // accurate without a new endpoint.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const usageCounts = new Map<string, number>()
+  if (rows.length > 0) {
+    await Promise.all(
+      rows.map(async (r) => {
+        const { data } = await db.rpc('count_asset_references', {
+          p_asset_id: r.id,
+          p_asset_url: r.url ?? '',
+        })
+        usageCounts.set(r.id, typeof data === 'number' ? data : 0)
+      }),
+    )
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const assetList: AssetRow[] = ((assets ?? []) as any[]).map((a) => ({
-    id:                     a.id,
-    name:                   a.name,
-    url:                    a.url,
-    institution_id:         a.institution_id,
-    owner_id:               a.owner_id,
-    is_built_in:            a.is_built_in,
-    scoped_passport_id:     a.scoped_passport_id,
-    scoped_passport_title:  a.scoped_passport?.title ?? null,
-  }))
-
-  // Passports the user can scope assets to. Same RLS as the upload
-  // route uses for validation, so anything we list here is acceptable
-  // to the PATCH endpoint.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: passports } = await (supabase as any)
+  // Passports the user can scope assets to.
+  const { data: passports } = await db
     .from('passports')
     .select('id, title')
     .order('updated_at', { ascending: false })
   const scopeOptions: ScopeOption[] = ((passports ?? []) as { id: string; title: string | null }[])
     .map((p) => ({ id: p.id, title: p.title ?? 'Untitled' }))
 
+  // Project to ServerAsset shape; classify source.
+  const dbAssets: ServerAsset[] = rows.map((a) => {
+    const isOwned = a.owner_id === user.id
+    const isInstitution =
+      !isOwned
+      && a.institution_id !== null
+      && userInstitutionId !== null
+      && a.institution_id === userInstitutionId
+    const source: ServerAsset['source'] = isInstitution ? 'institution' : 'owned'
+    return {
+      id:                  a.id,
+      url:                 a.url,
+      filename:            a.name,
+      displayName:         a.display_name,
+      scopedPassportId:    a.scoped_passport_id,
+      scopedPassportTitle: a.scoped_passport?.title ?? null,
+      source,
+      usageCount:          usageCounts.get(a.id) ?? 0,
+      widthPx:             a.width_px,
+      heightPx:            a.height_px,
+      bytesSize:           a.bytes_size,
+      fileFormat:          a.file_format,
+      createdAt:           a.created_at,
+    }
+  })
+
+  // Synthetic "Okuji library" presets, surfaced only on the
+  // Backgrounds tab. These ship as static files under /public/presets
+  // and are NOT design_assets rows. We tag them source='okuji' so
+  // the orchestrator hides delete / rename / scope chrome.
+  const presetAssets: ServerAsset[] =
+    dbType === 'background'
+      ? OKUJI_PAGE_BACKGROUNDS.map((p) => ({
+          id:                  p.id,
+          url:                 p.url,
+          filename:            p.url.split('/').pop() ?? null,
+          displayName:         p.label,
+          scopedPassportId:    null,
+          scopedPassportTitle: null,
+          source:              'okuji',
+          usageCount:          0,
+          widthPx:             null,
+          heightPx:            null,
+          bytesSize:           null,
+          fileFormat:          p.format === 'PNG' ? 'image/png' : 'image/svg+xml',
+          // Presets sort to the top of "Recently added" regardless,
+          // but we still give them a stable timestamp.
+          createdAt:           '1970-01-01T00:00:00Z',
+        }))
+      : []
+
+  const allAssets: ServerAsset[] = [...presetAssets, ...dbAssets]
+
   return (
-    <div className="min-h-screen bg-paper">
-      {/* Top bar */}
-      <header className="border-b border-hairline bg-white px-8 py-4">
-        <div className="mx-auto flex max-w-6xl items-center justify-between">
-          <div className="flex items-center gap-3">
-            <span className="text-xl font-bold text-navy">Assets</span>
-          </div>
-          <Link
-            href="/design"
-            className="text-sm text-muted hover:text-navy transition-colors"
-          >
-            ← Back to designer
-          </Link>
-        </div>
-      </header>
+    <div className="min-h-screen bg-surface-workspace">
+      <AssetsTopBar />
 
-      <main className="mx-auto max-w-6xl px-8 py-10">
-        <TabNav current={type} />
+      <main className="mx-auto max-w-6xl px-8 py-8">
+        <header className="mb-5">
+          <h1 className="text-[25px] font-bold text-ink" style={{ letterSpacing: '-0.01em' }}>
+            Assets
+          </h1>
+          <p className="mt-1 text-[13px] text-muted">
+            Your library of {KIND_RULES[dbType].sectionLabel.toLowerCase()} and bundled presets.
+          </p>
+        </header>
 
-        {/* Section header */}
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h2 className="text-lg font-semibold text-navy">{meta.label}</h2>
-            <p className="text-sm text-muted mt-0.5">
-              {assetList.length === 0
-                ? 'No assets yet.'
-                : `${assetList.length} asset${assetList.length !== 1 ? 's' : ''}`}
-            </p>
-          </div>
-          <UploadAssetButton assetType={meta.dbType as 'background' | 'stamp' | 'cover'} />
-        </div>
+        <Tabs current={type} />
 
-        {assetList.length === 0 ? (
-          <EmptyState meta={meta} />
-        ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-            {assetList.map((asset) => (
-              <AssetCard
-                key={asset.id}
-                asset={asset}
-                userInstitutionId={userInstitutionId}
-                currentUserId={user.id}
-                scopeOptions={scopeOptions}
-              />
-            ))}
-          </div>
-        )}
+        <AssetsClient kind={dbType} assets={allAssets} scopeOptions={scopeOptions} />
       </main>
     </div>
   )
