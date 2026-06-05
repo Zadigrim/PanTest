@@ -2,6 +2,8 @@
 
 import { useCallback, useRef, useState } from 'react'
 import { STAMP_SURFACE_SIZE, type ComposerElement, type ComposerMetadata } from '@/lib/design/stamp-composer/types'
+import { arcPathD, renderText } from '@/lib/design/stamp-composer/geometry'
+import { fontByKey } from '@/lib/design/fonts'
 
 /**
  * Stamp Composer canvas — the live editing surface.
@@ -189,7 +191,55 @@ function ElementShape({ el }: { el: ComposerElement }) {
       />
     )
   }
-  // Push 2+ — text / curvedText / icon / traced rendered here.
+  if (el.type === 'text') {
+    const f = fontByKey(el.fontFamily)
+    const txt = renderText(el.text, { uppercase: el.uppercase })
+    // Anchor at top-left; nudge baselineY to sit beneath (~82%).
+    return (
+      <text
+        x={el.x}
+        y={el.y + el.fontSize * 0.82}
+        fontFamily={f.family}
+        fontSize={el.fontSize}
+        fontWeight={el.bold ? 700 : 400}
+        fontStyle={el.italic ? 'italic' : 'normal'}
+        letterSpacing={el.letterSpacing ?? undefined}
+        fill="currentColor"
+        stroke="none"
+        transform={transform}
+      >
+        {txt}
+      </text>
+    )
+  }
+  if (el.type === 'curvedText') {
+    const f = fontByKey(el.fontFamily)
+    const txt = renderText(el.text, { uppercase: el.uppercase })
+    const pathId = `cp-${el.id}`
+    const d = arcPathD(el.cx, el.cy, el.rx, el.ry, el.arc)
+    return (
+      <g transform={transform}>
+        <defs>
+          <path id={pathId} d={d} />
+        </defs>
+        <text
+          fontFamily={f.family}
+          fontSize={el.fontSize}
+          fontWeight={el.bold ? 700 : 400}
+          fontStyle={el.italic ? 'italic' : 'normal'}
+          letterSpacing={el.letterSpacing ?? undefined}
+          fill="currentColor"
+          stroke="none"
+          textAnchor="middle"
+        >
+          <textPath href={`#${pathId}`} startOffset="50%">
+            {txt}
+          </textPath>
+        </text>
+      </g>
+    )
+  }
+  // Push 3+ — icon / traced rendered here.
   return null
 }
 
@@ -210,6 +260,17 @@ function ElementHitTarget({ el, onPointerDown }: { el: ComposerElement; onPointe
   if (el.type === 'rect')    return <rect    x={el.x}  y={el.y}  width={el.w}  height={el.h}  rx={el.rx ?? 0} {...common} />
   if (el.type === 'ellipse') return <ellipse cx={el.cx} cy={el.cy} rx={el.rx} ry={el.ry} {...common} />
   if (el.type === 'line')    return <line    x1={el.x1} y1={el.y1} x2={el.x2} y2={el.y2}  {...common} />
+  if (el.type === 'text') {
+    // Approximate text bounding box; cheap heuristic since the
+    // hit target just needs to be grabbable, not pixel-perfect.
+    const w = Math.max(el.text.length * el.fontSize * 0.55, 20)
+    const h = el.fontSize * 1.1
+    return <rect x={el.x} y={el.y} width={w} height={h} {...common} />
+  }
+  if (el.type === 'curvedText') {
+    // Wrap the entire arc's bounding box as the hit target.
+    return <rect x={el.cx - el.rx} y={el.cy - el.ry} width={el.rx * 2} height={el.ry * 2} {...common} />
+  }
   return null
 }
 
@@ -270,10 +331,14 @@ function SelectionOverlay({
 // ── Geometry helpers ────────────────────────────────────────────────────────
 
 function elementCenter(el: ComposerElement): { x: number; y: number } {
-  if (el.type === 'rect')    return { x: el.x + el.w / 2, y: el.y + el.h / 2 }
-  if (el.type === 'ellipse') return { x: el.cx, y: el.cy }
-  if (el.type === 'line')    return { x: (el.x1 + el.x2) / 2, y: (el.y1 + el.y2) / 2 }
-  // Future elements
+  if (el.type === 'rect')       return { x: el.x + el.w / 2, y: el.y + el.h / 2 }
+  if (el.type === 'ellipse')    return { x: el.cx, y: el.cy }
+  if (el.type === 'line')       return { x: (el.x1 + el.x2) / 2, y: (el.y1 + el.y2) / 2 }
+  if (el.type === 'text') {
+    const w = Math.max(el.text.length * el.fontSize * 0.55, 20)
+    return { x: el.x + w / 2, y: el.y + el.fontSize / 2 }
+  }
+  if (el.type === 'curvedText') return { x: el.cx, y: el.cy }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const a = el as any
   return { x: a.x ?? 0, y: a.y ?? 0 }
@@ -287,16 +352,25 @@ function elementBoundingBox(el: ComposerElement): { x: number; y: number; w: num
     const y = Math.min(el.y1, el.y2)
     const w = Math.abs(el.x2 - el.x1)
     const h = Math.abs(el.y2 - el.y1)
-    // Lines collapse to 0 in one axis — pad for handle visibility.
     return { x: x - 2, y: y - 2, w: Math.max(w, 4), h: Math.max(h, 4) }
+  }
+  if (el.type === 'text') {
+    const w = Math.max(el.text.length * el.fontSize * 0.55, 20)
+    const h = el.fontSize * 1.1
+    return { x: el.x, y: el.y, w, h }
+  }
+  if (el.type === 'curvedText') {
+    return { x: el.cx - el.rx, y: el.cy - el.ry, w: el.rx * 2, h: el.ry * 2 }
   }
   return null
 }
 
 function translatePatch(el: ComposerElement, dx: number, dy: number): Patch {
-  if (el.type === 'rect')    return { x: el.x + dx, y: el.y + dy } as Patch
-  if (el.type === 'ellipse') return { cx: el.cx + dx, cy: el.cy + dy } as Patch
-  if (el.type === 'line')    return { x1: el.x1 + dx, y1: el.y1 + dy, x2: el.x2 + dx, y2: el.y2 + dy } as Patch
+  if (el.type === 'rect')       return { x: el.x + dx, y: el.y + dy } as Patch
+  if (el.type === 'ellipse')    return { cx: el.cx + dx, cy: el.cy + dy } as Patch
+  if (el.type === 'line')       return { x1: el.x1 + dx, y1: el.y1 + dy, x2: el.x2 + dx, y2: el.y2 + dy } as Patch
+  if (el.type === 'text')       return { x: el.x + dx, y: el.y + dy } as Patch
+  if (el.type === 'curvedText') return { cx: el.cx + dx, cy: el.cy + dy } as Patch
   return {}
 }
 
@@ -304,6 +378,14 @@ function resizePatch(el: ComposerElement, dx: number, dy: number): Patch {
   if (el.type === 'rect')    return { w: Math.max(4, el.w + dx), h: Math.max(4, el.h + dy) } as Patch
   if (el.type === 'ellipse') return { rx: Math.max(2, el.rx + dx / 2), ry: Math.max(2, el.ry + dy / 2) } as Patch
   if (el.type === 'line')    return { x2: el.x2 + dx, y2: el.y2 + dy } as Patch
+  if (el.type === 'text') {
+    // Resize handle on text scales the font size — dx is the
+    // dominant axis. Floor at 6pt.
+    return { fontSize: Math.max(6, el.fontSize + dx * 0.4) } as Patch
+  }
+  if (el.type === 'curvedText') {
+    return { rx: Math.max(8, el.rx + dx / 2), ry: Math.max(8, el.ry + dy / 2) } as Patch
+  }
   return {}
 }
 

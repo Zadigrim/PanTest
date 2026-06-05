@@ -1,6 +1,7 @@
 'use client'
 
 import { type ComposerElement, newElementId } from '@/lib/design/stamp-composer/types'
+import { DEFAULT_STAMP_FONT_KEY } from '@/lib/design/fonts'
 
 /**
  * Add-element toolbar — sits above the canvas. Push 1 ships
@@ -62,11 +63,35 @@ export function ComposerAddToolbar({
         ─ <span className="ml-1">Line</span>
       </AddButton>
 
-      {/* Push 2+ — these stubs render disabled so the affordance
-          is discoverable when each one ships. */}
       <span className="mx-1 h-5 w-px bg-hairline" aria-hidden />
-      <DisabledButton title="Coming next push">A Text</DisabledButton>
-      <DisabledButton title="Coming next push">⌒ Curved text</DisabledButton>
+
+      <AddButton onClick={() => onAdd({
+        id: newElementId(), type: 'text',
+        text: 'Text',
+        x: cx - 30, y: cy - 12,
+        fontSize: 24,
+        fontFamily: DEFAULT_STAMP_FONT_KEY,
+      })}>
+        A <span className="ml-1">Text</span>
+      </AddButton>
+
+      <AddButton onClick={() => onAdd({
+        id: newElementId(), type: 'curvedText',
+        text: 'RIM TEXT',
+        cx, cy,
+        rx: 95, ry: 95,
+        arc: 'top',
+        fontSize: 18,
+        fontFamily: DEFAULT_STAMP_FONT_KEY,
+        bold: true,
+        uppercase: true,
+        letterSpacing: 2,
+      })}>
+        ⌒ <span className="ml-1">Curved text</span>
+      </AddButton>
+
+      {/* Push 3+ — these stubs render disabled so the affordance
+          is discoverable when each one ships. */}
       <DisabledButton title="Push 3 — lucide icon picker">★ Icon</DisabledButton>
       <DisabledButton title="Push 4 — potrace tracer">⬚ Trace image</DisabledButton>
     </div>

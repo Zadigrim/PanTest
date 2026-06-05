@@ -1,6 +1,7 @@
 'use client'
 
 import type { ComposerElement } from '@/lib/design/stamp-composer/types'
+import { STAMP_FONTS } from '@/lib/design/fonts'
 
 /**
  * Right-rail inspector — element-type-aware controls.
@@ -40,9 +41,11 @@ export function ComposerInspector({
 
       <div className="flex-1 space-y-4 overflow-y-auto px-3 py-3">
         {/* Geometry differs per type; stroke + rotation are common. */}
-        {element.type === 'rect'    && <RectGeometry    el={element} onUpdate={onUpdate} />}
-        {element.type === 'ellipse' && <EllipseGeometry el={element} onUpdate={onUpdate} />}
-        {element.type === 'line'    && <LineGeometry    el={element} onUpdate={onUpdate} />}
+        {element.type === 'rect'       && <RectGeometry       el={element} onUpdate={onUpdate} />}
+        {element.type === 'ellipse'    && <EllipseGeometry    el={element} onUpdate={onUpdate} />}
+        {element.type === 'line'       && <LineGeometry       el={element} onUpdate={onUpdate} />}
+        {element.type === 'text'       && <TextBlock          el={element} onUpdate={onUpdate} />}
+        {element.type === 'curvedText' && <CurvedTextBlock    el={element} onUpdate={onUpdate} />}
 
         {(element.type === 'rect' || element.type === 'ellipse' || element.type === 'line') && (
           <StrokeStyle el={element} onUpdate={onUpdate} />
@@ -141,6 +144,137 @@ function LineGeometry({
         </select>
       </Field>
     </Section>
+  )
+}
+
+// ── Text blocks (shared sub-controls; live preview + flatten
+//    happens on save in Push 6; metadata stays the editable
+//    source of truth). ──
+
+function TextBlock({
+  el,
+  onUpdate,
+}: {
+  el: Extract<ComposerElement, { type: 'text' }>
+  onUpdate: (patch: Partial<ComposerElement>) => void
+}) {
+  return (
+    <>
+      <Section title="Text">
+        <textarea
+          value={el.text}
+          onChange={(e) => onUpdate({ text: e.target.value })}
+          rows={2}
+          placeholder="Your text…"
+          className="w-full resize-none rounded-[6px] border-[1.5px] border-hairline bg-white px-1.5 py-1 text-[12px] text-ink focus:border-ink focus:outline-none"
+        />
+      </Section>
+
+      <TextTypeBlock el={el} onUpdate={onUpdate} />
+
+      <Section title="Position">
+        <Grid2>
+          <Num label="x" value={el.x} onChange={(v) => onUpdate({ x: v })} />
+          <Num label="y" value={el.y} onChange={(v) => onUpdate({ y: v })} />
+        </Grid2>
+      </Section>
+    </>
+  )
+}
+
+function CurvedTextBlock({
+  el,
+  onUpdate,
+}: {
+  el: Extract<ComposerElement, { type: 'curvedText' }>
+  onUpdate: (patch: Partial<ComposerElement>) => void
+}) {
+  return (
+    <>
+      <Section title="Text">
+        <textarea
+          value={el.text}
+          onChange={(e) => onUpdate({ text: e.target.value })}
+          rows={2}
+          placeholder="RIM TEXT…"
+          className="w-full resize-none rounded-[6px] border-[1.5px] border-hairline bg-white px-1.5 py-1 text-[12px] text-ink focus:border-ink focus:outline-none"
+        />
+      </Section>
+
+      <TextTypeBlock el={el} onUpdate={onUpdate} />
+
+      <Section title="Arc">
+        <Field label="Segment">
+          <select
+            value={el.arc}
+            onChange={(e) => onUpdate({ arc: e.target.value as 'top' | 'bottom' })}
+            className="h-7 w-full rounded-[6px] border-[1.5px] border-hairline bg-white px-1.5 text-[12px] focus:border-ink focus:outline-none"
+          >
+            <option value="top">Top</option>
+            <option value="bottom">Bottom</option>
+          </select>
+        </Field>
+        <Grid2>
+          <Num label="cx" value={el.cx} onChange={(v) => onUpdate({ cx: v })} />
+          <Num label="cy" value={el.cy} onChange={(v) => onUpdate({ cy: v })} />
+          <Num label="rx" value={el.rx} min={8}  onChange={(v) => onUpdate({ rx: v })} />
+          <Num label="ry" value={el.ry} min={8}  onChange={(v) => onUpdate({ ry: v })} />
+        </Grid2>
+      </Section>
+    </>
+  )
+}
+
+/** The shared font/style/uppercase/letter-spacing controls used
+ *  by both straight text and curved text. */
+function TextTypeBlock({
+  el,
+  onUpdate,
+}: {
+  el: Extract<ComposerElement, { type: 'text' | 'curvedText' }>
+  onUpdate: (patch: Partial<ComposerElement>) => void
+}) {
+  return (
+    <Section title="Typography">
+      <Field label="Font">
+        <select
+          value={el.fontFamily}
+          onChange={(e) => onUpdate({ fontFamily: e.target.value })}
+          className="h-7 w-full rounded-[6px] border-[1.5px] border-hairline bg-white px-1.5 text-[12px] focus:border-ink focus:outline-none"
+        >
+          {STAMP_FONTS.map((f) => (
+            <option key={f.key} value={f.key}>{f.label}</option>
+          ))}
+        </select>
+      </Field>
+      <Grid2>
+        <Num label="Size" value={el.fontSize} min={6} step={1}
+             onChange={(v) => onUpdate({ fontSize: v })} />
+        <Num label="Tracking" value={el.letterSpacing ?? 0} step={0.5}
+             onChange={(v) => onUpdate({ letterSpacing: v })} />
+      </Grid2>
+      <div className="flex gap-1.5">
+        <ToggleChip on={el.bold === true}      onClick={() => onUpdate({ bold:      !el.bold })}      label="Bold" />
+        <ToggleChip on={el.italic === true}    onClick={() => onUpdate({ italic:    !el.italic })}    label="Italic" />
+        <ToggleChip on={el.uppercase === true} onClick={() => onUpdate({ uppercase: !el.uppercase })} label="UPPER" />
+      </div>
+    </Section>
+  )
+}
+
+function ToggleChip({ on, onClick, label }: { on: boolean; onClick: () => void; label: string }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex-1 rounded-[6px] border-[1.5px] px-2 py-1 text-[11px] font-semibold transition-colors ${
+        on
+          ? 'border-ink bg-ink text-cream'
+          : 'border-hairline bg-white text-muted hover:text-ink'
+      }`}
+    >
+      {label}
+    </button>
   )
 }
 

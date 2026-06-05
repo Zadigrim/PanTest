@@ -23,10 +23,14 @@
 import type {
   ComposerElement,
   ComposerMetadata,
+  CurvedTextElement,
   EllipseElement,
   LineElement,
   RectElement,
+  TextElement,
 } from './types'
+import { fontByKey } from '../fonts'
+import { arcPathD, renderText } from './geometry'
 
 export function serializeStampSvg(doc: ComposerMetadata): string {
   const w = doc.surface.w
@@ -43,12 +47,12 @@ export function serializeStampSvg(doc: ComposerMetadata): string {
 
 function elementToSvg(el: ComposerElement): string {
   switch (el.type) {
-    case 'rect':    return rectSvg(el)
-    case 'ellipse': return ellipseSvg(el)
-    case 'line':    return lineSvg(el)
-    // Push 2+ — serializer branches added as elements land.
-    case 'text':
-    case 'curvedText':
+    case 'rect':       return rectSvg(el)
+    case 'ellipse':    return ellipseSvg(el)
+    case 'line':       return lineSvg(el)
+    case 'text':       return textSvg(el)
+    case 'curvedText': return curvedTextSvg(el)
+    // Push 3+ — icon + traced branches added as those elements land.
     case 'icon':
     case 'traced':
       return ''
@@ -89,6 +93,51 @@ function lineSvg(el: LineElement): string {
     `<line x1="${num(el.x1)}" y1="${num(el.y1)}" x2="${num(el.x2)}" y2="${num(el.y2)}" ` +
     `stroke="currentColor" stroke-width="${num(el.strokeWidth)}"${dash}${cap}${transform} />`
   )
+}
+
+function textAttrs(el: TextElement | CurvedTextElement): string {
+  const f = fontByKey(el.fontFamily)
+  const weight = el.bold   ? ' font-weight="700"'   : ''
+  const style  = el.italic ? ' font-style="italic"' : ''
+  const spacing = el.letterSpacing ? ` letter-spacing="${num(el.letterSpacing)}"` : ''
+  // Use attribute-form font-family so it round-trips through
+  // any SVG cleaner (vs CSS style="").
+  return ` font-family="${escapeAttr(f.family)}" font-size="${num(el.fontSize)}"${weight}${style}${spacing}` +
+         ` fill="currentColor" stroke="none"`
+}
+
+function textSvg(el: TextElement): string {
+  // Anchor at element (x, y) interpreted as the text's baseline-
+  // start point. The composer surfaces (x, y) as top-left of the
+  // bounding box; we add fontSize so the baseline sits beneath.
+  const baselineY = el.y + el.fontSize * 0.82  // ~ baseline ratio for most faces
+  const transform = rotationTransform(el.rotation, el.x, el.y + el.fontSize / 2)
+  const t = renderText(el.text, { uppercase: el.uppercase })
+  return `<text x="${num(el.x)}" y="${num(baselineY)}"${textAttrs(el)}${transform}>${escapeText(t)}</text>`
+}
+
+function curvedTextSvg(el: CurvedTextElement): string {
+  const t = renderText(el.text, { uppercase: el.uppercase })
+  const pathId = `cp-${el.id}`
+  const d = arcPathD(el.cx, el.cy, el.rx, el.ry, el.arc)
+  const transform = rotationTransform(el.rotation, el.cx, el.cy)
+  // <defs> on the same element so the path is local to this
+  // composition's namespace and unlikely to collide.
+  return (
+    `<g${transform}>` +
+      `<defs><path id="${pathId}" d="${d}" /></defs>` +
+      `<text${textAttrs(el)} text-anchor="middle">` +
+        `<textPath href="#${pathId}" startOffset="50%">${escapeText(t)}</textPath>` +
+      `</text>` +
+    `</g>`
+  )
+}
+
+function escapeText(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+function escapeAttr(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;')
 }
 
 // ── Utils ────────────────────────────────────────────────────────────────────
