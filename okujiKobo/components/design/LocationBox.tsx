@@ -2,6 +2,7 @@
 
 import { useRef, useCallback } from 'react'
 import type { DesignerStop } from '@/lib/design/types'
+import { StampPreview } from './StampPreview'
 
 const ROT_HANDLE_OFFSET = 28
 
@@ -214,17 +215,29 @@ export function LocationBox({
         onPointerUp={handleDragEnd}
         onPointerCancel={handleDragEnd}
       >
-        {/* Stamp preview — centered inside box */}
+        {/* Stamp preview — centered inside box. Branch:
+              - custom_asset → StampPreview (re-inks SVG via
+                currentColor + wrapper color; raster falls back
+                to <img> with no recolor, parity with mobile).
+              - emoji (default) → existing span render. */}
         <div className="flex h-full flex-col items-center justify-center gap-1 pointer-events-none">
-          <span
-            className="leading-none"
-            style={{
-              fontSize: Math.min(w, h) * 0.4,
-              color: `#${stop.stamp_color ?? '1D9E75'}`,
-            }}
-          >
-            {stop.stamp_icon ?? '📍'}
-          </span>
+          {stop.stamp_type === 'custom_asset' && stop.stamp_asset_id ? (
+            <StampPreview
+              assetId={stop.stamp_asset_id}
+              color={stop.stamp_color}
+              size={Math.min(w, h) * 0.7}
+            />
+          ) : (
+            <span
+              className="leading-none"
+              style={{
+                fontSize: Math.min(w, h) * 0.4,
+                color: `#${stop.stamp_color ?? '1D9E75'}`,
+              }}
+            >
+              {stop.stamp_icon ?? '📍'}
+            </span>
+          )}
           {w >= 80 && (
             <span
               className="max-w-full truncate px-1 text-center text-[10px] font-medium"

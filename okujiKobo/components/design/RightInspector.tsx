@@ -30,6 +30,7 @@ import type {
   LinePageElement,
 } from '@/lib/design/types'
 import type { StampAsset } from '@/lib/design/stamp-assets'
+import { StampComposer } from './StampComposer'
 
 export function RightInspector({
   creatorInstitutionId,
@@ -168,6 +169,9 @@ function StampPicker({
   const currentPassportId = usePassportStore((s) => s.passport?.id ?? null)
   const [myAssets, setMyAssets] = useState<StampAsset[]>([])
   const [instAssets, setInstAssets] = useState<StampAsset[]>([])
+  const [composerOpen, setComposerOpen] = useState(false)
+  // Force-refresh the asset list after the composer saves.
+  const [reloadKey, setReloadKey] = useState(0)
 
   useEffect(() => {
     const db = createClient() as any // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -190,7 +194,7 @@ function StampPicker({
       setMyAssets(rows.filter((r) => r.owner_id === user.id))
       setInstAssets(rows.filter((r) => r.owner_id !== user.id))
     })()
-  }, [currentPassportId])
+  }, [currentPassportId, reloadKey])
 
   const isCustom = stop.stamp_type === 'custom_asset'
 
@@ -214,6 +218,31 @@ function StampPicker({
 
   return (
     <div className="space-y-3">
+      {/* Compose-a-stamp launcher — primary affordance at the top
+          of the picker. Opens the StampComposer modal without
+          leaving the passport edit. On save, the new asset id is
+          selected on the current stop and the list reloads. */}
+      <button
+        type="button"
+        onClick={() => setComposerOpen(true)}
+        className="flex w-full items-center justify-center gap-2 rounded-card border-[1.5px] border-dashed border-green/60 bg-cream px-2 py-2 text-xs font-semibold text-green hover:border-green hover:bg-green/10"
+      >
+        ✎ Create a stamp
+      </button>
+
+      {currentPassportId && (
+        <StampComposer
+          mode="designer"
+          open={composerOpen}
+          currentPassportId={currentPassportId}
+          onClose={() => setComposerOpen(false)}
+          onSaved={(asset) => {
+            void persist({ stamp_asset_id: asset.id, stamp_type: 'custom_asset', stamp_icon: '' })
+            setReloadKey((k) => k + 1)
+          }}
+        />
+      )}
+
       {/* My uploads */}
       {(myAssets.length > 0 || instAssets.length > 0) && (
         <>

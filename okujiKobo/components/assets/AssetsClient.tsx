@@ -8,6 +8,7 @@ import { assetDisplayTitle } from '@/lib/assets/friendly-name'
 import { AssetCard, type AssetCardModel } from './AssetCard'
 import { AssetDrawer, type AssetDrawerExtras } from './AssetDrawer'
 import type { ScopeOption } from './AssetScopeEditor'
+import { StampComposer } from '@/components/design/StampComposer'
 
 /**
  * Assets-section orchestrator (one per tab).
@@ -70,6 +71,8 @@ export function AssetsClient({
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  // Stamp composer modal — only meaningful on the Stamps tab.
+  const [composerOpen, setComposerOpen] = useState(false)
 
   const rules = KIND_RULES[kind]
   const selected = list.find((a) => a.id === selectedId) ?? null
@@ -192,6 +195,18 @@ export function AssetsClient({
 
   return (
     <>
+      {/* Stamp composer modal — library-wide save (Assets-tab
+          scoping rule). On save we refresh the page so the new
+          row appears with its server-projected metadata. */}
+      {kind === 'stamp' && (
+        <StampComposer
+          mode="assets"
+          open={composerOpen}
+          onClose={() => setComposerOpen(false)}
+          onSaved={() => { router.refresh() }}
+        />
+      )}
+
       {/* ── Toolbar ──────────────────────────────────────────── */}
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-3">
@@ -232,6 +247,16 @@ export function AssetsClient({
               <option value="name">Name A–Z</option>
             </select>
           </label>
+
+          {kind === 'stamp' && (
+            <button
+              type="button"
+              onClick={() => setComposerOpen(true)}
+              className="inline-flex h-9 items-center rounded-[8px] border-[1.5px] border-green bg-white px-3 text-sm font-semibold text-green hover:bg-green hover:text-white"
+            >
+              ✎ Compose
+            </button>
+          )}
 
           <button
             type="button"
