@@ -12,7 +12,7 @@ interface Props {
   onClose: () => void
 }
 
-type Step = 'validate' | 'spend' | 'pricing' | 'confirm' | 'published'
+type Step = 'validate' | 'spend' | 'pricing' | 'confirm' | 'correction' | 'blocked' | 'published'
 
 export function PublishFlow({ onClose }: Props) {
   const passport = usePassportStore((s) => s.passport)
@@ -24,6 +24,42 @@ export function PublishFlow({ onClose }: Props) {
   const [priceCents, setPriceCents] = useState(passport?.price_cents ?? 0)
   const [publishing, setPublishing] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Correction-step state — only populated when we route into
+  // the with-holders republish path. holderCount is also used
+  // by the Confirm step copy when > 0.
+  const [holderCount, setHolderCount] = useState<number>(0)
+  const [justification, setJustification] = useState<string>('')
+  const [whatChanged, setWhatChanged] = useState<string>('')
+  const [blockedSummary, setBlockedSummary] = useState<{
+    counts: Record<string, number>
+  } | null>(null)
+  const [viewerIsAdmin, setViewerIsAdmin] = useState(false)
+  const [adminOverride, setAdminOverride] = useState(false)
+
+  // Pre-flight: holder count + viewer admin flag. The holder
+  // count decides whether to route into the correction step;
+  // viewer admin enables the override path when blocked.
+  useEffect(() => {
+    if (!passport) return
+    const supabase = createClient()
+    void (async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const db = supabase as any
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      const [{ count: acq }, { count: cp }, { data: prof }] = await Promise.all([
+        db.from('acquisitions')
+          .select('id', { count: 'exact', head: true })
+          .eq('passport_id', passport.id),
+        db.from('collector_passports')
+          .select('id', { count: 'exact', head: true })
+          .eq('passport_id', passport.id),
+        db.from('profiles').select('is_platform_admin').eq('id', user.id).maybeSingle(),
+      ])
+      setHolderCount(Math.max(acq ?? 0, cp ?? 0))
+      setViewerIsAdmin(!!prof?.is_platform_admin)
+    })()
+  }, [passport])
   // Pre-flight: fetch the current user's subscription state once so the
   // validate step can surface the Studio gate up-front instead of leaving
   // it for the trigger to throw at publish time. The trigger is still the
@@ -60,30 +96,69 @@ export function PublishFlow({ onClose }: Props) {
   const handlePublish = async () => {
     setPublishing(true)
     setError(null)
-    const supabase = createClient()
-    const { error: err } = await supabase
-      .from('passports')
-      .update({
-        status: 'published',
-        is_published: true,
-        price_cents: priceCents,
-        published_at: new Date().toISOString(),
-      })
-      .eq('id', passport.id)
 
-    if (err) {
-      setPublishing(false)
-      setError(err.message)
-      return
+    // Correction-only routing: when there are holders, ALL
+    // publishes go through /api/passports/:id/republish so the
+    // server diffs the snapshot, requires the justification,
+    // and writes the audit log. The price update is folded in
+    // (the route's UPDATE doesn't write price_cents — we do
+    // it pre-call here so the same correction path supports
+    // a price tweak).
+    if (holderCount > 0) {
+      // Persist the price first (the republish route doesn't
+      // touch it). RLS allows the creator's UPDATE in any
+      // state.
+      const supabase = createClient()
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supabase as any)
+        .from('passports')
+        .update({ price_cents: priceCents })
+        .eq('id', passport.id)
+
+      const res = await fetch(`/api/passports/${passport.id}/republish`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          justification, whatChanged,
+          adminOverride: adminOverride && viewerIsAdmin,
+        }),
+      })
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}))
+        if (res.status === 422 && j.summary) {
+          setBlockedSummary(j.summary)
+          setStep('blocked')
+        } else {
+          setError(j.error ?? `Republish failed (${res.status})`)
+        }
+        setPublishing(false)
+        return
+      }
+    } else {
+      // Zero-holder path — direct UPDATE (unchanged from the
+      // shipped publish behavior). Writes price_cents too.
+      const supabase = createClient()
+      const { error: err } = await supabase
+        .from('passports')
+        .update({
+          status: 'published',
+          is_published: true,
+          price_cents: priceCents,
+          published_at: new Date().toISOString(),
+        })
+        .eq('id', passport.id)
+      if (err) {
+        setPublishing(false)
+        setError(err.message)
+        return
+      }
     }
     updatePassport({ status: 'published', is_published: true, price_cents: priceCents })
 
-    // Generate + upload page images after the publish itself has
-    // landed. Dynamically imported so react-dom/server isn't pulled
-    // into the main designer bundle. The publish is already complete
-    // by this point — image failures don't block the user; Explore
-    // falls back to live-render for any missing slot and the next
-    // republish retries.
+    // Page-image regen runs the same way in both branches —
+    // republish overwrites at the same storage paths
+    // (publish-images.tsx is idempotent). Failures don't
+    // block the user; Explore falls back to live-render.
     try {
       const { generateAndUploadPassportImages } = await import('@/lib/explore/publish-images')
       await generateAndUploadPassportImages(passport, pages, stops)
@@ -125,8 +200,19 @@ export function PublishFlow({ onClose }: Props) {
             <PricingStep
               priceCents={priceCents}
               onChange={setPriceCents}
-              onContinue={() => setStep('confirm')}
+              onContinue={() => setStep(holderCount > 0 ? 'correction' : 'confirm')}
               onBack={() => setStep('spend')}
+            />
+          )}
+          {step === 'correction' && (
+            <CorrectionStep
+              holderCount={holderCount}
+              justification={justification}
+              whatChanged={whatChanged}
+              onJustification={setJustification}
+              onWhatChanged={setWhatChanged}
+              onContinue={() => setStep('confirm')}
+              onBack={() => setStep('pricing')}
             />
           )}
           {step === 'confirm' && (
@@ -136,8 +222,20 @@ export function PublishFlow({ onClose }: Props) {
               stopCount={stops.length}
               publishing={publishing}
               error={error}
+              holderCount={holderCount}
               onPublish={handlePublish}
-              onBack={() => setStep('pricing')}
+              onBack={() => setStep(holderCount > 0 ? 'correction' : 'pricing')}
+            />
+          )}
+          {step === 'blocked' && blockedSummary && (
+            <BlockedStep
+              summary={blockedSummary}
+              holderCount={holderCount}
+              viewerIsAdmin={viewerIsAdmin}
+              adminOverride={adminOverride}
+              onToggleOverride={setAdminOverride}
+              onRetry={() => { setStep('confirm'); setBlockedSummary(null) }}
+              onClose={onClose}
             />
           )}
           {step === 'published' && <PublishedStep passport={passport} onClose={onClose} />}
@@ -343,6 +441,7 @@ function ConfirmStep({
   stopCount,
   publishing,
   error,
+  holderCount,
   onPublish,
   onBack,
 }: {
@@ -351,15 +450,20 @@ function ConfirmStep({
   stopCount: number
   publishing: boolean
   error: string | null
+  holderCount: number
   onPublish: () => void
   onBack: () => void
 }) {
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="text-base font-semibold text-navy">Ready to publish?</h2>
+        <h2 className="text-base font-semibold text-navy">
+          {holderCount > 0 ? 'Ready to republish?' : 'Ready to publish?'}
+        </h2>
         <p className="mt-1 text-sm text-muted">
-          Review the summary below, then click Publish.
+          {holderCount > 0
+            ? `This correction will reach ${holderCount} holder${holderCount === 1 ? '' : 's'} immediately.`
+            : 'Review the summary below, then click Publish.'}
         </p>
       </div>
 
@@ -432,6 +536,183 @@ function PublishedStep({
           Back to editor
         </Button>
       </div>
+    </div>
+  )
+}
+
+// ── Correction step ─────────────────────────────────────────
+// Only rendered when holderCount > 0 (republish to existing
+// holders). Collects the designer's required justification +
+// the holder-facing what-changed line. The server diff gate
+// is the actual enforcement — this UI is a forced pause that
+// gets the words on the record BEFORE the publish call.
+
+function CorrectionStep({
+  holderCount,
+  justification,
+  whatChanged,
+  onJustification,
+  onWhatChanged,
+  onContinue,
+  onBack,
+}: {
+  holderCount: number
+  justification: string
+  whatChanged: string
+  onJustification: (v: string) => void
+  onWhatChanged: (v: string) => void
+  onContinue: () => void
+  onBack: () => void
+}) {
+  const jOk = justification.trim().length >= 10 && justification.trim().length <= 1000
+  const wOk = whatChanged.trim().length >= 3   && whatChanged.trim().length <= 200
+  return (
+    <div className="space-y-4">
+      <div>
+        <h2 className="text-base font-semibold text-navy">Correction</h2>
+        <p className="mt-1 text-sm text-muted">
+          Republishing to <strong>{holderCount}</strong> holder{holderCount === 1 ? '' : 's'} is
+          for critical fixes only — coordinates, addresses, verification, stop closures, or
+          factual-text corrections. Cosmetic edits will be blocked.
+        </p>
+      </div>
+
+      <label className="block text-xs">
+        <span className="mb-1 block font-semibold uppercase tracking-[1.5px] text-muted">
+          Why are you republishing? <span className="text-red">*</span>
+        </span>
+        <textarea
+          value={justification}
+          onChange={(e) => onJustification(e.target.value)}
+          maxLength={1000}
+          rows={3}
+          placeholder="Lime Kiln stop coordinates were 400 m off — corrected to the trailhead sign."
+          className="w-full resize-none rounded-panel border border-hairline bg-white px-2.5 py-1.5 text-sm text-ink placeholder:text-muted focus:border-ink focus:outline-none"
+        />
+        <span className="mt-1 block tabular-nums text-muted">
+          {justification.trim().length} / 1000 — specific. Admins read these.
+        </span>
+      </label>
+
+      <label className="block text-xs">
+        <span className="mb-1 block font-semibold uppercase tracking-[1.5px] text-muted">
+          What will holders see in the notice? <span className="text-red">*</span>
+        </span>
+        <input
+          type="text"
+          value={whatChanged}
+          onChange={(e) => onWhatChanged(e.target.value)}
+          maxLength={200}
+          placeholder="Coordinates corrected for Lime Kiln."
+          className="w-full rounded-panel border border-hairline bg-white px-2.5 py-1.5 text-sm text-ink placeholder:text-muted focus:border-ink focus:outline-none"
+        />
+        <span className="mt-1 block tabular-nums text-muted">
+          {whatChanged.trim().length} / 200 — one short, plain sentence.
+        </span>
+      </label>
+
+      <div className="flex gap-2 pt-2">
+        <Button variant="ghost" size="sm" onClick={onBack}>
+          ← Back
+        </Button>
+        <Button
+          size="sm"
+          className="flex-1"
+          onClick={onContinue}
+          disabled={!jOk || !wOk}
+        >
+          Continue
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+// ── Blocked step ────────────────────────────────────────────
+// Surfaces the server's 422 verdict when the diff includes
+// non-critical (`other`) changes. Lists the per-category
+// counts so the designer can see WHY it was blocked. Platform
+// admins get an override checkbox; everyone else must revert
+// the offending edits and retry.
+
+function BlockedStep({
+  summary,
+  holderCount,
+  viewerIsAdmin,
+  adminOverride,
+  onToggleOverride,
+  onRetry,
+  onClose,
+}: {
+  summary: { counts: Record<string, number> }
+  holderCount: number
+  viewerIsAdmin: boolean
+  adminOverride: boolean
+  onToggleOverride: (v: boolean) => void
+  onRetry: () => void
+  onClose: () => void
+}) {
+  const c = summary.counts
+  return (
+    <div className="space-y-4">
+      <div>
+        <h2 className="text-base font-semibold text-red">Republish blocked</h2>
+        <p className="mt-1 text-sm text-muted">
+          These edits aren&rsquo;t corrections. Republishing to <strong>{holderCount}</strong>{' '}
+          holder{holderCount === 1 ? '' : 's'} is for critical fixes only.
+        </p>
+      </div>
+
+      <div className="rounded-panel border border-hairline divide-y divide-hairline text-sm">
+        <CountRow label="Location data" n={c.location_data ?? 0}                 verdict="ok" />
+        <CountRow label="Verification mechanics" n={c.verification_mechanics ?? 0} verdict="ok" />
+        <CountRow label="Stop closure / removal" n={c.stop_closure ?? 0}          verdict="ok" />
+        <CountRow label="Factual text" n={c.factual_text ?? 0}                    verdict="flag" />
+        <CountRow label="Other (cosmetic / non-correction)" n={c.other ?? 0}      verdict="block" />
+      </div>
+
+      <p className="text-xs text-muted">
+        Revert the <strong>Other</strong> edits in the designer and retry, or contact support.
+      </p>
+
+      {viewerIsAdmin && (
+        <label className="flex items-start gap-2 rounded-panel border border-accent bg-accent/10 px-3 py-2 text-xs text-ink">
+          <input
+            type="checkbox"
+            checked={adminOverride}
+            onChange={(e) => onToggleOverride(e.target.checked)}
+            className="mt-0.5 h-3.5 w-3.5 accent-accent"
+          />
+          <span>
+            <strong>Admin override</strong> — publish anyway. Logged with your id as
+            <code className="ml-1">admin_override_by</code>.
+          </span>
+        </label>
+      )}
+
+      <div className="flex gap-2 pt-2">
+        <Button variant="ghost" size="sm" onClick={onClose}>
+          Close
+        </Button>
+        <Button size="sm" className="flex-1" onClick={onRetry}>
+          {viewerIsAdmin && adminOverride ? 'Override + republish' : 'Back to Confirm'}
+        </Button>
+      </div>
+    </div>
+  )
+}
+function CountRow({ label, n, verdict }: { label: string; n: number; verdict: 'ok' | 'flag' | 'block' }) {
+  return (
+    <div className="flex items-center justify-between px-4 py-2">
+      <span className="text-muted">{label}</span>
+      <span className={`tabular-nums font-semibold ${
+        n === 0 ? 'text-hairline'
+        : verdict === 'block' ? 'text-red'
+        : verdict === 'flag'  ? 'text-accent'
+        : 'text-green'
+      }`}>
+        {n}
+      </span>
     </div>
   )
 }

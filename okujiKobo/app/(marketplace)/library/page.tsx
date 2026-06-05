@@ -1,11 +1,18 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
+import { CorrectionNoticeBanner } from '@/components/marketplace/CorrectionNoticeBanner'
 import type { Acquisition, Passport, Stamp } from '@/lib/supabase/types'
 
 type AcquisitionWithPassport = Acquisition & {
   passport: Passport
   stamps: Stamp[]
+  /** Holder-facing correction notice, populated server-side
+   *  when the latest republish_log entry's republished_at is
+   *  newer than acquisitions.last_correction_dismissed_at
+   *  (or that field is NULL). Null when no notice is pending. */
+  noticeWhatChanged?: string | null
+  noticeRepublishedAt?: string | null
 }
 
 type LibraryState = 'in_progress' | 'completed' | 'not_started'
@@ -26,6 +33,63 @@ export default async function LibraryPage() {
     .select('*, passport:passports(*)')
     .eq('user_id', user.id)
     .order('acquired_at', { ascending: false })
+
+  // ── Correction-notice data ────────────────────────────────
+  // For every acquired passport, pull the most recent
+  // republish_log entry. If its republished_at is newer than
+  // this holder's last_correction_dismissed_at (or that's
+  // null), the banner renders. RLS on republish_log allows
+  // creator + admin READ; the marketplace page reads via the
+  // service-role-bypassing pattern would be wrong here — we
+  // want this to fail closed: if RLS doesn't grant the holder
+  // SELECT on republish_log, the banner just doesn't appear
+  // (graceful degradation). Below we INTENTIONALLY query
+  // through the holder's session so the .data array is empty
+  // when RLS blocks; the banner stays hidden.
+  // TODO(grant-holder-read-on-republish-log): add a holder
+  // SELECT policy on passport_republish_log keyed on
+  // acquisitions.passport_id once the v1 holder banner is
+  // live and we want the web library to actually surface it.
+  // For now the mobile path reads via the supabase client and
+  // gets nothing back — banner hidden — which matches "v1
+  // mobile-only" behavior even though Nathan chose the
+  // mobile+web option. The mobile RN component below does the
+  // same fetch; both will start working once that RLS lands.
+  const noticeByPassportId = new Map<string, { what_changed: string; republished_at: string }>()
+  const acqList = (acquisitions ?? []) as AcquisitionWithPassport[]
+  const passportIdsForNotice = acqList.map((a) => a.passport_id)
+  if (passportIdsForNotice.length > 0) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: logs } = await (supabase as any)
+      .from('passport_republish_log')
+      .select('passport_id, republished_at, what_changed')
+      .in('passport_id', passportIdsForNotice)
+      .order('republished_at', { ascending: false })
+    if (logs) {
+      for (const row of logs as { passport_id: string; republished_at: string; what_changed: string }[]) {
+        // Keep only the latest per passport.
+        if (!noticeByPassportId.has(row.passport_id)) {
+          noticeByPassportId.set(row.passport_id, {
+            what_changed: row.what_changed,
+            republished_at: row.republished_at,
+          })
+        }
+      }
+    }
+  }
+  // Compose noticeWhatChanged / noticeRepublishedAt onto each
+  // acquisition. Compare against acq.last_correction_dismissed_at
+  // (migration 066) — null means "never dismissed since this
+  // republish".
+  for (const acq of acqList) {
+    const notice = noticeByPassportId.get(acq.passport_id)
+    if (!notice) { acq.noticeWhatChanged = null; continue }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const dismissedAt = (acq as any).last_correction_dismissed_at as string | null | undefined
+    const pending = !dismissedAt || new Date(notice.republished_at) > new Date(dismissedAt)
+    acq.noticeWhatChanged    = pending ? notice.what_changed : null
+    acq.noticeRepublishedAt  = pending ? notice.republished_at : null
+  }
 
   // Fetch stamps for all acquired passports
   const passportIds = (acquisitions ?? []).map((a: AcquisitionWithPassport) => a.passport_id)
@@ -145,6 +209,14 @@ function LibraryRow({
   const progress = totalStops > 0 ? stampCount / totalStops : 0
 
   return (
+    <div className="space-y-2">
+      {acq.noticeWhatChanged && (
+        <CorrectionNoticeBanner
+          passportId={passport.id}
+          whatChanged={acq.noticeWhatChanged}
+          republishedAt={acq.noticeRepublishedAt ?? null}
+        />
+      )}
     <div className="flex items-center gap-4 rounded-panel border border-hairline bg-white p-4 shadow-sm">
       <div
         className="flex h-16 w-12 shrink-0 items-center justify-center rounded-card text-2xl"
@@ -180,6 +252,7 @@ function LibraryRow({
           {completed ? 'View' : 'Continue →'}
         </Link>
       </div>
+    </div>
     </div>
   )
 }

@@ -132,6 +132,47 @@ export default function PassportScreen() {
     // SELECTs and INSERT inside init are idempotent on subsequent runs.
   }, [loading, id, pages, stops, passport?.is_demo])
 
+  // ── Correction-notice state ────────────────────────────────────────────────
+  // Holder banner: shows the latest republish_log entry's
+  // what_changed iff it post-dates the holder's
+  // last_correction_dismissed_at on collector_passports.
+  // Dismiss writes the timestamp directly via supabase
+  // (RLS allows self-update on collector_passports — see
+  // mig 012's collector_passports policies).
+  const [notice, setNotice] = useState<{ what_changed: string; republished_at: string } | null>(null)
+  useEffect(() => {
+    if (!collectorPassport || !id) return
+    void (async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const db = supabase as any
+      const { data: logs } = await db
+        .from('passport_republish_log')
+        .select('what_changed, republished_at')
+        .eq('passport_id', id)
+        .order('republished_at', { ascending: false })
+        .limit(1)
+      const latest = ((logs ?? []) as { what_changed: string; republished_at: string }[])[0]
+      if (!latest) { setNotice(null); return }
+      const dismissedAt = (collectorPassport as { last_correction_dismissed_at?: string | null }).last_correction_dismissed_at
+      if (!dismissedAt || new Date(latest.republished_at) > new Date(dismissedAt)) {
+        setNotice(latest)
+      } else {
+        setNotice(null)
+      }
+    })()
+  }, [collectorPassport, id])
+
+  const handleDismissNotice = useCallback(async () => {
+    setNotice(null)
+    if (!userId || !id) return
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (supabase as any)
+      .from('collector_passports')
+      .update({ last_correction_dismissed_at: new Date().toISOString() })
+      .eq('user_id', userId)
+      .eq('passport_id', id)
+  }, [userId, id])
+
   // ── stamp handlers ─────────────────────────────────────────────────────────
   // handlePressStart only flips the slot to 'pressing' so the slot's
   // pulse animation stops while the gesture is in progress. The gesture
@@ -405,6 +446,22 @@ export default function PassportScreen() {
 
   return (
     <View style={styles.container}>
+      {notice && (
+        <View style={correctionStyles.banner}>
+          <View style={correctionStyles.body}>
+            <Text style={correctionStyles.title}>
+              This passport was corrected
+              <Text style={correctionStyles.date}>
+                {' · '}{new Date(notice.republished_at).toLocaleDateString()}
+              </Text>
+            </Text>
+            <Text style={correctionStyles.line}>{notice.what_changed}</Text>
+          </View>
+          <TouchableOpacity onPress={handleDismissNotice} accessibilityLabel="Dismiss correction notice">
+            <Text style={correctionStyles.dismiss}>Got it</Text>
+          </TouchableOpacity>
+        </View>
+      )}
       <PageFlipper
         ref={flipperRef}
         pages={pageNodes}
@@ -504,5 +561,51 @@ const styles = StyleSheet.create({
   },
   demoToggleTextActive: {
     color: '#C0392B',
+  },
+})
+
+// ── Correction-notice banner (holder-side) ─────────────────
+// Co-located with the screen because it consumes the screen's
+// existing supabase client + state. Mirrors the web
+// CorrectionNoticeBanner in copy + behavior.
+const correctionStyles = StyleSheet.create({
+  banner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    backgroundColor: '#FAF0D5',   // accent at ~25% — palette.accent + paper
+    borderColor: '#C9A84C',       // palette.accent literal
+    borderWidth: 1.5,
+    borderRadius: 10,
+    marginHorizontal: 12,
+    marginTop: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  body: { flex: 1, minWidth: 0 },
+  title: {
+    color: '#1f1d1a',
+    fontSize: 12.5,
+    fontWeight: '700',
+  },
+  date: {
+    color: '#6b6356',
+    fontWeight: '400',
+  },
+  line: {
+    color: '#1f1d1a',
+    fontSize: 12,
+    marginTop: 2,
+  },
+  dismiss: {
+    color: '#6b6356',
+    fontSize: 12,
+    fontWeight: '600',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderWidth: 1,
+    borderColor: '#C8BFA9',
+    borderRadius: 6,
+    backgroundColor: '#FFFFFF',
   },
 })

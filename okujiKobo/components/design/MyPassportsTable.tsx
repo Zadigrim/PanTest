@@ -420,9 +420,12 @@ function StatusPill({ status }: { status: RowStatus }) {
 // ── Actions menu (⋯) ──────────────────────────────────────────────────────────
 
 function ActionsMenu({ passport, onArchived }: { passport: DesignerPassport; onArchived: () => void }) {
+  const router = useRouter()
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
   const ref = useRef<HTMLDivElement>(null)
+  const isPublished = passport.is_published === true || passport.status === 'published'
 
   useEffect(() => {
     if (!open) return
@@ -443,17 +446,70 @@ function ActionsMenu({ passport, onArchived }: { passport: DesignerPassport; onA
     }
   }
 
-  async function handleArchive() {
-    if (!confirm(`Archive "${passport.title}"? It will move to the Paused list and stop appearing in Explore.`)) return
-    setBusy('archive')
+  async function handleUnpublish() {
+    // Reads the holder count off the server response so the
+    // confirm message is honest. Server is the source of
+    // truth; this UI is just a thin shell.
+    if (!confirm(
+      `Unpublish "${passport.title}"?\n\nThis delists it from Explore, free-PDF, and new ` +
+      `acquisitions. Existing holders KEEP access throughout. Republishing to holders later ` +
+      `will require a verified critical justification.`,
+    )) return
+    setBusy('unpublish')
+    setError(null)
     try {
-      const supabase = createClient()
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supabase as any)
-        .from('passports')
-        .update({ status: 'archived', is_published: false })
-        .eq('id', passport.id)
+      const res = await fetch(`/api/passports/${passport.id}/unpublish`, { method: 'POST' })
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}))
+        setError(j.error ?? 'Unpublish failed')
+        return
+      }
+      onArchived()           // reuse the row-refresh callback
+      router.refresh()
+    } finally {
+      setBusy(null)
+      setOpen(false)
+    }
+  }
+
+  async function handleDelete() {
+    // Two-phase confirm: title-typing when the passport is
+    // "substantial" (>2 pages), plain confirm otherwise. The
+    // server hard-enforces the zero-acquisition rule; this is
+    // a UX safety, not a security gate.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const pageCount = (passport as any).page_count ?? 0
+    if (pageCount > 2) {
+      const typed = prompt(
+        `Type the passport title to delete:\n\n"${passport.title}"`,
+      )
+      if (typed?.trim() !== passport.title.trim()) {
+        if (typed !== null) alert('Title did not match — delete cancelled.')
+        return
+      }
+    } else {
+      if (!confirm(
+        `Delete "${passport.title}"? This permanently removes the passport, its pages, and stops.`,
+      )) return
+    }
+    setBusy('delete')
+    setError(null)
+    try {
+      const res = await fetch(`/api/passports/${passport.id}`, { method: 'DELETE' })
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}))
+        if (res.status === 409) {
+          alert(
+            `This passport has ${j.holderCount ?? 'some'} holder${j.holderCount === 1 ? '' : 's'} and cannot be deleted. ` +
+            `Unpublish it instead — holders keep access.`,
+          )
+        } else {
+          setError(j.error ?? 'Delete failed')
+        }
+        return
+      }
       onArchived()
+      router.refresh()
     } finally {
       setBusy(null)
       setOpen(false)
@@ -475,7 +531,7 @@ function ActionsMenu({ passport, onArchived }: { passport: DesignerPassport; onA
       {open && (
         <div
           role="menu"
-          className="absolute right-0 top-10 z-20 w-44 overflow-hidden rounded-[8px] border-[1.5px] border-ink bg-white py-1 shadow-md"
+          className="absolute right-0 top-10 z-20 w-52 overflow-hidden rounded-[8px] border-[1.5px] border-ink bg-white py-1 shadow-md"
         >
           <MenuItem label={busy === 'print' ? 'Generating…' : 'Print posters'} onClick={handlePrint} disabled={busy !== null} />
           <Link
@@ -487,7 +543,23 @@ function ActionsMenu({ passport, onArchived }: { passport: DesignerPassport; onA
             Preview
           </Link>
           <div className="my-1 border-t border-surface-faintdiv" />
-          <MenuItem label={busy === 'archive' ? 'Archiving…' : 'Archive'} onClick={handleArchive} disabled={busy !== null} danger />
+          {isPublished ? (
+            <MenuItem
+              label={busy === 'unpublish' ? 'Unpublishing…' : 'Unpublish'}
+              hint="holders keep access"
+              onClick={handleUnpublish}
+              disabled={busy !== null}
+            />
+          ) : (
+            <MenuItem
+              label={busy === 'delete' ? 'Deleting…' : 'Delete'}
+              hint="drafts only"
+              onClick={handleDelete}
+              disabled={busy !== null}
+              danger
+            />
+          )}
+          {error && <p className="px-3 py-1 text-[10.5px] text-red">{error}</p>}
         </div>
       )}
     </div>
