@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import {
   usePassportStore,
@@ -170,8 +170,48 @@ function StampPicker({
   const [myAssets, setMyAssets] = useState<StampAsset[]>([])
   const [instAssets, setInstAssets] = useState<StampAsset[]>([])
   const [composerOpen, setComposerOpen] = useState(false)
-  // Force-refresh the asset list after the composer saves.
+  // Force-refresh the asset list after the composer saves OR an
+  // upload completes.
   const [reloadKey, setReloadKey] = useState(0)
+  const [uploading, setUploading] = useState(false)
+  const [uploadError, setUploadError] = useState<string | null>(null)
+  const uploadInputRef = useRef<HTMLInputElement>(null)
+
+  async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = ''  // reset so picking the same file twice still fires
+    if (!file) return
+    setUploading(true)
+    setUploadError(null)
+    try {
+      // Goes through the SAME /api/assets/upload route the
+      // Assets-tab dropper uses — monochrome detection, dim
+      // capture, ownership scoping all share one path. We pin
+      // scoped_passport_id to the current passport (matching the
+      // Custom-background and StampComposer defaults) — users
+      // who want library scope upload from the Assets → Stamps
+      // tab instead.
+      const form = new FormData()
+      form.append('file', file)
+      form.append('asset_type', 'stamp')
+      form.append('name', file.name)
+      if (currentPassportId) form.append('scoped_passport_id', currentPassportId)
+      const res = await fetch('/api/assets/upload', { method: 'POST', body: form })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        setUploadError(body.error ?? body.message ?? 'Upload failed')
+        return
+      }
+      const json = await res.json() as { id: string; url: string | null }
+      // Auto-select the new stamp on the current stop and bump
+      // reloadKey so the asset rosters re-fetch + the upload
+      // shows up under "My uploads".
+      void persist({ stamp_asset_id: json.id, stamp_type: 'custom_asset', stamp_icon: '' })
+      setReloadKey((k) => k + 1)
+    } finally {
+      setUploading(false)
+    }
+  }
 
   useEffect(() => {
     const db = createClient() as any // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -229,6 +269,41 @@ function StampPicker({
       >
         ✎ Create a stamp
       </button>
+
+      {/* Direct-upload alternative — same look, different path.
+          Posts the file through /api/assets/upload (the same
+          route AssetsClient uses) with asset_type=stamp and
+          scoped_passport_id pinned to the current passport so
+          the upload lands in this passport's StampPicker by
+          default. Reuses the picker reload key so the new
+          asset shows up under "My uploads" immediately. */}
+      <button
+        type="button"
+        onClick={() => uploadInputRef.current?.click()}
+        disabled={uploading}
+        className="flex w-full items-center justify-center gap-2 rounded-card border-[1.5px] border-dashed border-green/60 bg-cream px-2 py-2 text-xs font-semibold text-green hover:border-green hover:bg-green/10 disabled:opacity-60"
+      >
+        {uploading ? 'Uploading…' : '↑ Upload a stamp'}
+      </button>
+      <input
+        ref={uploadInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleUpload}
+      />
+      {uploadError && (
+        <p role="alert" className="text-[10.5px] text-accent">
+          {uploadError}
+          <button
+            type="button"
+            onClick={() => setUploadError(null)}
+            className="ml-1 underline"
+          >
+            dismiss
+          </button>
+        </p>
+      )}
 
       {currentPassportId && (
         <StampComposer
