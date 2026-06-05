@@ -130,70 +130,79 @@ function binarize(
   return bin
 }
 
-/** Standard 4-connected component labelling — produces a label
- *  for every ink pixel + a per-label pixel count for noise drop. */
-function labelComponents(bin: Uint8Array, w: number, h: number): {
+/** Connected component labelling for binary pixels.
+ *
+ *  Two passes per call: 4-connected flood-fill from each
+ *  unvisited target-valued pixel. Returns per-label pixel
+ *  counts (for noise drop), the topmost-leftmost pixel of each
+ *  label (so traceBoundary can start from a known good cell
+ *  without re-scanning), and whether each label touches the
+ *  image edge (so the caller can identify the background paper
+ *  component when labelling paper for hole detection).
+ *
+ *  `target` is the binary value to LABEL — 1 for ink blobs,
+ *  0 for paper components.
+ */
+function labelComponents(bin: Uint8Array, w: number, h: number, target: 0 | 1): {
   labels: Int32Array
   counts: number[]
+  firstPixel: { x: number; y: number }[]
+  touchesEdge: boolean[]
 } {
   const labels = new Int32Array(bin.length).fill(-1)
   const counts: number[] = []
+  const firstPixel: { x: number; y: number }[] = []
+  const touchesEdge: boolean[] = []
   const stack: number[] = []
   let next = 0
 
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
       const idx = y * w + x
-      if (bin[idx] !== 1 || labels[idx] !== -1) continue
+      if (bin[idx] !== target || labels[idx] !== -1) continue
       // Flood fill from (x, y).
       stack.push(idx)
       labels[idx] = next
+      firstPixel.push({ x, y })  // topmost-leftmost by scan order
       let n = 0
+      let edge = false
       while (stack.length > 0) {
         const c = stack.pop()!
         n++
         const cx = c % w, cy = (c / w) | 0
+        if (cx === 0 || cy === 0 || cx === w - 1 || cy === h - 1) edge = true
         for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
           const nx = cx + dx, ny = cy + dy
           if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue
           const ni = ny * w + nx
-          if (bin[ni] === 1 && labels[ni] === -1) {
+          if (bin[ni] === target && labels[ni] === -1) {
             labels[ni] = next
             stack.push(ni)
           }
         }
       }
       counts.push(n)
+      touchesEdge.push(edge)
       next++
     }
   }
-  return { labels, counts }
+  return { labels, counts, firstPixel, touchesEdge }
 }
 
-/** Moore-neighbor boundary trace for one connected blob.
+/** Moore-neighbor boundary trace for one connected region.
  *  Returns the outer-boundary contour as a list of (x, y)
- *  points (inclusive on the ink cell coordinates).
+ *  points (inclusive on the cell coordinates of the region).
  *
- *  Holes inside the blob aren't traced separately here; the
- *  combined output relies on fill-rule even-odd for clean
- *  rendering when the original art has interior cutouts. A
- *  future enhancement (true potrace) would trace holes
- *  explicitly. */
+ *  Generic over what "membership" means: caller passes an
+ *  `isMember(x, y)` predicate so the same routine traces both
+ *  ink blobs (for outer letter shapes) and paper holes (for
+ *  the counterforms inside letters). Pre-located starting cell
+ *  via startX/startY avoids re-scanning. */
 function traceBoundary(
-  labels: Int32Array, w: number, h: number, label: number,
+  w: number, h: number,
+  startX: number, startY: number,
+  isMember: (x: number, y: number) => boolean,
 ): { x: number; y: number }[] {
-  // Locate the topmost-leftmost pixel of this label.
-  let startX = -1, startY = -1
-  for (let y = 0; y < h && startX < 0; y++) {
-    for (let x = 0; x < w; x++) {
-      if (labels[y * w + x] === label) { startX = x; startY = y; break }
-    }
-  }
-  if (startX < 0) return []
-
-  const isInk = (x: number, y: number) =>
-    x >= 0 && y >= 0 && x < w && y < h && labels[y * w + x] === label
-
   // 8-neighborhood offsets ordered clockwise from "above".
   const dirs = [
     [0, -1], [1, -1], [1, 0], [1, 1],
@@ -214,7 +223,7 @@ function traceBoundary(
       const d = (prevDir + 1 + i) & 7
       const [dx, dy] = dirs[d]
       const nx = cx + dx, ny = cy + dy
-      if (isInk(nx, ny)) {
+      if (nx >= 0 && ny >= 0 && nx < w && ny < h && isMember(nx, ny)) {
         cx = nx; cy = ny
         // The direction we came from is the OPPOSITE of d.
         prevDir = (d + 4) & 7
@@ -286,8 +295,16 @@ function fmt(v: number): string {
 /**
  * Public entry. Threshold + label + trace + simplify + serialize.
  * Synchronous after the image is loaded; main-thread cost is
- * O(w*h) for binarization + flood fill. The composer caps maxDim
- * so the work stays interactive while the threshold slider drags.
+ * O(w*h) for binarization + two flood fills (ink + paper). The
+ * composer caps maxDim so the work stays interactive while the
+ * threshold slider drags.
+ *
+ * Holes (interior counterforms — the inside of an `o`, the
+ * bowl of a `u`, etc.) are traced as separate inner contours
+ * and emitted alongside the outer boundaries. The output uses
+ * fill-rule="evenodd", so the inner contours punch through the
+ * outer fill: counterforms render as actual holes, not solid.
+ * Without this pass, an `o` reads as a filled dot.
  */
 export function traceImageData(
   img: HTMLImageElement,
@@ -297,13 +314,40 @@ export function traceImageData(
   const MAX_DIM = 320  // tracer cap; the composer downscales here
   const { data, w, h } = rasterize(img, MAX_DIM)
   const bin = binarize(data, w, h, threshold, invert)
-  const { labels, counts } = labelComponents(bin, w, h)
+  // Label ink (target=1) AND paper (target=0). Paper labelling
+  // is what lets us detect holes inside ink blobs — anything
+  // that's a paper-component but doesn't touch the image edge
+  // is, by definition, an interior hole.
+  const ink   = labelComponents(bin, w, h, 1)
+  const paper = labelComponents(bin, w, h, 0)
   const contours: { x: number; y: number }[][] = []
-  for (let label = 0; label < counts.length; label++) {
-    if (counts[label] < minBlobPixels) continue
-    const c = traceBoundary(labels, w, h, label)
+
+  // Outer boundaries of ink blobs.
+  for (let label = 0; label < ink.counts.length; label++) {
+    if (ink.counts[label] < minBlobPixels) continue
+    const start = ink.firstPixel[label]
+    const c = traceBoundary(w, h, start.x, start.y,
+      (x, y) => ink.labels[y * w + x] === label)
     if (c.length === 0) continue
     contours.push(rdp(c, simplifyTolerance))
   }
+
+  // Inner boundaries — every paper component that DOES NOT
+  // touch the image edge. The edge-touching paper component is
+  // the background; the rest are holes carved into ink. A
+  // 4-pixel floor catches noise without missing fine
+  // counterforms (the dot inside a small `o` is still a real
+  // visual feature).
+  const HOLE_MIN = 4
+  for (let label = 0; label < paper.counts.length; label++) {
+    if (paper.touchesEdge[label]) continue
+    if (paper.counts[label] < HOLE_MIN) continue
+    const start = paper.firstPixel[label]
+    const c = traceBoundary(w, h, start.x, start.y,
+      (x, y) => paper.labels[y * w + x] === label)
+    if (c.length === 0) continue
+    contours.push(rdp(c, simplifyTolerance))
+  }
+
   return { d: contoursToPathD(contours), w, h }
 }
