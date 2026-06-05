@@ -123,7 +123,10 @@ const FLAG_DEFS: {
   { key: 'can_verify',            label: 'verify',            state: 'enforced' },
   { key: 'can_distribute_prizes', label: 'distribute prizes', state: 'enforced' },
   { key: 'can_design',            label: 'design',            state: 'enforced' },
-  { key: 'can_manage_employees',  label: 'manage employees',  state: 'partial'  },
+  // Gates /manage/employees page entry + /api/employees/lookup
+  // (BLD-02 enforcement) + the existing institution / transfer
+  // write paths.
+  { key: 'can_manage_employees',  label: 'manage employees',  state: 'enforced' },
   // Now gates /api/analytics (migration 054 companion change).
   { key: 'can_view_analytics',    label: 'view analytics',    state: 'enforced' },
   // Gates tier / pricing / revenue fields on PATCH /api/institutions

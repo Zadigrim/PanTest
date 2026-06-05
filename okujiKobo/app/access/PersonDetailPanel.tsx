@@ -30,7 +30,7 @@ export function PersonDetailPanel({
 }) {
   return (
     <div className="flex h-full flex-col">
-      <Header row={row} isAdmin={isAdmin} />
+      <Header row={row} isAdmin={isAdmin} canSeeEmail={isAdmin} />
 
       <div className="flex-1 space-y-6 overflow-y-auto px-5 py-5">
         <Section title="Subscriptions">
@@ -61,10 +61,33 @@ export function PersonDetailPanel({
   )
 }
 
-function Header({ row }: { row: AccessEntityRow; isAdmin: boolean }) {
-  // TODO: needs an admin RPC (e.g. admin_lookup_user_email) — auth.users.email
-  // is not exposed via PostgREST and RLS on profiles doesn't carry it.
-  // Header gracefully degrades without it.
+function Header({
+  row,
+  canSeeEmail,
+}: {
+  row: AccessEntityRow
+  isAdmin: boolean
+  canSeeEmail: boolean
+}) {
+  const [email, setEmail] = useState<string | null>(null)
+  useEffect(() => {
+    if (!canSeeEmail) { setEmail(null); return }
+    let cancelled = false
+    void (async () => {
+      try {
+        const res = await fetch(`/api/admin/users/${row.id}/email`)
+        if (!res.ok) return
+        const json = (await res.json()) as { email: string | null }
+        if (!cancelled) setEmail(json.email ?? null)
+      } catch {
+        // Degrade silently — the route may be unreachable in a
+        // mis-configured env; the header still reads fine without
+        // the email line.
+      }
+    })()
+    return () => { cancelled = true }
+  }, [row.id, canSeeEmail])
+
   return (
     <header className="border-b border-surface-faintdiv px-5 py-4">
       <p className="text-[10px] font-semibold uppercase tracking-[2px] text-muted">Person</p>
@@ -72,6 +95,9 @@ function Header({ row }: { row: AccessEntityRow; isAdmin: boolean }) {
       <p className="mt-0.5 text-[11.5px] text-muted">
         {row.raw.role ?? 'collector'}
       </p>
+      {email && (
+        <p className="mt-1 font-mono text-[10.5px] text-muted">{email}</p>
+      )}
     </header>
   )
 }

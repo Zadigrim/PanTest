@@ -650,7 +650,7 @@ function AddMemberForm({
       const lookupRes = await fetch('/api/employees/lookup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: trimmed }),
+        body: JSON.stringify({ email: trimmed, institutionId }),
       })
 
       let targetUserId: string

@@ -266,11 +266,12 @@ function AddEmployeeForm({
     startTransition(async () => {
       const supabase = createClient()
 
-      // Look up user by email via server API route (client can't call admin SDK)
+      // Look up user by email via server API route (client can't call admin SDK).
+      // institutionId scopes the route's can_manage_employees check (BLD-02).
       const lookupRes = await fetch('/api/employees/lookup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: trimmedEmail }),
+        body: JSON.stringify({ email: trimmedEmail, institutionId }),
       })
 
       let targetUserId: string
@@ -553,13 +554,22 @@ export default function EmployeesPage() {
           if (!firstInst?.id) throw new Error('No institutions found')
           instId = firstInst.id
         } else {
+          // BLD-02 enforcement: the /manage/employees page now
+          // requires can_manage_employees. Without it, a non-admin
+          // employee shouldn't see (let alone edit) the roster.
+          // Multi-institution callers land on whichever of their
+          // can_manage_employees=true rows comes first (FIX-03 /
+          // BLD-30 will add a proper institution switcher).
           const { data: myAuthz, error: myAuthzErr } = await supabase
             .from('employee_authorizations')
             .select('institution_id')
             .eq('user_id', user.id)
+            .eq('can_manage_employees', true)
             .limit(1)
             .single()
-          if (myAuthzErr || !myAuthz) throw new Error('No institutional authorization found')
+          if (myAuthzErr || !myAuthz) {
+            throw new Error('can_manage_employees required to access this page')
+          }
           instId = myAuthz.institution_id
         }
 
