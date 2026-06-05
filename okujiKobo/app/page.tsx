@@ -8,6 +8,9 @@ import { HeroAlert } from '@/components/dashboard/HeroAlert'
 import { AttentionQueue } from '@/components/dashboard/AttentionQueue'
 import { ActivityFeed } from '@/components/dashboard/ActivityFeed'
 import { JumpTiles } from '@/components/dashboard/JumpTiles'
+import { WelcomeMount } from '@/components/welcome/WelcomeMount'
+import { WelcomeFooterLink } from '@/components/welcome/WelcomeFooterLink'
+import { resolveWelcomeAudience } from '@/lib/welcome/audience'
 
 export const metadata = { title: 'okuji' }
 
@@ -30,7 +33,13 @@ export default async function DashboardPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const data = await loadDashboard(supabase, user.id)
+  // Dashboard data + welcome audience run in parallel so the modal
+  // resolution adds no extra waterfall hop.
+  const [data, welcome] = await Promise.all([
+    loadDashboard(supabase, user.id),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    resolveWelcomeAudience(supabase as any, user.id),
+  ])
   const flags = getDashboardFlags()
 
   const greetName = data.firstName ?? data.displayName ?? 'there'
@@ -104,7 +113,25 @@ export default async function DashboardPage() {
 
         {/* ── Jump tiles ───────────────────────────────────────── */}
         <JumpTiles roles={data.roles} />
+
+        {/* ── Footer ───────────────────────────────────────────── */}
+        {/* Quiet "About okujiKōbō" link reopens the welcome modal —
+            the only entry point for re-orientation. Kept here
+            rather than in AppNav because the AppNav avatar has no
+            dropdown primitive today; the footer adds 5 lines, no
+            nav refactor. */}
+        <footer className="mt-10 flex justify-center border-t border-surface-faintdiv pt-4">
+          <WelcomeFooterLink />
+        </footer>
       </main>
+
+      {/* ── Welcome modal (first login only; re-openable from
+            the footer via a window event) ────────────────────── */}
+      <WelcomeMount
+        audience={welcome.audience}
+        institutionName={welcome.institutionName}
+        initiallyOpen={welcome.welcomeSeenAt === null}
+      />
     </div>
   )
 }

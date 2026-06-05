@@ -1,0 +1,33 @@
+-- Migration 059: profiles.welcome_seen_at
+--
+-- Persists the "first-login welcome modal has been dismissed"
+-- state, per user, on the server. Local storage was rejected
+-- because dismissal must follow the account across devices —
+-- the modal is the only onboarding surface, and showing it on
+-- every new device login would be wrong.
+--
+-- Semantics:
+--   * NULL  → modal has never been dismissed; show on next dashboard mount.
+--   * Set   → modal has been dismissed; do not auto-open.
+--   * Storing the timestamp (not a boolean) lets us audit
+--     adoption + run a future "show it again if we shipped a
+--     major rewrite after X" rule without another migration.
+--
+-- Existing accounts at migration time: welcome_seen_at = NULL,
+-- so the handful of current users will see the modal once on
+-- their next dashboard mount. The brief explicitly accepts
+-- this — the friendly-list of current users won't be
+-- surprised, and the modal is a useful refresher anyway.
+--
+-- RLS: the existing self-update policies on `profiles` already
+-- allow `id = auth.uid()` UPDATE; no policy change needed.
+-- The /api/welcome/dismiss handler is the only writer.
+--
+-- ROLLBACK: DROP COLUMN welcome_seen_at. The modal then falls
+-- back to "never dismissed" client-side state — the modal
+-- still works, just becomes a permanent first-mount overlay
+-- until the column re-lands. (You'd never roll back without a
+-- replacement.)
+
+ALTER TABLE public.profiles
+  ADD COLUMN IF NOT EXISTS welcome_seen_at timestamptz NULL;

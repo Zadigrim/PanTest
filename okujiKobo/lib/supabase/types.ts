@@ -159,6 +159,10 @@ export interface Profile {
   pro_expires_at: string | null       // ISO timestamp
   is_platform_admin: boolean
   connect_roles: string[] | null
+  /** First-login welcome modal dismissal (migration 059). NULL until the
+   *  user closes the modal; set to now() on dismissal. Cleared by hand if
+   *  we ever want to re-show it after a major rewrite. */
+  welcome_seen_at: string | null
   created_at: string
   updated_at: string
 }
