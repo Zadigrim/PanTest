@@ -96,7 +96,7 @@ export function ComposerAddToolbar({
 
       <AddButton onClick={() => onAdd({
         id: newElementId(), type: 'curvedText',
-        text: 'TOP TEXT',
+        text: 'CURVED TEXT',
         cx, cy,
         rx: 95, ry: 95,
         arc: 'top',
@@ -106,25 +106,10 @@ export function ComposerAddToolbar({
         uppercase: true,
         letterSpacing: 2,
       })}>
-        ⌒ <span className="ml-1">Curved · top</span>
-      </AddButton>
-
-      <AddButton onClick={() => onAdd({
-        id: newElementId(), type: 'curvedText',
-        text: 'BOTTOM TEXT',
-        cx, cy,
-        rx: 95, ry: 95,
-        arc: 'bottom',
-        fontSize: 18,
-        fontFamily: DEFAULT_STAMP_FONT_KEY,
-        bold: true,
-        uppercase: true,
-        letterSpacing: 2,
-      })}>
-        {/* Mirrored glyph to differentiate from top in the
-            toolbar — both buttons add the same element type, the
-            arc segment differs. */}
-        ⌣ <span className="ml-1">Curved · bottom</span>
+        {/* Single button — the inspector's arc segment toggle
+            flips top ↔ bottom after add. Two buttons proved
+            redundant since the inspector already exposes it. */}
+        ⌒ <span className="ml-1">Curved text</span>
       </AddButton>
 
       <span className="mx-1 h-5 w-px bg-hairline" aria-hidden />

@@ -30,10 +30,56 @@
 // Patent posture preserved: the renderer doesn't claim contact-area
 // scaling. It just renders what the gesture component or the legacy stop
 // enum tells it to render.
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import { View, Image } from 'react-native'
-import Svg, { Circle, Rect, Path, Text as SvgText, Defs, Filter, FeTurbulence, FeDisplacementMap } from 'react-native-svg'
+import Svg, { Circle, Rect, Path, Text as SvgText, Defs, Filter, FeTurbulence, FeDisplacementMap, SvgXml } from 'react-native-svg'
 import type { Stop } from '../../types'
+
+// Module-scoped SVG content cache. A passport with many stops
+// sharing the same composed stamp asset fetches each URL once.
+// Keyed by URL — recoloring is cheap and happens on read.
+const SVG_TEXT_CACHE = new Map<string, string>()
+const SVG_INFLIGHT   = new Map<string, Promise<string | null>>()
+
+async function fetchSvgText(url: string): Promise<string | null> {
+  const cached = SVG_TEXT_CACHE.get(url)
+  if (cached) return cached
+  const inflight = SVG_INFLIGHT.get(url)
+  if (inflight) return inflight
+
+  const p = (async () => {
+    try {
+      const res = await fetch(url)
+      if (!res.ok) return null
+      const text = await res.text()
+      SVG_TEXT_CACHE.set(url, text)
+      return text
+    } catch {
+      return null
+    }
+  })()
+  SVG_INFLIGHT.set(url, p)
+  try {
+    return await p
+  } finally {
+    SVG_INFLIGHT.delete(url)
+  }
+}
+
+/** Recolor a composed-stamp SVG. The composer writes every
+ *  stroke/fill as the literal string `currentColor`; mobile
+ *  has no CSS color cascade, so we replace inline. */
+function recolorSvg(svg: string, hex: string): string {
+  return svg.replace(/currentColor/g, hex)
+}
+
+/** A URL points at an SVG asset when its path ends in `.svg`
+ *  (the composer's save path is `${user_id}/stamp-${ts}.svg`).
+ *  Conservative check — anything else falls back to <Image>. */
+function isSvgUrl(url: string | null): boolean {
+  if (!url) return false
+  return url.toLowerCase().split('?')[0].endsWith('.svg')
+}
 
 interface Props {
   stop: Pick<Stop, 'stamp_icon' | 'stamp_color' | 'stamp_shape' | 'stamp_smudge'>
@@ -107,6 +153,21 @@ export function StampArtwork({
     ? (stop.stamp_asset?.url ?? null)
     : null
 
+  // SVG custom assets re-ink via stamp_color (the composer writes
+  // currentColor in every stroke/fill; we replace inline). Raster
+  // assets keep their natural colors and skip this fetch.
+  const customIsSvg = isSvgUrl(customAssetUrl)
+  const [svgRecolored, setSvgRecolored] = useState<string | null>(null)
+  useEffect(() => {
+    if (!customIsSvg || !customAssetUrl) { setSvgRecolored(null); return }
+    let cancelled = false
+    void fetchSvgText(customAssetUrl).then((text) => {
+      if (cancelled || !text) return
+      setSvgRecolored(recolorSvg(text, stop.stamp_color))
+    })
+    return () => { cancelled = true }
+  }, [customAssetUrl, customIsSvg, stop.stamp_color])
+
   // Filter primitives are undefined on the web SVG renderer
   const filterSupported = !!Filter && !!FeTurbulence && !!FeDisplacementMap
   const useFilter = filterSupported && displacementScale > 0
@@ -140,10 +201,35 @@ export function StampArtwork({
   // applied to BOTH modes uniformly so smudge behavior matches.
   const stampBody = (filterRef: string | null, opacityOverride?: number) => {
     if (customAssetUrl) {
-      // Custom-asset mode. The displacement filter doesn't apply to a
-      // raster <Image> in RN, so we approximate the "noisy edges" by
-      // letting the trail-ghost density carry the smudge feel and
-      // skipping the filter on the image itself.
+      // SVG branch (composed stamps): render the recolored SVG
+      // via SvgXml. currentColor was replaced in-place at fetch
+      // time so the stamp re-inks with stamp_color the way it
+      // does in the web designer canvas. Filter doesn't apply
+      // to SvgXml (same reason as the raster path below) — the
+      // trail ghosts carry the smudge feel.
+      if (customIsSvg) {
+        if (!svgRecolored) {
+          // Loading — return an empty View so the stamp slot
+          // reserves space without flashing the default shape.
+          return <View style={{ width: size, height: size }} />
+        }
+        return (
+          <View
+            style={{
+              width: size,
+              height: size,
+              opacity: (opacityOverride ?? 1) * (ghost ? 0.6 : 1),
+            }}
+          >
+            <SvgXml xml={svgRecolored} width={size} height={size} />
+          </View>
+        )
+      }
+
+      // Raster branch (uploaded PNG/JPG). The displacement filter
+      // doesn't apply to a raster <Image> in RN, so we approximate
+      // the "noisy edges" by letting the trail-ghost density carry
+      // the smudge feel and skipping the filter on the image itself.
       return (
         <Image
           source={{ uri: customAssetUrl }}
