@@ -275,14 +275,17 @@ function GridOverlay({ color, opacity }: { color: string; opacity: number }) {
 
 // ── Stamp page slot ───────────────────────────────────────────────────────────
 function PassportPageSlotContent({ page }: { page: PassportPageForPrint }) {
-  const label = page.section_title || page.section_name || `Page ${page.page_order}`
+  // The label that used to render above each passport page was
+  // removed — users add their own header inside the page itself
+  // when they want one. Keeps `label` derivation intact in case
+  // we want it back as an accessible-name source later.
+  void page.section_title; void page.section_name; void page.page_order
   const paperColor = `#${page.paper_color ?? 'F5F2EC'}`
   const bgColor = `#${page.background_color ?? '0D1B2A'}`
   const bgOpacity = clampOpacityPct(page.background_opacity)
   const customBgOpacity = clampOpacityPct(page.custom_background_opacity)
   return (
     <>
-      <Text style={S.sectionTitle}>{label}</Text>
       <View style={[S.pageCanvas, { width: CANVAS_W, height: CANVAS_H, marginLeft: CANVAS_OFFSET_X, backgroundColor: paperColor }]}>
         {page.background_type === 'guilloche' && <GuillocheOverlay color={bgColor} opacity={bgOpacity} />}
         {page.background_type === 'grid' && <GridOverlay color={bgColor} opacity={bgOpacity} />}
@@ -702,11 +705,17 @@ function CoverSheetSideA({ ctx, sheetIndex }: { ctx: RenderContext; sheetIndex: 
       <Text style={S.sheetTag}>{`Sheet ${sheetIndex + 1} / ${ctx.totalSheets}`}</Text>
       {splitStrip ? (
         <>
+          {/* 0.5" margin on top + left so the okuji throw-away
+              page sits inside the paper sheet's printable area
+              with no bleed. Right edge stays at the centerfold
+              (SHEET_W / 2) and bottom edge stays at the cut
+              line (STRIP_H) — only the top + left edges pull
+              away from the sheet edge. 36pt = 0.5" at 72 dpi. */}
           <MarketingStrip
-            top={0}
-            left={0}
-            width={SHEET_W / 2}
-            height={STRIP_H}
+            top={36}
+            left={36}
+            width={SHEET_W / 2 - 36}
+            height={STRIP_H - 36}
             imageDataUri={ctx.marketingImageDataUri}
           />
           <InstructionStrip top={0} left={SHEET_W / 2} width={SHEET_W / 2} />
