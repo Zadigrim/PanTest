@@ -38,9 +38,11 @@ export default async function StopLibraryPage() {
 
   // ── Shared stops ──
   // Pull every is_shared stop with its educational metadata
-  // and the joins needed for attribution. The page_id walks
-  // up to passports → institutions for the institution name;
-  // creator joins to profiles for the display name.
+  // and the joins needed for attribution. Stops have no
+  // creator_id column of their own — ownership is INDIRECT
+  // via page_id → passport_pages → passports.creator_id —
+  // so the creator display name comes off the parent
+  // passport's creator profile, not off the stop.
   const { data: stopsRaw } = await db
     .from('stops')
     .select(`
@@ -49,10 +51,11 @@ export default async function StopLibraryPage() {
       address_city, address_state, address_country,
       classifiers, grade_levels, subject_areas,
       learning_objective, journal_prompt,
-      creator_id, created_at,
-      creator:profiles!creator_id (display_name),
+      created_at,
       page:passport_pages!page_id (
         passport:passports!passport_id (
+          creator_id,
+          creator:profiles!creator_id (display_name),
           institution:institutions!proprietor_id (id, name)
         )
       )
@@ -73,10 +76,14 @@ export default async function StopLibraryPage() {
     subject_areas: string[] | null
     learning_objective: string | null
     journal_prompt: string | null
-    creator_id: string | null
     created_at: string
-    creator: { display_name: string | null } | null
-    page: { passport: { institution: { id: string; name: string | null } | null } | null } | null
+    page: {
+      passport: {
+        creator_id: string | null
+        creator: { display_name: string | null } | null
+        institution: { id: string; name: string | null } | null
+      } | null
+    } | null
   }>
   const stopIds = stops.map((s) => s.id)
 
@@ -173,8 +180,8 @@ export default async function StopLibraryPage() {
     subject_areas: s.subject_areas ?? [],
     learning_objective: s.learning_objective,
     journal_prompt: s.journal_prompt,
-    creator_id: s.creator_id,
-    creator_name: s.creator?.display_name ?? null,
+    creator_id: s.page?.passport?.creator_id ?? null,
+    creator_name: s.page?.passport?.creator?.display_name ?? null,
     institution_id: s.page?.passport?.institution?.id ?? null,
     institution_name: s.page?.passport?.institution?.name ?? null,
     acknowledgment_count: ackCounts.get(s.id) ?? 0,

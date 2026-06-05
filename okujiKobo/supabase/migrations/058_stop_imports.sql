@@ -53,15 +53,24 @@ CREATE POLICY "stop_imports_read" ON public.stop_imports
   USING (auth.uid() IS NOT NULL);
 
 -- INSERT: only your own import. target_stop_id must also be
--- a stop you own (creator_id = auth.uid()) so the bookkeeping
--- can't be poisoned by claiming someone else's stop as
--- "your import".
+-- a stop you own. Ownership of a stop is INDIRECT — there is
+-- no stops.creator_id column. The chain is
+--   stops.page_id → passport_pages.passport_id → passports.creator_id
+-- which matches the existing "stops_creator" policy from
+-- migration 012_blockpoint4.sql (lines 303–312). Using the
+-- same chain here keeps RLS semantics aligned between
+-- "can I edit this stop?" and "can I claim it as my import?".
 DROP POLICY IF EXISTS "stop_imports_insert" ON public.stop_imports;
 CREATE POLICY "stop_imports_insert" ON public.stop_imports
   FOR INSERT
   WITH CHECK (
     importer_id = auth.uid()
     AND EXISTS (
-      SELECT 1 FROM public.stops s WHERE s.id = target_stop_id AND s.creator_id = auth.uid()
+      SELECT 1
+      FROM public.stops s
+      JOIN public.passport_pages pp ON pp.id = s.page_id
+      JOIN public.passports p       ON p.id  = pp.passport_id
+      WHERE s.id = target_stop_id
+        AND p.creator_id = auth.uid()
     )
   );
