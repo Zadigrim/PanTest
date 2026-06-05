@@ -7,6 +7,7 @@ import {
 } from '@react-pdf/renderer'
 import { createClient } from '@/lib/supabase/server'
 import { normalizeAll, normalizeKey, type NormalizeItem } from '@/lib/print/normalize-images'
+import { renderStampForPdf } from '@/lib/design/stamp-composer/pdf-render'
 
 // ── Marketing mark loader ────────────────────────────────────────────────────
 // The okuji-ground-03 woven-waves PNG used on the free-passport
@@ -66,7 +67,10 @@ const S = StyleSheet.create({
   slotContent: { flex: 1, padding: PAD, flexDirection: 'column', overflow: 'hidden' },
   sectionTitle: { fontSize: 9, fontFamily: 'Helvetica-Bold', color: '#333333', textAlign: 'center', marginBottom: 4 },
   pageCanvas: { position: 'relative', borderWidth: 0.5, borderColor: '#DDDDDD', borderStyle: 'solid' },
-  locationBox: { position: 'absolute', borderWidth: 1, borderColor: '#999999', borderStyle: 'dashed', borderRadius: 2 },
+  // Composed stamps render INSIDE the location box (Push 7).
+  // Centered flex so the <Svg> sits above the label text without
+  // overlapping it visually.
+  locationBox: { position: 'absolute', borderWidth: 1, borderColor: '#999999', borderStyle: 'dashed', borderRadius: 2, alignItems: 'center', justifyContent: 'center' },
   locationBoxName: { position: 'absolute', top: 2, left: 0, right: 0, textAlign: 'center', fontSize: 5, color: '#000000', fontFamily: 'Helvetica' },
   namePage: { flex: 1, flexDirection: 'column', justifyContent: 'center', paddingHorizontal: 10 },
   nameTitle: { fontSize: 14, fontFamily: 'Helvetica-Bold', color: '#1A1A1A', textAlign: 'center', marginBottom: 24 },
@@ -96,7 +100,20 @@ function BlankByDesignLabel({ top, text }: { top: number; text: string }) {
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────────
-interface StopForPrint { id: string; name: string; stop_order: number; box_x: number; box_y: number; box_width: number; box_height: number; rotation: number }
+interface StopForPrint {
+  id: string; name: string; stop_order: number
+  box_x: number; box_y: number; box_width: number; box_height: number; rotation: number
+  // Composer-era stamp fields. Custom-asset stops with an SVG
+  // URL get their SVG content fetched server-side + embedded
+  // via the SVG → @react-pdf translator (lib/design/
+  // stamp-composer/pdf-render). Raster + emoji stamps fall
+  // through to the existing label-only render.
+  stamp_type?: 'emoji' | 'custom_asset' | null
+  stamp_color?: string | null
+  /** Hydrated server-side for SVG custom assets — null when the
+   *  stop's asset isn't an SVG (raster) or the fetch failed. */
+  stampSvgContent?: string | null
+}
 interface BaseElement { id: string; x: number; y: number; width: number; height: number }
 interface TextPageElement extends BaseElement { type: 'text'; content?: string; fontSize?: number; fontWeight?: 'normal' | 'bold'; color?: string; align?: 'left' | 'center' | 'right'; rotation?: number }
 interface ImagePageElement extends BaseElement { type: 'image'; imageUrl?: string; opacity?: number; rotation?: number }
@@ -276,8 +293,22 @@ function PassportPageSlotContent({ page }: { page: PassportPageForPrint }) {
         {page.stops.map((stop) => {
           const x = stop.box_x * CANVAS_SCALE, y = stop.box_y * CANVAS_SCALE
           const w = stop.box_width * CANVAS_SCALE, h = stop.box_height * CANVAS_SCALE
+          // Composer-era custom_asset stops embed their SVG via
+          // the translator; raster + emoji fall through to the
+          // existing label-only render (mobile + designer
+          // canvas already handle those modes — emoji-in-PDF
+          // would need an emoji font and is a separate push).
+          const stampSvgNode = stop.stamp_type === 'custom_asset' && stop.stampSvgContent
+            ? renderStampForPdf({
+                svg: stop.stampSvgContent,
+                hexColor: `#${stop.stamp_color ?? '1D9E75'}`,
+                width: w * 0.7,
+                height: h * 0.7,
+              })
+            : null
           return (
             <View key={stop.id} style={[S.locationBox, { left: x, top: y, width: w, height: h, transform: stop.rotation ? `rotate(${stop.rotation}deg)` : undefined }]}>
+              {stampSvgNode}
               <Text style={S.locationBoxName}>{stop.name}</Text>
             </View>
           )
@@ -977,10 +1008,10 @@ async function handlePrintRequest(request: Request, passportId: string) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: stopsRaw, error: stopsErr } = await (supabase as any)
     .from('stops')
-    .select('id, page_id, stop_order, name, box_x, box_y, box_width, box_height, rotation')
+    .select('id, page_id, stop_order, name, box_x, box_y, box_width, box_height, rotation, stamp_type, stamp_color, stamp_asset_id')
     .in('page_id', pageIds)
     .order('stop_order', { ascending: true }) as {
-      data: { id: string; page_id: string; stop_order: number; name: string; box_x: number | null; box_y: number | null; box_width: number; box_height: number; rotation: number | null }[] | null
+      data: { id: string; page_id: string; stop_order: number; name: string; box_x: number | null; box_y: number | null; box_width: number; box_height: number; rotation: number | null; stamp_type: string | null; stamp_color: string | null; stamp_asset_id: string | null }[] | null
       error: unknown
     }
 
@@ -988,18 +1019,61 @@ async function handlePrintRequest(request: Request, passportId: string) {
     return new Response(JSON.stringify({ error: 'Failed to fetch stops' }), { status: 500, headers: { 'Content-Type': 'application/json' } })
   }
 
+  // For every stop that points at a custom_asset, batch-fetch
+  // the asset row to get its URL + file_format. SVG assets get
+  // their text content fetched + cached by URL so multiple
+  // stops sharing one stamp asset cost one HTTP round-trip.
+  const assetIds = Array.from(new Set(
+    (stopsRaw ?? [])
+      .filter((s) => s.stamp_type === 'custom_asset' && s.stamp_asset_id)
+      .map((s) => s.stamp_asset_id as string),
+  ))
+  const assetMap = new Map<string, { url: string | null; file_format: string | null }>()
+  if (assetIds.length > 0) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: assetRows } = await (supabase as any)
+      .from('design_assets')
+      .select('id, url, file_format')
+      .in('id', assetIds)
+    for (const row of (assetRows ?? []) as { id: string; url: string | null; file_format: string | null }[]) {
+      assetMap.set(row.id, { url: row.url, file_format: row.file_format })
+    }
+  }
+  // Fetch SVG content for asset URLs that are SVG. Concurrent
+  // fetches; failures degrade to null (label-only render).
+  const svgUrls = Array.from(assetMap.values())
+    .filter((a) => a.url && (a.file_format === 'image/svg+xml' || a.url.toLowerCase().split('?')[0].endsWith('.svg')))
+    .map((a) => a.url as string)
+  const svgByUrl = new Map<string, string>()
+  await Promise.all(svgUrls.map(async (url) => {
+    try {
+      const res = await fetch(url)
+      if (res.ok) svgByUrl.set(url, await res.text())
+    } catch { /* keep going; missing stamps render as label-only */ }
+  }))
+
   // Build per-page data. Every stop is always included now; the old
   // selectedIds filter is gone alongside the modal's stop checkboxes.
   const pagesForPrint: PassportPageForPrint[] = pagesRaw
     .map((page) => {
       const pageStops = (stopsRaw ?? [])
         .filter((s) => s.page_id === page.id)
-        .map((s) => ({
-          id: s.id, name: s.name, stop_order: s.stop_order,
-          box_x: s.box_x ?? 40, box_y: s.box_y ?? 40,
-          box_width: s.box_width ?? 120, box_height: s.box_height ?? 120,
-          rotation: s.rotation ?? 0,
-        }))
+        .map<StopForPrint>((s) => {
+          const asset = s.stamp_asset_id ? assetMap.get(s.stamp_asset_id) ?? null : null
+          const stampSvgContent =
+            s.stamp_type === 'custom_asset' && asset?.url
+              ? (svgByUrl.get(asset.url) ?? null)
+              : null
+          return {
+            id: s.id, name: s.name, stop_order: s.stop_order,
+            box_x: s.box_x ?? 40, box_y: s.box_y ?? 40,
+            box_width: s.box_width ?? 120, box_height: s.box_height ?? 120,
+            rotation: s.rotation ?? 0,
+            stamp_type: (s.stamp_type as 'emoji' | 'custom_asset' | null) ?? null,
+            stamp_color: s.stamp_color,
+            stampSvgContent,
+          }
+        })
       return {
         id: page.id,
         page_order: page.page_order,
