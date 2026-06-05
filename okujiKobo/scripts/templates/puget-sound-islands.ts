@@ -8,10 +8,11 @@ import type { PassportTemplate } from './types'
 // is set).
 //
 // SpendTier note: the brief asked for "the $50–150 tier" at the
-// passport level. The codebase's tier vocabulary (migration 047)
-// caps at `50_plus` ($50+ open-ended); `50_plus` is the closest
-// bucket and absorbs the $50–150 ferry-stack reality the brief
-// describes.
+// passport level. That maps directly to the passport-level
+// `50_150` value (lib/design/spend-tiers.ts). Per-stop tiers
+// use a DIFFERENT, coarser vocabulary that caps at `50_plus`
+// (migration 047) — Blake Island's per-stop spend is `50_plus`
+// because the stop-level vocabulary has no $50–150 bucket.
 //
 // Page / stop counts: 10 pages, 28 stops total (3,3,3,3,3,1,3,3,3,3).
 //
@@ -32,7 +33,7 @@ export const pugetSoundIslands: PassportTemplate = {
   description:
     'Ten islands, four ferries, two bridges, one boat — the grand tour of Puget Sound, north to south.',
   passportType: 'location',
-  expectedSpendTier: '50_plus',
+  expectedSpendTier: '50_150',
   expectedSpendNote:
     'Ferry fares add up across the Sound; Blake Island requires boat or kayak access. ' +
     'Most stops themselves are free.',

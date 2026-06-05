@@ -6,7 +6,39 @@
 // trigger sync_verification_tier_from_method() derives it from
 // experience_type + experience_verification_method.
 
-export type SpendTier = 'free' | 'under_5' | '5_to_15' | '15_to_50' | '50_plus'
+// Two distinct vocabularies live in the DB and the designer code:
+//
+//   StopSpendTier      — per-stop, capped at 50_plus (open-ended).
+//                        Defined by stops_expected_spend_tier_check
+//                        (migration 047).
+//   PassportSpendTier  — whole-trip, finer resolution at the top end.
+//                        Defined by lib/design/spend-tiers.ts +
+//                        passports_expected_spend_tier_check.
+//
+// They DO NOT share a vocabulary (migration 047's comment claimed
+// they did — that comment predated lib/design/spend-tiers.ts adding
+// the higher buckets). Keep them as separate union types so the
+// compiler catches passport-level values used on a stop and vice
+// versa.
+
+export type StopSpendTier =
+  | 'free'
+  | 'under_5'
+  | '5_to_15'
+  | '15_to_50'
+  | '50_plus'
+
+export type PassportSpendTier =
+  | 'free'
+  | 'under_15'
+  | '15_50'
+  | '50_150'
+  | '150_500'
+  | '500_plus'
+
+// Backwards-compat alias for templates that already use the
+// stop-level name (e.g. bainbridge.ts). Same set of values.
+export type SpendTier = StopSpendTier
 
 export type PassportType = 'location' | 'experience' | 'learning'
 
@@ -23,7 +55,7 @@ export interface AddressFields {
 
 interface StopBase {
   name: string
-  spend?: SpendTier
+  spend?: StopSpendTier
 }
 
 interface PhysicalStopBase extends StopBase {
@@ -57,7 +89,7 @@ export interface PassportTemplate {
   title: string
   description?: string
   passportType: PassportType
-  expectedSpendTier?: SpendTier
+  expectedSpendTier?: PassportSpendTier
   expectedSpendNote?: string
   pages: PageTemplate[]
 }
