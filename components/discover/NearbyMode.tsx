@@ -1,246 +1,397 @@
-// Nearby mode — small map view at top, stop list below with "in range" / "walk Xm" distance pills.
-import React, { useEffect, useState, useCallback } from 'react'
+// Nearby mode — published passports with a physical stop within
+// 25 km of the user's current position. v1 is a LIST (no map);
+// passport cards are reused from CatalogueMode via PassportCard.
+//
+// PRIVACY: the user's coordinates are obtained ephemerally inside
+// fetchNearbyPassports(), passed to the find_passports_nearby()
+// RPC exactly once, and discarded. No coordinate value ever lands
+// in this component's state, AsyncStorage, or any log. See
+// lib/nearby.ts and migration 012 for the full data path.
+
+import React, { useCallback, useEffect, useState } from 'react'
 import {
-  View, Text, FlatList, StyleSheet, TouchableOpacity,
-  ActivityIndicator, useWindowDimensions,
+  View, Text, ScrollView, StyleSheet, TouchableOpacity,
+  ActivityIndicator, Linking, Platform,
 } from 'react-native'
-import MapView, { Marker, Region } from 'react-native-maps'
-import { getCurrentLocation } from '../../lib/gps'
-import { haversineDistance } from '../../lib/gps'
-import { supabase } from '../../lib/supabase'
 import { router } from 'expo-router'
-import type { Stop, PassportPage } from '../../types'
+import { usePublishedPassports } from '../../hooks/usePassport'
+import {
+  fetchNearbyPassports,
+  type NearbyPassport,
+  type NearbyPermissionState,
+} from '../../lib/nearby'
+import { FEATURES } from '../../lib/features'
 import { palette } from '../../lib/colors'
+import { PassportCard, cardState } from './PassportCard'
+import type { Passport } from '../../types'
 
-interface NearbyStop extends Stop {
-  passportId: string
-  passportTitle: string
-  pageId: string
-  distanceM: number | null
-  lat: number | null
-  lng: number | null
-}
+const NAVY  = palette.navy
+const GOLD  = palette.accent
+const INK   = palette.ink
+const MUTED = '#6b6356'
 
-// Parse PostGIS geography point returned as GeoJSON or WKT
-function parsePoint(raw: unknown): { lat: number; lng: number } | null {
-  if (!raw) return null
-  // GeoJSON: { type: 'Point', coordinates: [lng, lat] }
-  if (typeof raw === 'object' && !Array.isArray(raw)) {
-    const geo = raw as Record<string, unknown>
-    if (geo.type === 'Point' && Array.isArray(geo.coordinates)) {
-      const [lng, lat] = geo.coordinates as number[]
-      if (typeof lat === 'number' && typeof lng === 'number') return { lat, lng }
-    }
-    // Plain { lat, lng } or { latitude, longitude }
-    const lat = (geo.lat ?? geo.latitude) as number | undefined
-    const lng = (geo.lng ?? geo.longitude) as number | undefined
-    if (typeof lat === 'number' && typeof lng === 'number') return { lat, lng }
-  }
-  // WKT: "POINT(lng lat)"
-  if (typeof raw === 'string') {
-    const m = raw.match(/POINT\s*\(\s*([-\d.]+)\s+([-\d.]+)\s*\)/i)
-    if (m) return { lat: parseFloat(m[2]), lng: parseFloat(m[1]) }
-  }
-  return null
-}
-
-const NAVY = palette.navy
-const GOLD = palette.accent
-const GREEN = palette.green
-const INK = palette.ink
-const MAP_HEIGHT_RATIO = 0.38
+type LoadState =
+  | { kind: 'idle' }                                    // pre-permission
+  | { kind: 'loading' }                                 // fetching
+  | { kind: 'ok'; passports: NearbyPassport[] }         // got results (may be empty)
+  | { kind: 'denied' }                                  // permission denied
+  | { kind: 'unavailable' }                             // permission ok, fix failed (timeout/signal)
+  | { kind: 'error'; message: string }                  // RPC error
 
 export default function NearbyMode() {
-  const { height: sh } = useWindowDimensions()
-  const [stops, setStops] = useState<NearbyStop[]>([])
-  const [loading, setLoading] = useState(true)
-  const [region, setRegion] = useState<Region | null>(null)
-  const [userLat, setUserLat] = useState<number | null>(null)
-  const [userLng, setUserLng] = useState<number | null>(null)
-
-  const load = useCallback(async () => {
-    setLoading(true)
-
-    // Attempt to get GPS location
-    const loc = await getCurrentLocation()
-    if (loc) {
-      setUserLat(loc.latitude)
-      setUserLng(loc.longitude)
-      setRegion({
-        latitude: loc.latitude,
-        longitude: loc.longitude,
-        latitudeDelta: 0.04,
-        longitudeDelta: 0.04,
-      })
-    }
-
-    // Fetch published stops with their page + passport info
-    const { data } = await supabase
-      .from('stops')
-      .select('*, page:passport_pages(id, passport_id, passport:passports(id, title, is_published))')
-      .limit(200)
-
-    const enriched: NearbyStop[] = []
-    for (const s of data ?? []) {
-      const page = s.page as any
-      if (!page?.passport?.is_published) continue
-      const coords = parsePoint(s.target_location)
-      const distanceM =
-        loc && coords
-          ? haversineDistance(loc.latitude, loc.longitude, coords.lat, coords.lng)
-          : null
-      enriched.push({
-        ...s,
-        passportId: page.passport.id,
-        passportTitle: page.passport.title,
-        pageId: page.id,
-        distanceM,
-        lat: coords?.lat ?? null,
-        lng: coords?.lng ?? null,
-      })
-    }
-
-    // Sort by distance (nulls last)
-    enriched.sort((a, b) => {
-      if (a.distanceM === null && b.distanceM === null) return 0
-      if (a.distanceM === null) return 1
-      if (b.distanceM === null) return -1
-      return a.distanceM - b.distanceM
-    })
-
-    setStops(enriched)
-    setLoading(false)
-  }, [])
-
-  useEffect(() => { load() }, [load])
-
-  function DistancePill({ dist, radius }: { dist: number | null; radius: number }) {
-    if (dist === null) return null
-    const inRange = dist <= radius
-    if (inRange) {
-      return (
-        <View style={[styles.pill, styles.pillGreen]}>
-          <Text style={styles.pillTextGreen}>in range</Text>
-        </View>
-      )
-    }
-    const label = dist < 1000 ? `${Math.round(dist)}m` : `${(dist / 1000).toFixed(1)}km`
-    return (
-      <View style={[styles.pill, styles.pillAmber]}>
-        <Text style={styles.pillTextAmber}>walk {label}</Text>
-      </View>
-    )
+  // ── Feature flag — keeps the surface dark in deployed builds
+  // without removing the entire code path. Flip in lib/features.ts.
+  if (!FEATURES.NEARBY_DISCOVERY) {
+    return <DormantCard />
   }
 
-  return (
-    <View style={styles.container}>
-      {/* Map */}
-      <View style={{ height: sh * MAP_HEIGHT_RATIO }}>
-        {region ? (
-          <MapView style={StyleSheet.absoluteFill} region={region} showsUserLocation>
-            {stops
-              .filter((s) => s.lat !== null && s.lng !== null)
-              .map((s) => (
-                <Marker
-                  key={s.id}
-                  coordinate={{ latitude: s.lat!, longitude: s.lng! }}
-                  title={s.name}
-                  description={s.passportTitle}
-                  pinColor={
-                    s.distanceM !== null && s.distanceM <= s.radius_meters
-                      ? palette.green
-                      : palette.accent
-                  }
-                />
-              ))}
-          </MapView>
-        ) : (
-          <View style={[StyleSheet.absoluteFill, styles.mapPlaceholder]}>
-            <Text style={styles.mapPlaceholderText}>Enable location for the map</Text>
-          </View>
-        )}
-      </View>
+  const [state, setState] = useState<LoadState>({ kind: 'idle' })
+  // Owned-ids set is read once via the existing hook so the
+  // PassportCard's CTA logic ("ISSUED" vs "Get" vs "Buy") stays
+  // in sync with Catalogue. Cheap query.
+  const { ownedIds, reload: reloadOwned } = usePublishedPassports()
 
-      {/* Stop list */}
-      {loading ? (
-        <View style={styles.centered}>
+  const run = useCallback(async () => {
+    setState({ kind: 'loading' })
+    const result = await fetchNearbyPassports()
+    if (result.error) {
+      setState({ kind: 'error', message: result.error })
+      return
+    }
+    switch (result.state) {
+      case 'denied':      setState({ kind: 'denied' });      return
+      case 'unavailable': setState({ kind: 'unavailable' }); return
+      case 'granted':     setState({ kind: 'ok', passports: result.passports })
+    }
+  }, [])
+
+  // Don't auto-run on mount — that would silently trigger the OS
+  // permission prompt before the user has any context. The
+  // explainer card stays up until they tap "Find passports near me".
+  // (If we already have permission from a previous session we still
+  // wait for the explicit tap; one extra tap is a small price for
+  // predictable consent.)
+
+  return (
+    <ScrollView style={styles.container} contentContainerStyle={styles.scrollPad}>
+      <SectionHeader />
+
+      {state.kind === 'idle' && <ExplainerCard onTap={run} />}
+
+      {state.kind === 'loading' && (
+        <View style={styles.loading}>
           <ActivityIndicator color={GOLD} />
+          <Text style={styles.loadingText}>Finding passports near you…</Text>
         </View>
-      ) : (
-        <FlatList
-          data={stops}
-          keyExtractor={(s) => s.id}
-          contentContainerStyle={styles.list}
-          showsVerticalScrollIndicator={false}
-          ListEmptyComponent={
-            <View style={styles.empty}>
-              <Text style={styles.emptyText}>No stops found nearby.</Text>
-            </View>
-          }
-          renderItem={({ item }) => (
-            <TouchableOpacity
-              style={styles.stopRow}
-              onPress={() => router.push(`/passport/${item.passportId}`)}
-              activeOpacity={0.75}
-            >
-              <View style={styles.stopInfo}>
-                <Text style={styles.stopName} numberOfLines={1}>{item.name}</Text>
-                <Text style={styles.passportName} numberOfLines={1}>{item.passportTitle}</Text>
-              </View>
-              <DistancePill dist={item.distanceM} radius={item.radius_meters} />
-            </TouchableOpacity>
-          )}
+      )}
+
+      {state.kind === 'denied' && (
+        <PermissionDeniedCard
+          onOpenSettings={() => {
+            if (Platform.OS === 'ios') {
+              void Linking.openURL('app-settings:')
+            } else {
+              void Linking.openSettings()
+            }
+          }}
         />
       )}
+
+      {state.kind === 'unavailable' && (
+        <UnavailableCard onRetry={run} />
+      )}
+
+      {state.kind === 'error' && (
+        <ErrorCard message={state.message} onRetry={run} />
+      )}
+
+      {state.kind === 'ok' && (
+        state.passports.length === 0
+          ? <EmptyResultsCard />
+          : <ResultsList
+              passports={state.passports}
+              ownedIds={ownedIds}
+              onAcquired={reloadOwned}
+              onRefresh={run}
+            />
+      )}
+    </ScrollView>
+  )
+}
+
+// ── Section header ──────────────────────────────────────────────────────────
+
+function SectionHeader() {
+  return (
+    <View style={styles.header}>
+      <Text style={styles.headerTitle}>Near me</Text>
+      <Text style={styles.headerSubtitle}>
+        Published passports with a stop close to where you are.
+      </Text>
     </View>
   )
 }
 
+// ── First-use explainer ────────────────────────────────────────────────────
+//
+// Honest permission ask — the explainer text states the privacy
+// commitment up-front so users know what tapping the button does
+// before they see the native OS prompt.
+
+function ExplainerCard({ onTap }: { onTap: () => void }) {
+  return (
+    <View style={styles.card}>
+      <Text style={styles.cardTitle}>See passports near you</Text>
+      <Text style={styles.cardBody}>
+        Your location is used only for this search and{' '}
+        <Text style={styles.bodyEmphasis}>never stored</Text>. The
+        app reads your position once when you tap below and forgets
+        it as soon as the results come back.
+      </Text>
+      <TouchableOpacity style={styles.primary} onPress={onTap}>
+        <Text style={styles.primaryText}>Find passports near me</Text>
+      </TouchableOpacity>
+    </View>
+  )
+}
+
+// ── Empty + degraded states ────────────────────────────────────────────────
+
+function EmptyResultsCard() {
+  return (
+    <View style={styles.card}>
+      <Text style={styles.cardTitle}>No passports near you yet</Text>
+      <Text style={styles.cardBody}>
+        Okuji is growing — new passports get published every week. In
+        the meantime, browse what&rsquo;s already out there.
+      </Text>
+      <TouchableOpacity
+        style={styles.secondary}
+        onPress={() => router.push('/(tabs)')}
+      >
+        <Text style={styles.secondaryText}>Explore all passports →</Text>
+      </TouchableOpacity>
+    </View>
+  )
+}
+
+function PermissionDeniedCard({ onOpenSettings }: { onOpenSettings: () => void }) {
+  return (
+    <View style={styles.card}>
+      <Text style={styles.cardTitle}>Enable location to discover passports</Text>
+      <Text style={styles.cardBody}>
+        Okuji needs a one-time read of your location to find
+        passports around you. We never store or share it.
+      </Text>
+      <TouchableOpacity style={styles.secondary} onPress={onOpenSettings}>
+        <Text style={styles.secondaryText}>Open settings →</Text>
+      </TouchableOpacity>
+    </View>
+  )
+}
+
+function UnavailableCard({ onRetry }: { onRetry: () => void }) {
+  return (
+    <View style={styles.card}>
+      <Text style={styles.cardTitle}>Couldn&rsquo;t get your location</Text>
+      <Text style={styles.cardBody}>
+        Your phone didn&rsquo;t return a location fix in time. This
+        usually clears up by trying again or moving outside.
+      </Text>
+      <TouchableOpacity style={styles.primary} onPress={onRetry}>
+        <Text style={styles.primaryText}>Try again</Text>
+      </TouchableOpacity>
+    </View>
+  )
+}
+
+function ErrorCard({ message, onRetry }: { message: string; onRetry: () => void }) {
+  return (
+    <View style={styles.card}>
+      <Text style={styles.cardTitle}>Something went wrong</Text>
+      <Text style={styles.cardBody}>{message}</Text>
+      <TouchableOpacity style={styles.primary} onPress={onRetry}>
+        <Text style={styles.primaryText}>Try again</Text>
+      </TouchableOpacity>
+    </View>
+  )
+}
+
+function DormantCard() {
+  return (
+    <ScrollView style={styles.container} contentContainerStyle={styles.scrollPad}>
+      <SectionHeader />
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>Coming soon</Text>
+        <Text style={styles.cardBody}>
+          Nearby passport discovery is on the way. Browse the
+          catalogue in the meantime.
+        </Text>
+      </View>
+    </ScrollView>
+  )
+}
+
+// ── Results ────────────────────────────────────────────────────────────────
+
+function ResultsList({
+  passports,
+  ownedIds,
+  onAcquired,
+  onRefresh,
+}: {
+  passports: NearbyPassport[]
+  ownedIds: Set<string>
+  onAcquired: () => void
+  onRefresh: () => void
+}) {
+  return (
+    <View>
+      <View style={styles.resultsHead}>
+        <Text style={styles.resultsCount}>
+          {passports.length} passport{passports.length === 1 ? '' : 's'} nearby
+        </Text>
+        <TouchableOpacity onPress={onRefresh}>
+          <Text style={styles.refreshLink}>↻ Refresh</Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.cards}>
+        {passports.map((p) => {
+          // Project the RPC row into the shape PassportCard expects.
+          // The RPC includes everything the card reads (title,
+          // emblem, bg color, price); other Passport fields are
+          // filled with safe defaults — the card doesn't read them.
+          const projected = projectToPassport(p)
+          return (
+            <PassportCard
+              key={p.passport_id}
+              passport={projected}
+              state={cardState(projected, ownedIds)}
+              onAcquired={onAcquired}
+              nearbyInfo={{
+                distanceM:     p.distance_m,
+                stopsInRadius: p.stops_in_radius,
+              }}
+            />
+          )
+        })}
+      </View>
+    </View>
+  )
+}
+
+function projectToPassport(r: NearbyPassport): Passport {
+  // PassportCard only reads: id, title, cover_emblem,
+  // cover_bg_color, is_free, price_cents. Other Passport fields
+  // are filled with type-safe defaults that the card never
+  // touches — this keeps the projection isolated to one place.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return {
+    id:                 r.passport_id,
+    creator_id:         r.creator_id,
+    proprietor_id:      r.proprietor_id,
+    title:              r.title,
+    description:        null,
+    passport_type:      'general' as Passport['passport_type'],
+    cover_bg_color:     r.cover_bg_color ?? '#0d1b2a',
+    cover_bg_type:      'solid' as Passport['cover_bg_type'],
+    cover_image_url:    null,
+    cover_thumbnail:    r.cover_thumbnail ?? null,
+    cover_emblem:       r.cover_emblem ?? '🧭',
+    illus_type:         '',
+    illus_color:        '',
+    illus_opacity:      0,
+    paper_color:        '#f5f0e8',
+    is_published:       true,
+    is_free:            r.is_free,
+    price_cents:        r.price_cents,
+    is_demo:            false,
+    cover_outside_data: null,
+    cover_inside_data:  null,
+    created_at:         '',
+    updated_at:         '',
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  } as any
+}
+
+// ── Styles ─────────────────────────────────────────────────────────────────
+
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f4f4f4' },
-  mapPlaceholder: {
-    backgroundColor: '#dde4ec',
-    alignItems: 'center',
-    justifyContent: 'center',
+  scrollPad: { paddingBottom: 32 },
+
+  header: { paddingHorizontal: 20, paddingTop: 18, paddingBottom: 12 },
+  headerTitle: {
+    fontFamily: 'serif',
+    fontSize: 22,
+    fontWeight: '700',
+    color: NAVY,
   },
-  mapPlaceholderText: {
+  headerSubtitle: {
     fontSize: 12,
-    color: '#778899',
-    fontStyle: 'italic',
+    color: MUTED,
+    marginTop: 4,
   },
-  centered: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32 },
-  list: { paddingVertical: 8 },
-  empty: { padding: 32, alignItems: 'center' },
-  emptyText: { color: '#aaa', fontStyle: 'italic' },
-  stopRow: {
+
+  loading: { alignItems: 'center', paddingVertical: 40 },
+  loadingText: { color: MUTED, fontSize: 12, marginTop: 10, fontStyle: 'italic' },
+
+  card: {
+    marginHorizontal: 20,
+    marginTop: 12,
+    padding: 18,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e4dcc8',
+  },
+  cardTitle: {
+    fontFamily: 'serif',
+    fontSize: 16,
+    fontWeight: '700',
+    color: NAVY,
+    marginBottom: 6,
+  },
+  cardBody: { fontSize: 13, color: INK, lineHeight: 19 },
+  bodyEmphasis: { fontWeight: '700', color: NAVY },
+
+  primary: {
+    marginTop: 14,
+    alignSelf: 'flex-start',
+    backgroundColor: palette.green,
+    borderRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+  },
+  primaryText: { color: '#fff', fontWeight: '700', fontSize: 13 },
+
+  secondary: {
+    marginTop: 14,
+    alignSelf: 'flex-start',
+    borderWidth: 1.5,
+    borderColor: NAVY,
+    borderRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+  },
+  secondaryText: { color: NAVY, fontWeight: '700', fontSize: 13 },
+
+  resultsHead: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingTop: 14,
+    paddingBottom: 6,
+  },
+  resultsCount: { fontSize: 11, color: MUTED, fontWeight: '600', letterSpacing: 0.5, textTransform: 'uppercase' },
+  refreshLink:  { fontSize: 12, color: palette.green, fontWeight: '600' },
+
+  cards: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#e0e0e0',
-    backgroundColor: '#fff',
+    gap: 12,
   },
-  stopInfo: { flex: 1, marginRight: 10 },
-  stopName: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: NAVY,
-    fontFamily: 'serif',
-    marginBottom: 2,
-  },
-  passportName: {
-    fontSize: 11,
-    color: '#888',
-    fontStyle: 'italic',
-  },
-  pill: {
-    borderRadius: 10,
-    paddingHorizontal: 9,
-    paddingVertical: 3,
-  },
-  pillGreen: { backgroundColor: '#e6f7f1' },
-  pillTextGreen: { fontSize: 10, color: GREEN, fontWeight: '700' },
-  pillAmber: { backgroundColor: '#fdf5e4' },
-  pillTextAmber: { fontSize: 10, color: '#b8860b', fontWeight: '600' },
 })
