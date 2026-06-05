@@ -77,7 +77,7 @@ export const isBoxEl   = (
 
 export type PassportStatus = 'draft' | 'published' | 'archived'
 export type PassportType = 'location' | 'experience' | 'learning'
-export type BackgroundType = 'guilloche' | 'landscape' | 'none' | 'custom' | 'grid'
+export type BackgroundType = 'guilloche' | 'landscape' | 'none' | 'custom' | 'grid' | 'okuji'
 export type SmudgeIntensity = 'none' | 'light' | 'medium' | 'heavy'
 export type ExperienceType = 'location' | 'experience'
 // Level-2 verification method on the canonical stop model (migration 046).

@@ -936,29 +936,13 @@ function CustomBgPicker({
     }
   }
 
+  // The okuji presets used to live here; they're now under the
+  // dedicated "Okuji preset" background_type (migration 055 +
+  // OkujiPresetPicker below). Custom is now uploads + library
+  // only.
   return (
     <div className="space-y-2">
-      <Label className="text-xs text-muted">Okuji presets</Label>
-      <div className="grid grid-cols-3 gap-1.5">
-        {PRESET_BACKGROUNDS.map((preset) => {
-          const selected = page.background_image_url === preset.url
-          return (
-            <button
-              key={preset.url}
-              onClick={() => void persist({ background_image_url: preset.url })}
-              className={`relative aspect-[3/4] w-full overflow-hidden rounded border-2 transition-colors ${
-                selected ? 'border-green' : 'border-transparent hover:border-green/40'
-              }`}
-              title={preset.label}
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={preset.url} alt={preset.label} className="h-full w-full object-cover" />
-            </button>
-          )
-        })}
-      </div>
-
-      <Label className="text-xs text-muted pt-2">Your uploads</Label>
+      <Label className="text-xs text-muted">Your uploads</Label>
       {loading ? (
         <p className="text-xs text-muted">Loading…</p>
       ) : assets.length === 0 ? (
@@ -1036,6 +1020,46 @@ function UploadScopeToggle({
   )
 }
 
+// ── Okuji preset picker ────────────────────────────────────────────────────────
+//
+// First-class entry point for the built-in PRESET_BACKGROUNDS,
+// surfaced as its own option in the Page Inspector's background
+// "Type" dropdown so creators don't have to dig under "Custom
+// image" to find them. Writes to the same background_image_url
+// column as custom uploads, and PageBackground renders 'okuji'
+// the same way it renders 'custom' (an image overlay).
+function OkujiPresetPicker({
+  page,
+  persist,
+}: {
+  page: DesignerPassportPage
+  persist: (patch: Partial<DesignerPassportPage>) => Promise<void>
+}) {
+  return (
+    <div className="space-y-2">
+      <Label className="text-xs text-muted">Okuji presets</Label>
+      <div className="grid grid-cols-3 gap-1.5">
+        {PRESET_BACKGROUNDS.map((preset) => {
+          const selected = page.background_image_url === preset.url
+          return (
+            <button
+              key={preset.url}
+              onClick={() => void persist({ background_image_url: preset.url })}
+              className={`relative aspect-[3/4] w-full overflow-hidden rounded border-2 transition-colors ${
+                selected ? 'border-green' : 'border-transparent hover:border-green/40'
+              }`}
+              title={preset.label}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={preset.url} alt={preset.label} className="h-full w-full object-cover" />
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 // ── Page Inspector ─────────────────────────────────────────────────────────────
 
 function PageInspector({ page }: { page: DesignerPassportPage }) {
@@ -1084,8 +1108,9 @@ function PageInspector({ page }: { page: DesignerPassportPage }) {
           >
             <option value="guilloche">Guilloche</option>
             <option value="grid">Grid</option>
-            <option value="none">None</option>
+            <option value="okuji">Okuji preset</option>
             <option value="custom">Custom image</option>
+            <option value="none">None</option>
             {bg === 'landscape' && <option value="landscape">Landscape (legacy)</option>}
           </select>
         </Field>
@@ -1149,8 +1174,11 @@ function PageInspector({ page }: { page: DesignerPassportPage }) {
           </Field>
         )}
 
-        {/* Custom image controls */}
-        {bg === 'custom' && (
+        {/* Image-overlay controls — shared between Custom and Okuji
+            preset because both write to background_image_url and
+            render through PageBackground's image branch. The
+            picker beneath swaps based on type. */}
+        {(bg === 'custom' || bg === 'okuji') && (
           <>
             <Field label={`Image opacity: ${Math.min(100, Math.max(10, page.custom_background_opacity ?? 100))}%`}>
               <input
@@ -1181,7 +1209,9 @@ function PageInspector({ page }: { page: DesignerPassportPage }) {
               />
               <span className="text-sm text-navy">Full color background</span>
             </label>
-            <CustomBgPicker page={page} persist={persist} />
+            {bg === 'okuji'
+              ? <OkujiPresetPicker page={page} persist={persist} />
+              : <CustomBgPicker     page={page} persist={persist} />}
           </>
         )}
       </Section>
