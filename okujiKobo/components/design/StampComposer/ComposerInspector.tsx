@@ -42,12 +42,14 @@ export function ComposerInspector({
       <div className="flex-1 space-y-4 overflow-y-auto px-3 py-3">
         {/* Geometry differs per type; stroke + rotation are common. */}
         {element.type === 'rect'       && <RectGeometry       el={element} onUpdate={onUpdate} />}
+        {element.type === 'triangle'   && <TriangleGeometry   el={element} onUpdate={onUpdate} />}
         {element.type === 'ellipse'    && <EllipseGeometry    el={element} onUpdate={onUpdate} />}
         {element.type === 'line'       && <LineGeometry       el={element} onUpdate={onUpdate} />}
         {element.type === 'text'       && <TextBlock          el={element} onUpdate={onUpdate} />}
         {element.type === 'curvedText' && <CurvedTextBlock    el={element} onUpdate={onUpdate} />}
+        {element.type === 'icon'       && <IconBlock          el={element} onUpdate={onUpdate} />}
 
-        {(element.type === 'rect' || element.type === 'ellipse' || element.type === 'line') && (
+        {(element.type === 'rect' || element.type === 'triangle' || element.type === 'ellipse' || element.type === 'line') && (
           <StrokeStyle el={element} onUpdate={onUpdate} />
         )}
 
@@ -94,6 +96,53 @@ function RectGeometry({
         <Num label="h" value={el.h} min={4} onChange={(v) => onUpdate({ h: v })} />
       </Grid2>
       <Num label="Corner radius" value={el.rx ?? 0} min={0} onChange={(v) => onUpdate({ rx: v })} />
+    </Section>
+  )
+}
+
+function TriangleGeometry({
+  el,
+  onUpdate,
+}: {
+  el: Extract<ComposerElement, { type: 'triangle' }>
+  onUpdate: (patch: Partial<ComposerElement>) => void
+}) {
+  return (
+    <Section title="Points">
+      <Grid2>
+        <Num label="x1" value={el.x1} onChange={(v) => onUpdate({ x1: v })} />
+        <Num label="y1" value={el.y1} onChange={(v) => onUpdate({ y1: v })} />
+        <Num label="x2" value={el.x2} onChange={(v) => onUpdate({ x2: v })} />
+        <Num label="y2" value={el.y2} onChange={(v) => onUpdate({ y2: v })} />
+        <Num label="x3" value={el.x3} onChange={(v) => onUpdate({ x3: v })} />
+        <Num label="y3" value={el.y3} onChange={(v) => onUpdate({ y3: v })} />
+      </Grid2>
+      <p className="text-[10.5px] text-muted">
+        Drag the corner handle on the canvas for uniform scale; edit
+        a single point here for non-uniform shapes.
+      </p>
+    </Section>
+  )
+}
+
+function IconBlock({
+  el,
+  onUpdate,
+}: {
+  el: Extract<ComposerElement, { type: 'icon' }>
+  onUpdate: (patch: Partial<ComposerElement>) => void
+}) {
+  return (
+    <Section title="Icon">
+      <p className="text-[10.5px] text-muted">
+        <span className="font-semibold text-ink">{el.iconKey}</span>
+        <span className="ml-1">— viewBox {el.viewBox}</span>
+      </p>
+      <Grid2>
+        <Num label="x"    value={el.x}    onChange={(v) => onUpdate({ x: v })} />
+        <Num label="y"    value={el.y}    onChange={(v) => onUpdate({ y: v })} />
+        <Num label="size" value={el.size} min={8} onChange={(v) => onUpdate({ size: v })} />
+      </Grid2>
     </Section>
   )
 }
@@ -284,7 +333,7 @@ function StrokeStyle({
   el,
   onUpdate,
 }: {
-  el: Extract<ComposerElement, { type: 'rect' | 'ellipse' | 'line' }>
+  el: Extract<ComposerElement, { type: 'rect' | 'triangle' | 'ellipse' | 'line' }>
   onUpdate: (patch: Partial<ComposerElement>) => void
 }) {
   return (

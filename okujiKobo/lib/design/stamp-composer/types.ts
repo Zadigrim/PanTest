@@ -54,6 +54,20 @@ export interface RectElement extends ElementBase, StrokeStyle {
   rx?: number
 }
 
+// ── Triangle ────────────────────────────────────────────────────────────────
+//
+// Three-point polygon. Default add-button creates an equilateral
+// pointing up. Resize handle scales the bounding box uniformly
+// around the centroid; the inspector exposes the raw three
+// points for full control.
+
+export interface TriangleElement extends ElementBase, StrokeStyle {
+  type: 'triangle'
+  x1: number; y1: number
+  x2: number; y2: number
+  x3: number; y3: number
+}
+
 // ── Circle / ellipse ─────────────────────────────────────────────────────────
 
 export interface EllipseElement extends ElementBase, StrokeStyle {
@@ -107,8 +121,16 @@ export interface CurvedTextElement extends ElementBase {
 
 export interface IconElement extends ElementBase, StrokeStyle {
   type: 'icon'
-  /** Icon key into the bundled set (see icons.ts in Push 3). */
+  /** Stable key into the bundled set — survives reopen. */
   iconKey: string
+  /** Inner SVG markup of the icon (the contents of its <svg>).
+   *  Captured at pick-time so the saved stamp is self-contained
+   *  even if the icon set is later swapped. Uses currentColor
+   *  for stroke + fill so it re-inks with the rest of the stamp. */
+  svgContent: string
+  /** viewBox the inner markup was authored against. Most icons
+   *  are 24x24 (lucide); the custom okuji set may differ. */
+  viewBox: string
   x: number; y: number; size: number
 }
 
@@ -121,6 +143,7 @@ export interface TracedElement extends ElementBase {
 
 export type ComposerElement =
   | RectElement
+  | TriangleElement
   | EllipseElement
   | LineElement
   | TextElement

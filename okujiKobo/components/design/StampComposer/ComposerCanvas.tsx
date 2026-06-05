@@ -239,8 +239,47 @@ function ElementShape({ el }: { el: ComposerElement }) {
       </g>
     )
   }
-  // Push 3+ — icon / traced rendered here.
+  if (el.type === 'triangle') {
+    const pts = `${el.x1},${el.y1} ${el.x2},${el.y2} ${el.x3},${el.y3}`
+    return (
+      <polygon
+        points={pts}
+        fill={el.filled ? 'currentColor' : 'none'}
+        stroke="currentColor"
+        strokeWidth={el.strokeWidth}
+        strokeDasharray={el.dashed ? `${el.strokeWidth * 3} ${el.strokeWidth * 2}` : undefined}
+        transform={transform}
+      />
+    )
+  }
+  if (el.type === 'icon') {
+    // Embed the icon's inner SVG content (captured at pick time)
+    // inside a positioning <g>. dangerouslySetInnerHTML on a <g>
+    // requires React 18 — we have it. The content is from our
+    // own vetted seed (or, later, from public/stamp-icons/),
+    // never from arbitrary user input.
+    const [, , vbW, vbH] = parseViewBox(el.viewBox)
+    const scale = el.size / Math.max(vbW, vbH)
+    return (
+      <g transform={transform}>
+        <g
+          transform={`translate(${el.x} ${el.y}) scale(${scale})`}
+          stroke="currentColor"
+          strokeWidth={el.strokeWidth}
+          fill="none"
+          dangerouslySetInnerHTML={{ __html: el.svgContent }}
+        />
+      </g>
+    )
+  }
+  // Push 4 — traced render branch.
   return null
+}
+
+function parseViewBox(vb: string): [number, number, number, number] {
+  const parts = vb.trim().split(/[\s,]+/).map(Number)
+  if (parts.length !== 4 || parts.some((n) => !Number.isFinite(n))) return [0, 0, 24, 24]
+  return [parts[0], parts[1], parts[2], parts[3]]
 }
 
 // ── Hit target — invisible, thicker stroke so thin lines stay grabbable ────
@@ -270,6 +309,12 @@ function ElementHitTarget({ el, onPointerDown }: { el: ComposerElement; onPointe
   if (el.type === 'curvedText') {
     // Wrap the entire arc's bounding box as the hit target.
     return <rect x={el.cx - el.rx} y={el.cy - el.ry} width={el.rx * 2} height={el.ry * 2} {...common} />
+  }
+  if (el.type === 'triangle') {
+    return <polygon points={`${el.x1},${el.y1} ${el.x2},${el.y2} ${el.x3},${el.y3}`} {...common} />
+  }
+  if (el.type === 'icon') {
+    return <rect x={el.x} y={el.y} width={el.size} height={el.size} {...common} />
   }
   return null
 }
@@ -339,6 +384,8 @@ function elementCenter(el: ComposerElement): { x: number; y: number } {
     return { x: el.x + w / 2, y: el.y + el.fontSize / 2 }
   }
   if (el.type === 'curvedText') return { x: el.cx, y: el.cy }
+  if (el.type === 'triangle')   return { x: (el.x1 + el.x2 + el.x3) / 3, y: (el.y1 + el.y2 + el.y3) / 3 }
+  if (el.type === 'icon')       return { x: el.x + el.size / 2, y: el.y + el.size / 2 }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const a = el as any
   return { x: a.x ?? 0, y: a.y ?? 0 }
@@ -362,6 +409,16 @@ function elementBoundingBox(el: ComposerElement): { x: number; y: number; w: num
   if (el.type === 'curvedText') {
     return { x: el.cx - el.rx, y: el.cy - el.ry, w: el.rx * 2, h: el.ry * 2 }
   }
+  if (el.type === 'triangle') {
+    const xs = [el.x1, el.x2, el.x3]
+    const ys = [el.y1, el.y2, el.y3]
+    const minX = Math.min(...xs), maxX = Math.max(...xs)
+    const minY = Math.min(...ys), maxY = Math.max(...ys)
+    return { x: minX, y: minY, w: maxX - minX, h: maxY - minY }
+  }
+  if (el.type === 'icon') {
+    return { x: el.x, y: el.y, w: el.size, h: el.size }
+  }
   return null
 }
 
@@ -371,6 +428,12 @@ function translatePatch(el: ComposerElement, dx: number, dy: number): Patch {
   if (el.type === 'line')       return { x1: el.x1 + dx, y1: el.y1 + dy, x2: el.x2 + dx, y2: el.y2 + dy } as Patch
   if (el.type === 'text')       return { x: el.x + dx, y: el.y + dy } as Patch
   if (el.type === 'curvedText') return { cx: el.cx + dx, cy: el.cy + dy } as Patch
+  if (el.type === 'triangle')   return {
+    x1: el.x1 + dx, y1: el.y1 + dy,
+    x2: el.x2 + dx, y2: el.y2 + dy,
+    x3: el.x3 + dx, y3: el.y3 + dy,
+  } as Patch
+  if (el.type === 'icon')       return { x: el.x + dx, y: el.y + dy } as Patch
   return {}
 }
 
@@ -385,6 +448,23 @@ function resizePatch(el: ComposerElement, dx: number, dy: number): Patch {
   }
   if (el.type === 'curvedText') {
     return { rx: Math.max(8, el.rx + dx / 2), ry: Math.max(8, el.ry + dy / 2) } as Patch
+  }
+  if (el.type === 'triangle') {
+    // Uniform scale of the three points around the centroid.
+    // dx is the dominant axis; clamp to keep the triangle from
+    // collapsing.
+    const cx = (el.x1 + el.x2 + el.x3) / 3
+    const cy = (el.y1 + el.y2 + el.y3) / 3
+    const factor = 1 + dx / 80
+    const f = Math.max(0.25, factor)
+    return {
+      x1: cx + (el.x1 - cx) * f, y1: cy + (el.y1 - cy) * f,
+      x2: cx + (el.x2 - cx) * f, y2: cy + (el.y2 - cy) * f,
+      x3: cx + (el.x3 - cx) * f, y3: cy + (el.y3 - cy) * f,
+    } as Patch
+  }
+  if (el.type === 'icon') {
+    return { size: Math.max(8, el.size + dx) } as Patch
   }
   return {}
 }

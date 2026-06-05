@@ -1,13 +1,13 @@
 'use client'
 
-import { type ComposerElement, newElementId } from '@/lib/design/stamp-composer/types'
+import { useState } from 'react'
+import { type ComposerElement, newElementId, STAMP_SURFACE_SIZE } from '@/lib/design/stamp-composer/types'
 import { DEFAULT_STAMP_FONT_KEY } from '@/lib/design/fonts'
+import { IconPicker } from './IconPicker'
 
 /**
- * Add-element toolbar — sits above the canvas. Push 1 ships
- * the three shape buttons. Text / Curved text / Icon / Trace
- * land in upcoming pushes; the toolbar's slot pattern keeps
- * the button row a stable target.
+ * Add-element toolbar — sits above the canvas. Shapes ·
+ * Text + Curved · Icon picker. Trace-an-image lands in Push 4.
  */
 export function ComposerAddToolbar({
   onAdd,
@@ -18,17 +18,18 @@ export function ComposerAddToolbar({
 }) {
   const cx = surface / 2
   const cy = surface / 2
+  const [iconPickerOpen, setIconPickerOpen] = useState(false)
 
   return (
-    <div className="flex items-center gap-1.5 border-b border-hairline bg-white px-3 py-2">
-      <p className="mr-2 text-[10px] font-semibold uppercase tracking-[2px] text-muted">Add</p>
+    <div className="flex flex-wrap items-center gap-1.5 border-b border-hairline bg-white px-3 py-2">
+      <p className="mr-1 text-[10px] font-semibold uppercase tracking-[2px] text-muted">Add</p>
 
       <AddButton onClick={() => onAdd({
         id: newElementId(), type: 'rect',
         x: cx - 50, y: cy - 30, w: 100, h: 60, rx: 0,
         strokeWidth: 3,
       })}>
-        ▭ <span className="ml-1">Rectangle</span>
+        ▭ <span className="ml-1">Rect</span>
       </AddButton>
 
       <AddButton onClick={() => onAdd({
@@ -36,7 +37,23 @@ export function ComposerAddToolbar({
         x: cx - 50, y: cy - 30, w: 100, h: 60, rx: 12,
         strokeWidth: 3,
       })}>
-        ▢ <span className="ml-1">Rounded rect</span>
+        ▢ <span className="ml-1">Rounded</span>
+      </AddButton>
+
+      <AddButton onClick={() => {
+        // Equilateral triangle pointing up centered on the canvas.
+        // Side length 100; height = 100 * √3 / 2 ≈ 86.6
+        const s = 100
+        const h = s * Math.sqrt(3) / 2
+        onAdd({
+          id: newElementId(), type: 'triangle',
+          x1: cx,           y1: cy - h * 2 / 3,
+          x2: cx - s / 2,   y2: cy + h / 3,
+          x3: cx + s / 2,   y3: cy + h / 3,
+          strokeWidth: 3,
+        })
+      }}>
+        △ <span className="ml-1">Triangle</span>
       </AddButton>
 
       <AddButton onClick={() => onAdd({
@@ -77,7 +94,7 @@ export function ComposerAddToolbar({
 
       <AddButton onClick={() => onAdd({
         id: newElementId(), type: 'curvedText',
-        text: 'RIM TEXT',
+        text: 'TOP TEXT',
         cx, cy,
         rx: 95, ry: 95,
         arc: 'top',
@@ -87,13 +104,51 @@ export function ComposerAddToolbar({
         uppercase: true,
         letterSpacing: 2,
       })}>
-        ⌒ <span className="ml-1">Curved text</span>
+        ⌒ <span className="ml-1">Curved · top</span>
       </AddButton>
 
-      {/* Push 3+ — these stubs render disabled so the affordance
-          is discoverable when each one ships. */}
-      <DisabledButton title="Push 3 — lucide icon picker">★ Icon</DisabledButton>
+      <AddButton onClick={() => onAdd({
+        id: newElementId(), type: 'curvedText',
+        text: 'BOTTOM TEXT',
+        cx, cy,
+        rx: 95, ry: 95,
+        arc: 'bottom',
+        fontSize: 18,
+        fontFamily: DEFAULT_STAMP_FONT_KEY,
+        bold: true,
+        uppercase: true,
+        letterSpacing: 2,
+      })}>
+        {/* Mirrored glyph to differentiate from top in the
+            toolbar — both buttons add the same element type, the
+            arc segment differs. */}
+        ⌣ <span className="ml-1">Curved · bottom</span>
+      </AddButton>
+
+      <span className="mx-1 h-5 w-px bg-hairline" aria-hidden />
+
+      <AddButton onClick={() => setIconPickerOpen(true)}>
+        ★ <span className="ml-1">Icon</span>
+      </AddButton>
+
+      {/* Push 4 — potrace tracer. */}
       <DisabledButton title="Push 4 — potrace tracer">⬚ Trace image</DisabledButton>
+
+      <IconPicker
+        open={iconPickerOpen}
+        onClose={() => setIconPickerOpen(false)}
+        onPick={({ iconKey, svgContent, viewBox }) => onAdd({
+          id: newElementId(),
+          type: 'icon',
+          iconKey,
+          svgContent,
+          viewBox,
+          x: STAMP_SURFACE_SIZE / 2 - 32,
+          y: STAMP_SURFACE_SIZE / 2 - 32,
+          size: 64,
+          strokeWidth: 2,
+        })}
+      />
     </div>
   )
 }

@@ -283,14 +283,18 @@ export function StampComposer(props: DesignerMode | AssetsMode) {
 // lands visibly offset from its source.
 function nudge(el: ComposerElement, by: number): ComposerElement {
   switch (el.type) {
-    case 'rect':    return { ...el, x: el.x + by, y: el.y + by }
-    case 'ellipse': return { ...el, cx: el.cx + by, cy: el.cy + by }
-    case 'line':    return { ...el, x1: el.x1 + by, y1: el.y1 + by, x2: el.x2 + by, y2: el.y2 + by }
-    case 'text':
-    case 'curvedText':
-    case 'icon':
-    case 'traced':
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return { ...(el as any), x: (el as any).x + by, y: (el as any).y + by }
+    case 'rect':       return { ...el, x: el.x + by, y: el.y + by }
+    case 'ellipse':    return { ...el, cx: el.cx + by, cy: el.cy + by }
+    case 'line':       return { ...el, x1: el.x1 + by, y1: el.y1 + by, x2: el.x2 + by, y2: el.y2 + by }
+    case 'triangle':   return {
+      ...el,
+      x1: el.x1 + by, y1: el.y1 + by,
+      x2: el.x2 + by, y2: el.y2 + by,
+      x3: el.x3 + by, y3: el.y3 + by,
+    }
+    case 'curvedText': return { ...el, cx: el.cx + by, cy: el.cy + by }
+    case 'text':       return { ...el, x: el.x + by, y: el.y + by }
+    case 'icon':       return { ...el, x: el.x + by, y: el.y + by }
+    case 'traced':     return { ...el, x: el.x + by, y: el.y + by }
   }
 }

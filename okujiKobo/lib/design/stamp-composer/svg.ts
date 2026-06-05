@@ -25,9 +25,11 @@ import type {
   ComposerMetadata,
   CurvedTextElement,
   EllipseElement,
+  IconElement,
   LineElement,
   RectElement,
   TextElement,
+  TriangleElement,
 } from './types'
 import { fontByKey } from '../fonts'
 import { arcPathD, renderText } from './geometry'
@@ -48,12 +50,13 @@ export function serializeStampSvg(doc: ComposerMetadata): string {
 function elementToSvg(el: ComposerElement): string {
   switch (el.type) {
     case 'rect':       return rectSvg(el)
+    case 'triangle':   return triangleSvg(el)
     case 'ellipse':    return ellipseSvg(el)
     case 'line':       return lineSvg(el)
     case 'text':       return textSvg(el)
     case 'curvedText': return curvedTextSvg(el)
-    // Push 3+ — icon + traced branches added as those elements land.
-    case 'icon':
+    case 'icon':       return iconSvg(el)
+    // Push 4 — traced branch added when potrace lands.
     case 'traced':
       return ''
   }
@@ -68,6 +71,18 @@ function rectSvg(el: RectElement): string {
   return (
     `<rect x="${num(el.x)}" y="${num(el.y)}" width="${num(el.w)}" height="${num(el.h)}" ` +
     `rx="${num(el.rx ?? 0)}" fill="${fill}" stroke="currentColor" stroke-width="${num(el.strokeWidth)}"${dash}${transform} />`
+  )
+}
+
+function triangleSvg(el: TriangleElement): string {
+  const cx = (el.x1 + el.x2 + el.x3) / 3
+  const cy = (el.y1 + el.y2 + el.y3) / 3
+  const transform = rotationTransform(el.rotation, cx, cy)
+  const fill = el.filled ? 'currentColor' : 'none'
+  const dash = el.dashed ? ` stroke-dasharray="${el.strokeWidth * 3} ${el.strokeWidth * 2}"` : ''
+  const pts = `${num(el.x1)},${num(el.y1)} ${num(el.x2)},${num(el.y2)} ${num(el.x3)},${num(el.y3)}`
+  return (
+    `<polygon points="${pts}" fill="${fill}" stroke="currentColor" stroke-width="${num(el.strokeWidth)}"${dash}${transform} />`
   )
 }
 
@@ -138,6 +153,31 @@ function escapeText(s: string): string {
 }
 function escapeAttr(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;')
+}
+
+function iconSvg(el: IconElement): string {
+  // Icon's authoring viewBox (lucide = 24x24; custom okuji may
+  // differ). Scale so the wider authoring dimension fits within
+  // el.size; preserves aspect ratio.
+  const [, , vbW, vbH] = parseViewBox(el.viewBox)
+  const scale = el.size / Math.max(vbW, vbH)
+  const cx = el.x + el.size / 2
+  const cy = el.y + el.size / 2
+  const transform = rotationTransform(el.rotation, cx, cy)
+  return (
+    `<g${transform}>` +
+      `<g transform="translate(${num(el.x)} ${num(el.y)}) scale(${num(scale)})" ` +
+      `stroke="currentColor" stroke-width="${num(el.strokeWidth)}" fill="none">` +
+        el.svgContent +
+      `</g>` +
+    `</g>`
+  )
+}
+
+function parseViewBox(vb: string): [number, number, number, number] {
+  const parts = vb.trim().split(/[\s,]+/).map(Number)
+  if (parts.length !== 4 || parts.some((n) => !Number.isFinite(n))) return [0, 0, 24, 24]
+  return [parts[0], parts[1], parts[2], parts[3]]
 }
 
 // ── Utils ────────────────────────────────────────────────────────────────────
