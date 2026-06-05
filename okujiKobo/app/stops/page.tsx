@@ -44,12 +44,12 @@ export default async function StopLibraryPage() {
   // via page_id → passport_pages → passports.creator_id —
   // so the creator display name comes off the parent
   // passport's creator profile, not off the stop.
-  const { data: stopsRaw } = await db
+  const { data: stopsRaw, error: stopsErr } = await db
     .from('stops')
     .select(`
       id, name,
       experience_type, experience_verification_method,
-      address_city, address_state, address_country,
+      address_city, address_state, country,
       classifiers, grade_levels, subject_areas,
       learning_objective, journal_prompt,
       created_at,
@@ -64,6 +64,14 @@ export default async function StopLibraryPage() {
     .eq('is_shared', true)
     .order('created_at', { ascending: false })
 
+  if (stopsErr) {
+    // The shared-stops query is the single point of failure for the
+    // page — schema name drift here (e.g. `address_country` vs
+    // `country`) silently empties the library. Log loudly rather
+    // than render a confusingly empty grid.
+    console.error('[stops/page] shared-stops fetch failed:', stopsErr.message)
+  }
+
   const stops = (stopsRaw ?? []) as Array<{
     id: string
     name: string
@@ -71,7 +79,7 @@ export default async function StopLibraryPage() {
     experience_verification_method: 'gps' | 'qr' | 'witnessed' | 'documented' | 'honor' | null
     address_city: string | null
     address_state: string | null
-    address_country: string | null
+    country: string | null
     classifiers: string[] | null
     grade_levels: string[] | null
     subject_areas: string[] | null
@@ -175,7 +183,7 @@ export default async function StopLibraryPage() {
     experience_verification_method: s.experience_verification_method,
     address_city: s.address_city,
     address_state: s.address_state,
-    address_country: s.address_country,
+    address_country: s.country,
     classifiers: s.classifiers ?? [],
     grade_levels: s.grade_levels ?? [],
     subject_areas: s.subject_areas ?? [],
