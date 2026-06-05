@@ -160,27 +160,27 @@ export function StampComposer(props: DesignerMode | AssetsMode) {
 
   return createPortal(
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-4">
-      <div className="flex h-[min(960px,98vh)] w-[min(1320px,98vw)] flex-col overflow-hidden rounded-[12px] border border-hairline bg-white shadow-2xl">
-        {/* ── Header ── */}
-        <div className="flex items-center gap-3 border-b border-hairline px-5 py-3">
-          <p className="text-[10px] font-semibold uppercase tracking-[2px] text-muted">Stamp composer</p>
+      <div className="flex h-[min(960px,98vh)] w-[min(1320px,98vw)] flex-col overflow-hidden rounded-[12px] border-[1.5px] border-ink bg-white shadow-2xl">
+        {/* ── Header — chrome strip, 1.5px ink bottom border ── */}
+        <div className="flex h-[54px] items-center gap-3 border-b-[1.5px] border-ink bg-surface-chrome px-5">
+          <p className="text-[11px] font-bold uppercase tracking-[3px] text-muted">Stamp composer</p>
           <input
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="Untitled stamp"
-            className="flex-1 rounded-[6px] border-[1.5px] border-hairline bg-white px-2 py-1 text-[13px] text-ink focus:border-ink focus:outline-none"
+            className="flex-1 rounded-[8px] border-[1.5px] border-hairline bg-white px-2.5 py-1.5 text-[14px] text-ink focus:border-ink focus:outline-none"
           />
           <button
             type="button"
             onClick={onClose}
-            className="rounded-[6px] border-[1.5px] border-hairline bg-white px-3 py-1 text-[12px] font-semibold text-muted hover:text-ink"
+            className="rounded-[8px] border-[1.5px] border-ink bg-white px-3 py-1.5 text-[12.5px] font-semibold text-ink hover:bg-cream"
           >
             Cancel
           </button>
           {props.mode === 'designer' && (
             <label
-              className="flex items-center gap-1.5 text-[11px] text-muted"
+              className="flex items-center gap-1.5 text-[12.5px] text-muted"
               title="Unchecked: this stamp is only available on the current passport. Checked: this stamp also shows up in the StampPicker on every other passport you own and in the Assets → Stamps library."
             >
               <input
@@ -196,7 +196,7 @@ export function StampComposer(props: DesignerMode | AssetsMode) {
             type="button"
             disabled={saving || doc.elements.length === 0}
             onClick={() => void handleSave()}
-            className="rounded-[6px] border-[1.5px] border-ink bg-green px-3 py-1 text-[12px] font-semibold text-white hover:bg-green/90 disabled:opacity-50"
+            className="rounded-[8px] border-[1.5px] border-ink bg-green px-3.5 py-1.5 text-[12.5px] font-semibold text-white hover:bg-green/90 disabled:opacity-50"
           >
             {saving ? 'Saving…' : 'Save stamp'}
           </button>
@@ -241,7 +241,7 @@ export function StampComposer(props: DesignerMode | AssetsMode) {
         ) : (
           <div className="flex flex-1 overflow-hidden">
             {/* ── Left rail: element list ── */}
-            <aside className="w-[200px] shrink-0 overflow-y-auto border-r border-hairline bg-surface-workspace">
+            <aside className="w-[210px] shrink-0 overflow-y-auto border-r-[1.5px] border-surface-faintdiv bg-cream">
               <ComposerElementList
                 elements={doc.elements}
                 selectedId={selectedId}
@@ -255,7 +255,7 @@ export function StampComposer(props: DesignerMode | AssetsMode) {
             {/* ── Center: add-toolbar above canvas ── */}
             <main className="flex flex-1 flex-col overflow-hidden">
               <ComposerAddToolbar onAdd={addElement} surface={STAMP_SURFACE_SIZE} />
-              <div className="flex flex-1 items-center justify-center overflow-auto bg-cream p-6">
+              <div className="flex flex-1 items-center justify-center overflow-auto bg-surface-rail p-6">
                 <ComposerCanvas
                   doc={doc}
                   selectedId={selectedId}
@@ -266,7 +266,7 @@ export function StampComposer(props: DesignerMode | AssetsMode) {
             </main>
 
             {/* ── Right rail: inspector ── */}
-            <aside className="w-[260px] shrink-0 overflow-y-auto border-l border-hairline bg-white">
+            <aside className="w-[280px] shrink-0 overflow-y-auto border-l-[1.5px] border-ink bg-surface-workspace">
               <ComposerInspector
                 element={selected}
                 onUpdate={(patch) => selected && updateElement(selected.id, patch)}

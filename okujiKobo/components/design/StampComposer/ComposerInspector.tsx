@@ -24,7 +24,7 @@ export function ComposerInspector({
   if (!element) {
     return (
       <div className="px-3 py-4">
-        <p className="text-[10px] font-semibold uppercase tracking-[2px] text-muted">Inspector</p>
+        <p className="text-[11px] font-bold uppercase tracking-[3px] text-muted">Inspector</p>
         <p className="mt-2 text-[11.5px] text-muted">
           Select an element to edit its geometry, stroke, and rotation.
         </p>
@@ -34,9 +34,11 @@ export function ComposerInspector({
 
   return (
     <div className="flex h-full flex-col">
-      <header className="border-b border-hairline px-3 py-2">
-        <p className="text-[10px] font-semibold uppercase tracking-[2px] text-muted">Inspector</p>
-        <p className="mt-1 text-[12.5px] font-semibold text-ink">{element.type}</p>
+      <header className="border-b border-surface-faintdiv px-3 py-2.5">
+        <p className="text-[11px] font-bold uppercase tracking-[3px] text-muted">
+          Inspector
+          <span className="ml-1 text-ink">· {element.type}</span>
+        </p>
       </header>
 
       <div className="flex-1 space-y-4 overflow-y-auto px-3 py-3">
@@ -406,14 +408,14 @@ function RotationControl({
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section>
-      <p className="mb-1.5 text-[9.5px] font-semibold uppercase tracking-[1.5px] text-muted">{title}</p>
+      <p className="mb-1.5 text-[10px] font-bold uppercase tracking-[2px] text-muted">{title}</p>
       <div className="space-y-2">{children}</div>
     </section>
   )
 }
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <label className="block text-[10.5px] uppercase tracking-[1px] text-muted">
+    <label className="block text-[9.5px] font-semibold uppercase tracking-[1.5px] text-muted">
       {label}
       <div className="mt-0.5 normal-case tracking-normal">{children}</div>
     </label>
@@ -442,7 +444,7 @@ function Num({
           const v = Number(e.target.value)
           if (Number.isFinite(v)) onChange(v)
         }}
-        className="h-7 w-full rounded-[6px] border-[1.5px] border-hairline bg-white px-1.5 text-[12px] tabular-nums focus:border-ink focus:outline-none"
+        className="h-7 w-full rounded-[6px] border-[1.5px] border-hairline bg-white px-1.5 font-mono text-[12px] tabular-nums focus:border-ink focus:outline-none"
       />
     </Field>
   )

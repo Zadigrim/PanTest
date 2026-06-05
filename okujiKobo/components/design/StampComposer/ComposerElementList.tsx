@@ -25,7 +25,7 @@ export function ComposerElementList({
 }) {
   return (
     <div className="flex h-full flex-col">
-      <p className="border-b border-hairline px-3 py-2 text-[10px] font-semibold uppercase tracking-[2px] text-muted">
+      <p className="border-b border-surface-faintdiv px-3 py-2.5 text-[10px] font-bold uppercase tracking-[2px] text-muted">
         Elements ({elements.length})
       </p>
       {elements.length === 0 ? (
@@ -33,7 +33,7 @@ export function ComposerElementList({
           No elements yet. Add one from the toolbar above the canvas.
         </p>
       ) : (
-        <ul className="flex-1 overflow-y-auto">
+        <ul className="flex-1 space-y-1 overflow-y-auto p-1.5">
           {/* Reverse render so top-of-list = top-of-z-stack —
               the human reading order matches the visual stack. */}
           {[...elements].reverse().map((el) => {
@@ -41,15 +41,17 @@ export function ComposerElementList({
             return (
               <li
                 key={el.id}
-                className={`border-b border-surface-faintdiv ${
-                  isSelected ? 'bg-cream' : 'hover:bg-white'
+                className={`rounded-[7px] border transition-colors ${
+                  isSelected
+                    ? 'border-accent bg-accent/10'
+                    : 'border-transparent hover:bg-white'
                 }`}
               >
-                <div className="flex items-center gap-1 px-2 py-1.5">
+                <div className="flex items-center gap-1 py-[7px] pl-[9px] pr-[7px]">
                   <button
                     type="button"
                     onClick={() => onSelect(el.id)}
-                    className={`flex-1 truncate text-left text-[12px] ${
+                    className={`flex-1 truncate text-left text-[12.5px] ${
                       isSelected ? 'font-semibold text-ink' : 'text-muted hover:text-ink'
                     }`}
                   >

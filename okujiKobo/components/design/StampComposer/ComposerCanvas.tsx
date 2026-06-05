@@ -31,9 +31,14 @@ interface Props {
 export function ComposerCanvas({ doc, selectedId, onSelect, onUpdate }: Props) {
   const svgRef = useRef<SVGSVGElement>(null)
 
+  // Safe-margin ring inset. Sized in surface-units (256-unit
+  // viewBox) so it stays proportional to the artboard regardless
+  // of display size. ~5% from each edge.
+  const SAFE_INSET = 13
+
   return (
     <div
-      className="relative bg-white shadow-[0_4px_24px_rgba(0,0,0,0.08)]"
+      className="relative rounded-[6px] bg-white shadow-[0_4px_24px_rgba(31,29,26,0.10)]"
       style={{ width: DISPLAY_PX, height: DISPLAY_PX, color: '#1f1d1a' }}
     >
       <svg
@@ -51,6 +56,40 @@ export function ComposerCanvas({ doc, selectedId, onSelect, onUpdate }: Props) {
         }}
         style={{ touchAction: 'none', cursor: 'default' }}
       >
+        {/* Guides — purely presentational chrome (pointer-events
+            disabled at the group level so clicks always fall
+            through to the artboard background or an element). */}
+        <g pointerEvents="none">
+          {/* Dashed hairline safe-margin ring matching the
+              artboard shape. */}
+          <rect
+            x={SAFE_INSET}
+            y={SAFE_INSET}
+            width={doc.surface.w - SAFE_INSET * 2}
+            height={doc.surface.h - SAFE_INSET * 2}
+            fill="none"
+            stroke="#c8bfa9"
+            strokeWidth={0.75}
+            strokeDasharray="3 3"
+            rx={3}
+          />
+          {/* Center crosshair — blue at ~25% alpha. */}
+          <line
+            x1={doc.surface.w / 2} y1={SAFE_INSET}
+            x2={doc.surface.w / 2} y2={doc.surface.h - SAFE_INSET}
+            stroke="#2d5a8e"
+            strokeOpacity={0.25}
+            strokeWidth={0.75}
+          />
+          <line
+            x1={SAFE_INSET} y1={doc.surface.h / 2}
+            x2={doc.surface.w - SAFE_INSET} y2={doc.surface.h / 2}
+            stroke="#2d5a8e"
+            strokeOpacity={0.25}
+            strokeWidth={0.75}
+          />
+        </g>
+
         {doc.elements.map((el) => (
           <ElementGroup
             key={el.id}
@@ -383,26 +422,26 @@ function SelectionOverlay({
     <g transform={transform} style={{ pointerEvents: 'auto' }}>
       <rect
         x={bb.x} y={bb.y} width={bb.w} height={bb.h}
-        fill="none" stroke="#1d9e75" strokeWidth={1} strokeDasharray="3 2"
+        fill="none" stroke="#2d5a8e" strokeWidth={1} strokeDasharray="3 2"
       />
-      {/* Resize handle — bottom-right */}
+      {/* Resize handle — bottom-right. Blue token (#2d5a8e). */}
       <rect
         x={bb.x + bb.w - HANDLE / 2}
         y={bb.y + bb.h - HANDLE / 2}
         width={HANDLE} height={HANDLE}
-        fill="#1d9e75" stroke="#fff" strokeWidth={1}
+        fill="#2d5a8e" stroke="#fff" strokeWidth={1}
         style={{ cursor: 'nwse-resize' }}
         onPointerDown={onResizePointerDown}
       />
-      {/* Rotate handle — above top-center */}
+      {/* Rotate handle — above top-center. Blue token. */}
       <line
         x1={bb.x + bb.w / 2} y1={bb.y}
         x2={bb.x + bb.w / 2} y2={bb.y - 14}
-        stroke="#1d9e75" strokeWidth={1}
+        stroke="#2d5a8e" strokeWidth={1}
       />
       <circle
         cx={bb.x + bb.w / 2} cy={bb.y - 14} r={4}
-        fill="#1d9e75" stroke="#fff" strokeWidth={1}
+        fill="#2d5a8e" stroke="#fff" strokeWidth={1}
         style={{ cursor: 'grab' }}
         onPointerDown={onRotatePointerDown}
       />

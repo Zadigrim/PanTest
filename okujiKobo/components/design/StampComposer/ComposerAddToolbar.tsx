@@ -23,8 +23,8 @@ export function ComposerAddToolbar({
   const [tracePickerOpen, setTracePickerOpen] = useState(false)
 
   return (
-    <div className="flex flex-wrap items-center gap-1.5 border-b border-hairline bg-white px-3 py-2">
-      <p className="mr-1 text-[10px] font-semibold uppercase tracking-[2px] text-muted">Add</p>
+    <div className="flex flex-wrap items-center gap-1.5 border-b-[1.5px] border-surface-faintdiv bg-surface-workspace px-3 py-2.5">
+      <p className="mr-1 text-[10px] font-bold uppercase tracking-[2px] text-muted">Add</p>
 
       <AddButton onClick={() => onAdd({
         id: newElementId(), type: 'rect',
@@ -82,7 +82,7 @@ export function ComposerAddToolbar({
         ─ <span className="ml-1">Line</span>
       </AddButton>
 
-      <span className="mx-1 h-5 w-px bg-hairline" aria-hidden />
+      <span className="mx-1 h-5 w-px bg-surface-faintdiv" aria-hidden />
 
       <AddButton onClick={() => onAdd({
         id: newElementId(), type: 'text',
@@ -112,9 +112,9 @@ export function ComposerAddToolbar({
         ⌒ <span className="ml-1">Curved text</span>
       </AddButton>
 
-      <span className="mx-1 h-5 w-px bg-hairline" aria-hidden />
+      <span className="mx-1 h-5 w-px bg-surface-faintdiv" aria-hidden />
 
-      <AddButton onClick={() => setIconPickerOpen(true)}>
+      <AddButton emphasis onClick={() => setIconPickerOpen(true)}>
         ★ <span className="ml-1">Icon</span>
       </AddButton>
 
@@ -165,12 +165,27 @@ export function ComposerAddToolbar({
   )
 }
 
-function AddButton({ children, onClick }: { children: React.ReactNode; onClick: () => void }) {
+function AddButton({
+  children,
+  onClick,
+  emphasis = false,
+}: {
+  children: React.ReactNode
+  onClick: () => void
+  /** Gold (accent) border + bold weight. Used to highlight the
+   *  Icon button per the spec. Purely visual — no behavior
+   *  change. */
+  emphasis?: boolean
+}) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="inline-flex h-8 items-center rounded-[6px] border-[1.5px] border-hairline bg-white px-2 text-[12px] font-medium text-ink hover:border-ink/40"
+      className={`inline-flex h-8 items-center rounded-[7px] border-[1.5px] bg-white px-2 text-[12.5px] text-ink ${
+        emphasis
+          ? 'border-accent font-semibold hover:bg-accent/10'
+          : 'border-hairline font-medium hover:border-ink/40'
+      }`}
     >
       {children}
     </button>
