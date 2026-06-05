@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation'
+import AppNav from '@/components/layout/AppNav'
 import { createClient } from '@/lib/supabase/server'
 import { detectRoles } from '@/lib/roles'
 import { StopsClient } from './StopsClient'
@@ -191,8 +192,10 @@ export default async function StopLibraryPage() {
   }))
 
   return (
-    <main className="min-h-screen bg-surface-workspace">
-      <div className="mx-auto max-w-7xl px-6 py-8">
+    <div className="min-h-screen bg-surface-workspace">
+      <AppNav />
+
+      <main className="mx-auto max-w-7xl px-6 py-8">
         <header className="mb-5">
           <h1 className="text-[25px] font-bold text-ink" style={{ letterSpacing: '-0.01em' }}>
             Stop Library
@@ -209,7 +212,7 @@ export default async function StopLibraryPage() {
           myImportedSourceIds={Array.from(mySourceIds)}
           isInstitutional={isInstitutional}
         />
-      </div>
-    </main>
+      </main>
+    </div>
   )
 }
