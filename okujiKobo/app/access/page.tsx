@@ -1,5 +1,4 @@
 import { redirect } from 'next/navigation'
-import AppNav from '@/components/layout/AppNav'
 import { createClient } from '@/lib/supabase/server'
 import { AccessClient } from './AccessClient'
 import type { InstitutionRow, PersonRow, AccessPendingTransfers } from './types'
@@ -187,30 +186,29 @@ export default async function AccessPage() {
     raw: i,
   }))
 
+  // AppNav is mounted by app/access/layout.tsx — don't re-mount
+  // it here or the bar renders twice.
   return (
-    <div className="min-h-screen bg-surface-workspace">
-      <AppNav />
-      <main className="mx-auto max-w-6xl px-6 py-8">
-        <header className="mb-5">
-          <h1 className="text-[25px] font-bold text-ink" style={{ letterSpacing: '-0.01em' }}>
-            Access Management
-          </h1>
-          <p className="mt-1 text-[13px] text-muted">
-            {isAdmin
-              ? 'Institutions, people, comp grants, and passport transfers — all in one place.'
-              : 'Your institution and its members.'}
-          </p>
-        </header>
+    <main className="mx-auto max-w-6xl px-6 py-8">
+      <header className="mb-5">
+        <h1 className="text-[25px] font-bold text-ink" style={{ letterSpacing: '-0.01em' }}>
+          Access Management
+        </h1>
+        <p className="mt-1 text-[13px] text-muted">
+          {isAdmin
+            ? 'Institutions, people, comp grants, and passport transfers — all in one place.'
+            : 'Your institution and its members.'}
+        </p>
+      </header>
 
-        <AccessClient
-          people={people}
-          institutions={institutions}
-          isAdmin={isAdmin}
-          currentUserId={user.id}
-          managedInstitutionIds={Array.from(managedInstitutionIds)}
-        />
-      </main>
-    </div>
+      <AccessClient
+        people={people}
+        institutions={institutions}
+        isAdmin={isAdmin}
+        currentUserId={user.id}
+        managedInstitutionIds={Array.from(managedInstitutionIds)}
+      />
+    </main>
   )
 }
 
