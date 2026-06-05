@@ -1,0 +1,314 @@
+[
+  {
+    "cat": "nature",
+    "slug": "tree-evergreen",
+    "label": "Evergreen tree",
+    "priority": true
+  },
+  {
+    "cat": "nature",
+    "slug": "tree-deciduous",
+    "label": "Deciduous tree",
+    "priority": false
+  },
+  {
+    "cat": "nature",
+    "slug": "mountain-ridge",
+    "label": "Mountain ridge",
+    "priority": true
+  },
+  {
+    "cat": "nature",
+    "slug": "peak-single",
+    "label": "Single peak",
+    "priority": false
+  },
+  {
+    "cat": "nature",
+    "slug": "wave",
+    "label": "Wave",
+    "priority": false
+  },
+  {
+    "cat": "nature",
+    "slug": "sun",
+    "label": "Sun",
+    "priority": false
+  },
+  {
+    "cat": "nature",
+    "slug": "moon-crescent",
+    "label": "Crescent moon",
+    "priority": false
+  },
+  {
+    "cat": "nature",
+    "slug": "star",
+    "label": "Star",
+    "priority": false
+  },
+  {
+    "cat": "nature",
+    "slug": "leaf",
+    "label": "Leaf",
+    "priority": false
+  },
+  {
+    "cat": "nature",
+    "slug": "flower-simple",
+    "label": "Simple flower",
+    "priority": false
+  },
+  {
+    "cat": "nature",
+    "slug": "snowflake",
+    "label": "Snowflake",
+    "priority": false
+  },
+  {
+    "cat": "nature",
+    "slug": "raindrop",
+    "label": "Raindrop",
+    "priority": false
+  },
+  {
+    "cat": "creatures",
+    "slug": "bird-flight",
+    "label": "Bird in flight",
+    "priority": false
+  },
+  {
+    "cat": "creatures",
+    "slug": "fish",
+    "label": "Fish",
+    "priority": false
+  },
+  {
+    "cat": "creatures",
+    "slug": "orca",
+    "label": "Orca",
+    "priority": true
+  },
+  {
+    "cat": "creatures",
+    "slug": "butterfly",
+    "label": "Butterfly",
+    "priority": false
+  },
+  {
+    "cat": "creatures",
+    "slug": "paw-print",
+    "label": "Paw print",
+    "priority": false
+  },
+  {
+    "cat": "creatures",
+    "slug": "shell-scallop",
+    "label": "Scallop shell",
+    "priority": false
+  },
+  {
+    "cat": "creatures",
+    "slug": "crab",
+    "label": "Crab",
+    "priority": false
+  },
+  {
+    "cat": "creatures",
+    "slug": "owl",
+    "label": "Owl",
+    "priority": false
+  },
+  {
+    "cat": "places",
+    "slug": "lighthouse",
+    "label": "Lighthouse",
+    "priority": true
+  },
+  {
+    "cat": "places",
+    "slug": "ferry",
+    "label": "Ferry",
+    "priority": true
+  },
+  {
+    "cat": "places",
+    "slug": "bridge",
+    "label": "Bridge",
+    "priority": false
+  },
+  {
+    "cat": "places",
+    "slug": "tent",
+    "label": "Tent",
+    "priority": false
+  },
+  {
+    "cat": "places",
+    "slug": "museum-columns",
+    "label": "Museum",
+    "priority": false
+  },
+  {
+    "cat": "places",
+    "slug": "bell-tower",
+    "label": "Bell tower",
+    "priority": false
+  },
+  {
+    "cat": "places",
+    "slug": "signpost-trail",
+    "label": "Trail signpost",
+    "priority": false
+  },
+  {
+    "cat": "places",
+    "slug": "footprints",
+    "label": "Footprints",
+    "priority": false
+  },
+  {
+    "cat": "places",
+    "slug": "compass-rose",
+    "label": "Compass rose",
+    "priority": true
+  },
+  {
+    "cat": "places",
+    "slug": "anchor",
+    "label": "Anchor",
+    "priority": false
+  },
+  {
+    "cat": "places",
+    "slug": "kayak",
+    "label": "Kayak",
+    "priority": false
+  },
+  {
+    "cat": "places",
+    "slug": "bicycle",
+    "label": "Bicycle",
+    "priority": false
+  },
+  {
+    "cat": "learning",
+    "slug": "book-closed",
+    "label": "Closed book",
+    "priority": false
+  },
+  {
+    "cat": "learning",
+    "slug": "book-open",
+    "label": "Open book",
+    "priority": true
+  },
+  {
+    "cat": "learning",
+    "slug": "pencil",
+    "label": "Pencil",
+    "priority": false
+  },
+  {
+    "cat": "learning",
+    "slug": "palette",
+    "label": "Palette",
+    "priority": false
+  },
+  {
+    "cat": "learning",
+    "slug": "music-note",
+    "label": "Music note",
+    "priority": false
+  },
+  {
+    "cat": "learning",
+    "slug": "masks-theater",
+    "label": "Theater masks",
+    "priority": false
+  },
+  {
+    "cat": "learning",
+    "slug": "camera",
+    "label": "Camera",
+    "priority": false
+  },
+  {
+    "cat": "learning",
+    "slug": "magnifier",
+    "label": "Magnifying glass",
+    "priority": false
+  },
+  {
+    "cat": "food",
+    "slug": "coffee-cup",
+    "label": "Coffee cup",
+    "priority": false
+  },
+  {
+    "cat": "food",
+    "slug": "fork-knife",
+    "label": "Fork & knife",
+    "priority": false
+  },
+  {
+    "cat": "food",
+    "slug": "wine-glass",
+    "label": "Wine glass",
+    "priority": false
+  },
+  {
+    "cat": "food",
+    "slug": "cupcake",
+    "label": "Cupcake",
+    "priority": false
+  },
+  {
+    "cat": "food",
+    "slug": "basket-market",
+    "label": "Market basket",
+    "priority": false
+  },
+  {
+    "cat": "symbols",
+    "slug": "heart",
+    "label": "Heart",
+    "priority": false
+  },
+  {
+    "cat": "symbols",
+    "slug": "checkmark",
+    "label": "Checkmark",
+    "priority": false
+  },
+  {
+    "cat": "symbols",
+    "slug": "ribbon-award",
+    "label": "Award ribbon",
+    "priority": false
+  },
+  {
+    "cat": "symbols",
+    "slug": "laurel",
+    "label": "Laurel branches",
+    "priority": false
+  },
+  {
+    "cat": "symbols",
+    "slug": "banner-flag",
+    "label": "Banner",
+    "priority": false
+  },
+  {
+    "cat": "symbols",
+    "slug": "arrow",
+    "label": "Arrow",
+    "priority": false
+  },
+  {
+    "cat": "symbols",
+    "slug": "hexagon-badge",
+    "label": "Hexagon badge",
+    "priority": false
+  }
+]
