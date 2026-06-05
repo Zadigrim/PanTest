@@ -195,6 +195,23 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     )
   }
 
+  // ── Record the import event (migration 058) ──────────────────
+  // Soft-fail: if the migration hasn't been applied yet (dev
+  // envs, mid-rollout), we don't want to refuse a successful
+  // copy because the event log is unreachable. The library
+  // count will just be missing that import.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error: logErr } = await (supabase as any)
+    .from('stop_imports')
+    .insert({
+      source_stop_id: sourceStop.id,
+      target_stop_id: newStop.id,
+      importer_id:    user.id,
+    })
+  if (logErr) {
+    console.warn('[stops/import] stop_imports insert failed (migration 058 may be unapplied):', logErr.message)
+  }
+
   return NextResponse.json({
     success: true,
     stopId: newStop.id,

@@ -23,6 +23,8 @@ import {
   Bird, Fish, PawPrint, Bug, Dog, Cat, Rabbit, Turtle,
   // Places & travel
   MapPin, Compass, Ship, Train, Plane, Anchor, Tent, Flag, Route, House,
+  // Add: Stop Library mapping needs distinct civic motifs
+  Landmark, Bike,
   // Learning & culture
   Book, BookOpen, GraduationCap, Lightbulb, Paintbrush, Palette, Music, Drama, Microscope, Telescope,
   // Food & drink
@@ -89,6 +91,8 @@ export const LUCIDE_SEED: SeedEntry[] = [
   { category: 'places', iconKey: 'flag',       label: 'Flag',       Component: Flag, keywords: ['banner'] },
   { category: 'places', iconKey: 'route',      label: 'Route',      Component: Route, keywords: ['trail', 'path'] },
   { category: 'places', iconKey: 'house',      label: 'House',      Component: House, keywords: ['home', 'building'] },
+  { category: 'places', iconKey: 'landmark',   label: 'Landmark',   Component: Landmark, keywords: ['museum', 'civic', 'monument', 'columns'] },
+  { category: 'places', iconKey: 'bike',       label: 'Bike',       Component: Bike, keywords: ['cycling', 'bicycle'] },
 
   // ── Learning & culture ────────────────────────────────────
   { category: 'culture', iconKey: 'book',          label: 'Book',         Component: Book },

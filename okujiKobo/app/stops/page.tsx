@@ -1,784 +1,208 @@
-'use client'
+import { redirect } from 'next/navigation'
+import { createClient } from '@/lib/supabase/server'
+import { detectRoles } from '@/lib/roles'
+import { StopsClient } from './StopsClient'
+import type { DraftPassport, StopCardData } from './types'
 
-import { useState, useEffect, useCallback, useTransition, useId } from 'react'
-import Link from 'next/link'
-import { createClient } from '@/lib/supabase/client'
+export const metadata = { title: 'Stop Library — okuji' }
 
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
+/**
+ * /stops — Stop Library, two-phase rewrite.
+ *
+ * Server-side: auth, scope detection (am I institutional?
+ * needed for "Shared by me"), and a batched fetch of:
+ *   - every shared stop (is_shared = true)
+ *   - acknowledgment counts per stop
+ *   - my-acknowledgment state per stop
+ *   - import counts per stop
+ *   - my draft passports (for the import target picker)
+ *
+ * Projects to StopCardData[] and hands off to the client tree.
+ * No URL params consumed here — the client owns search /
+ * filter / sort / selection state.
+ */
+export default async function StopLibraryPage() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login?next=/stops')
 
-const CLASSIFIERS = [
-  { value: 'educational', label: 'Educational' },
-  { value: 'heritage', label: 'Heritage' },
-  { value: 'nature', label: 'Nature' },
-  { value: 'arts_culture', label: 'Arts & culture' },
-  { value: 'family', label: 'Family' },
-  { value: 'accessible', label: 'Accessible' },
-  { value: 'challenge', label: 'Challenge' },
-  { value: 'hidden_gem', label: 'Hidden gem' },
-  { value: 'food_drink', label: 'Food & drink' },
-] as const
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = supabase as any
 
-const GRADE_LEVELS = [
-  { value: 'K-2', label: 'K–2' },
-  { value: '3-5', label: '3–5' },
-  { value: '6-8', label: '6–8' },
-  { value: '9-12', label: '9–12' },
-] as const
+  // ── Role detection ──
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const roleContext = await detectRoles(supabase as any, user.id)
+  const isInstitutional =
+    roleContext.roles.includes('institutional_manager') ||
+    roleContext.roles.includes('institutional_employee')
 
-const SUBJECT_AREAS = [
-  { value: 'life_science', label: 'Life science' },
-  { value: 'earth_science', label: 'Earth science' },
-  { value: 'history', label: 'History' },
-  { value: 'social_studies', label: 'Social studies' },
-  { value: 'arts', label: 'Arts' },
-  { value: 'literature', label: 'Literature' },
-] as const
-
-const INSTITUTION_TYPES = [
-  { value: 'k12_school',         label: 'K–12 School' },
-  { value: 'school',             label: 'School' },
-  { value: 'public_library',     label: 'Public Library' },
-  { value: 'library',            label: 'Library' },
-  { value: 'museum',             label: 'Museum' },
-  { value: 'parks_department',   label: 'Parks Department' },
-  { value: 'park',               label: 'Park' },
-  { value: 'aquarium',           label: 'Aquarium' },
-  { value: 'zoo',                label: 'Zoo' },
-  { value: 'nature_conservatory', label: 'Nature Conservatory' },
-  { value: 'nonprofit',          label: 'Nonprofit' },
-] as const
-
-type SortOption = 'acknowledged' | 'newest'
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-interface StopCard {
-  id: string
-  name: string
-  stamp_icon: string | null
-  address_city: string | null
-  address_state: string | null
-  classifiers: string[]
-  learning_objective: string | null
-  acknowledgment_count: number
-  creator_name: string | null
-  institution_name: string | null
-}
-
-interface ImportModalState {
-  stopId: string
-  stopName: string
-}
-
-interface DraftPassport {
-  id: string
-  title: string
-}
-
-// ---------------------------------------------------------------------------
-// Checkbox filter group
-// ---------------------------------------------------------------------------
-
-function CheckboxGroup<T extends string>({
-  items,
-  selected,
-  onChange,
-}: {
-  items: readonly { value: T; label: string }[]
-  selected: Set<T>
-  onChange: (value: T, checked: boolean) => void
-}) {
-  return (
-    <div className="space-y-2">
-      {items.map((item) => (
-        <label key={item.value} className="flex items-center gap-2 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={selected.has(item.value)}
-            onChange={(e) => onChange(item.value, e.target.checked)}
-            className="accent-green w-4 h-4 shrink-0"
-          />
-          <span className="text-sm text-navy">{item.label}</span>
-        </label>
-      ))}
-    </div>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// Filter panel
-// ---------------------------------------------------------------------------
-
-function FilterPanel({
-  searchQuery,
-  onSearchChange,
-  onSearch,
-  selectedClassifiers,
-  onClassifierChange,
-  selectedGrades,
-  onGradeChange,
-  selectedSubjects,
-  onSubjectChange,
-  selectedInstitutionTypes,
-  onInstitutionTypeChange,
-  sortBy,
-  onSortChange,
-}: {
-  searchQuery: string
-  onSearchChange: (v: string) => void
-  onSearch: () => void
-  selectedClassifiers: Set<string>
-  onClassifierChange: (value: string, checked: boolean) => void
-  selectedGrades: Set<string>
-  onGradeChange: (value: string, checked: boolean) => void
-  selectedSubjects: Set<string>
-  onSubjectChange: (value: string, checked: boolean) => void
-  selectedInstitutionTypes: Set<string>
-  onInstitutionTypeChange: (value: string, checked: boolean) => void
-  sortBy: SortOption
-  onSortChange: (v: SortOption) => void
-}) {
-  const educationalChecked = selectedClassifiers.has('educational')
-  const searchId = useId()
-  const sortId = useId()
-
-  return (
-    <aside
-      className="w-full lg:w-[280px] shrink-0 bg-white rounded-panel border border-hairline p-5 self-start sticky top-4"
-      aria-label="Stop filters"
-    >
-      {/* Search */}
-      <div className="flex gap-2 mb-5">
-        <input
-          id={searchId}
-          type="search"
-          value={searchQuery}
-          onChange={(e) => onSearchChange(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && onSearch()}
-          placeholder="Search stops…"
-          className="flex-1 h-9 rounded-panel border border-hairline bg-paper px-3 text-sm text-navy placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-green focus:border-green transition-colors"
-          aria-label="Search stops"
-        />
-        <button
-          type="button"
-          onClick={onSearch}
-          className="h-9 px-3 rounded-panel bg-green text-white text-sm font-medium hover:bg-[#0F6E56] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green"
-        >
-          Search
-        </button>
-      </div>
-
-      {/* Classifiers */}
-      <section className="mb-5">
-        <h3 className="text-xs font-semibold text-muted uppercase tracking-wide mb-3">
-          Classifiers
-        </h3>
-        <CheckboxGroup
-          items={CLASSIFIERS}
-          selected={selectedClassifiers}
-          onChange={onClassifierChange}
-        />
-      </section>
-
-      {/* Grade level — shown when Educational is checked */}
-      {educationalChecked && (
-        <section className="mb-5 pl-3 border-l-2 border-cream">
-          <h3 className="text-xs font-semibold text-muted uppercase tracking-wide mb-3">
-            Grade level
-          </h3>
-          <CheckboxGroup
-            items={GRADE_LEVELS}
-            selected={selectedGrades}
-            onChange={onGradeChange}
-          />
-        </section>
-      )}
-
-      {/* Subject area — shown when Educational is checked */}
-      {educationalChecked && (
-        <section className="mb-5 pl-3 border-l-2 border-cream">
-          <h3 className="text-xs font-semibold text-muted uppercase tracking-wide mb-3">
-            Subject area
-          </h3>
-          <CheckboxGroup
-            items={SUBJECT_AREAS}
-            selected={selectedSubjects}
-            onChange={onSubjectChange}
-          />
-        </section>
-      )}
-
-      {/* Institution type */}
-      <section className="mb-5">
-        <h3 className="text-xs font-semibold text-muted uppercase tracking-wide mb-3">
-          Institution type
-        </h3>
-        <CheckboxGroup
-          items={INSTITUTION_TYPES}
-          selected={selectedInstitutionTypes}
-          onChange={onInstitutionTypeChange}
-        />
-      </section>
-
-      {/* Sort */}
-      <section>
-        <h3
-          id={sortId}
-          className="text-xs font-semibold text-muted uppercase tracking-wide mb-3"
-        >
-          Sort by
-        </h3>
-        <div className="space-y-2" role="radiogroup" aria-labelledby={sortId}>
-          {(
-            [
-              { value: 'acknowledged', label: 'Most acknowledged' },
-              { value: 'newest', label: 'Newest' },
-            ] as { value: SortOption; label: string }[]
-          ).map((opt) => (
-            <label key={opt.value} className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="radio"
-                name="stops-sort"
-                value={opt.value}
-                checked={sortBy === opt.value}
-                onChange={() => onSortChange(opt.value)}
-                className="accent-green w-4 h-4 shrink-0"
-              />
-              <span className="text-sm text-navy">{opt.label}</span>
-            </label>
-          ))}
-        </div>
-      </section>
-    </aside>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// Stop result card
-// ---------------------------------------------------------------------------
-
-function StopResultCard({
-  stop,
-  onImport,
-}: {
-  stop: StopCard
-  onImport: (stopId: string, stopName: string) => void
-}) {
-  const location = [stop.address_city, stop.address_state].filter(Boolean).join(', ')
-  const truncatedObjective = stop.learning_objective
-    ? stop.learning_objective.length > 120
-      ? stop.learning_objective.slice(0, 120) + '…'
-      : stop.learning_objective
-    : null
-
-  return (
-    <article className="bg-white rounded-panel border border-hairline p-5 flex flex-col gap-3">
-      {/* Header */}
-      <div className="flex items-start gap-3">
-        <div
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-card bg-paper text-xl"
-          aria-hidden="true"
-        >
-          {stop.stamp_icon ?? '📍'}
-        </div>
-        <div className="min-w-0">
-          <h3 className="font-semibold text-navy leading-tight truncate">
-            {stop.name}
-          </h3>
-          {location && (
-            <p className="text-xs text-muted mt-0.5">{location}</p>
-          )}
-        </div>
-      </div>
-
-      {/* Classifiers */}
-      {stop.classifiers.length > 0 && (
-        <div className="flex flex-wrap gap-1.5">
-          {stop.classifiers.slice(0, 4).map((c) => (
-            <span
-              key={c}
-              className="inline-flex items-center rounded-card bg-cream px-2 py-0.5 text-xs font-medium text-green capitalize"
-            >
-              {c.replace(/_/g, ' ')}
-            </span>
-          ))}
-          {stop.classifiers.length > 4 && (
-            <span className="inline-flex items-center rounded-card bg-hairline px-2 py-0.5 text-xs font-medium text-muted">
-              +{stop.classifiers.length - 4}
-            </span>
-          )}
-        </div>
-      )}
-
-      {/* Learning objective */}
-      {truncatedObjective && (
-        <p className="text-sm text-muted leading-relaxed">{truncatedObjective}</p>
-      )}
-
-      {/* Footer */}
-      <div className="mt-auto pt-1 flex items-center justify-between gap-3 flex-wrap">
-        <div className="text-xs text-muted space-y-0.5">
-          <p>
-            <span className="tabular-nums font-medium text-navy">
-              {stop.acknowledgment_count}
-            </span>{' '}
-            acknowledgments
-          </p>
-          {(stop.creator_name ?? stop.institution_name) && (
-            <p>
-              Built by{stop.creator_name ? ` ${stop.creator_name}` : ''}
-              {stop.institution_name ? ` at ${stop.institution_name}` : ''}
-            </p>
-          )}
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <Link
-            href={`/stops/${stop.id}`}
-            className="inline-flex items-center h-8 px-3 rounded-panel border border-hairline text-xs font-medium text-navy hover:bg-paper transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green"
-          >
-            Preview
-          </Link>
-          <button
-            type="button"
-            onClick={() => onImport(stop.id, stop.name)}
-            className="inline-flex items-center h-8 px-3 rounded-panel bg-green text-white text-xs font-medium hover:bg-[#0F6E56] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green"
-          >
-            Import
-          </button>
-        </div>
-      </div>
-    </article>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// Import modal
-// ---------------------------------------------------------------------------
-
-function ImportModal({
-  state,
-  onClose,
-}: {
-  state: ImportModalState
-  onClose: () => void
-}) {
-  const [passports, setPassports] = useState<DraftPassport[]>([])
-  const [selectedPassportId, setSelectedPassportId] = useState<string>('')
-  const [loading, setLoading] = useState(true)
-  const [importing, startImportTransition] = useTransition()
-  const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState(false)
-  const selectId = useId()
-
-  useEffect(() => {
-    async function loadPassports() {
-      setLoading(true)
-      const supabase = createClient()
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-
-      if (!user) {
-        setError('You must be signed in to import stops.')
-        setLoading(false)
-        return
-      }
-
-      const { data } = await supabase
-        .from('passports')
-        .select('id, title')
-        .eq('creator_id', user.id)
-        .eq('is_published', false)
-        .order('updated_at', { ascending: false })
-
-      setPassports((data ?? []) as DraftPassport[])
-      if ((data ?? []).length > 0) {
-        setSelectedPassportId((data as DraftPassport[])[0].id)
-      }
-      setLoading(false)
-    }
-    loadPassports()
-  }, [])
-
-  function handleImport() {
-    setError(null)
-
-    if (!selectedPassportId && selectedPassportId !== '__new') {
-      setError('Select a passport or choose "Create new passport".')
-      return
-    }
-
-    startImportTransition(async () => {
-      try {
-        let passportId = selectedPassportId
-
-        // Create new passport if requested
-        if (selectedPassportId === '__new') {
-          const res = await fetch('/api/design/create', { method: 'POST' })
-          if (!res.ok) throw new Error('Failed to create passport')
-          const json = (await res.json()) as { id: string }
-          passportId = json.id
-        }
-
-        const res = await fetch('/api/stops/import', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ stopId: state.stopId, passportId }),
-        })
-
-        if (!res.ok) {
-          const json = (await res.json()) as { error?: string }
-          throw new Error(json.error ?? 'Import failed')
-        }
-
-        setSuccess(true)
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Import failed')
-      }
-    })
-  }
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="import-modal-title"
-    >
-      <div className="w-full max-w-md bg-white rounded-modal shadow-xl border border-hairline p-6">
-        {success ? (
-          <>
-            <h2 id="import-modal-title" className="text-lg font-semibold text-navy mb-2">
-              Stop imported
-            </h2>
-            <p className="text-sm text-muted mb-5">
-              &ldquo;{state.stopName}&rdquo; has been added to your passport.
-            </p>
-            <div className="flex gap-3">
-              <button
-                type="button"
-                onClick={onClose}
-                className="h-9 px-4 rounded-panel bg-green text-white text-sm font-medium hover:bg-[#0F6E56] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green"
-              >
-                Done
-              </button>
-              <Link
-                href="/design"
-                className="h-9 px-4 rounded-panel border border-hairline text-sm font-medium text-navy hover:bg-paper transition-colors inline-flex items-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green"
-              >
-                Go to designer
-              </Link>
-            </div>
-          </>
-        ) : (
-          <>
-            <h2 id="import-modal-title" className="text-lg font-semibold text-navy mb-1">
-              Import this stop
-            </h2>
-            <p className="text-sm text-muted mb-5">
-              Import &ldquo;{state.stopName}&rdquo; into which passport?
-            </p>
-
-            {loading ? (
-              <p className="text-sm text-muted animate-pulse mb-5">
-                Loading your passports…
-              </p>
-            ) : (
-              <div className="flex flex-col gap-1.5 mb-5">
-                <label htmlFor={selectId} className="text-sm font-medium text-navy">
-                  Passport
-                </label>
-                <select
-                  id={selectId}
-                  value={selectedPassportId}
-                  onChange={(e) => setSelectedPassportId(e.target.value)}
-                  className="h-9 rounded-panel border border-hairline bg-white px-3 text-sm text-navy focus:outline-none focus:ring-2 focus:ring-green focus:border-green"
-                >
-                  {passports.length === 0 && (
-                    <option value="" disabled>
-                      No draft passports yet
-                    </option>
-                  )}
-                  {passports.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.title}
-                    </option>
-                  ))}
-                  <option value="__new">+ Create new passport</option>
-                </select>
-              </div>
-            )}
-
-            {error && (
-              <p role="alert" className="text-sm text-accent mb-4">
-                {error}
-              </p>
-            )}
-
-            <div className="flex gap-3">
-              <button
-                type="button"
-                onClick={handleImport}
-                disabled={importing || loading}
-                className="h-9 px-4 rounded-panel bg-green text-white text-sm font-medium hover:bg-[#0F6E56] disabled:opacity-50 disabled:pointer-events-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green"
-              >
-                {importing ? 'Importing…' : 'Import stop'}
-              </button>
-              <button
-                type="button"
-                onClick={onClose}
-                disabled={importing}
-                className="h-9 px-4 rounded-panel border border-hairline text-sm font-medium text-navy hover:bg-paper transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green"
-              >
-                Cancel
-              </button>
-            </div>
-          </>
-        )}
-      </div>
-    </div>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// Main page
-// ---------------------------------------------------------------------------
-
-export default function StopsLibraryPage() {
-  const [searchQuery, setSearchQuery] = useState('')
-  const [selectedClassifiers, setSelectedClassifiers] = useState<Set<string>>(
-    new Set(['educational']),
-  )
-  const [selectedGrades, setSelectedGrades] = useState<Set<string>>(new Set())
-  const [selectedSubjects, setSelectedSubjects] = useState<Set<string>>(new Set())
-  const [selectedInstitutionTypes, setSelectedInstitutionTypes] = useState<Set<string>>(
-    new Set(),
-  )
-  const [sortBy, setSortBy] = useState<SortOption>('acknowledged')
-
-  const [stops, setStops] = useState<StopCard[]>([])
-  const [loading, setLoading] = useState(true)
-  const [loadError, setLoadError] = useState<string | null>(null)
-
-  const [importModal, setImportModal] = useState<ImportModalState | null>(null)
-
-  const fetchStops = useCallback(async () => {
-    setLoading(true)
-    setLoadError(null)
-
-    try {
-      const supabase = createClient()
-
-      let query = supabase
-        .from('stops')
-        .select(
-          `
-          id,
-          name,
-          stamp_icon,
-          address_city,
-          address_state,
-          classifiers,
-          learning_objective,
-          created_at,
-          passport_pages!inner (
-            passports!inner (
-              creator_id,
-              profiles!creator_id ( display_name ),
-              institutions!institution_id ( name )
-            )
-          )
-        `,
+  // ── Shared stops ──
+  // Pull every is_shared stop with its educational metadata
+  // and the joins needed for attribution. The page_id walks
+  // up to passports → institutions for the institution name;
+  // creator joins to profiles for the display name.
+  const { data: stopsRaw } = await db
+    .from('stops')
+    .select(`
+      id, name,
+      experience_type, experience_verification_method,
+      address_city, address_state, address_country,
+      classifiers, grade_levels, subject_areas,
+      learning_objective, journal_prompt,
+      creator_id, created_at,
+      creator:profiles!creator_id (display_name),
+      page:passport_pages!page_id (
+        passport:passports!passport_id (
+          institution:institutions!proprietor_id (id, name)
         )
-        .eq('is_shared', true)
+      )
+    `)
+    .eq('is_shared', true)
+    .order('created_at', { ascending: false })
 
-      // Apply classifier filter
-      if (selectedClassifiers.size > 0) {
-        query = query.overlaps('classifiers', Array.from(selectedClassifiers))
-      }
+  const stops = (stopsRaw ?? []) as Array<{
+    id: string
+    name: string
+    experience_type: 'location' | 'experience' | null
+    experience_verification_method: 'gps' | 'qr' | 'witnessed' | 'documented' | 'honor' | null
+    address_city: string | null
+    address_state: string | null
+    address_country: string | null
+    classifiers: string[] | null
+    grade_levels: string[] | null
+    subject_areas: string[] | null
+    learning_objective: string | null
+    journal_prompt: string | null
+    creator_id: string | null
+    created_at: string
+    creator: { display_name: string | null } | null
+    page: { passport: { institution: { id: string; name: string | null } | null } | null } | null
+  }>
+  const stopIds = stops.map((s) => s.id)
 
-      // Apply search
-      const trimmed = searchQuery.trim()
-      if (trimmed) {
-        query = query.ilike('name', `%${trimmed}%`)
-      }
-
-      // Sort
-      if (sortBy === 'newest') {
-        query = query.order('created_at', { ascending: false })
-      }
-
-      // Fetch presence_sessions count separately (aggregates in select aren't always supported)
-      const { data: rawStops, error: stopsErr } = await query.limit(60)
-      if (stopsErr) throw new Error(stopsErr.message)
-
-      const stopIds = (rawStops ?? []).map((s: { id: string }) => s.id)
-
-      // Count acknowledgments per stop
-      const ackMap = new Map<string, number>()
-      if (stopIds.length > 0) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { data: sessions } = await (supabase as any)
-          .from('presence_sessions')
-          .select('stop_id')
-          .in('stop_id', stopIds) as { data: Array<{ stop_id: string }> | null }
-
-        for (const session of sessions ?? []) {
-          ackMap.set(session.stop_id, (ackMap.get(session.stop_id) ?? 0) + 1)
-        }
-      }
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      let assembled: StopCard[] = (rawStops ?? []).map((s: any) => {
-        const passport = s.passport_pages?.passports
-        const institutionName = passport?.institutions?.name ?? null
-        const creatorName = passport?.profiles?.display_name ?? null
-        return {
-          id: s.id,
-          name: s.name,
-          stamp_icon: s.stamp_icon ?? null,
-          address_city: s.address_city ?? null,
-          address_state: s.address_state ?? null,
-          classifiers: Array.isArray(s.classifiers) ? s.classifiers : [],
-          learning_objective: s.learning_objective ?? null,
-          acknowledgment_count: ackMap.get(s.id) ?? 0,
-          creator_name: creatorName,
-          institution_name: institutionName,
-        }
-      })
-
-      // Sort by acknowledgments client-side (Supabase aggregates are complex)
-      if (sortBy === 'acknowledged') {
-        assembled = assembled.sort((a, b) => b.acknowledgment_count - a.acknowledgment_count)
-      }
-
-      setStops(assembled)
-    } catch (err) {
-      setLoadError(err instanceof Error ? err.message : 'Failed to load stops')
-    } finally {
-      setLoading(false)
+  // ── Acknowledgment counts + my state ──
+  // Two queries, both fast: COUNT(*) per stop_id and the rows
+  // where user_id = me. Aggregation in JS.
+  const ackCounts = new Map<string, number>()
+  const ackByMe = new Set<string>()
+  if (stopIds.length > 0) {
+    const [{ data: ackAll }, { data: ackMine }] = await Promise.all([
+      db.from('stop_acknowledgments').select('stop_id').in('stop_id', stopIds),
+      db.from('stop_acknowledgments').select('stop_id').in('stop_id', stopIds).eq('user_id', user.id),
+    ])
+    for (const r of (ackAll ?? []) as { stop_id: string }[]) {
+      ackCounts.set(r.stop_id, (ackCounts.get(r.stop_id) ?? 0) + 1)
     }
-  }, [searchQuery, selectedClassifiers, selectedGrades, selectedSubjects, selectedInstitutionTypes, sortBy])
-
-  // Initial load and when filters change
-  useEffect(() => {
-    fetchStops()
-  }, [fetchStops])
-
-  function toggleSet<T extends string>(
-    set: Set<T>,
-    setFn: (s: Set<T>) => void,
-    value: T,
-    checked: boolean,
-  ) {
-    const next = new Set(set)
-    if (checked) next.add(value)
-    else next.delete(value)
-    setFn(next)
+    for (const r of (ackMine ?? []) as { stop_id: string }[]) {
+      ackByMe.add(r.stop_id)
+    }
   }
 
+  // ── Import counts ──
+  // Per migration 058 — distinct copies made of each source.
+  // The same COUNT(*) shape as acknowledgments.
+  const importCounts = new Map<string, number>()
+  if (stopIds.length > 0) {
+    const { data: impRows } = await db
+      .from('stop_imports')
+      .select('source_stop_id')
+      .in('source_stop_id', stopIds)
+    for (const r of (impRows ?? []) as { source_stop_id: string }[]) {
+      importCounts.set(r.source_stop_id, (importCounts.get(r.source_stop_id) ?? 0) + 1)
+    }
+  }
+
+  // ── My imports (for the "My imports" tab) ──
+  // The targets of imports I made. Empty until imports start
+  // being recorded post-058; that's expected.
+  const { data: myImportRows } = await db
+    .from('stop_imports')
+    .select('source_stop_id, imported_at')
+    .eq('importer_id', user.id)
+  const mySourceIds = new Set(
+    ((myImportRows ?? []) as { source_stop_id: string }[]).map((r) => r.source_stop_id),
+  )
+
+  // ── My institution ids (for "Shared by me" tab) ──
+  // Stops where the parent passport's proprietor is one of
+  // my institutions count as "shared by me" — the spec is
+  // institution-gated, so a member of an institution sees
+  // everything that institution shared.
+  let mySharedIds = new Set<string>()
+  if (isInstitutional) {
+    const { data: myInstRows } = await db
+      .from('employee_authorizations')
+      .select('institution_id')
+      .eq('user_id', user.id)
+    const myInstSet = new Set(
+      ((myInstRows ?? []) as { institution_id: string }[]).map((r) => r.institution_id),
+    )
+    // Direct ownership: institutions.id = user.id
+    myInstSet.add(user.id)
+    mySharedIds = new Set(
+      stops
+        .filter((s) => s.page?.passport?.institution?.id && myInstSet.has(s.page.passport.institution.id))
+        .map((s) => s.id),
+    )
+  }
+
+  // ── Draft passports for the import target picker ──
+  // Stops import into a passport the user OWNS. Drafts come
+  // first (unpublished); published passports are still
+  // selectable targets — the user might be iterating on a
+  // published copy.
+  const { data: passportRows } = await db
+    .from('passports')
+    .select('id, title')
+    .eq('creator_id', user.id)
+    .order('updated_at', { ascending: false })
+  const drafts: DraftPassport[] = ((passportRows ?? []) as { id: string; title: string | null }[])
+    .map((p) => ({ id: p.id, title: p.title ?? 'Untitled passport' }))
+
+  // ── Projection ──
+  const rows: StopCardData[] = stops.map((s) => ({
+    id: s.id,
+    name: s.name,
+    experience_type: s.experience_type,
+    experience_verification_method: s.experience_verification_method,
+    address_city: s.address_city,
+    address_state: s.address_state,
+    address_country: s.address_country,
+    classifiers: s.classifiers ?? [],
+    grade_levels: s.grade_levels ?? [],
+    subject_areas: s.subject_areas ?? [],
+    learning_objective: s.learning_objective,
+    journal_prompt: s.journal_prompt,
+    creator_id: s.creator_id,
+    creator_name: s.creator?.display_name ?? null,
+    institution_id: s.page?.passport?.institution?.id ?? null,
+    institution_name: s.page?.passport?.institution?.name ?? null,
+    acknowledgment_count: ackCounts.get(s.id) ?? 0,
+    acknowledged_by_me: ackByMe.has(s.id),
+    import_count: importCounts.get(s.id) ?? 0,
+    created_at: s.created_at,
+  }))
+
   return (
-    <div className="min-h-screen bg-paper">
-      {/* Header */}
-      <header className="border-b border-hairline bg-white px-8 py-4">
-        <div className="mx-auto flex max-w-7xl items-center justify-between">
-          <div>
-            <h1 className="text-xl font-bold text-navy">Stop Library</h1>
-            <p className="text-xs text-muted mt-0.5">
-              Browse and import educational stops shared by the Okuji community.
-            </p>
-          </div>
-          <Link
-            href="/design"
-            className="text-sm text-muted hover:text-navy transition-colors"
-          >
-            ← Back to designer
-          </Link>
-        </div>
-      </header>
+    <main className="min-h-screen bg-surface-workspace">
+      <div className="mx-auto max-w-7xl px-6 py-8">
+        <header className="mb-5">
+          <h1 className="text-[25px] font-bold text-ink" style={{ letterSpacing: '-0.01em' }}>
+            Stop Library
+          </h1>
+          <p className="mt-1 text-[13px] text-muted">
+            Educational stops shared by institutions — reuse another teacher&rsquo;s in your own passport.
+          </p>
+        </header>
 
-      <main className="mx-auto max-w-7xl px-8 py-8">
-        <div className="flex gap-8 items-start">
-          {/* Filter panel */}
-          <FilterPanel
-            searchQuery={searchQuery}
-            onSearchChange={setSearchQuery}
-            onSearch={fetchStops}
-            selectedClassifiers={selectedClassifiers}
-            onClassifierChange={(v, c) =>
-              toggleSet(selectedClassifiers, setSelectedClassifiers, v, c)
-            }
-            selectedGrades={selectedGrades}
-            onGradeChange={(v, c) => toggleSet(selectedGrades, setSelectedGrades, v, c)}
-            selectedSubjects={selectedSubjects}
-            onSubjectChange={(v, c) => toggleSet(selectedSubjects, setSelectedSubjects, v, c)}
-            selectedInstitutionTypes={selectedInstitutionTypes}
-            onInstitutionTypeChange={(v, c) =>
-              toggleSet(selectedInstitutionTypes, setSelectedInstitutionTypes, v, c)
-            }
-            sortBy={sortBy}
-            onSortChange={setSortBy}
-          />
-
-          {/* Results */}
-          <div className="flex-1 min-w-0">
-            {loading && (
-              <div className="py-20 text-center">
-                <p className="text-sm text-muted animate-pulse">Loading stops…</p>
-              </div>
-            )}
-
-            {loadError && (
-              <div
-                role="alert"
-                className="bg-accent/10 border border-accent rounded-panel p-4 text-accent text-sm"
-              >
-                {loadError}
-              </div>
-            )}
-
-            {!loading && !loadError && stops.length === 0 && (
-              <div className="py-20 text-center rounded-modal border-2 border-dashed border-hairline">
-                <p className="text-base font-semibold text-navy mb-2">
-                  No stops found
-                </p>
-                <p className="text-sm text-muted">
-                  Try adjusting your filters or search query.
-                </p>
-              </div>
-            )}
-
-            {!loading && !loadError && stops.length > 0 && (
-              <>
-                <p className="text-xs text-muted mb-4">
-                  {stops.length} stop{stops.length !== 1 ? 's' : ''}
-                </p>
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                  {stops.map((stop) => (
-                    <StopResultCard
-                      key={stop.id}
-                      stop={stop}
-                      onImport={(id, name) => setImportModal({ stopId: id, stopName: name })}
-                    />
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      </main>
-
-      {/* Import modal */}
-      {importModal && (
-        <ImportModal
-          state={importModal}
-          onClose={() => setImportModal(null)}
+        <StopsClient
+          stops={rows}
+          drafts={drafts}
+          mySharedIds={Array.from(mySharedIds)}
+          myImportedSourceIds={Array.from(mySourceIds)}
+          isInstitutional={isInstitutional}
         />
-      )}
-    </div>
+      </div>
+    </main>
   )
 }
