@@ -39,6 +39,9 @@ export interface StopCardData {
   /** True iff the current viewer has already acknowledged. */
   acknowledged_by_me: boolean
   import_count: number
+  /** Count of stop_comments rows for the card-footer chip
+   *  (the full list is fetched per-stop on drawer open). */
+  comment_count: number
 
   // For sorting / freshness signal
   created_at: string

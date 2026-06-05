@@ -24,12 +24,14 @@ export function StopsClient({
   mySharedIds,
   myImportedSourceIds,
   isInstitutional,
+  canWriteComments,
 }: {
   stops: StopCardData[]
   drafts: DraftPassport[]
   mySharedIds: string[]
   myImportedSourceIds: string[]
   isInstitutional: boolean
+  canWriteComments: boolean
 }) {
   const router = useRouter()
   const pathname = usePathname()
@@ -163,6 +165,7 @@ export function StopsClient({
         open={!!focused}
         stop={focused}
         drafts={drafts}
+        canWriteComments={canWriteComments}
         onClose={() => { setFocusedId(null); writeUrl({ focus: null }) }}
       />
     </div>

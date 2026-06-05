@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { IconTile } from './IconTile'
+import { CommentsSection } from './CommentsSection'
 import type { DraftPassport, StopCardData } from './types'
 
 /**
@@ -17,11 +18,13 @@ export function StopDrawer({
   open,
   stop,
   drafts,
+  canWriteComments,
   onClose,
 }: {
   open: boolean
   stop: StopCardData | null
   drafts: DraftPassport[]
+  canWriteComments: boolean
   onClose: () => void
 }) {
   const router = useRouter()
@@ -252,6 +255,11 @@ export function StopDrawer({
               </button>
             </div>
           </Section>
+
+          {/* Comments — fetched per-stop on drawer focus. Writer-gating
+              comes from the page-level canWriteComments prop; RLS is
+              the actual enforcement. */}
+          <CommentsSection stopId={stop.id} canWrite={canWriteComments} />
         </div>
 
         {/* Footer — primary import action with target picker */}

@@ -182,6 +182,33 @@ export default async function StopLibraryPage() {
     }
   }
 
+  // ── Comment counts ──
+  // Per migration 060. Cheap COUNT-by-stop_id via the
+  // already-existing index; full bodies are fetched per-stop
+  // when the preview drawer opens.
+  const commentCounts = new Map<string, number>()
+  if (stopIds.length > 0) {
+    const { data: cmtRows } = await db
+      .from('stop_comments')
+      .select('stop_id')
+      .in('stop_id', stopIds)
+    for (const r of (cmtRows ?? []) as { stop_id: string }[]) {
+      commentCounts.set(r.stop_id, (commentCounts.get(r.stop_id) ?? 0) + 1)
+    }
+  }
+
+  // ── Can-write-comments for the current viewer ──
+  // The DB policy is the source of truth (migration 060);
+  // this client-side derivation lets the drawer hide the
+  // compose UI cleanly instead of letting the user type
+  // something only to be rejected on POST. Population:
+  // institutional_manager OR institutional_employee OR
+  // is_platform_admin.
+  const canWriteComments =
+    roleContext.roles.includes('institutional_manager') ||
+    roleContext.roles.includes('institutional_employee') ||
+    roleContext.roles.includes('platform_admin')
+
   // ── My imports (for the "My imports" tab) ──
   // The targets of imports I made. Empty until imports start
   // being recorded post-058; that's expected.
@@ -255,6 +282,7 @@ export default async function StopLibraryPage() {
       acknowledgment_count: ackCounts.get(s.id) ?? 0,
       acknowledged_by_me: ackByMe.has(s.id),
       import_count: importCounts.get(s.id) ?? 0,
+      comment_count: commentCounts.get(s.id) ?? 0,
       created_at: s.created_at,
     }
   })
@@ -279,6 +307,7 @@ export default async function StopLibraryPage() {
           mySharedIds={Array.from(mySharedIds)}
           myImportedSourceIds={Array.from(mySourceIds)}
           isInstitutional={isInstitutional}
+          canWriteComments={canWriteComments}
         />
       </main>
     </div>
