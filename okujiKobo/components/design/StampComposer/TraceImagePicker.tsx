@@ -33,6 +33,7 @@ export function TraceImagePicker({
   const [img,         setImg]         = useState<HTMLImageElement | null>(null)
   const [filename,    setFilename]    = useState<string>('')
   const [threshold,   setThreshold]   = useState(128)
+  const [invert,      setInvert]      = useState(false)
   const [tracing,     setTracing]     = useState(false)
   const [result,      setResult]      = useState<TraceResult | null>(null)
   const [error,       setError]       = useState<string | null>(null)
@@ -41,18 +42,18 @@ export function TraceImagePicker({
   useEffect(() => {
     if (!open) {
       setImg(null); setResult(null); setFilename(''); setError(null)
-      setThreshold(128)
+      setThreshold(128); setInvert(false)
     }
   }, [open])
 
-  const reTrace = useCallback((src: HTMLImageElement, t: number) => {
+  const reTrace = useCallback((src: HTMLImageElement, t: number, inv: boolean) => {
     setTracing(true)
     setError(null)
     // requestAnimationFrame so the slider value visibly updates
     // before we burn the CPU; cheap UX win vs synchronous block.
     requestAnimationFrame(() => {
       try {
-        const out = traceImageData(src, { threshold: t })
+        const out = traceImageData(src, { threshold: t, invert: inv })
         setResult(out)
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e))
@@ -68,18 +69,18 @@ export function TraceImagePicker({
     try {
       const loaded = await loadImageFromFile(file)
       setImg(loaded)
-      reTrace(loaded, threshold)
+      reTrace(loaded, threshold, invert)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     }
-  }, [reTrace, threshold])
+  }, [reTrace, threshold, invert])
 
-  // Debounced re-trace on threshold change.
+  // Debounced re-trace on threshold / invert change.
   useEffect(() => {
     if (!img) return
-    const t = window.setTimeout(() => reTrace(img, threshold), 100)
+    const t = window.setTimeout(() => reTrace(img, threshold, invert), 100)
     return () => window.clearTimeout(t)
-  }, [threshold, img, reTrace])
+  }, [threshold, invert, img, reTrace])
 
   const previewSvg = useMemo(() => {
     if (!result) return null
@@ -104,6 +105,16 @@ export function TraceImagePicker({
         <header className="flex items-center gap-3 border-b border-hairline px-5 py-3">
           <p className="text-[10px] font-semibold uppercase tracking-[2px] text-muted">Trace an image</p>
           <p className="flex-1 truncate text-[12px] text-muted">{filename || 'No file chosen'}</p>
+          {img && (
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              title="Pick a different image without losing the current threshold / invert settings."
+              className="rounded-[6px] border-[1.5px] border-hairline bg-white px-3 py-1 text-[12px] font-semibold text-muted hover:text-ink"
+            >
+              ↻ Replace image
+            </button>
+          )}
           <button
             type="button"
             onClick={onClose}
@@ -124,6 +135,24 @@ export function TraceImagePicker({
             Add to canvas
           </button>
         </header>
+        {/* Single hidden file input — referenced by both the
+            initial "Choose image" button below AND the
+            "↻ Replace image" button in the header. Keeping one
+            ref means picking a new file flows through the same
+            onFile handler without state-reset gymnastics. */}
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0]
+            if (f) void onFile(f)
+            // Reset the input value so picking the same file
+            // twice in a row still fires onChange.
+            e.target.value = ''
+          }}
+        />
 
         {error && (
           <p role="alert" className="border-b border-red/30 bg-red/5 px-5 py-2 text-[12px] text-red">
@@ -141,16 +170,6 @@ export function TraceImagePicker({
               monochrome stamp use case. (AI photo iconization is on
               the roadmap; not in this push.)
             </p>
-            <input
-              ref={fileRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={(e) => {
-                const f = e.target.files?.[0]
-                if (f) void onFile(f)
-              }}
-            />
             <button
               type="button"
               onClick={() => fileRef.current?.click()}
@@ -198,9 +217,22 @@ export function TraceImagePicker({
                 <span className="w-[36px] text-right tabular-nums text-ink">{threshold}</span>
               </label>
               <p className="mt-1.5 text-[10.5px] text-muted">
-                Pixels darker than the threshold become ink. Slide left to keep
-                only the deepest blacks; slide right to ink more grays.
+                {invert
+                  ? 'Pixels brighter than the threshold become ink. Transparent areas read as paper — useful for white-on-transparent logos.'
+                  : 'Pixels darker than the threshold become ink. Slide left to keep only the deepest blacks; slide right to ink more grays.'}
               </p>
+              <label
+                className="mt-2 flex items-center gap-2 text-[11.5px] text-muted"
+                title="Trace bright pixels instead of dark ones. Useful when the artwork is white on a transparent or dark background."
+              >
+                <input
+                  type="checkbox"
+                  checked={invert}
+                  onChange={(e) => setInvert(e.target.checked)}
+                  className="h-3.5 w-3.5 rounded accent-green"
+                />
+                Invert — trace bright pixels (white-on-transparent logos)
+              </label>
             </div>
           </div>
         )}

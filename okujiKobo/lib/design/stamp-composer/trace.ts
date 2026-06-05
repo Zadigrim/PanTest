@@ -31,9 +31,23 @@ export interface TraceResult {
 }
 
 export interface TraceOptions {
-  /** Luminance cutoff in 0..255. Pixels darker than this become
-   *  ink. The composer surfaces this via the threshold slider. */
+  /** Luminance cutoff in 0..255. The composer surfaces this via
+   *  the threshold slider. Meaning depends on `invert`:
+   *    invert=false (default) — pixels darker than this become ink.
+   *    invert=true            — pixels brighter than this become ink. */
   threshold: number
+  /** Trace LIGHT pixels instead of dark ones. Useful for white-
+   *  on-transparent inputs (logo SVGs exported with the visible
+   *  content as white) where the natural reading is "the white
+   *  is the artwork". Alpha is treated differently per mode:
+   *    invert=false → transparent reads as bright (paper); the
+   *      typical dark-on-white-or-transparent input gets a clean
+   *      trace of just the dark pixels.
+   *    invert=true  → transparent reads as DARK (paper); only
+   *      visible bright pixels become ink. White-on-transparent
+   *      then traces the white shape; the transparent area stays
+   *      paper as expected. */
+  invert?: boolean
   /** RDP epsilon — pixel-units of error tolerance. Higher =
    *  fewer points, blockier paths. 1.0 is a sensible default. */
   simplifyTolerance?: number
@@ -76,16 +90,29 @@ function rasterize(img: HTMLImageElement, maxDim: number): {
   return { data: ctx.getImageData(0, 0, w, h).data, w, h }
 }
 
-/** Pixel → binary ink. Luminance via ITU-R BT.601. Transparent
- *  pixels read as paper (alpha-weighted). */
+/** Pixel → binary ink. Luminance via ITU-R BT.601. Alpha handling
+ *  flips with `invert`:
+ *    invert=false → transparent reads as bright (paper). The
+ *      effective luminance is α·rgb + (1−α)·255, so a fully-
+ *      transparent pixel evaluates to 255 (paper).
+ *    invert=true  → transparent reads as dark (also paper, since
+ *      in invert mode bright = ink). Effective luminance is
+ *      α·rgb, so transparent → 0; only visible bright pixels
+ *      pass the > threshold test. */
 function binarize(
-  data: Uint8ClampedArray, w: number, h: number, threshold: number,
+  data: Uint8ClampedArray, w: number, h: number, threshold: number, invert: boolean,
 ): Uint8Array {
   const bin = new Uint8Array(w * h)
   for (let i = 0, p = 0; i < bin.length; i++, p += 4) {
     const a = data[p + 3] / 255
-    const lum = (0.299 * data[p] + 0.587 * data[p + 1] + 0.114 * data[p + 2]) * a + (1 - a) * 255
-    bin[i] = lum < threshold ? 1 : 0
+    const rgbLum = 0.299 * data[p] + 0.587 * data[p + 1] + 0.114 * data[p + 2]
+    if (invert) {
+      const eff = rgbLum * a
+      bin[i] = eff > threshold ? 1 : 0
+    } else {
+      const eff = rgbLum * a + (1 - a) * 255
+      bin[i] = eff < threshold ? 1 : 0
+    }
   }
   return bin
 }
@@ -253,10 +280,10 @@ export function traceImageData(
   img: HTMLImageElement,
   opts: TraceOptions,
 ): TraceResult {
-  const { threshold, simplifyTolerance = 1.0, minBlobPixels = 8 } = opts
+  const { threshold, invert = false, simplifyTolerance = 1.0, minBlobPixels = 8 } = opts
   const MAX_DIM = 320  // tracer cap; the composer downscales here
   const { data, w, h } = rasterize(img, MAX_DIM)
-  const bin = binarize(data, w, h, threshold)
+  const bin = binarize(data, w, h, threshold, invert)
   const { labels, counts } = labelComponents(bin, w, h)
   const contours: { x: number; y: number }[][] = []
   for (let label = 0; label < counts.length; label++) {
