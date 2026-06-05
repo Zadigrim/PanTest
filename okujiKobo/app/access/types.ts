@@ -2,41 +2,47 @@
  * Shared types for the /access master/detail surface.
  *
  * The server page projects profiles + institutions into the
- * unified AccessEntityRow shape; the client orchestrator works
- * with rows + a selection.
+ * tab-specific row shapes below; each tab works with its own
+ * filtered selection.
  */
 
 export type AccessKind = 'person' | 'institution'
 
-/**
- * One row in the left list. Carries enough information for the
- * row chip + the toolbar's filter / sort to operate without the
- * client re-fetching anything. `raw` keeps the original row so
- * the detail panel can read fields the row UI doesn't surface
- * (e.g. role on people, pricing_model on institutions).
- */
-export interface AccessEntityRow {
-  kind: AccessKind
+export interface PersonRow {
   id: string
   name: string
-  sub: string | null
-  /** Display tier — 'studio' | 'pro' for people, or the institution.tier for institutions. */
-  tier: string | null
-  /** 'comp' | 'paid' on people; null on institutions. */
+  /** Legacy profiles.role text — display-only, never authoritative. */
+  legacyRole: string | null
+  /** ISO; renders as the Joined column. */
+  joinedAt: string
+  /** Derived display tier, or null for no active subscription. */
+  tier: 'studio' | 'pro' | null
   tierSource: 'comp' | 'paid' | null
-  /** ISO expiry of the active subscription, when present. */
   expiresAt: string | null
-  /** Pending transfers this entity is involved in (incoming OR outgoing initiator). */
+  isPlatformAdmin: boolean
   transferCount: number
-  /** Source row created_at — drives "Recently active" sort. */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  raw: any
+}
+
+export interface InstitutionRow {
+  id: string
+  name: string
+  institutionType: string | null
+  tier: string | null
+  pricingModel: string | null
+  /** Computed: 'free-civic' when both tier === 'civic' AND
+   *  pricing_model is one of the free models. UI maps to the
+   *  "Free · civic (permanent)" pill. */
+  accessKind: 'free-civic' | 'commercial' | 'unknown'
+  memberCount: number
+  passportCount: number
+  /** COUNT(acquisitions) over the institution's passports. The
+   *  spec calls this "acquired" — never "sold" — because no
+   *  payment system exists yet. */
+  acquiredCount: number
+  transferCount: number
   createdAt: string
-
-  // Institution-only — undefined on person rows.
-  pricingModel?: string | null
-  employeeCount?: number
-
-  /** Original DB row, untyped. The detail panel reads from this
-   *  for fields not surfaced on the list row. */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   raw: any
 }

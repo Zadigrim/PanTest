@@ -20,6 +20,36 @@ const BASE_NAV = [
   { label: 'Stop Library', href: '/stops' },
 ] as const
 
+// ─── Nav link ─────────────────────────────────────────────────────────────────
+//
+// Active state uses a 2px accent-gold underline (spec: "active nav
+// item = gold underline") instead of the prior bg-white/15 chip.
+// The rounded-panel + transition stay so hover keeps a soft chip
+// feel without competing with the underline.
+function NavLink({ href, active, label }: { href: string; active: boolean; label: string }) {
+  return (
+    <Link
+      href={href}
+      className={cn(
+        'relative whitespace-nowrap rounded-panel px-3 py-1.5 text-sm font-medium transition-colors',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green',
+        active
+          ? 'text-white'
+          : 'text-[#A8C0CE] hover:bg-white/10 hover:text-white',
+      )}
+      aria-current={active ? 'page' : undefined}
+    >
+      {label}
+      {active && (
+        <span
+          aria-hidden="true"
+          className="absolute inset-x-3 -bottom-[7px] h-[2px] rounded-full bg-accent"
+        />
+      )}
+    </Link>
+  )
+}
+
 // ─── AppNav ───────────────────────────────────────────────────────────────────
 
 export default async function AppNav() {
@@ -106,41 +136,12 @@ export default async function AppNav() {
         >
           {BASE_NAV.map(({ label, href }) => {
             const isActive = currentPath === href || currentPath.startsWith(href + '/')
-            return (
-              <Link
-                key={href}
-                href={href}
-                className={cn(
-                  'whitespace-nowrap rounded-panel px-3 py-1.5 text-sm font-medium transition-colors',
-                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green',
-                  isActive
-                    ? 'bg-white/15 text-white'
-                    : 'text-[#A8C0CE] hover:bg-white/10 hover:text-white'
-                )}
-                aria-current={isActive ? 'page' : undefined}
-              >
-                {label}
-              </Link>
-            )
+            return <NavLink key={href} href={href} active={isActive} label={label} />
           })}
           {canAccessManagement && (() => {
             const href = '/access'
             const isActive = currentPath === href || currentPath.startsWith(href + '/')
-            return (
-              <Link
-                href={href}
-                className={cn(
-                  'whitespace-nowrap rounded-panel px-3 py-1.5 text-sm font-medium transition-colors',
-                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green',
-                  isActive
-                    ? 'bg-white/15 text-white'
-                    : 'text-[#A8C0CE] hover:bg-white/10 hover:text-white'
-                )}
-                aria-current={isActive ? 'page' : undefined}
-              >
-                Access
-              </Link>
-            )
+            return <NavLink href={href} active={isActive} label="Access" />
           })()}
         </nav>
 

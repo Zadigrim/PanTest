@@ -213,6 +213,30 @@ function TierRow({
     return (
       <div className="rounded-panel border border-hairline bg-paper p-2">
         <p className="text-xs font-semibold text-navy">Grant {label}</p>
+        {/* Quick-pick durations per spec. Free-form date below still
+            wins if the admin types one — last-write-wins via the
+            same state. "Forever" clears the date. */}
+        <div className="mt-2 flex gap-1">
+          {[
+            { label: '30d',     days: 30 },
+            { label: '90d',     days: 90 },
+            { label: 'Forever', days: null },
+          ].map((opt) => (
+            <button
+              key={opt.label}
+              type="button"
+              onClick={() => {
+                if (opt.days === null) { setExpires(''); return }
+                const d = new Date()
+                d.setDate(d.getDate() + opt.days)
+                setExpires(d.toISOString().slice(0, 10))
+              }}
+              className="flex-1 rounded-card border border-hairline px-2 py-1 text-xs text-muted hover:border-green/40 hover:text-green"
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
         <label className="mt-2 block text-xs text-muted">
           Expires (optional)
           <input
