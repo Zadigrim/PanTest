@@ -56,14 +56,27 @@ export interface TraceOptions {
   minBlobPixels?: number
 }
 
-/** Load an HTMLImageElement from a File. */
+/** Load an HTMLImageElement from a File.
+ *
+ *  Reads the file as a data URL (via FileReader) and assigns it
+ *  to the Image's src. Using a data URL — instead of a blob URL
+ *  via URL.createObjectURL — sidesteps the lifecycle bug where
+ *  the picker's Source preview shows a broken-image icon
+ *  because the blob URL was revoked the moment the image
+ *  finished loading. Data URLs survive for the Image's lifetime
+ *  and re-render cleanly when the React component reads
+ *  `img.src` for the preview <img>. */
 export function loadImageFromFile(file: File): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
-    const url = URL.createObjectURL(file)
-    const img = new Image()
-    img.onload  = () => { URL.revokeObjectURL(url); resolve(img) }
-    img.onerror = (e) => { URL.revokeObjectURL(url); reject(new Error(`Image load failed: ${e}`)) }
-    img.src = url
+    const reader = new FileReader()
+    reader.onload = () => {
+      const img = new Image()
+      img.onload  = () => resolve(img)
+      img.onerror = (e) => reject(new Error(`Image load failed: ${e}`))
+      img.src = reader.result as string
+    }
+    reader.onerror = () => reject(new Error('Failed to read file'))
+    reader.readAsDataURL(file)
   })
 }
 
