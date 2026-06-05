@@ -1,6 +1,7 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import type { AccessEntityRow, AccessKind } from './types'
 import { AccessList } from './AccessList'
 import { AccessToolbar, type AccessFilter, type AccessSort } from './AccessToolbar'
@@ -12,8 +13,11 @@ import { EmptyDetailPanel } from './EmptyDetailPanel'
  * Master/detail orchestrator for /access.
  *
  * Owns:
- *   - search + filter + sort state
- *   - the selected entity (kind + id)
+ *   - search + filter + sort state (in-memory)
+ *   - the selected entity (kind + id) — mirrored to ?focus=kind:id
+ *     so links are shareable and back/forward navigation works
+ *   - keyboard nav (↑ / ↓ within the visible list, Enter focuses
+ *     the detail panel)
  *
  * Doesn't fetch — the server page hands it the full row set.
  * Detail panels do their own lazy data loads (history, transfers
@@ -31,11 +35,49 @@ export function AccessClient({
   currentUserId: string
   managedInstitutionIds: string[]
 }) {
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<AccessFilter>('all')
   const [sort, setSort] = useState<AccessSort>('recent')
   const [selection, setSelection] = useState<{ kind: AccessKind; id: string } | null>(null)
 
+  // ── URL ←→ selection sync ──
+  // Read once on mount and whenever the back/forward button fires
+  // a new searchParams reference. Selection writes go through
+  // setSelectionAndUrl which uses router.replace (no history
+  // entries for transient clicks).
+  useEffect(() => {
+    const focus = searchParams.get('focus')
+    if (!focus) {
+      if (selection !== null) setSelection(null)
+      return
+    }
+    const [kind, id] = focus.split(':')
+    if ((kind === 'person' || kind === 'institution') && id) {
+      const next = { kind: kind as AccessKind, id }
+      if (selection?.kind !== next.kind || selection?.id !== next.id) {
+        setSelection(next)
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams])
+
+  const setSelectionAndUrl = useCallback(
+    (next: { kind: AccessKind; id: string } | null) => {
+      setSelection(next)
+      const sp = new URLSearchParams(searchParams.toString())
+      if (next) sp.set('focus', `${next.kind}:${next.id}`)
+      else      sp.delete('focus')
+      const qs = sp.toString()
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
+    },
+    [router, pathname, searchParams],
+  )
+
+  // ── Filtering + sorting ──
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
     return rows
@@ -54,6 +96,29 @@ export function AccessClient({
     [rows, selection],
   )
 
+  // ── Keyboard nav (↑ / ↓) ──
+  // Scoped to the list region so typing in the search box
+  // doesn't trigger row moves. The list region attaches its own
+  // keydown handler via onKeyDown.
+  const listRegionRef = useRef<HTMLDivElement>(null)
+  const onListKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (filtered.length === 0) return
+      if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return
+      e.preventDefault()
+
+      const currentIdx = selection
+        ? filtered.findIndex((r) => r.kind === selection.kind && r.id === selection.id)
+        : -1
+      let nextIdx: number
+      if (e.key === 'ArrowDown') nextIdx = currentIdx < 0 ? 0 : Math.min(currentIdx + 1, filtered.length - 1)
+      else                        nextIdx = currentIdx <= 0 ? filtered.length - 1 : currentIdx - 1
+      const next = filtered[nextIdx]
+      setSelectionAndUrl({ kind: next.kind, id: next.id })
+    },
+    [filtered, selection, setSelectionAndUrl],
+  )
+
   return (
     <div>
       <AccessToolbar
@@ -63,15 +128,10 @@ export function AccessClient({
         onFilter={setFilter}
         sort={sort}
         onSort={setSort}
-        isAdmin={isAdmin}
         onGrantComp={() => {
-          // TODO: when manager comp-grant lands, drop the disabled
-          // gate and route this to a small chooser if no one is
-          // selected. Admin: open the grant flow inside the
-          // currently-selected person's panel, or surface a chooser.
+          // Anyone with a person selected can attempt to grant; RLS
+          // gates the actual mutation per migration 054.
           if (selected?.kind === 'person') {
-            // Selecting the person already shows the grant button
-            // in their panel; we just scroll the panel into view.
             const panel = document.getElementById('access-detail-panel')
             panel?.scrollIntoView({ behavior: 'smooth', block: 'start' })
           } else {
@@ -81,12 +141,24 @@ export function AccessClient({
       />
 
       <div className="mt-4 grid gap-4 lg:grid-cols-[360px_1fr]">
-        <AccessList
-          rows={filtered}
-          selectedKey={selection ? `${selection.kind}:${selection.id}` : null}
-          onSelect={(kind, id) => setSelection({ kind, id })}
-          totalAll={rows.length}
-        />
+        <div
+          ref={listRegionRef}
+          role="region"
+          aria-label="People and institutions"
+          tabIndex={0}
+          onKeyDown={onListKeyDown}
+          className="focus:outline-none"
+        >
+          <AccessList
+            rows={filtered}
+            selectedKey={selection ? `${selection.kind}:${selection.id}` : null}
+            onSelect={(kind, id) => setSelectionAndUrl({ kind, id })}
+            totalAll={rows.length}
+            anyRowsAtAll={rows.length > 0}
+            activeFilter={filter}
+            hasSearch={search.trim().length > 0}
+          />
+        </div>
 
         <div
           id="access-detail-panel"
@@ -123,12 +195,8 @@ function compare(a: AccessEntityRow, b: AccessEntityRow, sort: AccessSort): numb
     case 'name':
       return a.name.localeCompare(b.name)
     case 'tier':
-      // Studio first, then Pro, then institutions by their tier
-      // (alpha — preserves order without baking in business
-      // priority that may change).
       return tierWeight(a) - tierWeight(b) || a.name.localeCompare(b.name)
     case 'expiry':
-      // Nulls last; soonest-expiring first.
       if (a.expiresAt === null && b.expiresAt === null) return 0
       if (a.expiresAt === null) return 1
       if (b.expiresAt === null) return -1
@@ -142,7 +210,6 @@ function tierWeight(r: AccessEntityRow): number {
     if (r.tier === 'pro') return 1
     return 4
   }
-  // Institutions ranked roughly: paid commercial > regional > others > free.
   const inst = (r.tier ?? '').toLowerCase()
   if (inst.includes('enterprise')) return 2
   if (inst.includes('regional')) return 2.5

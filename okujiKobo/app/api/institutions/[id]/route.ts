@@ -14,21 +14,41 @@ export async function PATCH(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: isAdmin } = await (supabase as any).rpc('is_platform_admin')
 
-  // Non-admins can only update if they are an employee of this institution.
-  // (SEC-02 will tighten this further in Phase 2 to require can_manage_billing
-  // or can_manage_employees depending on which field is being changed.)
+  // Body must be parsed BEFORE flag-gating so we can see which
+  // fields the caller is trying to change.
+  const body = await request.json().catch(() => null)
+  if (!body) return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+
+  // Non-admins must be an employee. The flag check is field-aware:
+  // any "billing-sensitive" field in the body requires
+  // can_manage_billing. Other operational fields stay at the prior
+  // "any employee" gate so this rollout doesn't break existing
+  // editors who have can_manage_employees but not can_manage_billing.
+  // Closes the SEC-02 todo for the billing axis.
   if (!isAdmin) {
     const { data: auth } = await supabase
       .from('employee_authorizations')
-      .select('id')
+      .select('id, can_manage_billing')
       .eq('institution_id', id)
       .eq('user_id', user.id)
       .maybeSingle()
     if (!auth) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-  }
 
-  const body = await request.json().catch(() => null)
-  if (!body) return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+    const BILLING_FIELDS = [
+      'tier',
+      'pricing_model_locked',
+      'pricing_model_override',
+      'annual_revenue',
+      'marketing_spend',
+    ] as const
+    const touchesBilling = BILLING_FIELDS.some((k) => k in body)
+    if (touchesBilling && (auth as { can_manage_billing: boolean | null }).can_manage_billing !== true) {
+      return NextResponse.json(
+        { error: 'can_manage_billing required for tier / pricing / revenue fields' },
+        { status: 403 },
+      )
+    }
+  }
 
   // Fetch current row to fill in any missing fields for recomputation.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

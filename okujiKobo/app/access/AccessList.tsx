@@ -1,6 +1,7 @@
 'use client'
 
 import type { AccessEntityRow } from './types'
+import type { AccessFilter } from './AccessToolbar'
 
 /**
  * Left column of the master/detail layout — merged list of
@@ -13,11 +14,17 @@ export function AccessList({
   selectedKey,
   onSelect,
   totalAll,
+  anyRowsAtAll,
+  activeFilter,
+  hasSearch,
 }: {
   rows: AccessEntityRow[]
   selectedKey: string | null
   onSelect: (kind: AccessEntityRow['kind'], id: string) => void
   totalAll: number
+  anyRowsAtAll: boolean
+  activeFilter: AccessFilter
+  hasSearch: boolean
 }) {
   return (
     <div className="flex flex-col gap-2">
@@ -57,12 +64,58 @@ export function AccessList({
         })}
       </ul>
       {rows.length === 0 && (
-        <p className="px-3 py-6 text-center text-[12px] text-muted">
-          No matches.
-        </p>
+        <EmptyState
+          anyRowsAtAll={anyRowsAtAll}
+          activeFilter={activeFilter}
+          hasSearch={hasSearch}
+        />
       )}
     </div>
   )
+}
+
+// One narrower-than-the-list empty state that explains WHY the
+// list is empty: nothing exists at all (true zero) vs the
+// current filter/search hid everything.
+function EmptyState({
+  anyRowsAtAll,
+  activeFilter,
+  hasSearch,
+}: {
+  anyRowsAtAll: boolean
+  activeFilter: AccessFilter
+  hasSearch: boolean
+}) {
+  if (!anyRowsAtAll) {
+    return (
+      <div className="rounded-[8px] border border-dashed border-hairline bg-white px-3 py-6 text-center">
+        <p className="text-[12px] text-muted">Nothing in scope yet.</p>
+      </div>
+    )
+  }
+  let reason: string
+  if (hasSearch && activeFilter !== 'all') {
+    reason = `search + filter "${labelFor(activeFilter)}"`
+  } else if (hasSearch) {
+    reason = 'search'
+  } else {
+    reason = `filter "${labelFor(activeFilter)}"`
+  }
+  return (
+    <div className="rounded-[8px] border border-dashed border-hairline bg-white px-3 py-6 text-center">
+      <p className="text-[12px] text-ink">No matches.</p>
+      <p className="mt-0.5 text-[11px] text-muted">Hidden by {reason}.</p>
+    </div>
+  )
+}
+
+function labelFor(f: AccessFilter): string {
+  switch (f) {
+    case 'all':          return 'All'
+    case 'people':       return 'People'
+    case 'institutions': return 'Institutions'
+    case 'transfers':    return 'Pending transfers'
+  }
 }
 
 // ── Letter chip ────────────────────────────────────────────────────────────

@@ -50,7 +50,7 @@ type TokenRow = Pick<
   CompletionToken,
   'id' | 'page_id' | 'redeemed_at' | 'prize_distributed' | 'distribution_pending'
 >
-type AuthzRow = Pick<EmployeeAuthorization, 'id'>
+type AuthzRow = Pick<EmployeeAuthorization, 'id' | 'can_view_analytics'>
 
 // ---------------------------------------------------------------------------
 // Route
@@ -91,10 +91,13 @@ export async function GET(
     )
   }
 
-  // Verify the requesting user has employee_authorization for this institution
+  // Verify the requesting user has employee_authorization for
+  // this institution AND that they hold can_view_analytics. The
+  // flag was schema-only until /access wiring (BLD-03 enforcement);
+  // this is where it grows teeth.
   const { data: authorization, error: authzError } = await supabase
     .from('employee_authorizations')
-    .select('id')
+    .select('id, can_view_analytics')
     .eq('user_id', user.id)
     .eq('institution_id', passport.proprietor_id)
     .single<AuthzRow>()
@@ -102,6 +105,12 @@ export async function GET(
   if (authzError || !authorization) {
     return NextResponse.json(
       { error: 'Not authorized to view analytics for this passport' },
+      { status: 403 },
+    )
+  }
+  if (authorization.can_view_analytics !== true) {
+    return NextResponse.json(
+      { error: 'can_view_analytics required' },
       { status: 403 },
     )
   }

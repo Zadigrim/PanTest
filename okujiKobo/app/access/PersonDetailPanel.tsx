@@ -34,16 +34,12 @@ export function PersonDetailPanel({
 
       <div className="flex-1 space-y-6 overflow-y-auto px-5 py-5">
         <Section title="Subscriptions">
-          {isAdmin ? (
-            <UserCompPanel userId={row.id} />
-          ) : (
-            // TODO: needs RLS change on comp_subscriptions if managers
-            //       should grant/revoke comps to people in their
-            //       institution.
-            <p className="rounded-[6px] border border-dashed border-hairline bg-surface-workspace px-3 py-2 text-[12px] text-muted">
-              Comp grants and revokes are admin-only today. View only.
-            </p>
-          )}
+          {/* Managers are now permitted by migration 054:
+              can_grant_comp_for(target). If the row isn't actually
+              in the manager's scope, the underlying RLS will reject
+              the INSERT/UPDATE and UserCompPanel surfaces the error
+              inline — no separate UI gate needed here. */}
+          <UserCompPanel userId={row.id} />
         </Section>
 
         <Section title="Pending transfers">

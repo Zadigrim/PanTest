@@ -34,7 +34,6 @@ export function AccessToolbar({
   onFilter,
   sort,
   onSort,
-  isAdmin,
   onGrantComp,
 }: {
   search: string
@@ -43,7 +42,6 @@ export function AccessToolbar({
   onFilter: (v: AccessFilter) => void
   sort: AccessSort
   onSort: (v: AccessSort) => void
-  isAdmin: boolean
   onGrantComp: () => void
 }) {
   return (
@@ -84,17 +82,14 @@ export function AccessToolbar({
           </select>
         </label>
 
-        {/* TODO: needs RLS change on comp_subscriptions if managers should grant comps */}
+        {/* Always enabled. RLS (migration 054) is the source of
+            truth: admins always pass, managers pass only for
+            users in their scope, and UserCompPanel surfaces any
+            insert-rejection inline. */}
         <button
           type="button"
           onClick={onGrantComp}
-          disabled={!isAdmin}
-          title={isAdmin ? undefined : 'Comp grants are admin-only today'}
-          className={`inline-flex h-9 items-center rounded-[8px] border-[1.5px] px-3 text-sm font-semibold transition-colors ${
-            isAdmin
-              ? 'border-ink bg-green text-white hover:bg-green/90'
-              : 'cursor-not-allowed border-hairline bg-white text-hairline'
-          }`}
+          className="inline-flex h-9 items-center rounded-[8px] border-[1.5px] border-ink bg-green px-3 text-sm font-semibold text-white transition-colors hover:bg-green/90"
         >
           + Grant comp
         </button>
