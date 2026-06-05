@@ -160,7 +160,7 @@ export function StampComposer(props: DesignerMode | AssetsMode) {
 
   return createPortal(
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-4">
-      <div className="flex h-[min(820px,100%)] w-[min(1100px,100%)] flex-col overflow-hidden rounded-[12px] border border-hairline bg-white shadow-2xl">
+      <div className="flex h-[min(960px,98vh)] w-[min(1320px,98vw)] flex-col overflow-hidden rounded-[12px] border border-hairline bg-white shadow-2xl">
         {/* ── Header ── */}
         <div className="flex items-center gap-3 border-b border-hairline px-5 py-3">
           <p className="text-[10px] font-semibold uppercase tracking-[2px] text-muted">Stamp composer</p>
@@ -179,14 +179,17 @@ export function StampComposer(props: DesignerMode | AssetsMode) {
             Cancel
           </button>
           {props.mode === 'designer' && (
-            <label className="flex items-center gap-1.5 text-[11px] text-muted">
+            <label
+              className="flex items-center gap-1.5 text-[11px] text-muted"
+              title="Unchecked: this stamp is only available on the current passport. Checked: this stamp also shows up in the StampPicker on every other passport you own and in the Assets → Stamps library."
+            >
               <input
                 type="checkbox"
                 checked={saveToLibrary}
                 onChange={(e) => setSaveToLibrary(e.target.checked)}
                 className="h-3.5 w-3.5 rounded accent-green"
               />
-              Save to library
+              Use on other passports
             </label>
           )}
           <button

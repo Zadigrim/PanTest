@@ -194,7 +194,11 @@ function ElementShape({ el }: { el: ComposerElement }) {
   if (el.type === 'text') {
     const f = fontByKey(el.fontFamily)
     const txt = renderText(el.text, { uppercase: el.uppercase })
-    // Anchor at top-left; nudge baselineY to sit beneath (~82%).
+    // Multi-line support: newlines in the textarea become
+    // separate <tspan> lines anchored to el.x with dy stepping
+    // by line-height. First line carries dy=0; subsequent
+    // lines step by 1.2× fontSize (standard line-height).
+    const lines = txt.split('\n')
     return (
       <text
         x={el.x}
@@ -208,7 +212,14 @@ function ElementShape({ el }: { el: ComposerElement }) {
         stroke="none"
         transform={transform}
       >
-        {txt}
+        {lines.map((line, i) => (
+          <tspan key={i} x={el.x} dy={i === 0 ? 0 : el.fontSize * 1.2}>
+            {/* Empty-line preservation — SVG drops empty
+                <tspan> contents; a space keeps the vertical
+                advance. */}
+            {line || ' '}
+          </tspan>
+        ))}
       </text>
     )
   }
@@ -321,8 +332,12 @@ function ElementHitTarget({ el, onPointerDown }: { el: ComposerElement; onPointe
   if (el.type === 'text') {
     // Approximate text bounding box; cheap heuristic since the
     // hit target just needs to be grabbable, not pixel-perfect.
-    const w = Math.max(el.text.length * el.fontSize * 0.55, 20)
-    const h = el.fontSize * 1.1
+    // Multi-line: widest line drives width; line count drives
+    // height.
+    const lines = el.text.split('\n')
+    const longest = lines.reduce((m, l) => Math.max(m, l.length), 0)
+    const w = Math.max(longest * el.fontSize * 0.55, 20)
+    const h = Math.max(1, lines.length) * el.fontSize * 1.2
     return <rect x={el.x} y={el.y} width={w} height={h} {...common} />
   }
   if (el.type === 'curvedText') {
@@ -402,8 +417,11 @@ function elementCenter(el: ComposerElement): { x: number; y: number } {
   if (el.type === 'ellipse')    return { x: el.cx, y: el.cy }
   if (el.type === 'line')       return { x: (el.x1 + el.x2) / 2, y: (el.y1 + el.y2) / 2 }
   if (el.type === 'text') {
-    const w = Math.max(el.text.length * el.fontSize * 0.55, 20)
-    return { x: el.x + w / 2, y: el.y + el.fontSize / 2 }
+    const lines = el.text.split('\n')
+    const longest = lines.reduce((m, l) => Math.max(m, l.length), 0)
+    const w = Math.max(longest * el.fontSize * 0.55, 20)
+    const h = Math.max(1, lines.length) * el.fontSize * 1.2
+    return { x: el.x + w / 2, y: el.y + h / 2 }
   }
   if (el.type === 'curvedText') return { x: el.cx, y: el.cy }
   if (el.type === 'triangle')   return { x: (el.x1 + el.x2 + el.x3) / 3, y: (el.y1 + el.y2 + el.y3) / 3 }
@@ -425,8 +443,10 @@ function elementBoundingBox(el: ComposerElement): { x: number; y: number; w: num
     return { x: x - 2, y: y - 2, w: Math.max(w, 4), h: Math.max(h, 4) }
   }
   if (el.type === 'text') {
-    const w = Math.max(el.text.length * el.fontSize * 0.55, 20)
-    const h = el.fontSize * 1.1
+    const lines = el.text.split('\n')
+    const longest = lines.reduce((m, l) => Math.max(m, l.length), 0)
+    const w = Math.max(longest * el.fontSize * 0.55, 20)
+    const h = Math.max(1, lines.length) * el.fontSize * 1.2
     return { x: el.x, y: el.y, w, h }
   }
   if (el.type === 'curvedText') {

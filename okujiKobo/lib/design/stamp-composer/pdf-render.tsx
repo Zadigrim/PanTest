@@ -223,7 +223,18 @@ function translateNode(node: ParsedNode, key: number): JSX.Element | null {
       // <textPath>...</textPath></text></g>, so this branch
       // catches both straight and curved variants.
       const tp = node.children.find((c) => c.tag === 'textpath')
-      const content = tp?.text ?? node.text ?? ''
+      // Multi-line straight text uses <tspan> children. We join
+      // tspan text contents with newlines — @react-pdf's SvgText
+      // honors literal \n. tspan position attrs (dy, x) are
+      // dropped here because @react-pdf's Text doesn't accept
+      // them; the vertical advance lands close-enough for stamp
+      // labels at the sizes we use.
+      const tspans = node.children.filter((c) => c.tag === 'tspan')
+      const content = tp
+        ? (tp.text ?? '')
+        : tspans.length > 0
+          ? tspans.map((ts) => ts.text ?? '').join('\n')
+          : (node.text ?? '')
       // Strip text-only props @react-pdf doesn't know.
       const textProps = { ...p }
       delete textProps['text-anchor']

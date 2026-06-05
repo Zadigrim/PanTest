@@ -124,10 +124,19 @@ function textSvg(el: TextElement): string {
   // Anchor at element (x, y) interpreted as the text's baseline-
   // start point. The composer surfaces (x, y) as top-left of the
   // bounding box; we add fontSize so the baseline sits beneath.
+  // Newlines in the source text become separate <tspan> lines
+  // (canvas + serializer share the 1.2 line-height multiplier).
   const baselineY = el.y + el.fontSize * 0.82  // ~ baseline ratio for most faces
   const transform = rotationTransform(el.rotation, el.x, el.y + el.fontSize / 2)
   const t = renderText(el.text, { uppercase: el.uppercase })
-  return `<text x="${num(el.x)}" y="${num(baselineY)}"${textAttrs(el)}${transform}>${escapeText(t)}</text>`
+  const lines = t.split('\n')
+  const tspans = lines.map((line, i) => {
+    const dy = i === 0 ? '' : ` dy="${num(el.fontSize * 1.2)}"`
+    // Empty lines keep their vertical advance by carrying a
+    // single space — SVG drops empty <tspan> bodies otherwise.
+    return `<tspan x="${num(el.x)}"${dy}>${escapeText(line || ' ')}</tspan>`
+  }).join('')
+  return `<text x="${num(el.x)}" y="${num(baselineY)}"${textAttrs(el)}${transform}>${tspans}</text>`
 }
 
 function curvedTextSvg(el: CurvedTextElement): string {
