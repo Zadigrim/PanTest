@@ -136,9 +136,25 @@ export interface IconElement extends ElementBase, StrokeStyle {
 
 export interface TracedElement extends ElementBase {
   type: 'traced'
-  /** Raw SVG path d= attribute produced by the tracer. */
+  /** Raw SVG path d= attribute produced by the tracer (Push 4
+   *  vendors a marching-squares + RDP tracer; future swaps to
+   *  potrace keep this same shape). */
   d: string
-  x: number; y: number; w: number; h: number
+  /** Position on the stamp surface (top-left). */
+  x: number; y: number
+  /** Render size on the surface. Aspect ratio comes from the
+   *  ratio between this and the source pixel dimensions. */
+  w: number; h: number
+  /** Pixel dimensions of the source image the d= was authored
+   *  against. The renderer scales `d`'s pixel coordinates into
+   *  (x, y, w, h) via translate + scale. */
+  sourceW: number
+  sourceH: number
+  /** Filled (solid currentColor) vs outline. Default filled —
+   *  matches the typical seal / logo intent. */
+  filled?: boolean
+  /** When outlined, stroke width in surface units. */
+  strokeWidth?: number
 }
 
 export type ComposerElement =

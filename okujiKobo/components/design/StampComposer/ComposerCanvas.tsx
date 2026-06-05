@@ -272,7 +272,26 @@ function ElementShape({ el }: { el: ComposerElement }) {
       </g>
     )
   }
-  // Push 4 — traced render branch.
+  if (el.type === 'traced') {
+    // The tracer authored `d` in source-image pixel coordinates.
+    // Scale into (x, y, w, h) on the surface.
+    const sx = el.w / el.sourceW
+    const sy = el.h / el.sourceH
+    const filled = el.filled !== false
+    return (
+      <g transform={transform}>
+        <g transform={`translate(${el.x} ${el.y}) scale(${sx} ${sy})`}>
+          <path
+            d={el.d}
+            fill={filled ? 'currentColor' : 'none'}
+            fillRule="evenodd"
+            stroke={filled ? 'none' : 'currentColor'}
+            strokeWidth={filled ? undefined : (el.strokeWidth ?? 1)}
+          />
+        </g>
+      </g>
+    )
+  }
   return null
 }
 
@@ -315,6 +334,9 @@ function ElementHitTarget({ el, onPointerDown }: { el: ComposerElement; onPointe
   }
   if (el.type === 'icon') {
     return <rect x={el.x} y={el.y} width={el.size} height={el.size} {...common} />
+  }
+  if (el.type === 'traced') {
+    return <rect x={el.x} y={el.y} width={el.w} height={el.h} {...common} />
   }
   return null
 }
@@ -386,6 +408,7 @@ function elementCenter(el: ComposerElement): { x: number; y: number } {
   if (el.type === 'curvedText') return { x: el.cx, y: el.cy }
   if (el.type === 'triangle')   return { x: (el.x1 + el.x2 + el.x3) / 3, y: (el.y1 + el.y2 + el.y3) / 3 }
   if (el.type === 'icon')       return { x: el.x + el.size / 2, y: el.y + el.size / 2 }
+  if (el.type === 'traced')     return { x: el.x + el.w / 2, y: el.y + el.h / 2 }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const a = el as any
   return { x: a.x ?? 0, y: a.y ?? 0 }
@@ -419,6 +442,9 @@ function elementBoundingBox(el: ComposerElement): { x: number; y: number; w: num
   if (el.type === 'icon') {
     return { x: el.x, y: el.y, w: el.size, h: el.size }
   }
+  if (el.type === 'traced') {
+    return { x: el.x, y: el.y, w: el.w, h: el.h }
+  }
   return null
 }
 
@@ -434,6 +460,7 @@ function translatePatch(el: ComposerElement, dx: number, dy: number): Patch {
     x3: el.x3 + dx, y3: el.y3 + dy,
   } as Patch
   if (el.type === 'icon')       return { x: el.x + dx, y: el.y + dy } as Patch
+  if (el.type === 'traced')     return { x: el.x + dx, y: el.y + dy } as Patch
   return {}
 }
 
@@ -465,6 +492,13 @@ function resizePatch(el: ComposerElement, dx: number, dy: number): Patch {
   }
   if (el.type === 'icon') {
     return { size: Math.max(8, el.size + dx) } as Patch
+  }
+  if (el.type === 'traced') {
+    // Preserve aspect ratio on resize — the dominant axis (dx)
+    // drives scale; the other axis follows.
+    const aspect = el.h / Math.max(1, el.w)
+    const nextW = Math.max(8, el.w + dx)
+    return { w: nextW, h: nextW * aspect } as Patch
   }
   return {}
 }

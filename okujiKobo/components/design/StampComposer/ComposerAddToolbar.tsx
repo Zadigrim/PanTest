@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { type ComposerElement, newElementId, STAMP_SURFACE_SIZE } from '@/lib/design/stamp-composer/types'
 import { DEFAULT_STAMP_FONT_KEY } from '@/lib/design/fonts'
 import { IconPicker } from './IconPicker'
+import { TraceImagePicker } from './TraceImagePicker'
 
 /**
  * Add-element toolbar — sits above the canvas. Shapes ·
@@ -18,7 +19,8 @@ export function ComposerAddToolbar({
 }) {
   const cx = surface / 2
   const cy = surface / 2
-  const [iconPickerOpen, setIconPickerOpen] = useState(false)
+  const [iconPickerOpen,  setIconPickerOpen]  = useState(false)
+  const [tracePickerOpen, setTracePickerOpen] = useState(false)
 
   return (
     <div className="flex flex-wrap items-center gap-1.5 border-b border-hairline bg-white px-3 py-2">
@@ -131,8 +133,9 @@ export function ComposerAddToolbar({
         ★ <span className="ml-1">Icon</span>
       </AddButton>
 
-      {/* Push 4 — potrace tracer. */}
-      <DisabledButton title="Push 4 — potrace tracer">⬚ Trace image</DisabledButton>
+      <AddButton onClick={() => setTracePickerOpen(true)}>
+        ⬚ <span className="ml-1">Trace image</span>
+      </AddButton>
 
       <IconPicker
         open={iconPickerOpen}
@@ -148,6 +151,30 @@ export function ComposerAddToolbar({
           size: 64,
           strokeWidth: 2,
         })}
+      />
+
+      <TraceImagePicker
+        open={tracePickerOpen}
+        onClose={() => setTracePickerOpen(false)}
+        onAdd={({ d, sourceW, sourceH }) => {
+          // Place at canvas center, fit within ~160 surface units.
+          const FIT = 160
+          const aspect = sourceH / Math.max(1, sourceW)
+          const w = aspect > 1 ? FIT / aspect : FIT
+          const h = aspect > 1 ? FIT          : FIT * aspect
+          onAdd({
+            id: newElementId(),
+            type: 'traced',
+            d,
+            x: STAMP_SURFACE_SIZE / 2 - w / 2,
+            y: STAMP_SURFACE_SIZE / 2 - h / 2,
+            w,
+            h,
+            sourceW,
+            sourceH,
+            filled: true,
+          })
+        }}
       />
     </div>
   )
@@ -165,15 +192,3 @@ function AddButton({ children, onClick }: { children: React.ReactNode; onClick: 
   )
 }
 
-function DisabledButton({ children, title }: { children: React.ReactNode; title: string }) {
-  return (
-    <button
-      type="button"
-      disabled
-      title={title}
-      className="inline-flex h-8 cursor-not-allowed items-center rounded-[6px] border-[1.5px] border-hairline bg-white px-2 text-[12px] text-hairline"
-    >
-      {children}
-    </button>
-  )
-}

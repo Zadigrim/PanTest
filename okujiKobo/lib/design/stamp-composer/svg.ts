@@ -29,6 +29,7 @@ import type {
   LineElement,
   RectElement,
   TextElement,
+  TracedElement,
   TriangleElement,
 } from './types'
 import { fontByKey } from '../fonts'
@@ -56,9 +57,7 @@ function elementToSvg(el: ComposerElement): string {
     case 'text':       return textSvg(el)
     case 'curvedText': return curvedTextSvg(el)
     case 'icon':       return iconSvg(el)
-    // Push 4 — traced branch added when potrace lands.
-    case 'traced':
-      return ''
+    case 'traced':     return tracedSvg(el)
   }
 }
 
@@ -178,6 +177,29 @@ function parseViewBox(vb: string): [number, number, number, number] {
   const parts = vb.trim().split(/[\s,]+/).map(Number)
   if (parts.length !== 4 || parts.some((n) => !Number.isFinite(n))) return [0, 0, 24, 24]
   return [parts[0], parts[1], parts[2], parts[3]]
+}
+
+function tracedSvg(el: TracedElement): string {
+  // The tracer authored `d` in source-image pixel coordinates.
+  // Map to (x, y, w, h) on the stamp surface via translate +
+  // scale. The TracedElement carries sourceW/sourceH so the
+  // mapping survives reopens.
+  const sx = el.w / el.sourceW
+  const sy = el.h / el.sourceH
+  const cx = el.x + el.w / 2
+  const cy = el.y + el.h / 2
+  const rot = rotationTransform(el.rotation, cx, cy)
+  const filled = el.filled !== false  // default true
+  const fill   = filled ? 'currentColor' : 'none'
+  const stroke = filled ? 'none' : 'currentColor'
+  const sw     = filled ? '' : ` stroke-width="${num(el.strokeWidth ?? 1)}"`
+  return (
+    `<g${rot}>` +
+      `<g transform="translate(${num(el.x)} ${num(el.y)}) scale(${num(sx)} ${num(sy)})">` +
+        `<path d="${el.d}" fill="${fill}" fill-rule="evenodd" stroke="${stroke}"${sw} />` +
+      `</g>` +
+    `</g>`
+  )
 }
 
 // ── Utils ────────────────────────────────────────────────────────────────────

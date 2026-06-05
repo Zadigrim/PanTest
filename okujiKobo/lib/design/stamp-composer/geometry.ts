@@ -8,37 +8,35 @@
  * Build an SVG path "d" string for an elliptical arc used as a
  * textPath baseline.
  *
- * SVG textPath places glyphs along the path's direction with
- * baseline perpendicular to the tangent. For rim text to read
- * right-side-up:
+ * Both arcs run LEFT → RIGHT so glyphs sit upright (textPath
+ * places baselines along the path's direction; left-to-right
+ * direction = upright reading order):
  *
- *   - TOP arc: path goes LEFT → RIGHT along the top of the
- *     ellipse (sweep flag 1, CW from left endpoint over
- *     the top). Tangent at start points up; text appears to
- *     climb to the peak then descend.
+ *   - TOP arc — sweep flag 1 (CW from left endpoint over the
+ *     top). Path arcs UP through (cx, cy-ry). Text baseline
+ *     bows UPWARD; glyphs stay upright.
  *
- *   - BOTTOM arc: path goes RIGHT → LEFT along the bottom
- *     (sweep flag 1, CW from right endpoint via the bottom).
- *     Reading direction matches the path direction; text
- *     appears upright at the bottom of the ellipse.
+ *   - BOTTOM arc — sweep flag 0 (CCW from left endpoint via
+ *     the bottom). Path arcs DOWN through (cx, cy+ry). Text
+ *     baseline bows DOWNWARD; glyphs stay upright (a "smile"
+ *     curve, not classical stamp-rim flipped text).
  *
- * Both arcs use the SAME large-arc flag (0 = semicircle ≤180°)
- * and the SAME sweep flag (1). Only the start/end endpoints
- * differ.
+ * Note: classical circular-seal rim text inverts at the bottom
+ * (glyph feet face center). That's a DIFFERENT effect and would
+ * need a third arc mode if requested.
  */
 export function arcPathD(
   cx: number, cy: number,
   rx: number, ry: number,
   arc: 'top' | 'bottom',
 ): string {
-  if (arc === 'top') {
-    const x0 = cx - rx, y0 = cy
-    const x1 = cx + rx, y1 = cy
-    return `M ${num(x0)} ${num(y0)} A ${num(rx)} ${num(ry)} 0 0 1 ${num(x1)} ${num(y1)}`
-  }
-  const x0 = cx + rx, y0 = cy
-  const x1 = cx - rx, y1 = cy
-  return `M ${num(x0)} ${num(y0)} A ${num(rx)} ${num(ry)} 0 0 1 ${num(x1)} ${num(y1)}`
+  const x0 = cx - rx, y0 = cy
+  const x1 = cx + rx, y1 = cy
+  // Top: sweep=1 (CW) goes up over the top. Bottom: sweep=0
+  // (CCW) goes down through the bottom. Same endpoints; only
+  // the sweep flag differs.
+  const sweep = arc === 'top' ? 1 : 0
+  return `M ${num(x0)} ${num(y0)} A ${num(rx)} ${num(ry)} 0 0 ${sweep} ${num(x1)} ${num(y1)}`
 }
 
 /** Two-decimal rounding to keep emitted SVG small. */

@@ -48,6 +48,7 @@ export function ComposerInspector({
         {element.type === 'text'       && <TextBlock          el={element} onUpdate={onUpdate} />}
         {element.type === 'curvedText' && <CurvedTextBlock    el={element} onUpdate={onUpdate} />}
         {element.type === 'icon'       && <IconBlock          el={element} onUpdate={onUpdate} />}
+        {element.type === 'traced'     && <TracedBlock        el={element} onUpdate={onUpdate} />}
 
         {(element.type === 'rect' || element.type === 'triangle' || element.type === 'ellipse' || element.type === 'line') && (
           <StrokeStyle el={element} onUpdate={onUpdate} />
@@ -143,6 +144,35 @@ function IconBlock({
         <Num label="y"    value={el.y}    onChange={(v) => onUpdate({ y: v })} />
         <Num label="size" value={el.size} min={8} onChange={(v) => onUpdate({ size: v })} />
       </Grid2>
+    </Section>
+  )
+}
+
+function TracedBlock({
+  el,
+  onUpdate,
+}: {
+  el: Extract<ComposerElement, { type: 'traced' }>
+  onUpdate: (patch: Partial<ComposerElement>) => void
+}) {
+  const filled = el.filled !== false
+  return (
+    <Section title="Traced">
+      <p className="text-[10.5px] text-muted">
+        Source {el.sourceW}×{el.sourceH} px — vectorized via threshold trace.
+      </p>
+      <Grid2>
+        <Num label="x" value={el.x} onChange={(v) => onUpdate({ x: v })} />
+        <Num label="y" value={el.y} onChange={(v) => onUpdate({ y: v })} />
+        <Num label="w" value={el.w} min={8} onChange={(v) => onUpdate({ w: v })} />
+        <Num label="h" value={el.h} min={8} onChange={(v) => onUpdate({ h: v })} />
+      </Grid2>
+      <Checkbox label="Filled (vs outline)" checked={filled}
+                onChange={(v) => onUpdate({ filled: v })} />
+      {!filled && (
+        <Num label="Stroke width" value={el.strokeWidth ?? 1} min={0.5} step={0.5}
+             onChange={(v) => onUpdate({ strokeWidth: v })} />
+      )}
     </Section>
   )
 }
