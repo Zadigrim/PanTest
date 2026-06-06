@@ -1,6 +1,17 @@
 import Link from 'next/link'
 import type { ProgramOverview } from '@/lib/program/load'
 import { Sparkline } from '@/components/program/Sparkline'
+import {
+  SectionLabel,
+  Card,
+  MetricStrip,
+  EmptyState,
+  DataTable,
+  Pill,
+  statusToVariant,
+  type Metric,
+  type Column,
+} from '@/components/program/ui'
 
 /**
  * Program Overview tab — institution-rollup KPIs + per-passport
@@ -11,53 +22,70 @@ import { Sparkline } from '@/components/program/Sparkline'
  * Two KPI cards (Prizes Redeemed by collector, and any future
  * post-KI-02 cards) are NOT shown today; only the staff-marked
  * "Prizes Handed Out" + the live "Pending Distribution" surface.
+ *
+ * Restyle-only diff vs. prior commit: same fields, same six
+ * metrics, same sparkline threshold, same drill-in URLs. All
+ * vocabulary now flows through @/components/program/ui.
  */
 export function OverviewTab({ data }: { data: ProgramOverview }) {
-  const {
-    kpis,
-    perPassport,
-    trend,
-    attention,
-    totals,
-  } = data
+  const { kpis, perPassport, trend, attention, totals } = data
 
   const totalAcqIn12w = trend.weeklyAcquisitions.reduce((a, b) => a + b, 0)
-  // Show sparkline only with enough signal — otherwise we'd render
-  // a misleading flat line. Threshold: ≥12 acquisitions in window.
   const showSparkline = totalAcqIn12w >= 12 && trend.weeklyAcquisitions.some((v) => v > 0)
+
+  const kpiMetrics: Metric[] = [
+    { label: 'Active collectors', value: kpis.activeCollectors30d, caption: '30d' },
+    { label: 'Acquisitions',      value: kpis.acquisitions90d,     caption: '90d' },
+    { label: 'Stamps placed',     value: kpis.stampsPlaced90d,     caption: '90d' },
+    {
+      label: 'Completion rate',
+      value: kpis.completionRatePct == null ? null : `${kpis.completionRatePct}%`,
+      caption: kpis.completionRatePct == null ? 'no collectors yet' : 'overall',
+    },
+    { label: 'Prizes handed out', value: kpis.prizesHandedOut, caption: 'staff-marked' },
+    {
+      label: 'Pending distribution',
+      value: kpis.pendingDistribution,
+      caption: kpis.pendingDistribution > 0 ? 'needs attention' : 'all clear',
+    },
+  ]
+
+  const tableColumns: Column<(typeof perPassport)[number]>[] = [
+    {
+      key: 'title',
+      label: 'Passport',
+      render: (p) => (
+        <div className="flex items-center gap-2">
+          <span className="truncate">{p.title}</span>
+          <Pill variant={statusToVariant(p.status)}>{p.status}</Pill>
+        </div>
+      ),
+    },
+    { key: 'acq',    label: 'Acquisitions',  align: 'right', render: (p) => p.acquisitions },
+    { key: 'active', label: 'Active · 30d',  align: 'right', render: (p) => p.activeCollectors30d },
+    { key: 'stamps', label: 'Stamps · 90d',  align: 'right', render: (p) => p.stampsPlaced90d },
+    {
+      key: 'comp',
+      label: 'Completion',
+      align: 'right',
+      render: (p) => p.completionPct == null ? '—' : `${p.completionPct}%`,
+    },
+    {
+      key: 'last',
+      label: 'Last activity',
+      align: 'right',
+      render: (p) => p.lastActivity
+        ? <span className="text-[11.5px] text-muted">{new Date(p.lastActivity).toLocaleDateString()}</span>
+        : <span className="text-muted">—</span>,
+    },
+  ]
 
   return (
     <div className="space-y-8">
       {/* ── KPI band ────────────────────────────────────────────── */}
       <section aria-label="Institution KPIs">
-        <h2 className="mb-3 text-[11px] font-medium uppercase text-muted" style={{ letterSpacing: '1.5px' }}>
-          This institution · last 30/90 days
-        </h2>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
-          <KpiCard label="Active collectors" sub="30d" value={kpis.activeCollectors30d} />
-          <KpiCard label="Acquisitions"      sub="90d" value={kpis.acquisitions90d} />
-          <KpiCard label="Stamps placed"     sub="90d" value={kpis.stampsPlaced90d} />
-          <KpiCard
-            label="Completion rate"
-            sub={kpis.completionRatePct == null ? 'no collectors yet' : 'overall'}
-            value={kpis.completionRatePct == null ? '—' : `${kpis.completionRatePct}%`}
-          />
-          <KpiCard
-            label="Prizes handed out"
-            sub="staff-marked"
-            value={kpis.prizesHandedOut}
-          />
-          <KpiCard
-            label="Pending distribution"
-            sub={kpis.pendingDistribution > 0 ? 'needs attention' : 'all clear'}
-            value={kpis.pendingDistribution}
-            warn={kpis.pendingDistribution > 0}
-          />
-        </div>
-        {/* Honest disclosure about what's NOT here yet. The phrase
-            "tracking coming soon" matches the main dashboard's
-            two dormant cards so the user sees a consistent
-            "we'll tell you when this exists" voice. */}
+        <SectionLabel>This institution · last 30/90 days</SectionLabel>
+        <MetricStrip metrics={kpiMetrics} />
         <p className="mt-3 text-[11.5px] text-muted">
           Collector-side prize redemption tracking is coming later —
           today only staff-marked distribution shows here.
@@ -66,14 +94,12 @@ export function OverviewTab({ data }: { data: ProgramOverview }) {
 
       {/* ── Trend ──────────────────────────────────────────────── */}
       <section aria-label="Acquisitions trend">
-        <h2 className="mb-3 text-[11px] font-medium uppercase text-muted" style={{ letterSpacing: '1.5px' }}>
-          Acquisitions · last 12 weeks
-        </h2>
-        <div className="rounded-[10px] border border-surface-faintdiv bg-white px-5 py-4">
+        <SectionLabel>Acquisitions · last 12 weeks</SectionLabel>
+        <Card>
           {showSparkline ? (
             <div className="flex items-end justify-between gap-4">
               <div>
-                <p className="text-[24px] font-bold tabular-nums text-ink">{totalAcqIn12w}</p>
+                <p className="text-[24px] font-semibold tabular-nums text-ink">{totalAcqIn12w}</p>
                 <p className="mt-0.5 text-[11.5px] text-muted">acquisitions across the last 12 weeks</p>
               </div>
               <div className="text-green">
@@ -82,7 +108,7 @@ export function OverviewTab({ data }: { data: ProgramOverview }) {
             </div>
           ) : (
             <div>
-              <p className="text-[24px] font-bold tabular-nums text-ink">{totalAcqIn12w}</p>
+              <p className="text-[24px] font-semibold tabular-nums text-ink">{totalAcqIn12w}</p>
               <p className="mt-0.5 text-[11.5px] text-muted">
                 {trend.firstAcquisitionAt
                   ? <>acquisitions since {new Date(trend.firstAcquisitionAt).toLocaleDateString()}</>
@@ -90,41 +116,38 @@ export function OverviewTab({ data }: { data: ProgramOverview }) {
               </p>
             </div>
           )}
-        </div>
+        </Card>
       </section>
 
       {/* ── Needs Attention ────────────────────────────────────── */}
       {attention.length > 0 && (
         <section aria-label="Needs attention">
-          <h2 className="mb-3 text-[11px] font-medium uppercase text-muted" style={{ letterSpacing: '1.5px' }}>
-            Needs attention
-          </h2>
+          <SectionLabel>Needs attention</SectionLabel>
           <ul className="space-y-2">
             {attention.map((a) => (
               <li key={a.id}>
                 <Link
                   href={a.ctaHref}
-                  className={`flex items-start gap-3 rounded-[8px] border bg-white px-4 py-3 transition-shadow hover:shadow-sm ${
-                    a.severity === 'error' ? 'border-red'
-                    : a.severity === 'warn'  ? 'border-accent'
-                    : 'border-surface-faintdiv'
-                  }`}
+                  className="flex items-start gap-3 rounded-program-card border-[1.5px] border-hairline bg-cream px-4 py-3 transition-colors hover:bg-field"
                 >
+                  {/* Severity dot — gold (accent) for info, red for
+                      error, clay for warn (announcement-flavored).
+                      Replaces the prior red/accent filled badges with
+                      one compact dot vocabulary. */}
                   <span
                     aria-hidden="true"
-                    className={`mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-bold text-white ${
-                      a.severity === 'error' ? 'bg-red'
-                      : a.severity === 'warn'  ? 'bg-accent'
-                      : 'bg-muted'
-                    }`}
-                  >
-                    {a.severity === 'error' ? '!' : a.severity === 'warn' ? '!' : 'i'}
-                  </span>
+                    className={
+                      'mt-1.5 inline-block h-2 w-2 shrink-0 rounded-full '
+                      + (a.severity === 'error' ? 'bg-red'
+                        : a.severity === 'warn'  ? 'bg-clay'
+                        : 'bg-accent')
+                    }
+                  />
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-[13px] font-semibold text-ink">{a.title}</p>
                     <p className="truncate text-[11.5px] text-muted">{a.meta}</p>
                   </div>
-                  <span className="shrink-0 text-[11.5px] text-muted">{a.ctaLabel}</span>
+                  <span className="shrink-0 text-[11.5px] text-green">{a.ctaLabel}</span>
                 </Link>
               </li>
             ))}
@@ -134,91 +157,22 @@ export function OverviewTab({ data }: { data: ProgramOverview }) {
 
       {/* ── Per-passport performance ───────────────────────────── */}
       <section aria-label="Per-passport performance">
-        <h2 className="mb-3 text-[11px] font-medium uppercase text-muted" style={{ letterSpacing: '1.5px' }}>
-          Per passport · {totals.publishedPassports} of {totals.ownedPassports} published
-        </h2>
+        <SectionLabel>
+          Per passport · <b>{totals.publishedPassports} of {totals.ownedPassports} published</b>
+        </SectionLabel>
         {perPassport.length === 0 ? (
-          <EmptyPerPassport />
+          <EmptyState cta={{ label: 'Create a passport', href: '/design' }}>
+            Numbers here come straight from your passports&rsquo; activity. Create one to start.
+          </EmptyState>
         ) : (
-          <div className="overflow-hidden rounded-[10px] border border-surface-faintdiv bg-white">
-            <table className="w-full text-[12.5px]">
-              <thead className="bg-surface-rail">
-                <tr className="text-left text-[10.5px] font-medium uppercase text-muted" style={{ letterSpacing: '1.3px' }}>
-                  <th className="px-4 py-2">Passport</th>
-                  <th className="px-3 py-2 text-right tabular-nums">Acquisitions</th>
-                  <th className="px-3 py-2 text-right tabular-nums">Active · 30d</th>
-                  <th className="px-3 py-2 text-right tabular-nums">Stamps · 90d</th>
-                  <th className="px-3 py-2 text-right tabular-nums">Completion</th>
-                  <th className="px-3 py-2 text-right">Last activity</th>
-                </tr>
-              </thead>
-              <tbody>
-                {perPassport.map((p) => (
-                  <tr key={p.id} className="border-t border-surface-faintdiv">
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <Link href={`/program?tab=analytics&passport=${p.id}`} className="truncate text-[13px] font-semibold text-ink hover:underline">
-                          {p.title}
-                        </Link>
-                        <span
-                          className={`inline-flex items-center rounded-full border-[1.5px] bg-white px-1.5 text-[9px] font-semibold uppercase ${
-                            p.isPublished ? 'border-green text-green' : 'border-muted text-muted'
-                          }`}
-                        >
-                          {p.status}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-3 py-3 text-right tabular-nums text-ink">{p.acquisitions}</td>
-                    <td className="px-3 py-3 text-right tabular-nums text-ink">{p.activeCollectors30d}</td>
-                    <td className="px-3 py-3 text-right tabular-nums text-ink">{p.stampsPlaced90d}</td>
-                    <td className="px-3 py-3 text-right tabular-nums text-ink">
-                      {p.completionPct == null ? '—' : `${p.completionPct}%`}
-                    </td>
-                    <td className="px-3 py-3 text-right text-[11.5px] text-muted">
-                      {p.lastActivity ? new Date(p.lastActivity).toLocaleDateString() : '—'}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <DataTable
+            columns={tableColumns}
+            rows={perPassport}
+            rowKey={(p) => p.id}
+            rowHref={(p) => `/program?tab=analytics&passport=${p.id}`}
+          />
         )}
       </section>
-    </div>
-  )
-}
-
-function KpiCard({
-  label, sub, value, warn,
-}: {
-  label: string
-  sub?: string
-  value: number | string
-  warn?: boolean
-}) {
-  return (
-    <div className={`rounded-[8px] border bg-white px-3 py-3 ${warn ? 'border-accent' : 'border-surface-faintdiv'}`}>
-      <p className="text-[10px] font-medium uppercase text-muted" style={{ letterSpacing: '1.3px' }}>{label}</p>
-      <p className={`mt-1 text-[20px] font-bold tabular-nums ${warn ? 'text-accent' : 'text-ink'}`}>{value}</p>
-      {sub && <p className="mt-0.5 text-[10.5px] text-muted">{sub}</p>}
-    </div>
-  )
-}
-
-function EmptyPerPassport() {
-  return (
-    <div className="rounded-[10px] border border-dashed border-hairline bg-white px-6 py-10 text-center">
-      <p className="text-[13.5px] font-semibold text-ink">No passports yet</p>
-      <p className="mt-1 text-[12px] text-muted">
-        Numbers here come straight from your passports&rsquo; activity. Create one to start.
-      </p>
-      <Link
-        href="/design"
-        className="mt-4 inline-flex items-center rounded-[8px] border-[1.5px] border-ink bg-green px-4 h-9 text-[13px] font-semibold text-white"
-      >
-        Create a passport
-      </Link>
     </div>
   )
 }

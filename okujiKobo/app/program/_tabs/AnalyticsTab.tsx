@@ -1,22 +1,31 @@
 import Link from 'next/link'
 import type { ProgramOverview } from '@/lib/program/load'
 import { Sparkline } from '@/components/program/Sparkline'
+import {
+  SectionLabel,
+  Card,
+  MetricStrip,
+  EmptyState,
+  DataTable,
+  Pill,
+  Segmented,
+  statusToVariant,
+  type Metric,
+  type Column,
+  type Segment,
+} from '@/components/program/ui'
 
 /**
  * Program Analytics tab. Two modes:
  *   - Aggregate (no ?passport param): institution rollup with the
- *     Overview KPIs + sparkline + per-passport table. The view
- *     prioritizes the comparison across passports — the same data
- *     shape the institutional manage dashboard exposed but on the
- *     unified Program surface.
- *   - Drill-in (?passport=ID): single-passport detail. Acquisitions
- *     trend, completion %, last activity, deep link into the
- *     existing /manage/passport/[id] page for the full row-level
- *     view we don't want to rebuild this push.
+ *     Overview KPIs + sparkline + per-passport table.
+ *   - Drill-in (?passport=ID): single-passport detail, link out to
+ *     the existing /manage/passport/[id] row-level view.
  *
- * Every number from real queries (lib/program/load.ts). Drafts and
- * archived passports are reachable via the aggregate table so the
- * institution sees the full inventory.
+ * Restyle-only diff: same fields, same six metrics, same drill-in
+ * URLs, same /manage/passport/[id] deep-link. The black Aggregate
+ * button becomes a Segmented control with byte-equivalent
+ * navigation semantics.
  */
 export function AnalyticsTab({
   data,
@@ -32,29 +41,76 @@ export function AnalyticsTab({
     ? data.perPassport.find((p) => p.id === selectedPassportId) ?? null
     : null
 
+  // Segmented mode-switcher. When in drill mode we still surface
+  // both segments so the user has a one-click escape back to
+  // aggregate. The "By passport" segment is decorative when in
+  // aggregate (it has no specific target without a drill id) — we
+  // make it a link to the per-passport table anchor.
+  const segments: Segment[] = [
+    { key: 'aggregate', label: 'Aggregate',  href: '/program?tab=analytics' },
+    { key: 'drill',     label: 'By passport', href: '/program?tab=analytics#by-passport' },
+  ]
+  const activeKey = drillRow ? 'drill' : 'aggregate'
+
+  const aggregateMetrics: Metric[] = [
+    { label: 'Active collectors', value: data.kpis.activeCollectors30d, caption: '30d' },
+    { label: 'Acquisitions',      value: data.kpis.acquisitions90d,     caption: '90d' },
+    { label: 'Stamps placed',     value: data.kpis.stampsPlaced90d,     caption: '90d' },
+    {
+      label: 'Completion rate',
+      value: data.kpis.completionRatePct == null ? null : `${data.kpis.completionRatePct}%`,
+      caption: data.kpis.completionRatePct == null ? 'no collectors yet' : 'overall',
+    },
+    { label: 'Prizes handed out', value: data.kpis.prizesHandedOut, caption: 'staff-marked' },
+    {
+      label: 'Pending distribution',
+      value: data.kpis.pendingDistribution,
+      caption: data.kpis.pendingDistribution > 0 ? 'needs attention' : 'all clear',
+    },
+  ]
+
+  const tableColumns: Column<(typeof data.perPassport)[number]>[] = [
+    {
+      key: 'title',
+      label: 'Passport',
+      render: (p) => (
+        <div className="flex items-center gap-2">
+          <span className="truncate">{p.title}</span>
+          <Pill variant={statusToVariant(p.status)}>{p.status}</Pill>
+        </div>
+      ),
+    },
+    { key: 'acq',    label: 'Acquisitions', align: 'right', render: (p) => p.acquisitions },
+    { key: 'active', label: 'Active · 30d', align: 'right', render: (p) => p.activeCollectors30d },
+    { key: 'stamps', label: 'Stamps · 90d', align: 'right', render: (p) => p.stampsPlaced90d },
+    {
+      key: 'comp',
+      label: 'Completion',
+      align: 'right',
+      render: (p) => p.completionPct == null ? '—' : `${p.completionPct}%`,
+    },
+    {
+      key: 'last',
+      label: 'Last activity',
+      align: 'right',
+      render: (p) => p.lastActivity
+        ? <span className="text-[11.5px] text-muted">{new Date(p.lastActivity).toLocaleDateString()}</span>
+        : <span className="text-muted">—</span>,
+    },
+  ]
+
   return (
     <div className="space-y-8">
-      {/* ── Mode switcher: aggregate ↔ drill ─────────────────── */}
-      <div className="flex flex-wrap items-center gap-2">
-        <Link
-          href="/program?tab=analytics"
-          className={`rounded-[6px] border-[1.5px] px-3 py-1.5 text-[12px] font-medium ${
-            !selectedPassportId
-              ? 'border-ink bg-ink text-white'
-              : 'border-hairline bg-white text-muted hover:border-ink hover:text-ink'
-          }`}
-        >
-          Aggregate
-        </Link>
+      {/* ── Mode switcher ──────────────────────────────────────── */}
+      <div className="flex flex-wrap items-center gap-3">
+        <Segmented segments={segments} activeKey={activeKey} ariaLabel="Analytics mode" />
         {drillRow && (
-          <span className="rounded-[6px] border-[1.5px] border-ink bg-cream px-3 py-1.5 text-[12px] font-semibold text-ink">
-            {drillRow.title}
-          </span>
+          <Pill variant="live">{drillRow.title}</Pill>
         )}
         {selectedPassportId && !drillRow && (
           <span className="text-[11.5px] text-muted">
             That passport isn&rsquo;t in your inventory —{' '}
-            <Link href="/program?tab=analytics" className="underline">back to aggregate</Link>.
+            <Link href="/program?tab=analytics" className="text-green underline-offset-2 hover:underline">back to aggregate</Link>.
           </span>
         )}
       </div>
@@ -63,93 +119,40 @@ export function AnalyticsTab({
       {!drillRow && (
         <>
           <section aria-label="Aggregate KPIs">
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
-              <KpiCard label="Active collectors" sub="30d" value={data.kpis.activeCollectors30d} />
-              <KpiCard label="Acquisitions"      sub="90d" value={data.kpis.acquisitions90d} />
-              <KpiCard label="Stamps placed"     sub="90d" value={data.kpis.stampsPlaced90d} />
-              <KpiCard
-                label="Completion rate"
-                sub={data.kpis.completionRatePct == null ? 'no collectors yet' : 'overall'}
-                value={data.kpis.completionRatePct == null ? '—' : `${data.kpis.completionRatePct}%`}
-              />
-              <KpiCard label="Prizes handed out" sub="staff-marked" value={data.kpis.prizesHandedOut} />
-              <KpiCard
-                label="Pending distribution"
-                sub={data.kpis.pendingDistribution > 0 ? 'needs attention' : 'all clear'}
-                value={data.kpis.pendingDistribution}
-                warn={data.kpis.pendingDistribution > 0}
-              />
-            </div>
+            <SectionLabel>This institution · last 30/90 days</SectionLabel>
+            <MetricStrip metrics={aggregateMetrics} />
           </section>
 
           <section aria-label="Acquisitions trend">
-            <div className="rounded-[10px] border border-surface-faintdiv bg-white px-5 py-4">
-              {showSparkline ? (
+            <SectionLabel>Acquisitions · trend</SectionLabel>
+            {showSparkline ? (
+              <Card>
                 <div className="flex items-end justify-between gap-4">
                   <div>
-                    <p className="text-[11px] font-medium uppercase text-muted" style={{ letterSpacing: '1.3px' }}>
-                      Acquisitions · last 12 weeks
-                    </p>
-                    <p className="mt-1 text-[24px] font-bold tabular-nums text-ink">{totalAcq12w}</p>
+                    <p className="text-[24px] font-semibold tabular-nums text-ink">{totalAcq12w}</p>
+                    <p className="mt-0.5 text-[11.5px] text-muted">acquisitions across the last 12 weeks</p>
                   </div>
                   <div className="text-green"><Sparkline values={data.trend.weeklyAcquisitions} /></div>
                 </div>
-              ) : (
-                <>
-                  <p className="text-[11px] font-medium uppercase text-muted" style={{ letterSpacing: '1.3px' }}>
-                    Acquisitions · trend
-                  </p>
-                  <p className="mt-1 text-[24px] font-bold tabular-nums text-ink">{totalAcq12w}</p>
-                  <p className="mt-0.5 text-[11.5px] text-muted">
-                    {data.trend.firstAcquisitionAt
-                      ? <>since {new Date(data.trend.firstAcquisitionAt).toLocaleDateString()}</>
-                      : <>no acquisitions yet — chart appears once there&rsquo;s enough activity to plot honestly</>}
-                  </p>
-                </>
-              )}
-            </div>
+              </Card>
+            ) : (
+              <EmptyState>
+                {data.trend.firstAcquisitionAt
+                  ? <><span className="font-semibold text-ink">{totalAcq12w}</span> acquisitions since {new Date(data.trend.firstAcquisitionAt).toLocaleDateString()}</>
+                  : <>no acquisitions yet — chart appears once there&rsquo;s enough activity to plot honestly</>}
+              </EmptyState>
+            )}
           </section>
 
-          <section aria-label="Drill in to a passport">
-            <h2 className="mb-3 text-[11px] font-medium uppercase text-muted" style={{ letterSpacing: '1.5px' }}>
-              By passport · click a row to drill in
-            </h2>
-            <div className="overflow-hidden rounded-[10px] border border-surface-faintdiv bg-white">
-              <table className="w-full text-[12.5px]">
-                <thead className="bg-surface-rail">
-                  <tr className="text-left text-[10.5px] font-medium uppercase text-muted" style={{ letterSpacing: '1.3px' }}>
-                    <th className="px-4 py-2">Passport</th>
-                    <th className="px-3 py-2 text-right tabular-nums">Acquisitions</th>
-                    <th className="px-3 py-2 text-right tabular-nums">Active · 30d</th>
-                    <th className="px-3 py-2 text-right tabular-nums">Stamps · 90d</th>
-                    <th className="px-3 py-2 text-right tabular-nums">Completion</th>
-                    <th className="px-3 py-2 text-right">Last activity</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.perPassport.length === 0 ? (
-                    <tr><td colSpan={6} className="px-4 py-6 text-center text-[12px] text-muted">No passports in this institution yet.</td></tr>
-                  ) : data.perPassport.map((p) => (
-                    <tr key={p.id} className="border-t border-surface-faintdiv hover:bg-paper/30">
-                      <td className="px-4 py-3">
-                        <Link href={`/program?tab=analytics&passport=${p.id}`} className="truncate text-[13px] font-semibold text-ink hover:underline">
-                          {p.title}
-                        </Link>
-                      </td>
-                      <td className="px-3 py-3 text-right tabular-nums text-ink">{p.acquisitions}</td>
-                      <td className="px-3 py-3 text-right tabular-nums text-ink">{p.activeCollectors30d}</td>
-                      <td className="px-3 py-3 text-right tabular-nums text-ink">{p.stampsPlaced90d}</td>
-                      <td className="px-3 py-3 text-right tabular-nums text-ink">
-                        {p.completionPct == null ? '—' : `${p.completionPct}%`}
-                      </td>
-                      <td className="px-3 py-3 text-right text-[11.5px] text-muted">
-                        {p.lastActivity ? new Date(p.lastActivity).toLocaleDateString() : '—'}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+          <section id="by-passport" aria-label="Drill in to a passport">
+            <SectionLabel>By passport · <b>click a row to drill in</b></SectionLabel>
+            <DataTable
+              columns={tableColumns}
+              rows={data.perPassport}
+              rowKey={(p) => p.id}
+              rowHref={(p) => `/program?tab=analytics&passport=${p.id}`}
+              empty="No passports in this institution yet."
+            />
           </section>
         </>
       )}
@@ -158,59 +161,48 @@ export function AnalyticsTab({
       {drillRow && (
         <>
           <section aria-label={`${drillRow.title} KPIs`}>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-              <KpiCard label="Acquisitions" sub="all-time" value={drillRow.acquisitions} />
-              <KpiCard label="Active collectors" sub="30d" value={drillRow.activeCollectors30d} />
-              <KpiCard label="Stamps placed" sub="90d" value={drillRow.stampsPlaced90d} />
-              <KpiCard
-                label="Completion"
-                sub={drillRow.completionPct == null ? 'no collectors yet' : 'collectors with all stamps'}
-                value={drillRow.completionPct == null ? '—' : `${drillRow.completionPct}%`}
-              />
-            </div>
+            <SectionLabel>{drillRow.title}</SectionLabel>
+            <MetricStrip
+              metrics={[
+                { label: 'Acquisitions',      value: drillRow.acquisitions,         caption: 'all-time' },
+                { label: 'Active collectors', value: drillRow.activeCollectors30d,  caption: '30d' },
+                { label: 'Stamps placed',     value: drillRow.stampsPlaced90d,      caption: '90d' },
+                {
+                  label: 'Completion',
+                  value: drillRow.completionPct == null ? null : `${drillRow.completionPct}%`,
+                  caption: drillRow.completionPct == null ? 'no collectors yet' : 'collectors with all stamps',
+                },
+              ]}
+            />
           </section>
 
           <section>
-            <div className="rounded-[10px] border border-surface-faintdiv bg-white px-5 py-4">
-              <p className="text-[11px] font-medium uppercase text-muted" style={{ letterSpacing: '1.3px' }}>
-                Last activity
-              </p>
-              <p className="mt-1 text-[15px] text-ink">
+            <SectionLabel>Last activity</SectionLabel>
+            <Card>
+              <p className="text-[15px] text-ink">
                 {drillRow.lastActivity
                   ? new Date(drillRow.lastActivity).toLocaleString()
                   : <span className="text-muted">No stamps or acquisitions yet</span>}
               </p>
-            </div>
+            </Card>
           </section>
 
           <section aria-label="Row-level detail">
-            <h2 className="mb-3 text-[11px] font-medium uppercase text-muted" style={{ letterSpacing: '1.5px' }}>
-              Row-level detail
-            </h2>
-            <Link
-              href={`/manage/passport/${drillRow.id}`}
-              className="inline-flex items-center rounded-[8px] border-[1.5px] border-ink bg-white px-4 h-9 text-[13px] font-semibold text-ink hover:bg-cream"
-            >
-              Open full per-passport view →
-            </Link>
-            <p className="mt-2 text-[11.5px] text-muted">
-              Stop-level activity, completion tokens, distribution pending list.
-            </p>
+            <SectionLabel>Row-level detail</SectionLabel>
+            <Card>
+              <Link
+                href={`/manage/passport/${drillRow.id}`}
+                className="inline-flex items-center text-[13px] font-semibold text-green underline-offset-2 hover:underline"
+              >
+                Open full per-passport view →
+              </Link>
+              <p className="mt-2 text-[11.5px] text-muted">
+                Stop-level activity, completion tokens, distribution pending list.
+              </p>
+            </Card>
           </section>
         </>
       )}
-    </div>
-  )
-}
-
-function KpiCard({
-  label, sub, value, warn,
-}: { label: string; sub?: string; value: number | string; warn?: boolean }) {
-  return (
-    <div className={`rounded-[8px] border bg-white px-3 py-3 ${warn ? 'border-accent' : 'border-surface-faintdiv'}`}>
-      <p className="text-[10px] font-medium uppercase text-muted" style={{ letterSpacing: '1.3px' }}>{label}</p>
-      <p className={`mt-1 text-[20px] font-bold tabular-nums ${warn ? 'text-accent' : 'text-ink'}`}>{value}</p>
-      {sub && <p className="mt-0.5 text-[10.5px] text-muted">{sub}</p>}
     </div>
   )
 }

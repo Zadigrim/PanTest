@@ -3,6 +3,7 @@
 import { useEffect, useState, useTransition, useId, type FormEvent } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { EmployeeAuthorization, Profile } from '@/lib/supabase/types'
+import { SectionLabel, Card, MicroNote, Note } from '@/components/program/ui'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -367,18 +368,16 @@ function AddEmployeeForm({
   return (
     <form
       onSubmit={handleSubmit}
-      className="bg-white rounded-panel border border-hairline p-5"
+      className="rounded-program-card border-[1.5px] border-hairline bg-cream p-5 shadow-[0_1px_2px_rgba(31,29,26,0.04)]"
       aria-label="Add new employee"
       noValidate
     >
-      <h2 className="text-base font-semibold text-navy mb-4">Add employee</h2>
-
       <div className="grid gap-4 sm:grid-cols-2">
         {/* Email */}
         <div className="flex flex-col gap-1.5">
           <label
             htmlFor={`${formId}-email`}
-            className="text-sm font-medium text-navy"
+            className="text-sm font-medium text-ink"
           >
             Email address <span className="text-accent" aria-hidden="true">*</span>
           </label>
@@ -390,7 +389,7 @@ function AddEmployeeForm({
             value={form.email}
             onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))}
             placeholder="employee@example.com"
-            className="h-9 rounded-panel border border-hairline bg-paper px-3 text-sm text-navy placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-green focus:border-green transition-colors"
+            className="h-9 rounded-program-control border-[1.5px] border-hairline bg-field px-3 text-sm text-ink placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-green focus:border-green transition-colors"
           />
         </div>
 
@@ -398,7 +397,7 @@ function AddEmployeeForm({
         <div className="flex flex-col gap-1.5">
           <label
             htmlFor={`${formId}-role`}
-            className="text-sm font-medium text-navy"
+            className="text-sm font-medium text-ink"
           >
             Role label{' '}
             <span className="font-normal text-muted">(optional)</span>
@@ -409,17 +408,17 @@ function AddEmployeeForm({
             value={form.role_label}
             onChange={(e) => setForm((p) => ({ ...p, role_label: e.target.value }))}
             placeholder="e.g. Barista, Receptionist"
-            className="h-9 rounded-panel border border-hairline bg-paper px-3 text-sm text-navy placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-green focus:border-green transition-colors"
+            className="h-9 rounded-program-control border-[1.5px] border-hairline bg-field px-3 text-sm text-ink placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-green focus:border-green transition-colors"
           />
         </div>
       </div>
 
       {/* Permissions */}
       <fieldset className="mt-4">
-        <legend className="text-sm font-medium text-navy mb-2">
+        <legend className="text-sm font-medium text-ink mb-2">
           Permissions
         </legend>
-        <div className="flex flex-wrap gap-5">
+        <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
           <label className="flex items-center gap-2 cursor-pointer">
             <input
               type="checkbox"
@@ -427,7 +426,7 @@ function AddEmployeeForm({
               onChange={(e) => setForm((p) => ({ ...p, can_verify: e.target.checked }))}
               className="accent-green w-4 h-4"
             />
-            <span className="text-sm text-navy">Can verify stamps</span>
+            <span className="text-sm text-ink">Can verify stamps</span>
           </label>
 
           <label className="flex items-center gap-2 cursor-pointer">
@@ -439,7 +438,7 @@ function AddEmployeeForm({
               }
               className="accent-green w-4 h-4"
             />
-            <span className="text-sm text-navy">Can distribute prizes</span>
+            <span className="text-sm text-ink">Can distribute prizes</span>
           </label>
 
           {/* Provisioning-convenience flags. Recording intent only —
@@ -451,7 +450,7 @@ function AddEmployeeForm({
               onChange={(e) => setForm((p) => ({ ...p, can_design: e.target.checked }))}
               className="accent-green w-4 h-4"
             />
-            <span className="text-sm text-navy">Can design</span>
+            <span className="text-sm text-ink">Can design</span>
           </label>
 
           <label className="flex items-center gap-2 cursor-pointer">
@@ -461,7 +460,7 @@ function AddEmployeeForm({
               onChange={(e) => setForm((p) => ({ ...p, can_manage_employees: e.target.checked }))}
               className="accent-green w-4 h-4"
             />
-            <span className="text-sm text-navy">Can manage employees</span>
+            <span className="text-sm text-ink">Can manage employees</span>
           </label>
 
           <label className="flex items-center gap-2 cursor-pointer">
@@ -471,7 +470,7 @@ function AddEmployeeForm({
               onChange={(e) => setForm((p) => ({ ...p, can_view_analytics: e.target.checked }))}
               className="accent-green w-4 h-4"
             />
-            <span className="text-sm text-navy">Can view analytics</span>
+            <span className="text-sm text-ink">Can view analytics</span>
           </label>
 
           <label className="flex items-center gap-2 cursor-pointer">
@@ -481,17 +480,18 @@ function AddEmployeeForm({
               onChange={(e) => setForm((p) => ({ ...p, can_manage_billing: e.target.checked }))}
               className="accent-green w-4 h-4"
             />
-            <span className="text-sm text-navy">Can manage billing</span>
+            <span className="text-sm text-ink">Can manage billing</span>
           </label>
-
         </div>
-        <p className="mt-2 text-xs italic text-muted">
-          The last four flags are provisioning-convenience only — Phase 2 will wire enforcement.
-        </p>
+        <div className="mt-3">
+          <MicroNote>
+            The last four flags are provisioning-convenience only — Phase 2 will wire enforcement.
+          </MicroNote>
+        </div>
       </fieldset>
 
       {formError && (
-        <p role="alert" className="mt-3 text-sm text-accent">
+        <p role="alert" className="mt-3 text-sm text-red">
           {formError}
         </p>
       )}
@@ -500,7 +500,7 @@ function AddEmployeeForm({
         <button
           type="submit"
           disabled={isPending}
-          className="inline-flex items-center gap-2 h-9 px-4 rounded-panel text-sm font-medium bg-green text-white hover:bg-[#0F6E56] disabled:opacity-50 disabled:pointer-events-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green"
+          className="inline-flex items-center gap-2 h-9 px-4 rounded-program-control text-sm font-semibold bg-green text-white hover:bg-green/90 disabled:opacity-50 disabled:pointer-events-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green"
         >
           {isPending ? 'Adding…' : 'Add employee'}
         </button>
@@ -686,69 +686,58 @@ export function EmployeesPanel() {
   }
 
   return (
-    <div className="p-8 max-w-5xl">
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-navy">Employees</h1>
-        <p className="text-sm text-muted mt-1">
-          Manage employee access and permissions for your institution.
-        </p>
-      </div>
-
+    <div className="space-y-8">
       {loading && (
         <p className="text-sm text-muted animate-pulse">Loading…</p>
       )}
 
       {loadError && (
-        <div
-          role="alert"
-          className="mb-6 bg-accent/10 border border-accent rounded-panel p-4 text-accent text-sm"
-        >
+        <Note className="border-l-red">
           {loadError}
-        </div>
+        </Note>
       )}
 
       {!loading && !loadError && (
         <>
-          {/* Employee table */}
-          <section className="mb-8">
-            <h2 className="text-base font-semibold text-navy mb-3">
-              Current employees{' '}
-              <span className="text-sm font-normal text-muted">
-                ({employees.length})
-              </span>
-            </h2>
+          {/* Employee table. The Program page already carries the
+              H1 "Program" + description, so this section uses an
+              eyebrow instead of a heading. */}
+          <section>
+            <SectionLabel>
+              Current employees · <b>{employees.length}</b>
+            </SectionLabel>
 
             {employees.length === 0 ? (
               <p className="text-sm text-muted">
                 No employees yet. Add the first one below.
               </p>
             ) : (
-              <div className="bg-white rounded-panel border border-hairline overflow-x-auto">
+              <Card padding="none" className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-hairline bg-paper">
-                      <th className="px-4 py-3 text-left font-medium text-muted">
+                    <tr className="border-b-[1.5px] border-hairline bg-field">
+                      <th className="px-4 py-3 text-left font-mono text-[10.5px] uppercase text-muted" style={{ letterSpacing: '1.5px' }}>
                         Employee
                       </th>
-                      <th className="px-4 py-3 text-left font-medium text-muted">
+                      <th className="px-4 py-3 text-left font-mono text-[10.5px] uppercase text-muted" style={{ letterSpacing: '1.5px' }}>
                         Role
                       </th>
-                      <th className="px-4 py-3 text-center font-medium text-muted" title="Can verify stamps">
+                      <th className="px-4 py-3 text-center font-mono text-[10.5px] uppercase text-muted" style={{ letterSpacing: '1.5px' }} title="Can verify stamps">
                         Verify
                       </th>
-                      <th className="px-4 py-3 text-center font-medium text-muted" title="Can distribute prizes">
+                      <th className="px-4 py-3 text-center font-mono text-[10.5px] uppercase text-muted" style={{ letterSpacing: '1.5px' }} title="Can distribute prizes">
                         Distribute
                       </th>
-                      <th className="px-4 py-3 text-center font-medium text-muted" title="Can design (provisioning only — Phase 2)">
+                      <th className="px-4 py-3 text-center font-mono text-[10.5px] uppercase text-muted" style={{ letterSpacing: '1.5px' }} title="Can design (provisioning only — Phase 2)">
                         Design
                       </th>
-                      <th className="px-4 py-3 text-center font-medium text-muted" title="Can manage employees (provisioning only — Phase 2)">
+                      <th className="px-4 py-3 text-center font-mono text-[10.5px] uppercase text-muted" style={{ letterSpacing: '1.5px' }} title="Can manage employees (provisioning only — Phase 2)">
                         Manage
                       </th>
-                      <th className="px-4 py-3 text-center font-medium text-muted" title="Can view analytics (provisioning only — Phase 2)">
+                      <th className="px-4 py-3 text-center font-mono text-[10.5px] uppercase text-muted" style={{ letterSpacing: '1.5px' }} title="Can view analytics (provisioning only — Phase 2)">
                         Analytics
                       </th>
-                      <th className="px-4 py-3 text-center font-medium text-muted" title="Can manage billing (provisioning only — Phase 2)">
+                      <th className="px-4 py-3 text-center font-mono text-[10.5px] uppercase text-muted" style={{ letterSpacing: '1.5px' }} title="Can manage billing (provisioning only — Phase 2)">
                         Billing
                       </th>
                       <th className="px-4 py-3 w-20" />
@@ -766,17 +755,26 @@ export function EmployeesPanel() {
                     ))}
                   </tbody>
                 </table>
-              </div>
+              </Card>
             )}
+
+            <div className="mt-3">
+              <MicroNote>
+                Capability flags are settable but Phase 2 will wire enforcement (KI-03 / SEC-02).
+              </MicroNote>
+            </div>
           </section>
 
           {/* Add employee form */}
           {institutionId && currentUserId && (
-            <AddEmployeeForm
-              institutionId={institutionId}
-              currentUserId={currentUserId}
-              onAdded={handleAdded}
-            />
+            <section>
+              <SectionLabel>Add employee</SectionLabel>
+              <AddEmployeeForm
+                institutionId={institutionId}
+                currentUserId={currentUserId}
+                onAdded={handleAdded}
+              />
+            </section>
           )}
         </>
       )}

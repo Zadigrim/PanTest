@@ -25,6 +25,17 @@ const config: Config = {
         blue: '#2d5a8e',
         navy: '#0d1b2a',
 
+        // Program-hub additions (unified Program design system).
+        // - clay: the single Note / announcement accent — warm terracotta,
+        //   distinct from accent (gold) and red (error). Replaces the
+        //   ad-hoc gold/red borders on info banners with one voice.
+        // - field: form input + segmented-track surface — a warm tint
+        //   between paper (page bg) and white (card bg) so inputs read
+        //   as recessed without a heavy fill.
+        // Both used by the Program tab kit at components/program/ui/*.
+        clay:  '#b07a4f',
+        field: '#f0e9d8',
+
         // Kōbō (Designer-only) editor surface tones. These render the
         // workshop chrome around the passport spread — they are NOT
         // brand colors, never appear on the collector app, and should
@@ -57,6 +68,10 @@ const config: Config = {
         card:  '6px',
         panel: '8px',
         modal: '12px',
+        // Program kit radii (per mock).
+        'program-card':    '14px',
+        'program-control': '9px',
+        'program-pill':    '20px',
       },
       keyframes: {
         'accordion-down': { from: { height: '0' }, to: { height: 'var(--radix-accordion-content-height)' } },

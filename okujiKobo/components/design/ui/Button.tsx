@@ -20,6 +20,15 @@ const buttonVariants = cva(
         outline:   'border border-hairline bg-transparent text-navy hover:bg-paper',
         danger:    'bg-accent text-white hover:bg-accent/90',
         navy:      'bg-navy text-white hover:bg-navy/90',
+        // Program-kit variants. The mock's "secondary" wants a 1.5px
+        // ink border on transparent; the existing `outline` uses a
+        // 1px hairline. Keeping both so designer surfaces aren't
+        // disturbed.
+        'outline-ink': 'border-[1.5px] border-ink bg-transparent text-ink hover:bg-cream',
+        // The mock's "text-link" is a green inline call-to-action
+        // ("Open in designer →"). Distinct from ghost — no chip
+        // background, no padding hover.
+        link:          'h-auto p-0 text-green underline-offset-2 hover:underline',
       },
       size: {
         sm:   'h-8 px-3 text-xs',
