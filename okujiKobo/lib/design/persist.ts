@@ -14,6 +14,29 @@
 
 import { createClient } from '@/lib/supabase/client'
 import { usePassportStore } from './passport-store'
+import { revalidateLocationAudit } from '@/app/actions/audit'
+
+// Fields whose change on a `stops` row affects the location-audit
+// surface (dashboard HeroAlert + AttentionQueue audit-summary,
+// /dashboard/audit list). A safeUpdate that touches any of these
+// fires the revalidateLocationAudit server action so the next
+// visit to those surfaces shows fresh counts.
+const LOCATION_AUDIT_FIELDS = new Set([
+  'lat',
+  'lng',
+  'address_street',
+  'address_city',
+  'experience_type',
+  'experience_verification_method',
+  'verification_tier',
+])
+
+function patchTouchesAudit(patch: Record<string, unknown>): boolean {
+  for (const k of Object.keys(patch)) {
+    if (LOCATION_AUDIT_FIELDS.has(k)) return true
+  }
+  return false
+}
 
 function describeError(err: { message?: string | null; code?: string | null; details?: string | null; hint?: string | null } | null | undefined): string {
   if (!err) return 'Save failed'
@@ -222,6 +245,14 @@ export async function safeUpdate(
           retryQueue.push({ kind: 'update', table, patch, eqColumn, eqValue })
           return false
         }
+        // Fire-and-forget revalidation of the location-audit
+        // surfaces when a stops write changed any field the audit
+        // depends on. The server action runs out-of-band; we don't
+        // await it (a failed revalidation just means stale data
+        // for one more page load, never blocks save UX).
+        if (table === 'stops' && patchTouchesAudit(patch)) {
+          void revalidateLocationAudit().catch(() => {})
+        }
         return true
       } catch (err) {
         console.error('[persist] safeUpdate threw', { table, eqColumn, eqValue, patch, err })
@@ -401,6 +432,10 @@ export async function saveAll(): Promise<BatchError[]> {
     if (errors.length === 0) {
       usePassportStore.getState().setSaveError(null)
       dec()
+      // Every successful saveAll writes the full stops set —
+      // location fields included — so revalidate the audit
+      // surface unconditionally. Fire-and-forget.
+      void revalidateLocationAudit().catch(() => {})
     } else {
       const summary = errors.length === 1
         ? `${errors[0].table}: ${errors[0].message}`
