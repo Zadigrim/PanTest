@@ -1,20 +1,12 @@
-export default function AnalyticsPage() {
-  return (
-    <div className="p-8 max-w-6xl">
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-navy">Analytics</h1>
-        <p className="text-sm text-muted mt-1">Detailed reporting coming soon.</p>
-      </div>
+import { redirect } from 'next/navigation'
 
-      <div className="rounded-modal border-2 border-dashed border-hairline py-20 text-center">
-        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-cream text-3xl">
-          📊
-        </div>
-        <h2 className="text-lg font-semibold text-navy">Analytics coming soon</h2>
-        <p className="mt-2 text-sm text-muted max-w-sm mx-auto">
-          Detailed charts and reports for stamp activity, collector trends, and prize redemptions will appear here.
-        </p>
-      </div>
-    </div>
-  )
+/**
+ * /manage/analytics → /program?tab=analytics. The old surface here
+ * was a "coming soon" stub; the new Program Analytics tab carries
+ * real institution-rollup numbers + per-passport drill-in. No
+ * redirect target ambiguity — there's exactly one analytics surface
+ * now.
+ */
+export default function ManageAnalyticsRedirect() {
+  redirect('/program?tab=analytics')
 }

@@ -9,12 +9,15 @@ import { cn } from '@/lib/cn'
 
 // ─── Nav section definitions ──────────────────────────────────────────────────
 
-// "Program" intentionally absent — the program-management surface
-// doesn't exist as a first-class concept in the app. The dashboard
-// surfaces operator concerns directly; institutional managers still
-// reach /manage from the Access section when needed.
+// "Program" appears in BASE_NAV but is gated by role at render
+// time (creator / institutional_manager / platform_admin). It's
+// the institutional hub — Overview / Passports / Employees /
+// Prizes / Analytics / Terminal tabs. Old /manage URLs redirect
+// into it; the standalone full-screen /terminal stays a sibling
+// route launched from the Terminal tab.
 const BASE_NAV = [
   { label: 'My Passports', href: '/design' },
+  { label: 'Program',      href: '/program' },
   { label: 'Assets',       href: '/assets' },
   { label: 'Explore',      href: '/explore' },
   { label: 'Stop Library', href: '/stops' },
@@ -66,6 +69,7 @@ export default async function AppNav() {
   let avatarUrl:   string | null = null
   let roleContext: Awaited<ReturnType<typeof detectRoles>> | null = null
   let canAccessManagement = false
+  let canAccessProgram    = false
 
   if (user) {
     const { data: profile } = await supabase
@@ -83,6 +87,13 @@ export default async function AppNav() {
       roleContext.roles.includes('platform_admin') ||
       roleContext.roles.includes('institutional_manager') ||
       roleContext.roles.includes('institutional_employee')
+
+    // Program hub — narrower audience than Access, mirrors the
+    // JumpTiles "Program" tile's allow list. Admins pass through.
+    canAccessProgram =
+      roleContext.roles.includes('platform_admin') ||
+      roleContext.roles.includes('institutional_manager') ||
+      roleContext.roles.includes('individual_creator')
 
     // Apply cookie-stored active role if valid
     const cookieRole = await getActiveRoleCookie()
@@ -135,6 +146,9 @@ export default async function AppNav() {
           aria-label="Section navigation"
         >
           {BASE_NAV.map(({ label, href }) => {
+            // Hide Program from roles that can't enter it. Other
+            // links in BASE_NAV are visible to all signed-in users.
+            if (href === '/program' && !canAccessProgram) return null
             const isActive = currentPath === href || currentPath.startsWith(href + '/')
             return <NavLink key={href} href={href} active={isActive} label={label} />
           })}
