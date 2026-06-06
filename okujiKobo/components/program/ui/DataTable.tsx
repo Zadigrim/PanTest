@@ -1,18 +1,23 @@
-'use client'
-
 /**
  * Shared table for the Program hub. Field-token header row (mono
  * uppercase, right-aligned numerics, left-aligned first column),
  * hairline row dividers, hover tint, first column weight 600.
  *
- * Marked `'use client'` because rows can carry an onClick handler
- * (the rowHref convenience that makes the entire row clickable —
- * the first cell renders a real <Link> for a11y / keyboard, and
- * the row handler picks up mouse clicks elsewhere). Passing event
- * handlers from a Server Component to a Server Component element
- * throws at render in Next 14; the directive moves DataTable into
- * the client bundle so the handler is allowed. The component is
- * small + pure-presentational, so the bundle cost is minimal.
+ * Generic over the row type — callers pass `columns` that name a
+ * key + render function. Numeric columns auto-align right; the
+ * first column always reads as the "name" anchor.
+ *
+ * The optional `rowHref` makes the first cell a real <Link> with a
+ * stretched-link CSS pattern: an invisible ::before pseudo-element
+ * grows to fill the row, so clicks anywhere on the row navigate.
+ * Keyboard / a11y stays on the actual Link element.
+ *
+ * Server-component-friendly: NO event handlers, NO hooks. Pure
+ * rendering + <Link>. Callers from server components can pass
+ * `render` / `rowHref` / `rowKey` functions because DataTable
+ * stays server-side — function props only need to be serializable
+ * when they cross the server→client boundary, which doesn't
+ * happen here.
  */
 
 import Link from 'next/link'
@@ -67,34 +72,19 @@ export function DataTable<T>({ columns, rows, rowKey, rowHref, empty }: Props<T>
             </tr>
           ) : (
             rows.map((row, i) => {
-              const cells = columns.map((c, j) => (
-                <td
-                  key={c.key}
-                  className={cn(
-                    'px-4 py-3',
-                    c.align === 'right' ? 'text-right tabular-nums text-ink' : 'text-ink',
-                    j === 0 && 'font-semibold',
-                  )}
-                >
-                  {c.render(row)}
-                </td>
-              ))
-              return rowHref ? (
+              const href = rowHref?.(row)
+              return (
                 <tr
                   key={rowKey(row)}
+                  // `relative` anchors the stretched-link ::before
+                  // pseudo so clicks anywhere on the row reach the
+                  // <Link>. Modern browsers handle position:relative
+                  // on <tr> consistently.
                   className={cn(
-                    'border-t border-hairline/60 hover:bg-field/60 cursor-pointer transition-colors',
+                    'border-t border-hairline/60',
                     i === 0 && 'border-t-[1.5px] border-t-hairline',
+                    href && 'relative hover:bg-field/60',
                   )}
-                  onClick={(e) => {
-                    // Server-rendered: clicking anywhere on the row
-                    // navigates. We render an actual Link inside the
-                    // first cell for accessibility / keyboard / SEO;
-                    // this handler covers mouse clicks elsewhere.
-                    const target = e.target as HTMLElement
-                    if (target.closest('a, button')) return
-                    window.location.href = rowHref(row)
-                  }}
                 >
                   {columns.map((c, j) => (
                     <td
@@ -105,10 +95,19 @@ export function DataTable<T>({ columns, rows, rowKey, rowHref, empty }: Props<T>
                         j === 0 && 'font-semibold',
                       )}
                     >
-                      {j === 0 ? (
+                      {j === 0 && href ? (
+                        // Stretched-link pattern: the ::before
+                        // pseudo expands to cover the parent <tr>,
+                        // so the whole row is a hit target. Other
+                        // cells' content sits visually above the
+                        // pseudo but doesn't intercept the click
+                        // because pseudo elements have z-index 0
+                        // and the cells don't bump their stacking
+                        // context. Visible text in this cell is
+                        // the underline-on-hover anchor.
                         <Link
-                          href={rowHref(row)}
-                          className="hover:underline underline-offset-2"
+                          href={href}
+                          className="hover:underline underline-offset-2 before:absolute before:inset-0 before:content-['']"
                         >
                           {c.render(row)}
                         </Link>
@@ -117,16 +116,6 @@ export function DataTable<T>({ columns, rows, rowKey, rowHref, empty }: Props<T>
                       )}
                     </td>
                   ))}
-                </tr>
-              ) : (
-                <tr
-                  key={rowKey(row)}
-                  className={cn(
-                    'border-t border-hairline/60',
-                    i === 0 && 'border-t-[1.5px] border-t-hairline',
-                  )}
-                >
-                  {cells}
                 </tr>
               )
             })
