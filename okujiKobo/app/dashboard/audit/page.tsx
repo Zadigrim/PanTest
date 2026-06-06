@@ -53,11 +53,19 @@ export default async function DashboardAuditPage() {
 
   let rows: AuditRow[] = []
   if (passportIds.length > 0) {
+    // passport_pages doesn't have a `title` column — it has
+    // section_title / section_name / section_subtitle. Earlier the
+    // select asked for `title`, PostgREST errored, pages.data was
+    // null, pageIds was empty, and the stops query was skipped —
+    // so the audit page rendered "No location issues" even though
+    // the dashboard's hero/queue (which selects only id +
+    // passport_id) was correctly reporting issues. Fixed by
+    // selecting section_title (used as the friendly page label).
     const { data: pages } = await db
       .from('passport_pages')
-      .select('id, passport_id, title')
+      .select('id, passport_id, section_title, section_name')
       .in('passport_id', passportIds)
-    const pageList = (pages ?? []) as { id: string; passport_id: string; title: string | null }[]
+    const pageList = (pages ?? []) as { id: string; passport_id: string; section_title: string | null; section_name: string | null }[]
     const pageIds = pageList.map((p) => p.id)
     const pageInfo = new Map(pageList.map((p) => [p.id, p] as const))
 
@@ -75,7 +83,11 @@ export default async function DashboardAuditPage() {
         rows.push({
           passportId: page.passport_id,
           passportTitle: passportTitle.get(page.passport_id) ?? 'Untitled',
-          pageTitle: page.title,
+          // section_title is the designer-set heading; fall back to
+          // the slug-ish section_name when no title's set; null
+          // when neither is present (renderer hides the dot+name
+          // in that case).
+          pageTitle: page.section_title?.trim() || page.section_name?.trim() || null,
           stopName: s.name || 'Untitled stop',
           issue,
         })
