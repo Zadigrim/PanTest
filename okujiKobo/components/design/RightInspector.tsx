@@ -27,8 +27,11 @@ import type {
   PassportType,
   ImagePageElement,
   TextPageElement,
+  RichTextPageElement,
+  TextRun,
   LinePageElement,
 } from '@/lib/design/types'
+import { domToRuns, runsToHtml, stopAddressToRuns } from '@/lib/design/rich-text'
 import type { StampAsset } from '@/lib/design/stamp-assets'
 import { StampComposer } from './StampComposer'
 
@@ -1731,6 +1734,15 @@ function ElementInspector({
         </Section>
       )}
 
+      {element.type === 'richtext' && (
+        <RichTextSection
+          pageId={pageId}
+          element={element}
+          updateElement={updateElement}
+          persist={persist}
+        />
+      )}
+
       {(element.type === 'line' || element.type === 'hline' || element.type === 'vline') && (
         <Section title="Line">
           <Field label="Thickness (px)">
@@ -1846,5 +1858,229 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       <Label className="text-xs text-muted">{label}</Label>
       {children}
     </div>
+  )
+}
+
+// ── Rich-text inspector section ──────────────────────────────────────────────
+// In-browser editor for richtext elements. Uses a contentEditable div +
+// document.execCommand for B/I/U toggling on the active selection. Yes,
+// execCommand is deprecated — for a B/I/U toolbar with a tight DOM-to-runs
+// parser as the safety net, it's still the smallest-correct code path. The
+// modern alternative is a third-party rich-text framework (TipTap, Slate);
+// neither is justified for the v1 scope.
+//
+// Lifecycle:
+//   1. Mount → seed editor.innerHTML from runsToHtml(initialRuns). After
+//      that we DO NOT re-seed on prop change, because every keystroke
+//      would otherwise reset the cursor. We re-seed only when the element
+//      id changes (designer selected a different block) or when a re-pull
+//      from the linked stop fires.
+//   2. User types / hits the B/I/U toolbar / pastes / etc.
+//   3. On blur → domToRuns(editor) → persist(). Adjacent runs with
+//      identical styles get merged by the parser, keeping storage tidy.
+//
+// Address pre-fill:
+//   - "Pull stop address" reads the LIVE stop row (matched by linkedStopId,
+//     or — if unset — by a dropdown that lists every stop on this page).
+//     It REPLACES the editor's current content with the freshly-formatted
+//     address. Confirms first so the designer doesn't lose styling work
+//     by accident.
+
+function RichTextSection({
+  pageId,
+  element,
+  updateElement,
+  persist,
+}: {
+  pageId: string
+  element: RichTextPageElement
+  updateElement: (pageId: string, elementId: string, patch: Partial<DesignerPageElement>) => void
+  persist: (patch: Partial<DesignerPageElement>) => Promise<void>
+}) {
+  const editorRef = useRef<HTMLDivElement>(null)
+  const stops = usePassportStore((s) => s.stops)
+  const stopsOnPage = stops.filter((s) => s.page_id === pageId)
+
+  // Seed only on element-id change. Repeated re-seeds would reset the
+  // cursor on every keystroke (the parent re-renders when persist() flows
+  // back into the store).
+  useEffect(() => {
+    if (!editorRef.current) return
+    editorRef.current.innerHTML = runsToHtml(element.runs) || ''
+  }, [element.id])
+
+  function flush() {
+    if (!editorRef.current) return
+    const runs = domToRuns(editorRef.current)
+    updateElement(pageId, element.id, { runs } as Partial<DesignerPageElement>)
+    void persist({ runs } as Partial<DesignerPageElement>)
+  }
+
+  function exec(cmd: 'bold' | 'italic' | 'underline') {
+    editorRef.current?.focus()
+    // execCommand returns false in some browsers but still mutates the
+    // selection. We don't depend on the return value — the next flush()
+    // reads the DOM as the truth.
+    // eslint-disable-next-line @typescript-eslint/no-deprecated
+    document.execCommand(cmd, false)
+    flush()
+  }
+
+  function pullAddress(stopId: string) {
+    const stop = stopsOnPage.find((s) => s.id === stopId)
+    if (!stop) return
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const runs = stopAddressToRuns(stop as any)
+    if (runs.length === 0) {
+      window.alert('That stop has no address fields filled in yet. Add street / city / state on the stop first.')
+      return
+    }
+    if (!window.confirm('Replace the current block contents with this stop’s address?')) return
+    if (editorRef.current) {
+      editorRef.current.innerHTML = runsToHtml(runs)
+    }
+    updateElement(pageId, element.id, { runs, linkedStopId: stop.id } as Partial<DesignerPageElement>)
+    void persist({ runs, linkedStopId: stop.id } as Partial<DesignerPageElement>)
+  }
+
+  return (
+    <Section title="Text block">
+      <Field label="Content">
+        <div className="space-y-1.5">
+          <div className="flex gap-1">
+            <ToolbarButton onClick={() => exec('bold')}      label="B" title="Bold (selection)" weight="bold" />
+            <ToolbarButton onClick={() => exec('italic')}    label="I" title="Italic (selection)" italic />
+            <ToolbarButton onClick={() => exec('underline')} label="U" title="Underline (selection)" underlined />
+          </div>
+          <div
+            ref={editorRef}
+            contentEditable
+            suppressContentEditableWarning
+            onBlur={flush}
+            // Match the canvas + holder render so what-you-see-is-what-you-get.
+            className="min-h-[80px] w-full rounded-panel border border-hairline bg-paper px-3 py-1.5 text-sm text-navy focus:outline-none focus:ring-2 focus:ring-green focus:border-green whitespace-pre-wrap break-words"
+            style={{
+              fontFamily: element.fontFamily ?? 'Arial, sans-serif',
+              fontSize:   element.fontSize   ?? 13,
+              color:      `#${element.color  ?? '0D1B2A'}`,
+              textAlign:  element.align      ?? 'left',
+              lineHeight: 1.3,
+            }}
+          />
+          <p className="text-[10.5px] text-muted">
+            Multi-line, wraps. Select text + tap <strong>B</strong> / <em>I</em> /{' '}
+            <u>U</u> to format. Holders see the same styling.
+          </p>
+        </div>
+      </Field>
+
+      {/* Stop-address pre-fill */}
+      <Field label="Pull stop address">
+        {stopsOnPage.length === 0 ? (
+          <p className="text-[11px] text-muted">Add a stop to this page first.</p>
+        ) : (
+          <div className="space-y-1">
+            <select
+              value=""
+              onChange={(e) => {
+                const v = e.target.value
+                if (v) pullAddress(v)
+                e.currentTarget.value = ''
+              }}
+              className="h-8 w-full rounded-panel border border-hairline px-2 text-sm focus:outline-none focus:ring-2 focus:ring-green"
+            >
+              <option value="">
+                {element.linkedStopId
+                  ? `Re-pull (linked: ${stopsOnPage.find((s) => s.id === element.linkedStopId)?.name ?? 'unknown'})`
+                  : 'Choose a stop…'}
+              </option>
+              {stopsOnPage.map((s) => (
+                <option key={s.id} value={s.id}>{s.name || 'Untitled stop'}</option>
+              ))}
+            </select>
+            <p className="text-[10.5px] text-muted">
+              Replaces the block with the stop’s street, city/state/zip, and (non-US) country.
+            </p>
+          </div>
+        )}
+      </Field>
+
+      <div className="grid grid-cols-2 gap-2">
+        <Field label="Size (px)">
+          <Input
+            type="number"
+            min={8}
+            max={36}
+            value={element.fontSize ?? 13}
+            onChange={(e) => updateElement(pageId, element.id, { fontSize: Number(e.target.value) } as Partial<DesignerPageElement>)}
+            onBlur={(e)   => persist({ fontSize: Number(e.target.value) } as Partial<DesignerPageElement>)}
+            className="h-8 text-sm"
+          />
+        </Field>
+        <Field label="Align">
+          <div className="flex gap-1">
+            {(['left', 'center', 'right'] as const).map((a) => (
+              <button
+                key={a}
+                onClick={() => persist({ align: a } as Partial<DesignerPageElement>)}
+                className={`flex-1 rounded-card border py-1 text-xs capitalize transition-colors ${
+                  (element.align ?? 'left') === a
+                    ? 'border-green bg-cream text-green font-medium'
+                    : 'border-hairline text-muted hover:border-green/40'
+                }`}
+              >
+                {a}
+              </button>
+            ))}
+          </div>
+        </Field>
+      </div>
+
+      <Field label="Color">
+        <div className="flex gap-2">
+          <Input
+            value={element.color ?? '0D1B2A'}
+            maxLength={6}
+            onChange={(e) => updateElement(pageId, element.id, { color: e.target.value } as Partial<DesignerPageElement>)}
+            onBlur={(e)   => void persist({ color: e.target.value } as Partial<DesignerPageElement>)}
+            className="h-8 flex-1 font-mono text-sm uppercase"
+          />
+          <ColorPickerInput
+            value={element.color ?? '0D1B2A'}
+            onChange={(hex) => updateElement(pageId, element.id, { color: hex } as Partial<DesignerPageElement>)}
+            onCommit={(hex) => void persist({ color: hex } as Partial<DesignerPageElement>)}
+          />
+        </div>
+      </Field>
+    </Section>
+  )
+}
+
+function ToolbarButton({
+  onClick, label, title, weight, italic, underlined,
+}: {
+  onClick: () => void
+  label: string
+  title: string
+  weight?: 'bold'
+  italic?: boolean
+  underlined?: boolean
+}) {
+  return (
+    <button
+      type="button"
+      // mousedown (not click) so the editor's selection isn't lost to
+      // the button receiving focus before execCommand runs.
+      onMouseDown={(e) => { e.preventDefault(); onClick() }}
+      title={title}
+      className="h-7 w-7 rounded-card border border-hairline bg-white text-sm text-navy hover:border-green hover:bg-cream"
+      style={{
+        fontWeight:     weight === 'bold' ? 700 : 500,
+        fontStyle:      italic ? 'italic' : 'normal',
+        textDecoration: underlined ? 'underline' : 'none',
+      }}
+    >
+      {label}
+    </button>
   )
 }

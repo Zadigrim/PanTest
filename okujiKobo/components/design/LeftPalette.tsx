@@ -220,6 +220,31 @@ export function LeftPalette() {
         content: 'Section Header',
         fontSize: 16, fontWeight: 'bold', color: '0D1B2A', align: 'left', rotation: 0,
       }
+    } else if (type === 'richtext') {
+      // Pre-fill from the first stop on this page that has any address
+      // fields. If none, the block opens empty — the inspector still
+      // offers a "Pull stop address" affordance once the designer picks
+      // a stop. Pre-fill is the common path: per Nathan, "include the
+      // address by default, then let them style + add to it".
+      const stopsOnPage = usePassportStore
+        .getState()
+        .stops.filter((s) => s.page_id === activePageId)
+      const firstWithAddress = stopsOnPage.find((s) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const x = s as any
+        return x.address_street || x.address_city || x.address_state || x.address_zip
+      }) ?? null
+      const { stopAddressToRuns } = await import('@/lib/design/rich-text')
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const seed = stopAddressToRuns(firstWithAddress as any)
+      defaults = {
+        id, type,
+        x: 40, y: 40, width: 240, height: 80,
+        runs: seed.length > 0 ? seed : [{ text: 'Address line 1\nCity, ST 00000' }],
+        fontSize: 13, fontFamily: 'Arial, sans-serif',
+        color: '0D1B2A', align: 'left', rotation: 0,
+        linkedStopId: firstWithAddress?.id ?? null,
+      }
     } else if (type === 'line') {
       defaults = { id, type, x1: 40, y1: 100, x2: 572, y2: 100, thickness: 2, lineColor: '0D1B2A' }
     } else if (type === 'image') {
@@ -365,6 +390,16 @@ export function LeftPalette() {
               variant="ghost"
               size="sm"
               className="w-full justify-start text-xs gap-2"
+              onClick={() => handleAddElement('richtext')}
+              disabled={!activePageId}
+              title="Multi-line wrapping text. Pre-fills with the page stop's address; bold / italic / underline on selection."
+            >
+              <span>¶</span> Add address / paragraph
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full justify-start text-xs gap-2"
               onClick={() => handleAddElement('image')}
               disabled={!activePageId}
             >
@@ -433,16 +468,23 @@ function ElementsList({ pageId }: { pageId: string | null }) {
   if (elements.length === 0) return null
 
   const typeIcon = (type: string) => {
-    if (type === 'text') return 'T'
-    if (type === 'image') return '🖼'
-    if (type === 'line') return '╱'
-    if (type === 'hline') return '—'
+    if (type === 'text')     return 'T'
+    if (type === 'richtext') return '¶'
+    if (type === 'image')    return '🖼'
+    if (type === 'line')     return '╱'
+    if (type === 'hline')    return '—'
     return '|'
   }
   const typeLabel = (el: DesignerPageElement) => {
-    if (el.type === 'text') return el.content || 'Label'
+    if (el.type === 'text')     return el.content || 'Label'
+    if (el.type === 'richtext') {
+      // Plain-text preview from the runs; same trimmed-to-fit treatment
+      // the row uses for single-line text.
+      const flat = el.runs.map((r) => r.text).join(' ').replace(/\s+/g, ' ').trim()
+      return flat || 'Text block'
+    }
     if (el.type === 'image') return 'Image'
-    if (el.type === 'line') return 'Line'
+    if (el.type === 'line')  return 'Line'
     if (el.type === 'hline') return 'H-Line'
     return 'V-Line'
   }

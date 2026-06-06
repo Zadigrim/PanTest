@@ -154,6 +154,43 @@ function ElementSvg({ element }: { element: DesignerPageElement }) {
     )
   }
 
+  if (element.type === 'richtext') {
+    // SVG text doesn't word-wrap natively (same constraint as the 'text'
+    // branch above). For published-image fidelity we lay each line out
+    // as its own <tspan dy="1.3em">. Inline bold / italic / underline
+    // would each need a per-run <tspan font-weight=…> wrapper; v1 image
+    // export ships with PLAIN text (concatenated runs, line-broken). The
+    // live page render + holder render are the truth surfaces; the
+    // marketplace cover/page PNG is the degraded-acceptable surface.
+    const el = element as import('@/lib/design/types').RichTextPageElement
+    const fontFamily = el.fontFamily ?? 'Arial, sans-serif'
+    const fontSize   = el.fontSize   ?? 13
+    const color      = `#${el.color ?? '0D1B2A'}`
+    const anchor = el.align === 'center' ? 'middle' : el.align === 'right' ? 'end' : 'start'
+    const tx = el.align === 'center' ? el.x + el.width / 2
+             : el.align === 'right'  ? el.x + el.width
+             : el.x
+    const ty = el.y + fontSize * 0.85
+    const rotateAttr = el.rotation ? `rotate(${el.rotation} ${tx} ${ty})` : undefined
+    const plain = el.runs.map((r) => r.text).join('')
+    const lines = plain.split('\n')
+    return (
+      <text
+        x={tx}
+        y={ty}
+        fontFamily={fontFamily}
+        fontSize={fontSize}
+        fill={color}
+        textAnchor={anchor}
+        transform={rotateAttr}
+      >
+        {lines.map((line, i) => (
+          <tspan key={i} x={tx} dy={i === 0 ? 0 : `1.3em`}>{line}</tspan>
+        ))}
+      </text>
+    )
+  }
+
   if (element.type === 'image') {
     const el = element as ImagePageElement
     if (!el.imageUrl) return null

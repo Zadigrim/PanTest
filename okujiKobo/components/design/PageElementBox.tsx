@@ -3,12 +3,14 @@
 import { useRef, useCallback } from 'react'
 import type {
   TextPageElement,
+  RichTextPageElement,
   ImagePageElement,
   HLinePageElement,
   VLinePageElement,
 } from '@/lib/design/types'
+import { runsToReact } from '@/lib/design/rich-text'
 
-type BoxElement = TextPageElement | ImagePageElement | HLinePageElement | VLinePageElement
+type BoxElement = TextPageElement | RichTextPageElement | ImagePageElement | HLinePageElement | VLinePageElement
 
 const MIN_SIZE = 30
 const ROT_HANDLE_OFFSET = 28  // px above element in local space
@@ -42,7 +44,7 @@ export function PageElementBox({
   onChange,
 }: Props) {
   const { x, y, width, height } = element
-  const rotation = (element as TextPageElement | ImagePageElement).rotation ?? 0
+  const rotation = (element as TextPageElement | RichTextPageElement | ImagePageElement).rotation ?? 0
 
   const containerRef = useRef<HTMLDivElement>(null)
   const dragState = useRef<{ sx: number; sy: number; ox: number; oy: number } | null>(null)
@@ -143,8 +145,8 @@ export function PageElementBox({
 
   // ── Render ───────────────────────────────────────────────────────────────────
 
-  const supportsRotation = element.type === 'text' || element.type === 'image'
-  const supportsResize   = element.type === 'text' || element.type === 'image'
+  const supportsRotation = element.type === 'text' || element.type === 'richtext' || element.type === 'image'
+  const supportsResize   = element.type === 'text' || element.type === 'richtext' || element.type === 'image'
 
   return (
     <div
@@ -181,6 +183,32 @@ export function PageElementBox({
             <span className={!element.content ? 'italic text-muted/50' : ''}>
               {element.content || 'Label text…'}
             </span>
+          </div>
+        </div>
+      )}
+
+      {/* Rich-text content — multi-line wrapping with inline B/I/U.
+          The renderer walks runs into <strong>/<em>/<u>/<br>; XSS is
+          structurally impossible because we never set innerHTML. The
+          editor lives in the inspector (RightInspector RichTextEditor);
+          the box is read-only on the canvas. */}
+      {element.type === 'richtext' && (
+        <div className="h-full w-full overflow-hidden">
+          <div
+            className="w-full h-full"
+            style={{
+              fontSize:   element.fontSize   ?? 13,
+              fontFamily: element.fontFamily ?? 'Arial, sans-serif',
+              color:      `#${element.color ?? '0D1B2A'}`,
+              textAlign:  (element.align ?? 'left') as React.CSSProperties['textAlign'],
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-word',
+              lineHeight: 1.3,
+            }}
+          >
+            {element.runs.length === 0
+              ? <span className="italic text-muted/50">Text block…</span>
+              : runsToReact(element.runs)}
           </div>
         </div>
       )}

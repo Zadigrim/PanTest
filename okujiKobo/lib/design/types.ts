@@ -6,7 +6,7 @@ export type SpendTier = 'free' | 'under_15' | '15_50' | '50_150' | '150_500' | '
 
 // ── Page element types ────────────────────────────────────────────────────────
 
-export type PageElementType = 'text' | 'image' | 'line' | 'hline' | 'vline'
+export type PageElementType = 'text' | 'richtext' | 'image' | 'line' | 'hline' | 'vline'
 
 interface BaseBoxElement {
   id: string
@@ -25,6 +25,54 @@ export interface TextPageElement extends BaseBoxElement {
   color?: string
   align?: 'left' | 'center' | 'right'
   rotation?: number   // degrees 0–359, default 0
+}
+
+// ── Rich-text page element ────────────────────────────────────────────────────
+// Multi-line wrapping text with per-selection inline formatting (bold /
+// italic / underline). The `text` single-line element above STAYS — it's
+// optimised for short headings and existing data uses it. `richtext` is a
+// distinct type so the diff engine, the designer inspector, and the holder
+// renderer each branch cleanly.
+//
+// Storage: an ARRAY of TextRun. Each run is contiguous text with a set of
+// active inline styles. A `text: '\n'` run represents a hard line break.
+// Adjacent runs with identical styles are merged when the editor commits;
+// readers don't need to merge — but be tolerant of split runs in case
+// older data shapes survive.
+//
+// Why runs (not HTML)?
+//   * XSS-safe by construction — the renderer walks objects, never
+//     dangerouslySetInnerHTML.
+//   * Future-proof: easy to add `link`, `superscript`, etc. without a
+//     migration. New fields on TextRun default off when missing.
+//   * SVG-friendly: PageSvg can concat runs to plain text for the static
+//     marketplace image without parsing HTML.
+//
+// The pre-fill-from-stop-address feature is initiated by the designer
+// (palette button + inspector "Pull stop address" affordance). It writes
+// runs with newlines between address lines, leaving the designer free to
+// add styling + extra content on top.
+
+export interface TextRun {
+  text: string
+  bold?: boolean
+  italic?: boolean
+  underline?: boolean
+}
+
+export interface RichTextPageElement extends BaseBoxElement {
+  type: 'richtext'
+  runs: TextRun[]
+  fontSize?: number
+  fontFamily?: string
+  color?: string
+  align?: 'left' | 'center' | 'right'
+  rotation?: number
+  // The id of the stop this block was pre-filled from. Stored for the
+  // inspector's "Pull stop address" affordance — it knows which stop to
+  // re-pull from without asking the designer to pick again. Null/absent
+  // means the block isn't linked (designer typed it from scratch).
+  linkedStopId?: string | null
 }
 
 export interface ImagePageElement extends BaseBoxElement {
@@ -59,18 +107,20 @@ export interface VLinePageElement extends BaseBoxElement {
 
 export type DesignerPageElement =
   | TextPageElement
+  | RichTextPageElement
   | ImagePageElement
   | LinePageElement
   | HLinePageElement
   | VLinePageElement
 
 // Type guards
-export const isLineEl  = (el: DesignerPageElement): el is LinePageElement  => el.type === 'line'
-export const isTextEl  = (el: DesignerPageElement): el is TextPageElement  => el.type === 'text'
-export const isImageEl = (el: DesignerPageElement): el is ImagePageElement => el.type === 'image'
-export const isBoxEl   = (
+export const isLineEl     = (el: DesignerPageElement): el is LinePageElement     => el.type === 'line'
+export const isTextEl     = (el: DesignerPageElement): el is TextPageElement     => el.type === 'text'
+export const isRichTextEl = (el: DesignerPageElement): el is RichTextPageElement => el.type === 'richtext'
+export const isImageEl    = (el: DesignerPageElement): el is ImagePageElement    => el.type === 'image'
+export const isBoxEl      = (
   el: DesignerPageElement,
-): el is TextPageElement | ImagePageElement | HLinePageElement | VLinePageElement =>
+): el is TextPageElement | RichTextPageElement | ImagePageElement | HLinePageElement | VLinePageElement =>
   el.type !== 'line'
 
 // ── Other types ───────────────────────────────────────────────────────────────

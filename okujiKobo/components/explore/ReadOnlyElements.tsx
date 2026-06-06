@@ -9,8 +9,10 @@ import type {
   DesignerPageElement,
   ImagePageElement,
   TextPageElement,
+  RichTextPageElement,
   LinePageElement,
 } from '@/lib/design/types'
+import { runsToReact } from '@/lib/design/rich-text'
 
 interface ViewerStop {
   id: string
@@ -73,6 +75,33 @@ export function ReadOnlyElement({ element }: { element: DesignerPageElement }) {
         }}
       >
         {el.content ?? ''}
+      </div>
+    )
+  }
+
+  if (element.type === 'richtext') {
+    const el = element as RichTextPageElement
+    return (
+      <div
+        style={{
+          position: 'absolute',
+          left: el.x,
+          top: el.y,
+          width: el.width,
+          height: el.height,
+          transform: el.rotation ? `rotate(${el.rotation}deg)` : undefined,
+          transformOrigin: 'top left',
+          fontSize: el.fontSize ?? 13,
+          color: `#${el.color ?? '0D1B2A'}`,
+          textAlign: el.align ?? 'left',
+          fontFamily: el.fontFamily ?? 'Arial, sans-serif',
+          whiteSpace: 'pre-wrap',
+          wordBreak: 'break-word',
+          lineHeight: 1.3,
+          overflow: 'hidden',
+        }}
+      >
+        {runsToReact(el.runs)}
       </div>
     )
   }
