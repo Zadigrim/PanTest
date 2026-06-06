@@ -1,15 +1,18 @@
+'use client'
+
 /**
  * Shared table for the Program hub. Field-token header row (mono
  * uppercase, right-aligned numerics, left-aligned first column),
  * hairline row dividers, hover tint, first column weight 600.
  *
- * Generic over the row type — callers pass `columns` that name a
- * key + render function. Numeric columns auto-align right; the
- * first column always reads as the "name" anchor.
- *
- * The optional `rowHref` makes each row a Link (used by Overview's
- * + Analytics's per-passport tables that drill into a passport).
- * When omitted, rows are non-interactive.
+ * Marked `'use client'` because rows can carry an onClick handler
+ * (the rowHref convenience that makes the entire row clickable —
+ * the first cell renders a real <Link> for a11y / keyboard, and
+ * the row handler picks up mouse clicks elsewhere). Passing event
+ * handlers from a Server Component to a Server Component element
+ * throws at render in Next 14; the directive moves DataTable into
+ * the client bundle so the handler is allowed. The component is
+ * small + pure-presentational, so the bundle cost is minimal.
  */
 
 import Link from 'next/link'
