@@ -1,7 +1,9 @@
 'use client'
 
+import { useRef } from 'react'
 import type { ComposerElement } from '@/lib/design/stamp-composer/types'
 import { STAMP_FONTS } from '@/lib/design/fonts'
+import { DATE_TOKEN_LITERAL } from '@/lib/design/stamp-composer/date-token'
 
 /**
  * Right-rail inspector — element-type-aware controls.
@@ -239,15 +241,22 @@ function TextBlock({
   el: Extract<ComposerElement, { type: 'text' }>
   onUpdate: (patch: Partial<ComposerElement>) => void
 }) {
+  const textRef = useRef<HTMLTextAreaElement>(null)
   return (
     <>
       <Section title="Text">
         <textarea
+          ref={textRef}
           value={el.text}
           onChange={(e) => onUpdate({ text: e.target.value })}
           rows={2}
           placeholder="Your text…"
           className="w-full resize-none rounded-[6px] border-[1.5px] border-hairline bg-white px-1.5 py-1 text-[12px] text-ink focus:border-ink focus:outline-none"
+        />
+        <TokenChips
+          textRef={textRef}
+          value={el.text}
+          onChange={(next) => onUpdate({ text: next })}
         />
       </Section>
 
@@ -270,15 +279,22 @@ function CurvedTextBlock({
   el: Extract<ComposerElement, { type: 'curvedText' }>
   onUpdate: (patch: Partial<ComposerElement>) => void
 }) {
+  const textRef = useRef<HTMLTextAreaElement>(null)
   return (
     <>
       <Section title="Text">
         <textarea
+          ref={textRef}
           value={el.text}
           onChange={(e) => onUpdate({ text: e.target.value })}
           rows={2}
           placeholder="RIM TEXT…"
           className="w-full resize-none rounded-[6px] border-[1.5px] border-hairline bg-white px-1.5 py-1 text-[12px] text-ink focus:border-ink focus:outline-none"
+        />
+        <TokenChips
+          textRef={textRef}
+          value={el.text}
+          onChange={(next) => onUpdate({ text: next })}
         />
       </Section>
 
@@ -466,5 +482,71 @@ function Checkbox({
       />
       {label}
     </label>
+  )
+}
+
+/**
+ * Token chips that sit under a text element's textarea. Clicking a
+ * chip inserts the token literal at the textarea's caret (or
+ * replaces the current selection). The token survives verbatim in
+ * el.text → metadata → SVG; substitution happens at render time in
+ * each consumer (composer canvas, kobo, mobile, PDF).
+ *
+ * Why a chip, not a plain hint: designers don't have to remember
+ * the token syntax, and we never want them typing `{{ date }}`
+ * (with spaces, mis-cased, etc.). One click writes the exact
+ * literal the substitute regex looks for.
+ *
+ * Today the only token is {{date}}. The shape is built to grow —
+ * adding location/name/collector tokens later is one entry in the
+ * TOKENS array + the matching substitution helper. Per the scope
+ * guard, no other tokens this push.
+ */
+function TokenChips({
+  textRef,
+  value,
+  onChange,
+}: {
+  textRef: React.RefObject<HTMLTextAreaElement | null>
+  value: string
+  onChange: (next: string) => void
+}) {
+  function insertToken(literal: string) {
+    const ta = textRef.current
+    if (!ta) {
+      // Fallback: append. Unfocused textareas don't expose a caret
+      // position; appending keeps the action discoverable.
+      onChange(value ? `${value} ${literal}` : literal)
+      return
+    }
+    const start = ta.selectionStart ?? value.length
+    const end   = ta.selectionEnd   ?? value.length
+    const next  = value.slice(0, start) + literal + value.slice(end)
+    onChange(next)
+    // Return focus + place cursor immediately after the inserted
+    // token so the designer can keep typing inline. Wrapped in
+    // requestAnimationFrame so the onChange-driven re-render lands
+    // before we mutate selection.
+    requestAnimationFrame(() => {
+      if (!textRef.current) return
+      textRef.current.focus()
+      const pos = start + literal.length
+      textRef.current.setSelectionRange(pos, pos)
+    })
+  }
+  return (
+    <div className="mt-1 flex items-center gap-1.5">
+      <button
+        type="button"
+        onClick={() => insertToken(DATE_TOKEN_LITERAL)}
+        className="rounded-[5px] border-[1.5px] border-hairline bg-cream px-1.5 py-0.5 text-[10px] font-semibold text-green hover:border-green"
+        title={`Inserts ${DATE_TOKEN_LITERAL} — substituted with the stamp's earned date (MM/DD/YYYY) on each collector's stamp.`}
+      >
+        + Date
+      </button>
+      <span className="text-[10px] text-muted">
+        {DATE_TOKEN_LITERAL} → each collector's earned date
+      </span>
+    </div>
   )
 }

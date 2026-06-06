@@ -107,6 +107,7 @@ export function StampSlot({ stop, state, stamp, width, height }: Props) {
               smudgeDx={stamp.smudge_dx}
               smudgeDy={stamp.smudge_dy}
               smudgeIntensity={stamp.smudge_intensity}
+              earnedAt={stamp.verified_at}
             />
           </View>
         )

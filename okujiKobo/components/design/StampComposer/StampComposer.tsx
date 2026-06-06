@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { STAMP_SURFACE_SIZE, emptyComposerDoc, type ComposerElement, type ComposerMetadata } from '@/lib/design/stamp-composer/types'
 import { serializeStampSvg } from '@/lib/design/stamp-composer/svg'
+import { hasDateToken } from '@/lib/design/stamp-composer/date-token'
 import { BLANK_PRESET, PRESETS } from '@/lib/design/stamp-composer/presets'
 import { ComposerCanvas } from './ComposerCanvas'
 import { ComposerInspector } from './ComposerInspector'
@@ -263,6 +264,18 @@ export function StampComposer(props: DesignerMode | AssetsMode) {
                   onUpdate={updateElement}
                 />
               </div>
+              {/* Dynamic-token indicator. Renders only when the doc
+                  uses {{date}}, so it stays subtle on plain stamps
+                  and surfaces clearly when there's something to
+                  flag. Designer needs to see "this date is a
+                  sample" so they don't mistake today's date for
+                  a baked-in literal. */}
+              {docHasDateToken(doc) && (
+                <div className="border-t-[1.5px] border-hairline bg-surface-workspace px-4 py-1.5 text-center text-[10.5px] text-muted">
+                  Preview shows today’s date as a sample —
+                  each collector’s stamp will show their own earned date.
+                </div>
+              )}
             </main>
 
             {/* ── Right rail: inspector ── */}
@@ -279,6 +292,15 @@ export function StampComposer(props: DesignerMode | AssetsMode) {
       </div>
     </div>,
     root,
+  )
+}
+
+// True if any text / curvedText element in the doc carries the
+// {{date}} token — gates the dynamic-indicator strip under the
+// canvas.
+function docHasDateToken(doc: ComposerMetadata): boolean {
+  return doc.elements.some(
+    (el) => (el.type === 'text' || el.type === 'curvedText') && hasDateToken(el.text),
   )
 }
 

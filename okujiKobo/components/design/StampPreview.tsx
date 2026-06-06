@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { substituteDateInSvg, todaysStampDate } from '@/lib/design/stamp-composer/date-token'
 
 /**
  * Render a `design_assets`-typed stamp inside the designer canvas
@@ -102,10 +103,17 @@ export function StampPreview({
   }
 
   if (entry.isSvg && entry.svgText) {
+    // The designer canvas is always "sample mode" — there's no
+    // per-collector instance here. Substitute {{date}} with today's
+    // date so designers see a realistic preview. The asset cache
+    // stores the raw token-bearing SVG; the substitution result is
+    // cheap (regex test + replace) and re-runs on each render
+    // because today's date can change mid-session, e.g. midnight.
+    const svgWithDate = substituteDateInSvg(entry.svgText, { date: todaysStampDate() })
     return (
       <span
         style={{ width: size, height: size, display: 'inline-block', color: hex }}
-        dangerouslySetInnerHTML={{ __html: entry.svgText }}
+        dangerouslySetInnerHTML={{ __html: svgWithDate }}
       />
     )
   }

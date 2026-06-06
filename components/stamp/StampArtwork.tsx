@@ -34,6 +34,7 @@ import React, { useEffect, useState } from 'react'
 import { View, Image } from 'react-native'
 import Svg, { Circle, Rect, Path, Text as SvgText, Defs, Filter, FeTurbulence, FeDisplacementMap, SvgXml } from 'react-native-svg'
 import type { Stop } from '../../types'
+import { substituteDateInSvg, formatStampDate } from '../../lib/stamp-date-token'
 
 // Module-scoped SVG content cache. A passport with many stops
 // sharing the same composed stamp asset fetches each URL once.
@@ -73,6 +74,30 @@ function recolorSvg(svg: string, hex: string): string {
   return svg.replace(/currentColor/g, hex)
 }
 
+/** Apply BOTH the per-stop ink recolor AND the per-instance
+ *  date-token substitution. Composed in a single helper because
+ *  both operations work on the same SVG string and the cached
+ *  result is what we hand to <SvgXml>. Order doesn't interact —
+ *  `currentColor` never appears inside the {{date}} token.
+ *
+ *  ctx.earnedAt: the stamp instance's verified_at (UTC timestamptz).
+ *    - When provided, the token renders as that date in viewer-local
+ *      MM/DD/YYYY (matching "their date" — see spec).
+ *    - When omitted with ghost=true, renders em-dashes.
+ *    - When omitted with ghost=false, renders today's date as a
+ *      sample (the placement-preview path — stamp not yet recorded). */
+function prepareStampSvg(
+  svg: string,
+  hex: string,
+  ctx: { earnedAt?: string | null; ghost?: boolean },
+): string {
+  const recolored = recolorSvg(svg, hex)
+  return substituteDateInSvg(recolored, {
+    date: formatStampDate(ctx.earnedAt ?? null),
+    ghost: !!ctx.ghost,
+  })
+}
+
 /** A URL points at an SVG asset when its path ends in `.svg`
  *  (the composer's save path is `${user_id}/stamp-${ts}.svg`).
  *  Conservative check — anything else falls back to <Image>. */
@@ -95,6 +120,14 @@ interface Props {
   smudgeDx?: number | null
   smudgeDy?: number | null
   smudgeIntensity?: number | null
+  // When the stamp's SVG contains the {{date}} token (designer
+  // inserted it via the composer), substitute it per-instance:
+  //   * earnedAt set → format MM/DD/YYYY in viewer-local tz.
+  //   * earnedAt nullish AND ghost=true → em-dash placeholder.
+  //   * earnedAt nullish AND ghost=false → today's date (sample,
+  //                                        placement preview).
+  // Stamps without the token are untouched by this prop.
+  earnedAt?: string | null
 }
 
 function legacySmudgeScale(smudge: Stop['stamp_smudge']): number {
@@ -126,6 +159,7 @@ export function StampArtwork({
   smudgeDx,
   smudgeDy,
   smudgeIntensity,
+  earnedAt,
 }: Props) {
   const isGestureMode =
     saturation != null || smudgeDx != null || smudgeDy != null || smudgeIntensity != null
@@ -163,10 +197,14 @@ export function StampArtwork({
     let cancelled = false
     void fetchSvgText(customAssetUrl).then((text) => {
       if (cancelled || !text) return
-      setSvgRecolored(recolorSvg(text, stop.stamp_color))
+      // Both the ink recolor AND the date-token substitution happen
+      // here — the cached SvgXml input reflects the final
+      // per-instance render. Re-runs when earnedAt OR ghost OR
+      // stamp_color changes (see dep array).
+      setSvgRecolored(prepareStampSvg(text, stop.stamp_color, { earnedAt, ghost }))
     })
     return () => { cancelled = true }
-  }, [customAssetUrl, customIsSvg, stop.stamp_color])
+  }, [customAssetUrl, customIsSvg, stop.stamp_color, earnedAt, ghost])
 
   // Filter primitives are undefined on the web SVG renderer
   const filterSupported = !!Filter && !!FeTurbulence && !!FeDisplacementMap

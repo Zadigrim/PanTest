@@ -3,6 +3,7 @@
 import { useCallback, useRef, useState } from 'react'
 import { STAMP_SURFACE_SIZE, type ComposerElement, type ComposerMetadata } from '@/lib/design/stamp-composer/types'
 import { arcPathD, renderText } from '@/lib/design/stamp-composer/geometry'
+import { applyDateTokenToText, todaysStampDate } from '@/lib/design/stamp-composer/date-token'
 import { fontByKey } from '@/lib/design/fonts'
 
 /**
@@ -232,7 +233,12 @@ function ElementShape({ el }: { el: ComposerElement }) {
   }
   if (el.type === 'text') {
     const f = fontByKey(el.fontFamily)
-    const txt = renderText(el.text, { uppercase: el.uppercase })
+    // Live composer preview = sample mode: substitute {{date}} with
+    // today's date so the designer sees what holders will see. The
+    // stored el.text keeps the token verbatim — substitution is a
+    // render-time concern, not a persistence one.
+    const withDate = applyDateTokenToText(el.text, { date: todaysStampDate() })
+    const txt = renderText(withDate, { uppercase: el.uppercase })
     // Multi-line support: newlines in the textarea become
     // separate <tspan> lines anchored to el.x with dy stepping
     // by line-height. First line carries dy=0; subsequent
@@ -264,7 +270,8 @@ function ElementShape({ el }: { el: ComposerElement }) {
   }
   if (el.type === 'curvedText') {
     const f = fontByKey(el.fontFamily)
-    const txt = renderText(el.text, { uppercase: el.uppercase })
+    const withDate = applyDateTokenToText(el.text, { date: todaysStampDate() })
+    const txt = renderText(withDate, { uppercase: el.uppercase })
     const pathId = `cp-${el.id}`
     const d = arcPathD(el.cx, el.cy, el.rx, el.ry, el.arc)
     return (

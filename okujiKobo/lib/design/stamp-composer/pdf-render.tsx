@@ -49,6 +49,7 @@ import {
   Text as SvgText,
   Defs,
 } from '@react-pdf/renderer'
+import { substituteDateInSvg } from './date-token'
 
 // ── Parser ──────────────────────────────────────────────────────────────────
 
@@ -270,15 +271,36 @@ export function renderStampForPdf({
   hexColor,
   width,
   height,
+  earnedDate,
+  ghost,
 }: {
   svg: string
   hexColor: string
   width: number
   height: number
+  /** Earned date (already formatted MM/DD/YYYY) for per-instance
+   *  prints. Omit on blank-passport prints — the renderer falls
+   *  back to today as a sample, matching the designer's preview. */
+  earnedDate?: string | null
+  /** Unearned/ghost rendering for the date token. With no
+   *  earnedDate, ghost=true emits em-dashes; ghost=false emits
+   *  today's date. */
+  ghost?: boolean
 }): JSX.Element | null {
   if (!svg) return null
+  // Two pre-processing passes in order: recolor (currentColor →
+  // hex) then date-token substitution. Order matters only because
+  // both work on the same string; the operations don't interact
+  // (the date token doesn't contain `currentColor` and vice versa).
   const recolored = svg.replace(/currentColor/g, hexColor)
-  const tree = parseSvg(recolored)
+  // When neither earnedDate nor ghost is set, the substitute
+  // helper's resolver defaults to today's date — consistent with
+  // the kobo designer's sample mode.
+  const dated = substituteDateInSvg(recolored, {
+    date: earnedDate ?? null,
+    ghost: !!ghost,
+  })
+  const tree = parseSvg(dated)
   if (!tree) return null
   const viewBox = tree.attrs.viewbox ?? '0 0 256 256'
   return (
