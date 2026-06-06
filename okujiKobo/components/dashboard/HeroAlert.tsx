@@ -9,11 +9,36 @@ export function HeroAlert({ audit }: { audit: DashboardAudit }) {
   const total = audit.gpsMissingCoords + audit.qrMissingAddress
   if (total === 0) return null
 
-  // Priority: GPS-coords missing on a published passport > QR-address.
-  // We pick the higher-impact framing for the headline.
-  const lead = audit.gpsMissingCoords > 0 ? audit.gpsMissingCoords : audit.qrMissingAddress
-  const kind = audit.gpsMissingCoords > 0 ? 'coordinates' : 'addresses'
-  const verb = audit.gpsMissingCoords > 0 ? 'GPS-verify' : 'find'
+  // Headline + button + meta must all agree on the count.
+  // Three framings:
+  //   - GPS-only: "N stop(s) is/are missing coordinates …"
+  //   - QR-only:  "N stop(s) is/are missing addresses …"
+  //   - Mixed:    "N stop(s) on published passports need location data"
+  //               + sub-line breakdown by category.
+  // Previous bug: headline used the per-category count (e.g. 1 GPS)
+  // while the button used the combined total (e.g. 2). Single
+  // collector + 1 missing GPS + 1 missing address rendered as
+  // "1 stop is missing coordinates" alongside "Review 2 stops →" —
+  // visually contradictory even though both numbers were technically
+  // accurate in isolation.
+  const onlyGps = audit.gpsMissingCoords > 0 && audit.qrMissingAddress === 0
+  const onlyQr  = audit.qrMissingAddress > 0 && audit.gpsMissingCoords === 0
+
+  let headline: string
+  let meta: string
+  if (onlyGps) {
+    headline = `${total} stop${total === 1 ? ' is' : 's are'} missing coordinates on published passports`
+    meta = `Collectors can’t GPS-verify these stops until coordinates are set`
+  } else if (onlyQr) {
+    headline = `${total} stop${total === 1 ? ' is' : 's are'} missing addresses on published passports`
+    meta = `Collectors can’t find these stops until addresses are set`
+  } else {
+    // Mixed — name BOTH so the count breakdown is honest.
+    headline = `${total} stops on published passports need location data`
+    meta =
+      `${audit.gpsMissingCoords} missing GPS coordinates`
+      + `, ${audit.qrMissingAddress} missing addresses`
+  }
 
   return (
     <section
@@ -27,12 +52,11 @@ export function HeroAlert({ audit }: { audit: DashboardAudit }) {
         !
       </span>
       <div className="min-w-0 flex-1">
-        <h2 className="text-[15px] font-bold text-red">
-          {lead} stop{lead === 1 ? ' is' : 's are'} missing {kind} on published passports
-        </h2>
+        <h2 className="text-[15px] font-bold text-red">{headline}</h2>
         <p className="mt-1 text-[12px] text-muted">
-          Collectors can&rsquo;t {verb} these stops until {kind} are set
-          — affects {audit.affectedPassports} live passport{audit.affectedPassports === 1 ? '' : 's'}.
+          {meta}
+          {' — affects '}
+          {audit.affectedPassports} live passport{audit.affectedPassports === 1 ? '' : 's'}.
         </p>
       </div>
       <Link

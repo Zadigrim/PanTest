@@ -1,7 +1,6 @@
 'use client'
 
 import Link from 'next/link'
-import { useSearchParams } from 'next/navigation'
 
 /**
  * Tab nav for the Program hub. Pure presentation — the tab state
@@ -9,11 +8,10 @@ import { useSearchParams } from 'next/navigation'
  * the right view, and so the server can SSR each tab's content
  * directly.
  *
- * The Analytics tab additionally accepts ?passport=ID for the
- * drill-in mode (handled in AnalyticsTab); this nav doesn't surface
- * that state — clicking Analytics always lands on Aggregate, which
- * is the expected behavior when someone clicks the tab itself vs.
- * clicking a passport row.
+ * Active state passed in by the server so we don't need
+ * useSearchParams() (which requires a Suspense boundary in Next 14
+ * and would force the entire page into a partial-rendering bucket
+ * for no benefit — the active tab is already decided server-side).
  */
 
 const TABS = [
@@ -30,9 +28,6 @@ export type ProgramTabKey = (typeof TABS)[number]['key']
 export const PROGRAM_TAB_KEYS = TABS.map((t) => t.key) as readonly ProgramTabKey[]
 
 export function ProgramTabs({ active }: { active: ProgramTabKey }) {
-  const params = useSearchParams()
-  void params  // not read; reserved for future filter-aware tabs
-
   return (
     <div className="border-b border-surface-faintdiv">
       <nav

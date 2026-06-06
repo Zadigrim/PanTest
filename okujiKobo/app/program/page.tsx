@@ -37,7 +37,10 @@ export const metadata = { title: 'Program — okuji' }
 export default async function ProgramPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string; passport?: string }>
+  // Next 14: searchParams is a plain object on the server. (Next 15
+  // moves to a Promise; switch to `Promise<...>` + `await` if/when
+  // the project upgrades.) Optional fields — undefined when absent.
+  searchParams: { tab?: string; passport?: string }
 }) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -48,19 +51,28 @@ export default async function ProgramPage({
   const institutionIds = roleContext.institutions.map((i) => i.id)
 
   // Resolve active tab — default 'overview', clamp unknown values.
-  const sp = await searchParams
-  const requested = (sp.tab ?? 'overview') as ProgramTabKey
+  const requested = (searchParams.tab ?? 'overview') as ProgramTabKey
   const tab: ProgramTabKey = (PROGRAM_TAB_KEYS as readonly string[]).includes(requested)
     ? requested
     : 'overview'
-  const selectedPassportId = sp.passport ?? null
+  const selectedPassportId = searchParams.passport ?? null
 
-  // The Passports tab still needs its v1 row data + the Overview /
-  // Analytics tabs share one batched load. Fetch in parallel.
-  const overviewP = loadProgramOverview(supabase, user.id, institutionIds)
-  const passportsP = loadPassportsTabRows(supabase, user.id, institutionIds)
-
-  const [overview, passportsRows] = await Promise.all([overviewP, passportsP])
+  // Loaders wrapped so a query failure surfaces a focused error
+  // panel instead of the generic "Application error" 500 — easier
+  // for Nathan to read, easier for me to debug.
+  let overview: Awaited<ReturnType<typeof loadProgramOverview>> | null = null
+  let passportsRows: PassportProgramRowData[] = []
+  let loadError: string | null = null
+  try {
+    const overviewP = loadProgramOverview(supabase, user.id, institutionIds)
+    const passportsP = loadPassportsTabRows(supabase, user.id, institutionIds)
+    const [o, p] = await Promise.all([overviewP, passportsP])
+    overview = o
+    passportsRows = p
+  } catch (e) {
+    loadError = e instanceof Error ? e.message : String(e)
+    console.error('[program] load failed:', e)
+  }
 
   return (
     <div className="min-h-screen bg-surface-workspace">
@@ -79,14 +91,27 @@ export default async function ProgramPage({
 
         <ProgramTabs active={tab} />
 
-        <div className="pt-6">
-          {tab === 'overview'  && <OverviewTab data={overview} />}
-          {tab === 'passports' && <PassportsTab rows={passportsRows} />}
-          {tab === 'employees' && <EmployeesPanel />}
-          {tab === 'prizes'    && <PrizesPanel />}
-          {tab === 'analytics' && <AnalyticsTab data={overview} selectedPassportId={selectedPassportId} />}
-          {tab === 'terminal'  && <TerminalTab pendingDistribution={overview.kpis.pendingDistribution} />}
-        </div>
+        {loadError ? (
+          <div className="mt-6 rounded-[10px] border border-red bg-red/[0.06] p-5">
+            <p className="text-[13px] font-semibold text-red">Couldn’t load Program data</p>
+            <p className="mt-1 text-[12px] text-muted">
+              The underlying query failed. The rest of the app is fine; this surface
+              just couldn’t finish its fetch.
+            </p>
+            <pre className="mt-3 overflow-x-auto rounded-[6px] bg-white p-2 text-[11px] text-ink">
+              {loadError}
+            </pre>
+          </div>
+        ) : (
+          <div className="pt-6">
+            {tab === 'overview'  && overview        && <OverviewTab data={overview} />}
+            {tab === 'passports' && <PassportsTab rows={passportsRows} />}
+            {tab === 'employees' && <EmployeesPanel />}
+            {tab === 'prizes'    && <PrizesPanel />}
+            {tab === 'analytics' && overview        && <AnalyticsTab data={overview} selectedPassportId={selectedPassportId} />}
+            {tab === 'terminal'  && overview        && <TerminalTab pendingDistribution={overview.kpis.pendingDistribution} />}
+          </div>
+        )}
       </main>
     </div>
   )
