@@ -34,7 +34,10 @@ function NavLink({ href, active, label }: { href: string; active: boolean; label
     <Link
       href={href}
       className={cn(
-        'relative whitespace-nowrap rounded-panel px-3 py-1.5 text-sm font-medium transition-colors',
+        // px-2.5 (was px-3) so all six links + wordmark + right
+        // side fit without horizontal scroll at common desktop
+        // widths down to ~1024px.
+        'relative whitespace-nowrap rounded-panel px-2.5 py-1.5 text-sm font-medium transition-colors',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green',
         active
           ? 'text-white'
@@ -46,7 +49,7 @@ function NavLink({ href, active, label }: { href: string; active: boolean; label
       {active && (
         <span
           aria-hidden="true"
-          className="absolute inset-x-3 -bottom-[7px] h-[2px] rounded-full bg-accent"
+          className="absolute inset-x-2.5 -bottom-[7px] h-[2px] rounded-full bg-accent"
         />
       )}
     </Link>
@@ -109,7 +112,12 @@ export default async function AppNav() {
       className="sticky top-0 z-40 h-14 bg-navy border-b border-white/10"
       aria-label="Global navigation"
     >
-      <div className="mx-auto flex h-full max-w-7xl items-center gap-4 px-4 sm:px-6">
+      {/* max-w widened from 7xl (1280px) → screen-2xl (1536px) so the
+          six nav links + wordmark + role switcher + avatar all
+          breathe at common desktop widths. Side padding stays the
+          same. Below 1536px the centered nav still fits as long as
+          the link padding stays tight (px-2.5 — see NavLink). */}
+      <div className="mx-auto flex h-full max-w-screen-2xl items-center gap-4 px-4 sm:px-6">
 
         {/* ── Wordmark ────────────────────────────────────────────────────── */}
         <Link
