@@ -60,8 +60,22 @@ export function PendingTransfersList({
       q = q.eq('to_institution_id', entity.id)
     }
     const { data, error } = await q.order('initiated_at', { ascending: false })
-    if (error) setError(error.message)
-    else setRows((data ?? []) as TransferRow[])
+    if (error) {
+      // PostgREST returns "Could not find the table 'public.X' in the
+      // schema cache" when the table doesn't exist yet OR the
+      // PostgREST schema cache hasn't been reloaded after the
+      // migration. Either way the actionable answer is to apply
+      // migration 051 / reload the schema — not the raw error text.
+      const isSchemaCacheMiss = /schema cache/i.test(error.message)
+        && /passport_transfers/i.test(error.message)
+      setError(
+        isSchemaCacheMiss
+          ? 'Transfers aren’t available yet — migration 051 hasn’t been applied to this environment’s database.'
+          : error.message,
+      )
+    } else {
+      setRows((data ?? []) as TransferRow[])
+    }
   }
 
   useEffect(() => {

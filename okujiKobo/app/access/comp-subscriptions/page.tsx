@@ -209,6 +209,29 @@ function GrantForm({ onGranted }: { onGranted: () => Promise<void> }) {
         return
       }
 
+      // Fire-and-forget recipient notification. If it fails the
+      // grant still stands; surface a soft warning so the admin
+      // knows to follow up out-of-band.
+      try {
+        const res = await fetch('/api/notify/comp-grant', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: lookupJson.userId,
+            tier,
+            expiresAt: expiresAt ? new Date(expiresAt).toISOString() : null,
+            note: note.trim() || null,
+          }),
+        })
+        if (!res.ok) {
+          const j = await res.json().catch(() => ({}))
+          setError(`Grant succeeded — but the notification email didn’t send (${j?.error ?? res.statusText}). Let them know directly.`)
+        }
+      } catch (e) {
+        setError(`Grant succeeded — but the notification email didn’t send. Let them know directly.`)
+        console.error('comp-grant notify error:', e)
+      }
+
       setEmail(''); setTier('studio'); setExpiresAt(''); setNote('')
       await onGranted()
     })

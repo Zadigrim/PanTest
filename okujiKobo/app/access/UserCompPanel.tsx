@@ -105,6 +105,28 @@ export function UserCompPanel({ userId }: Props) {
         setError(insertErr.message)
         return
       }
+      // Fire-and-forget notification email. If this fails the grant
+      // is still in place — surface a soft warning so the admin
+      // knows to follow up out-of-band, but don't roll back.
+      try {
+        const res = await fetch('/api/notify/comp-grant', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId,
+            tier,
+            expiresAt: expiresAt ? new Date(expiresAt).toISOString() : null,
+            note: note.trim() || null,
+          }),
+        })
+        if (!res.ok) {
+          const j = await res.json().catch(() => ({}))
+          setError(`Grant succeeded — but the notification email didn’t send (${j?.error ?? res.statusText}). Let them know directly.`)
+        }
+      } catch (e) {
+        setError(`Grant succeeded — but the notification email didn’t send. Let them know directly.`)
+        console.error('comp-grant notify error:', e)
+      }
       setGrantingTier(null)
       await load()
     } finally {
