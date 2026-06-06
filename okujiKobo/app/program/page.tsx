@@ -4,7 +4,8 @@ import AppNav from '@/components/layout/AppNav'
 import { createClient } from '@/lib/supabase/server'
 import { detectRoles } from '@/lib/roles'
 import { loadProgramOverview } from '@/lib/program/load'
-import { ProgramTabs, PROGRAM_TAB_KEYS, type ProgramTabKey } from './ProgramTabs'
+import { ProgramTabs } from './ProgramTabs'
+import { PROGRAM_TAB_KEYS, type ProgramTabKey } from './tab-keys'
 import { OverviewTab } from './_tabs/OverviewTab'
 import { PassportsTab, type PassportProgramRowData } from './_tabs/PassportsTab'
 import { AnalyticsTab } from './_tabs/AnalyticsTab'
@@ -46,10 +47,6 @@ export default async function ProgramPage({
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login?next=/program')
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const roleContext = await detectRoles(supabase as any, user.id)
-  const institutionIds = roleContext.institutions.map((i) => i.id)
-
   // Resolve active tab — default 'overview', clamp unknown values.
   const requested = (searchParams.tab ?? 'overview') as ProgramTabKey
   const tab: ProgramTabKey = (PROGRAM_TAB_KEYS as readonly string[]).includes(requested)
@@ -57,20 +54,27 @@ export default async function ProgramPage({
     : 'overview'
   const selectedPassportId = searchParams.passport ?? null
 
-  // Loaders wrapped so a query failure surfaces a focused error
-  // panel instead of the generic "Application error" 500 — easier
-  // for Nathan to read, easier for me to debug.
+  // Wrap EVERYTHING that touches the DB so a single bad query
+  // doesn't bring the page down. The error.tsx boundary catches
+  // throws outside this — but for known fetch failures the
+  // in-page panel reads better than a global error UI.
   let overview: Awaited<ReturnType<typeof loadProgramOverview>> | null = null
   let passportsRows: PassportProgramRowData[] = []
   let loadError: string | null = null
   try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const roleContext = await detectRoles(supabase as any, user.id)
+    const institutionIds = roleContext.institutions.map((i) => i.id)
+
     const overviewP = loadProgramOverview(supabase, user.id, institutionIds)
     const passportsP = loadPassportsTabRows(supabase, user.id, institutionIds)
     const [o, p] = await Promise.all([overviewP, passportsP])
     overview = o
     passportsRows = p
   } catch (e) {
-    loadError = e instanceof Error ? e.message : String(e)
+    loadError = e instanceof Error
+      ? `${e.message}${e.stack ? `\n\n${e.stack.split('\n').slice(0, 5).join('\n')}` : ''}`
+      : String(e)
     console.error('[program] load failed:', e)
   }
 

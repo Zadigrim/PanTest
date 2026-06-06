@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { PROGRAM_TAB_KEYS, type ProgramTabKey } from './tab-keys'
 
 /**
  * Tab nav for the Program hub. Pure presentation — the tab state
@@ -14,18 +15,19 @@ import Link from 'next/link'
  * for no benefit — the active tab is already decided server-side).
  */
 
-const TABS = [
+const TABS: { key: ProgramTabKey; label: string }[] = [
   { key: 'overview',   label: 'Overview' },
   { key: 'passports',  label: 'Passports' },
   { key: 'employees',  label: 'Employees' },
   { key: 'prizes',     label: 'Prizes' },
   { key: 'analytics',  label: 'Analytics' },
   { key: 'terminal',   label: 'Terminal' },
-] as const
+]
 
-export type ProgramTabKey = (typeof TABS)[number]['key']
-
-export const PROGRAM_TAB_KEYS = TABS.map((t) => t.key) as readonly ProgramTabKey[]
+// Re-export so existing call sites that import from this file
+// keep compiling; the canonical source is tab-keys.ts.
+export { PROGRAM_TAB_KEYS }
+export type { ProgramTabKey }
 
 export function ProgramTabs({ active }: { active: ProgramTabKey }) {
   return (
