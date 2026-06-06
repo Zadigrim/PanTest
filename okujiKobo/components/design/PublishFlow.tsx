@@ -12,7 +12,7 @@ interface Props {
   onClose: () => void
 }
 
-type Step = 'validate' | 'spend' | 'pricing' | 'confirm' | 'correction' | 'blocked' | 'published'
+type Step = 'validate' | 'spend' | 'pricing' | 'art-lock' | 'correction' | 'confirm' | 'blocked' | 'published'
 
 export function PublishFlow({ onClose }: Props) {
   const passport = usePassportStore((s) => s.passport)
@@ -200,8 +200,14 @@ export function PublishFlow({ onClose }: Props) {
             <PricingStep
               priceCents={priceCents}
               onChange={setPriceCents}
-              onContinue={() => setStep(holderCount > 0 ? 'correction' : 'confirm')}
+              onContinue={() => setStep(holderCount > 0 ? 'correction' : 'art-lock')}
               onBack={() => setStep('spend')}
+            />
+          )}
+          {step === 'art-lock' && (
+            <ArtLockStep
+              onContinue={() => setStep('confirm')}
+              onBack={() => setStep('pricing')}
             />
           )}
           {step === 'correction' && (
@@ -224,7 +230,7 @@ export function PublishFlow({ onClose }: Props) {
               error={error}
               holderCount={holderCount}
               onPublish={handlePublish}
-              onBack={() => setStep(holderCount > 0 ? 'correction' : 'pricing')}
+              onBack={() => setStep(holderCount > 0 ? 'correction' : 'art-lock')}
             />
           )}
           {step === 'blocked' && blockedSummary && (
@@ -534,6 +540,104 @@ function PublishedStep({
       <div className="flex gap-2 pt-2">
         <Button size="sm" className="flex-1" onClick={onClose}>
           Back to editor
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+// ── Art-lock step ───────────────────────────────────────────
+// Inserted on EVERY zero-holder publish (first publish AND
+// republish-from-draft when no one has acquired yet). The
+// lock activates the moment a holder acquires — which can
+// happen seconds after publish — so the warning is honest
+// even on a freshly-unpublished draft.
+//
+// Lists are organised by what the diff engine
+// (lib/design/republish/diff.ts) classifies as `other`
+// (PERMANENT — blocks the correction republish) versus the
+// three critical categories + factual_text (CORRECTABLE via
+// unpublish → fix → republish-with-justification). Keeping
+// the two lists side-by-side prevents the false impression
+// that "publish locks everything".
+//
+// The Continue button on this step does NOT publish — it
+// advances to the existing ConfirmStep which has the summary
+// table and the actual Publish button. Two reads + two
+// clicks > one. Belt and suspenders for an irreversible
+// art commitment.
+
+function ArtLockStep({ onContinue, onBack }: { onContinue: () => void; onBack: () => void }) {
+  const [ack, setAck] = useState(false)
+  return (
+    <div className="space-y-4">
+      <div>
+        <h2 className="text-base font-semibold text-navy">Heads up — art locks at first acquisition</h2>
+        <p className="mt-1 text-sm text-muted">
+          Once <strong>any</strong> holder acquires this passport, the artistic and structural
+          choices below become permanent. You can still unpublish at any time to delist from
+          Explore — but the items in the left column can&rsquo;t be changed when you republish to
+          existing holders.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div className="rounded-panel border-[1.5px] border-red/40 bg-red/5 p-3">
+          <p className="text-[10.5px] font-semibold uppercase tracking-[1.5px] text-red">
+            Permanent at first acquisition
+          </p>
+          <ul className="mt-1.5 space-y-1 text-[12px] text-ink list-disc pl-4">
+            <li>Cover art (front, inside, back)</li>
+            <li>Page layout &amp; ordering</li>
+            <li>All page-element art (stickers, decoration, illustrations)</li>
+            <li>Theme — paper, pattern, background colors</li>
+            <li>Adding or removing pages</li>
+            <li>Adding new stops</li>
+            <li>Moving a stop between pages</li>
+            <li>Price &amp; expected-spend tier</li>
+          </ul>
+        </div>
+
+        <div className="rounded-panel border-[1.5px] border-green/40 bg-green/5 p-3">
+          <p className="text-[10.5px] font-semibold uppercase tracking-[1.5px] text-green">
+            Correctable via unpublish + republish
+          </p>
+          <ul className="mt-1.5 space-y-1 text-[12px] text-ink list-disc pl-4">
+            <li>Stop coordinates (lat / lng)</li>
+            <li>Stop street address, city, state, ZIP, country</li>
+            <li>Verification method (GPS, QR, self-report) &amp; radius</li>
+            <li>QR code token regeneration</li>
+            <li>Marking a stop permanently closed</li>
+            <li>Stop name, learning objective, journal prompt <span className="text-muted">(flagged)</span></li>
+            <li>Passport title &amp; description <span className="text-muted">(flagged)</span></li>
+          </ul>
+        </div>
+      </div>
+
+      <p className="text-[11px] text-muted">
+        <strong>Flagged</strong> items publish, but admins are notified — keep text edits
+        genuinely factual. Cosmetic word-polish gets rejected.
+      </p>
+
+      <label className="flex items-start gap-2 rounded-panel border border-hairline bg-surface-workspace px-3 py-2 text-xs text-ink">
+        <input
+          type="checkbox"
+          checked={ack}
+          onChange={(e) => setAck(e.target.checked)}
+          className="mt-0.5 h-3.5 w-3.5 accent-navy"
+        />
+        <span>
+          I&rsquo;ve inspected the cover, pages, and all art. I understand they&rsquo;ll lock the
+          moment a holder acquires this passport.
+        </span>
+      </label>
+
+      <div className="flex gap-2 pt-2">
+        <Button variant="ghost" size="sm" onClick={onBack}>
+          ← Back
+        </Button>
+        <Button size="sm" className="flex-1" onClick={onContinue} disabled={!ack}>
+          Continue to confirm
         </Button>
       </div>
     </div>
