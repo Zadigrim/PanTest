@@ -1,0 +1,159 @@
+# Standing rules for the Shuin / okuji / moichido repo
+
+This file is the distilled ruleset. Anything not stated here that an
+agent might reasonably want to do — ask before doing.
+
+## Naming architecture
+
+This repo houses the **Shuin** platform: the parent layer that owns
+the marks, patents, and codebase (Delaware PBC planned). Shuin is
+the company name. **It does not appear on collector-facing
+surfaces.** Two consumer products run on Shuin's backend:
+
+- **okuji** — the current passport / stamp-collecting product.
+  Mobile app + creator/operator web (okujiKobo). The product brand
+  collectors and creators see.
+- **moichido** — future QR-only disposable punch-card loyalty
+  product. Separate brand, own merchant portal, shared backend.
+  **Deferred — do not build code for moichido in this repo until
+  the moichido prompt explicitly starts.**
+
+Where each name may and may not appear:
+
+| Surface                          | Shuin     | okuji     | moichido  |
+| -------------------------------- | --------- | --------- | --------- |
+| Collector-facing UI / chrome     | NEVER     | YES       | (future)  |
+| Marketplace listings             | NEVER     | YES       | (future)  |
+| Repo internals / docs            | YES       | YES       | (future)  |
+| Legal / licensing / patents      | YES       | NO        | NO        |
+| Mobile bundle id / deep-link     | NEVER     | FROZEN    | NEVER     |
+| README, CLAUDE.md, transition doc| YES       | YES       | YES       |
+
+The mobile bundle identifier `com.okuji.app` and deep-link scheme
+`okuji://` are FROZEN. A Google Play submission is pending; nothing
+in this repo may touch them. See "Hard constraints" below.
+
+## Governing invariants
+
+These are the contracts every change in this repo must respect.
+They are not preferences; they are the substrate.
+
+1. **Acquisitions are preserved forever.**
+   `public.acquisitions` rows are never deleted by application code
+   except by the account-closure cascade in migration 049. Consumed
+   / redeemed / expired credentials must be modeled as STATE on the
+   row (e.g. `consumed_at`), never as DELETE. The historical record
+   of who collected what survives any product-lifecycle change.
+
+2. **`stamps UNIQUE(user_id, stop_id)`** (mobile schema, migration
+   001). One stamp per collector per stop. Any future credential
+   type that wants N punches at one location either gets N stops
+   or a counter column on a new table — not a constraint relax.
+
+3. **Single subscription mechanism.** Pro/Studio access is granted
+   exclusively via `public.comp_subscriptions`; `profiles.{pro,
+   studio}_*` columns are propagated by the migration-036 trigger
+   and are read-only from app code. Do not branch the granting
+   surface; the inline panel + standalone form both route through
+   the same INSERT.
+
+4. **Single admin check.** `is_platform_admin()` (SECURITY DEFINER
+   RPC) is the only admin gate. RLS uses it, server routes use it,
+   client gates derive from it via `detectRoles`. Do not invent
+   a parallel role-check.
+
+5. **Canonical stop model.** `stops.experience_type` +
+   `experience_verification_method` are the canonical pair.
+   `verification_tier` is DERIVED via the migration-046 sync
+   trigger. App code reads the canonical pair (with
+   `verification_tier` fallback for pre-046 rows handled in
+   `lib/design/publish-checklist.ts`). Never write tier directly.
+
+6. **Honest data only.** Every visible number on every operator
+   surface (dashboard, /program tabs, audit page) traces to a real
+   query. Dormant fields render at honest zero with a
+   "tracking coming soon" / "Phase 2" treatment (see
+   `lib/dashboard/flags.ts`). No illustrative numbers. No sample
+   data in any deployed environment, ever.
+
+7. **Aggregate-only insight surfaces.** "How many and when, never
+   who." Per-collector identity never lands on creator/operator
+   analytics. Counts, rates, timestamps — yes. Names, emails,
+   per-collector journeys — no.
+
+## Brand rules
+
+- The okuji wordmark is **lowercase** in product chrome. The brand
+  mark icon may be used standalone.
+- **Color & radius tokens only.** Inline hex is a bug.
+  - Web (kobo): `okujiKobo/tailwind.config.ts` — canonical scale
+    (`ink`, `paper`, `cream`, `muted`, `hairline`, `accent`,
+    `green`, `red`, `blue`, `navy`) + designer-only `surface-*`
+    + cover-only `stock-*` + Program-hub additions `clay` /
+    `field` + radii `card 6` / `panel 8` / `modal 12` /
+    `program-card 14` / `program-control 9` / `program-pill 20`.
+    The `stock-*` family is **cover-paper-only**, never UI.
+  - Mobile: `constants/Colors.ts` — separate by convention,
+    deliberately not extracted; see the transition doc.
+- **Artboard dimensions are fixed** (see
+  `okujiKobo/lib/assets/kinds.ts:5-9`): covers 1248×792 full
+  wraparound, page backgrounds 612×792 portrait, stamps 1:1,
+  page images native ratio with object-contain.
+- **No emoji in chrome.** Use Lucide / okuji icons. Emoji is fine
+  inside collector-supplied data (stamp icons, journal entries).
+- **No gradients.** Flat color, hairline borders, the subtle
+  shadow at most.
+
+## Build conventions
+
+- **Investigate-then-build.** Substantial work pauses for a
+  Phase 0 report (file/symbol references, decision points, scope
+  guards) before code lands.
+- **Scope guards are not suggestions.** When a prompt names
+  out-of-scope surfaces, those files are not opened, not edited,
+  not even imported as side effects.
+- **Verification list in the PR description.** Per-tab, per-flow
+  before/after; named queries for any visible number; honest-data
+  sentences preserved verbatim.
+- **Build-verified ≠ Nathan-verified.** A green `tsc --noEmit`
+  and a successful push do not equal "shipped working." Nathan's
+  in-app pass is the verification gate. Reports stay honest
+  about that — never claim a build is "verified" without saying
+  by which surface.
+- **Deploy lag check.** When Nathan reports a runtime issue,
+  consider whether the deploy has caught up before assuming
+  a code-level bug. Check the most recent commit's relevance
+  to the symptom.
+
+## Hard constraints (frozen during pending Play submission)
+
+Nothing in this repo may touch:
+
+- `app.json:19` `"bundleIdentifier": "com.okuji.app"`
+- `app.json:32` `"package": "com.okuji.app"`
+- The `okuji://` deep-link scheme anywhere it appears in mobile
+  routing (currently `app/(auth)/login.tsx`,
+  `app/(auth)/register.tsx`, `app/_layout.tsx`)
+- `eas.json` (if/when present), signing config, Play Console
+  artifacts
+- `app.json` build configuration of any kind
+- Vercel deployment config (the platform tracks repo id, but
+  verify the first post-rename deploy succeeds)
+- Supabase project config or environment
+- Any file under `okujiKobo/supabase/migrations/` or
+  `supabase/migrations/` — including renaming, reordering, or
+  retroactively editing comments
+- Lockfiles (`package-lock.json`)
+
+If a vestige of an old project name lives inside one of these
+files, **report it; do not change it.** A PR that "fixes" a
+hard-constraint file is a P0 incident — it can block a Play
+review or break a deploy.
+
+## Repo rename heads-up
+
+This repo will be renamed `PanTest → shuin` (Nathan performs
+the GitHub rename). GitHub auto-redirects old URLs. See
+`docs/shuin-transition.md` for the checklist Nathan runs at
+rename time and the Phase 1 report that mapped what stays
+and what may be touched.

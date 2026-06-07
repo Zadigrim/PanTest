@@ -18,7 +18,7 @@ module.exports = {
         red: '#9b2335',
         blue: '#2d5a8e',
         navy: '#0d1b2a',
-        // Legacy Panoply scale — retained during migration to canonical tokens.
+        // Legacy palette scale — retained during migration to canonical tokens.
         passport: {
           navy: '#0D1B2A',
           cream: '#F5F0E8',

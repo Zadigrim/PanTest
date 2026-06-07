@@ -2,7 +2,7 @@
 
 A monorepo containing two applications and a shared Supabase backend for creating, distributing, and collecting "passport" experiences: a React Native (Expo) mobile collector app and a Next.js web platform for creators and institutions.
 
-> Naming note: the `okuji-db/` directory name is a historical artifact of the project's former "Panoply" brand; all SQL comments and code identifiers now use "Okuji." The redemption-token prefix is configurable per proprietor (`proprietors.token_prefix`; default `OKJ`, with existing McMenamins rows backfilled to `MCM`).
+> Naming note: the `okuji-db/` directory name is a historical artifact from an earlier project name; all SQL comments and code identifiers now use "Okuji." The redemption-token prefix is configurable per proprietor (`proprietors.token_prefix`; default `OKJ`, with existing McMenamins rows backfilled to `MCM`). See `docs/shuin-transition.md` for the platform-naming architecture (Shuin parent, okuji + future moichido products).
 
 ## What's in this repo
 
