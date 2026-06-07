@@ -125,7 +125,13 @@ They are not preferences; they are the substrate.
   a code-level bug. Check the most recent commit's relevance
   to the symptom.
 
-## Hard constraints (frozen during pending Play submission)
+## Hard constraints (narrowed — binary-affecting surfaces only)
+
+Play approval has not been granted and there are zero users.
+The freeze is therefore scoped to surfaces that affect the
+mobile binary or could block a Play review. Server-side
+additive migrations are OPEN — no user data exists to migrate
+around.
 
 Nothing in this repo may touch:
 
@@ -137,18 +143,34 @@ Nothing in this repo may touch:
 - `eas.json` (if/when present), signing config, Play Console
   artifacts
 - `app.json` build configuration of any kind
+- Lockfiles (`package-lock.json`)
 - Vercel deployment config (the platform tracks repo id, but
   verify the first post-rename deploy succeeds)
 - Supabase project config or environment
-- Any file under `okujiKobo/supabase/migrations/` or
-  `supabase/migrations/` — including renaming, reordering, or
-  retroactively editing comments
-- Lockfiles (`package-lock.json`)
+- ANY change that requires a new mobile binary build — this
+  includes mobile source under `app/`, `components/`, `hooks/`,
+  `lib/` (root) when the change would alter shipped behavior;
+  not the migrations directories.
 
-If a vestige of an old project name lives inside one of these
-files, **report it; do not change it.** A PR that "fixes" a
-hard-constraint file is a P0 incident — it can block a Play
-review or break a deploy.
+What's OPEN (was previously frozen, now allowed):
+
+- `okujiKobo/supabase/migrations/` — additive web-side
+  migrations are fine. Don't rename, reorder, or retroactively
+  edit historical comments. New `NNN_descriptive.sql` files
+  only.
+- `supabase/migrations/` — additive mobile-schema migrations are
+  fine when they don't require a new mobile binary to consume
+  (a CHECK constraint, a new column the existing client doesn't
+  read, a new RLS policy). When a new column or function NEEDS
+  client-side code to be useful, the schema migration is fine
+  but the client-side consumption waits for a new build.
+- `supabase/functions/` — Edge functions deploy independently;
+  fine to modify.
+
+If a vestige of an old project name lives inside one of the
+frozen-list files, **report it; do not change it.** A PR that
+"fixes" a frozen-list file is a P0 incident — it can block a
+Play review or break a deploy.
 
 ## Repo rename heads-up
 

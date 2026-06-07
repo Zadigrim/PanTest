@@ -198,12 +198,16 @@ Items in this list are deferred work that the repo should NOT
 silently accept as "done." A KI entry stays open until either
 fixed or explicitly accepted as known.
 
-### KI-04 — Server-side center-within-box rule is unenforced
+### KI-08 — Server-side center-within-box rule is unenforced
+
+(Renumbered from a duplicate KI-04 label. The canonical register
+is `docs/known-issues.md`; this entry remains here as the
+historical investigation context, but the live status lives in
+the register.)
 
 **Surface:** stamp placement.
 
-**Today:** `okujiKobo/lib/design/stamp-composer/...` — N/A. The
-mobile stamp-placement helper at `lib/stamp.ts:38-45`
+**Today:** the mobile stamp-placement helper at `lib/stamp.ts:38-45`
 (`computeStampPlacement`) enforces the rule client-side only. The
 server-side `supabase/functions/verify-stamp/index.ts:55-177`
 verifies GPS/QR/tier but NEVER receives box coordinates or
@@ -211,20 +215,23 @@ stamp_pos_x/y; it has no way to enforce that the stamp's center
 falls inside the location element's region.
 
 **Risk:** a modified client could insert a stamp row with
-`stamp_pos_x` / `stamp_pos_y` outside the box. Nothing on the
-server would refuse it.
+`stamp_pos_x` / `stamp_pos_y` outside the box. Migration 013
+(this commit) catches the simpler half — out-of-domain values
+(stamp_pos_x or stamp_pos_y outside 0..100) are rejected at the
+database. It does NOT verify the position is inside the
+SPECIFIC location element on the page; that's the deferred half.
 
-**Hardening (deferred):** add `stops.box_x / box_y / box_width /
-box_height` to the verify-stamp payload and enforce the rule in
-the edge function before returning `verified: true`. Or move the
-stamps INSERT into verify-stamp itself and reject out-of-box
-positions there. Either touches `supabase/functions/` (in scope
-for non-Play-blocking work) but the call-site code paths are in
-the mobile app — coordinate with mobile changes.
+**Hardening (deferred — completes KI-08):** add `stops.box_x /
+box_y / box_width / box_height` to the verify-stamp payload and
+enforce the rule in the edge function before returning
+`verified: true`. Or move the stamps INSERT into verify-stamp
+itself and reject out-of-box positions there. Either touches
+`supabase/functions/` (in scope for non-Play-blocking work) but
+the call-site code paths are in the mobile app — requires a new
+mobile binary build.
 
 **Source:** patent-investigation report, divergence #3
-("Center-within is client-only"). Logged here so the next
-deferred-hardening pass picks it up.
+("Center-within is client-only").
 
 ## What this commit changed
 

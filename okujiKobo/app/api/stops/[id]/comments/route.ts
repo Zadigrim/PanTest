@@ -54,9 +54,15 @@ export async function GET(
   // Flat fetch + hydrate. Same pattern the stops page now uses
   // (the nested embed bit us last time; not making that mistake
   // here on a brand-new table).
+  //
+  // The SELECT now pulls moderation columns (migration 068). RLS
+  // filters hidden rows from non-admin non-authors; admins see
+  // everything via the policy and use hidden_at to render the
+  // hidden-comment treatment. Authors see their own hidden
+  // comments inline-marked-hidden.
   const { data: cmtRows, error: cmtErr } = await db
     .from('stop_comments')
-    .select('id, stop_id, author_id, body, created_at, edited_at')
+    .select('id, stop_id, author_id, body, created_at, edited_at, hidden_at, reported_at')
     .eq('stop_id', stopId)
     .order('created_at', { ascending: false })
   if (cmtErr) {
@@ -66,6 +72,7 @@ export async function GET(
   const comments = (cmtRows ?? []) as Array<{
     id: string; stop_id: string; author_id: string
     body: string; created_at: string; edited_at: string | null
+    hidden_at: string | null; reported_at: string | null
   }>
 
   const authorIds = Array.from(new Set(comments.map((c) => c.author_id)))
@@ -129,6 +136,8 @@ export async function GET(
       body: c.body,
       created_at: c.created_at,
       edited_at: c.edited_at,
+      hidden_at: c.hidden_at,
+      reported_at: c.reported_at,
       author_name: displayNameById.get(c.author_id) ?? null,
       author_institution_name: instNameByAuthorId.get(c.author_id) ?? null,
       used_this: importerIds.has(c.author_id),

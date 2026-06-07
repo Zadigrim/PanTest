@@ -32,6 +32,13 @@ interface CommentRow {
   body: string
   created_at: string
   edited_at: string | null
+  // Moderation state (KI-07, migration 068). hidden_at NULL → visible
+  // to everyone; non-NULL → visible only to the author (marked-hidden
+  // inline) and to platform admins (full body + unhide control).
+  // reported_at NULL → not reported; non-NULL → an admin-only
+  // "reported" indicator surfaces in the Stop Library.
+  hidden_at: string | null
+  reported_at: string | null
   author_name: string | null
   author_institution_name: string | null
   used_this: boolean
@@ -144,6 +151,41 @@ export function CommentsSection({
     await refetch()
   }
 
+  // KI-07 — any signed-in user can report. One report is enough;
+  // repeats are no-ops on reported_at. Confirms first so the
+  // report can't fire on accidental clicks.
+  async function handleReport(commentId: string) {
+    if (!window.confirm('Report this comment to moderators?')) return
+    setError(null)
+    const res = await fetch(`/api/stops/comments/${commentId}/report`, { method: 'POST' })
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({}))
+      setError(j.error ?? 'Report failed')
+      return
+    }
+    await refetch()
+  }
+
+  // KI-07 — admin only. Server enforces via the SECURITY DEFINER
+  // function; the UI gates the button on viewerIsAdmin so non-
+  // admins never see it (defense in depth).
+  async function handleToggleHidden(commentId: string, hidden: boolean) {
+    const verb = hidden ? 'Hide' : 'Unhide'
+    if (!window.confirm(`${verb} this comment?`)) return
+    setError(null)
+    const res = await fetch(`/api/stops/comments/${commentId}/hide`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ hidden }),
+    })
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({}))
+      setError(j.error ?? `${verb} failed`)
+      return
+    }
+    await refetch()
+  }
+
   const comments = data?.comments ?? []
   const viewerId = data?.viewerId ?? null
   const viewerIsAdmin = !!data?.viewerIsAdmin
@@ -170,8 +212,22 @@ export function CommentsSection({
             const canEdit   = !!viewerId && c.author_id === viewerId
             const canDelete = canEdit || viewerIsAdmin
             const isEditing = editingId === c.id
+            const isHidden  = c.hidden_at != null
+            const isAuthor  = !!viewerId && c.author_id === viewerId
+            // Hidden + non-author + non-admin shouldn't reach here
+            // (RLS filters), but render defensively. Author sees a
+            // muted "hidden by moderators" treatment with body
+            // collapsed; admin sees the full body + Unhide.
             return (
-              <li key={c.id} className="rounded-[8px] border border-surface-faintdiv px-3 py-2.5">
+              <li
+                key={c.id}
+                className={
+                  'rounded-[8px] border px-3 py-2.5 '
+                  + (isHidden
+                      ? 'border-clay/60 bg-clay/[0.04]'
+                      : 'border-surface-faintdiv')
+                }
+              >
                 {/* Header: author + institution + Used-this + date */}
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                   <span className="text-[12px] font-semibold text-ink">
@@ -183,13 +239,36 @@ export function CommentsSection({
                     </span>
                   )}
                   {c.used_this && <UsedThisChip />}
+                  {/* Hidden chip — author sees it for their own
+                      hidden comment; admin sees it for any. Non-
+                      author / non-admin never reach a hidden row. */}
+                  {isHidden && (
+                    <span className="rounded-full bg-clay/15 px-1.5 py-0.5 font-mono text-[10px] uppercase text-clay" style={{ letterSpacing: '1px' }}>
+                      Hidden
+                    </span>
+                  )}
+                  {/* Reported indicator — ADMIN ONLY. Only renders
+                      for reported-but-not-yet-hidden comments
+                      (hidden comments already carry the Hidden
+                      chip; the report chip would be visual noise). */}
+                  {viewerIsAdmin && c.reported_at != null && !isHidden && (
+                    <span
+                      className="rounded-full bg-accent/15 px-1.5 py-0.5 font-mono text-[10px] uppercase text-accent"
+                      style={{ letterSpacing: '1px' }}
+                      title={`Reported ${relativeDate(c.reported_at)}`}
+                    >
+                      Reported
+                    </span>
+                  )}
                   <span className="ml-auto text-[10.5px] text-muted tabular-nums">
                     {relativeDate(c.created_at)}
                     {c.edited_at && <span className="italic"> · edited</span>}
                   </span>
                 </div>
 
-                {/* Body */}
+                {/* Body — author sees their own hidden body
+                    collapsed; admin sees full hidden body for
+                    moderation. */}
                 {isEditing ? (
                   <div className="mt-2">
                     <textarea
@@ -216,6 +295,10 @@ export function CommentsSection({
                       </button>
                     </div>
                   </div>
+                ) : isHidden && isAuthor && !viewerIsAdmin ? (
+                  <p className="mt-1 text-[12px] italic text-muted">
+                    This comment was hidden by moderators. Contact support to discuss.
+                  </p>
                 ) : (
                   <p className="mt-1 whitespace-pre-wrap text-[12.5px] leading-snug text-ink">
                     {c.body}
@@ -223,9 +306,9 @@ export function CommentsSection({
                 )}
 
                 {/* Per-row affordances */}
-                {(canEdit || canDelete) && !isEditing && (
-                  <div className="mt-1.5 flex items-center gap-2 text-[10.5px]">
-                    {canEdit && (
+                {!isEditing && (
+                  <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[10.5px]">
+                    {canEdit && !isHidden && (
                       <button
                         type="button"
                         onClick={() => { setEditingId(c.id); setEditDraft(c.body) }}
@@ -241,6 +324,31 @@ export function CommentsSection({
                         className="text-muted underline-offset-2 hover:text-red hover:underline"
                       >
                         Delete
+                      </button>
+                    )}
+                    {/* Report — any signed-in non-author can report.
+                        Disabled-with-explanation after report fires;
+                        never silently no-ops. */}
+                    {!isAuthor && !viewerIsAdmin && (
+                      <button
+                        type="button"
+                        onClick={() => void handleReport(c.id)}
+                        disabled={c.reported_at != null}
+                        title={c.reported_at != null ? 'Already reported' : 'Report this comment to moderators'}
+                        className="text-muted underline-offset-2 hover:text-clay hover:underline disabled:opacity-50 disabled:no-underline disabled:cursor-not-allowed"
+                      >
+                        {c.reported_at != null ? 'Reported' : 'Report'}
+                      </button>
+                    )}
+                    {/* Hide / Unhide — admin only. Single button
+                        whose label flips based on current state. */}
+                    {viewerIsAdmin && (
+                      <button
+                        type="button"
+                        onClick={() => void handleToggleHidden(c.id, !isHidden)}
+                        className="text-muted underline-offset-2 hover:text-clay hover:underline"
+                      >
+                        {isHidden ? 'Unhide' : 'Hide'}
                       </button>
                     )}
                   </div>
