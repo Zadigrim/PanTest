@@ -4,6 +4,7 @@ import AppNav from '@/components/layout/AppNav'
 import { createClient } from '@/lib/supabase/server'
 import { detectRoles } from '@/lib/roles'
 import { loadProgramOverview } from '@/lib/program/load'
+import { getTrialUsage, type TrialUsage } from '@/lib/trial/limits'
 import { ProgramTabs } from './ProgramTabs'
 import { PROGRAM_TAB_KEYS, type ProgramTabKey } from './tab-keys'
 import { OverviewTab } from './_tabs/OverviewTab'
@@ -60,6 +61,7 @@ export default async function ProgramPage({
   // in-page panel reads better than a global error UI.
   let overview: Awaited<ReturnType<typeof loadProgramOverview>> | null = null
   let passportsRows: PassportProgramRowData[] = []
+  let trialUsage: TrialUsage | null = null
   let loadError: string | null = null
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -68,9 +70,11 @@ export default async function ProgramPage({
 
     const overviewP = loadProgramOverview(supabase, user.id, institutionIds)
     const passportsP = loadPassportsTabRows(supabase, user.id, institutionIds)
-    const [o, p] = await Promise.all([overviewP, passportsP])
+    const trialP    = getTrialUsage(supabase, user.id)
+    const [o, p, t] = await Promise.all([overviewP, passportsP, trialP])
     overview = o
     passportsRows = p
+    trialUsage = t
   } catch (e) {
     loadError = e instanceof Error
       ? `${e.message}${e.stack ? `\n\n${e.stack.split('\n').slice(0, 5).join('\n')}` : ''}`
@@ -108,7 +112,7 @@ export default async function ProgramPage({
           </div>
         ) : (
           <div className="pt-6">
-            {tab === 'overview'  && overview        && <OverviewTab data={overview} />}
+            {tab === 'overview'  && overview        && <OverviewTab data={overview} trialUsage={trialUsage} />}
             {tab === 'passports' && <PassportsTab rows={passportsRows} />}
             {tab === 'employees' && <EmployeesPanel />}
             {tab === 'prizes'    && <PrizesPanel />}

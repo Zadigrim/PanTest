@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import type { Database } from '@/lib/supabase/types'
 import { captureLiveSnapshot, readLatestSnapshot } from '@/lib/design/republish/snapshot'
 import { diffSnapshots, verdictFor } from '@/lib/design/republish/diff'
+import { authorizePassportMutation } from '@/lib/roles/require-flag'
 
 /**
  * POST /api/passports/:id/republish
@@ -84,19 +85,25 @@ export async function POST(
   // ── Ownership + state check ──
   const { data: passport, error: pErr } = await db
     .from('passports')
-    .select('id, creator_id, is_published')
+    .select('id, creator_id, proprietor_id, is_published')
     .eq('id', passportId)
     .single()
   if (pErr || !passport) {
     return NextResponse.json({ error: 'Passport not found' }, { status: 404 })
   }
-  // Caller must be creator OR admin.
-  const { data: prof } = await db
-    .from('profiles').select('is_platform_admin').eq('id', user.id).single()
-  const callerIsAdmin = !!prof?.is_platform_admin
-  if (passport.creator_id !== user.id && !callerIsAdmin) {
-    return NextResponse.json({ error: 'Not the creator' }, { status: 403 })
+  // Creator, admin, or can_design at the proprietor institution.
+  // The adminOverride path below STILL requires platform-admin
+  // (`auth === 'admin'`), separate from this initial authorization.
+  const auth = await authorizePassportMutation(supabase, passport, user.id)
+  if (auth === 'denied') {
+    return NextResponse.json(
+      { error: passport.proprietor_id
+          ? 'Not authorized (creator, admin, or can_design at the owning institution required)'
+          : 'Not the creator' },
+      { status: 403 },
+    )
   }
+  const callerIsAdmin = auth === 'admin'
   if (passport.is_published) {
     return NextResponse.json({ error: 'Passport is already published' }, { status: 409 })
   }

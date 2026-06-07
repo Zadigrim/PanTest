@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { authorizePassportMutation } from '@/lib/roles/require-flag'
 
 /**
  * DELETE /api/passports/:id
@@ -54,22 +55,25 @@ export async function DELETE(
 
   const { data: passport, error: pErr } = await db
     .from('passports')
-    .select('id, creator_id, title')
+    .select('id, creator_id, proprietor_id, title')
     .eq('id', passportId)
     .single()
   if (pErr || !passport) {
     return NextResponse.json({ error: 'Passport not found' }, { status: 404 })
   }
 
-  // Permission: creator or admin.
-  let allowed = passport.creator_id === user.id
-  if (!allowed) {
-    const { data: prof } = await db
-      .from('profiles').select('is_platform_admin').eq('id', user.id).single()
-    allowed = !!prof?.is_platform_admin
-  }
-  if (!allowed) {
-    return NextResponse.json({ error: 'Not the creator' }, { status: 403 })
+  // Permission: creator, admin, OR institutional employee with
+  // can_design at the passport's proprietor institution. The third
+  // path lets institution-owned passports be deleted by the team
+  // that designs them — matching the RLS expansion in migration 038.
+  const auth = await authorizePassportMutation(supabase, passport, user.id)
+  if (auth === 'denied') {
+    return NextResponse.json(
+      { error: passport.proprietor_id
+          ? 'Not authorized (creator, admin, or can_design at the owning institution required)'
+          : 'Not the creator' },
+      { status: 403 },
+    )
   }
 
   // Zero-acquisition guard. Both surfaces must be zero.

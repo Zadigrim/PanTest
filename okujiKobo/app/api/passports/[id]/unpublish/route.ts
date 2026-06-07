@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { authorizePassportMutation } from '@/lib/roles/require-flag'
 
 /**
  * POST /api/passports/:id/unpublish
@@ -44,18 +45,23 @@ export async function POST(
 
   const { data: passport, error: pErr } = await db
     .from('passports')
-    .select('id, creator_id, is_published')
+    .select('id, creator_id, proprietor_id, is_published')
     .eq('id', passportId)
     .single()
   if (pErr || !passport) {
     return NextResponse.json({ error: 'Passport not found' }, { status: 404 })
   }
-  if (passport.creator_id !== user.id) {
-    const { data: prof } = await db
-      .from('profiles').select('is_platform_admin').eq('id', user.id).single()
-    if (!prof?.is_platform_admin) {
-      return NextResponse.json({ error: 'Not the creator' }, { status: 403 })
-    }
+  // Creator, admin, or can_design at the proprietor institution.
+  // The third path matches migration 038's RLS so institution-owned
+  // passports can be unpublished by the design team that owns them.
+  const auth = await authorizePassportMutation(supabase, passport, user.id)
+  if (auth === 'denied') {
+    return NextResponse.json(
+      { error: passport.proprietor_id
+          ? 'Not authorized (creator, admin, or can_design at the owning institution required)'
+          : 'Not the creator' },
+      { status: 403 },
+    )
   }
   if (!passport.is_published) {
     return NextResponse.json({ error: 'Passport is already a draft' }, { status: 409 })

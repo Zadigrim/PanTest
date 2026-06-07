@@ -63,10 +63,14 @@ serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
 
-    // ── Layer 2: authorize — caller must be creator of the stop's passport ──
+    // ── Layer 2: authorize — caller must be creator OR institutional
+    // employee with can_design at the proprietor institution, OR a
+    // platform admin. Matches the migration-038 RLS expansion that
+    // governs direct stops writes. The function uses the service-role
+    // key (RLS bypassed) so the check is explicit here.
     const { data: chain } = await supabase
       .from('stops')
-      .select('id, qr_code_id, passport_pages!inner(passport_id, passports!inner(creator_id))')
+      .select('id, qr_code_id, passport_pages!inner(passport_id, passports!inner(creator_id, proprietor_id))')
       .eq('id', stopId)
       .maybeSingle()
 
@@ -74,10 +78,36 @@ serve(async (req) => {
       console.error('provision-qr-token: stop not found or chain broken', { stopId })
       return json({ error: 'Not authorized' }, 403)
     }
-    const creatorId = (chain as unknown as { passport_pages?: { passports?: { creator_id?: string } } })
-      .passport_pages?.passports?.creator_id
-    if (creatorId !== userId) {
-      console.error('provision-qr-token: caller is not the creator', { userId, creatorId })
+    const passportInfo = (chain as unknown as {
+      passport_pages?: { passports?: { creator_id?: string; proprietor_id?: string | null } }
+    }).passport_pages?.passports
+    const creatorId    = passportInfo?.creator_id ?? null
+    const proprietorId = passportInfo?.proprietor_id ?? null
+
+    let authorized = creatorId === userId
+    if (!authorized) {
+      // Try the platform-admin path. is_platform_admin is a SECURITY
+      // DEFINER RPC; we still call it through the service-role client
+      // (it reads the caller's profile by id we pass in).
+      const { data: prof } = await supabase
+        .from('profiles')
+        .select('is_platform_admin')
+        .eq('id', userId)
+        .maybeSingle()
+      authorized = prof?.is_platform_admin === true
+    }
+    if (!authorized && proprietorId) {
+      // Institutional path: can_design at the owning institution.
+      const { data: authz } = await supabase
+        .from('employee_authorizations')
+        .select('can_design')
+        .eq('user_id', userId)
+        .eq('institution_id', proprietorId)
+        .maybeSingle()
+      authorized = authz?.can_design === true
+    }
+    if (!authorized) {
+      console.error('provision-qr-token: caller not authorized', { userId, creatorId, proprietorId })
       return json({ error: 'Not authorized' }, 403)
     }
 

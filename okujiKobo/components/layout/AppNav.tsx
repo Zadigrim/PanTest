@@ -3,7 +3,7 @@ import Image from 'next/image'
 import { headers } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
 import { detectRoles } from '@/lib/roles'
-import { getActiveRoleCookie } from '@/app/actions/role'
+import { getActiveRoleCookie, getActiveInstitutionCookie } from '@/app/actions/role'
 import { RoleSwitcher } from './RoleSwitcher'
 import { cn } from '@/lib/cn'
 
@@ -105,6 +105,16 @@ export default async function AppNav() {
     }
   }
 
+  // Active-institution cookie (DEC-04). Resolves only when the
+  // caller's roleContext lists that institution — a stale cookie
+  // pointing at an institution the caller no longer belongs to is
+  // ignored and the picker falls back to its first option.
+  const cookieInstitutionId = await getActiveInstitutionCookie()
+  const institutionsList = roleContext?.institutions ?? []
+  const activeInstitutionId = cookieInstitutionId && institutionsList.some((i) => i.id === cookieInstitutionId)
+    ? cookieInstitutionId
+    : null
+
   const initials = (displayName ?? user?.email ?? '?')[0].toUpperCase()
 
   return (
@@ -170,10 +180,12 @@ export default async function AppNav() {
         {/* ── Right side ──────────────────────────────────────────────────── */}
         <div className="flex shrink-0 items-center gap-3">
           {/* Role switcher — always visible when user has multiple roles */}
-          {roleContext && roleContext.roles.length > 1 && (
+          {roleContext && (roleContext.roles.length > 1 || institutionsList.length > 1) && (
             <RoleSwitcher
               roles={roleContext.roles}
               activeRole={roleContext.activeRole}
+              institutions={institutionsList.map((i) => ({ id: i.id, name: i.name }))}
+              activeInstitutionId={activeInstitutionId}
             />
           )}
 

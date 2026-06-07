@@ -441,8 +441,10 @@ function AddEmployeeForm({
             <span className="text-sm text-ink">Can distribute prizes</span>
           </label>
 
-          {/* Provisioning-convenience flags. Recording intent only —
-              Phase 2 / SEC-02 will wire enforcement. */}
+          {/* Capability flags — enforced server-side as of Phase 2
+              (lib/roles/require-flag.ts + per-route gates). Toggle
+              records the change immediately; the next request from
+              the affected employee sees the new authorization. */}
           <label className="flex items-center gap-2 cursor-pointer">
             <input
               type="checkbox"
@@ -760,7 +762,9 @@ export function EmployeesPanel() {
 
             <div className="mt-3">
               <MicroNote>
-                Capability flags are settable but Phase 2 will wire enforcement (KI-03 / SEC-02).
+                Capability flags enforced server-side: can_design (passport edits + create / unpublish / republish / delete),
+                can_manage_employees (this roster + transfers + employee lookup), can_view_analytics (Program Overview &amp; Analytics),
+                can_manage_billing (institution tier / pricing edits).
               </MicroNote>
             </div>
           </section>

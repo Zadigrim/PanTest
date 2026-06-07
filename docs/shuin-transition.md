@@ -192,6 +192,40 @@ up through step 3.
    this Phase 2 commit leaves it alone since the rename hasn't
    happened yet.
 
+## Known Issues — open items tracked here
+
+Items in this list are deferred work that the repo should NOT
+silently accept as "done." A KI entry stays open until either
+fixed or explicitly accepted as known.
+
+### KI-04 — Server-side center-within-box rule is unenforced
+
+**Surface:** stamp placement.
+
+**Today:** `okujiKobo/lib/design/stamp-composer/...` — N/A. The
+mobile stamp-placement helper at `lib/stamp.ts:38-45`
+(`computeStampPlacement`) enforces the rule client-side only. The
+server-side `supabase/functions/verify-stamp/index.ts:55-177`
+verifies GPS/QR/tier but NEVER receives box coordinates or
+stamp_pos_x/y; it has no way to enforce that the stamp's center
+falls inside the location element's region.
+
+**Risk:** a modified client could insert a stamp row with
+`stamp_pos_x` / `stamp_pos_y` outside the box. Nothing on the
+server would refuse it.
+
+**Hardening (deferred):** add `stops.box_x / box_y / box_width /
+box_height` to the verify-stamp payload and enforce the rule in
+the edge function before returning `verified: true`. Or move the
+stamps INSERT into verify-stamp itself and reject out-of-box
+positions there. Either touches `supabase/functions/` (in scope
+for non-Play-blocking work) but the call-site code paths are in
+the mobile app — coordinate with mobile changes.
+
+**Source:** patent-investigation report, divergence #3
+("Center-within is client-only"). Logged here so the next
+deferred-hardening pass picks it up.
+
 ## What this commit changed
 
 Mechanical only:

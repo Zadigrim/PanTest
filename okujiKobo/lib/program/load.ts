@@ -40,6 +40,7 @@
  */
 
 import { runPublishChecklist, type PublishStop } from '@/lib/design/publish-checklist'
+import { callerHasFlag } from '@/lib/roles/require-flag'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnySupabase = any
@@ -113,10 +114,24 @@ export async function loadProgramOverview(
   userId: string,
   institutionIds: string[],
 ): Promise<ProgramOverview> {
+  // can_view_analytics gate (Phase 2, KI-03 closure). For each
+  // institution the caller belongs to, check whether they hold
+  // can_view_analytics; institutions where they don't are dropped
+  // from the analytics scope. Personal passports (creator_id) are
+  // always included — analytics on your own content needs no flag.
+  // Platform admins bypass everything via callerHasFlag.
+  const analyticsInstitutionIds: string[] = []
+  for (const instId of institutionIds) {
+    const ok = await callerHasFlag(supabase, instId, { flag: 'can_view_analytics' })
+    if (ok) analyticsInstitutionIds.push(instId)
+  }
+
   // Same ownership-OR as /api/dashboard and /program v1 — keeps the
-  // three surfaces showing the same passport set.
-  const ownedFilter = institutionIds.length > 0
-    ? `creator_id.eq.${userId},proprietor_id.in.(${institutionIds.join(',')})`
+  // three surfaces showing the same passport set. NOTE the
+  // institution arm uses analyticsInstitutionIds (post-flag-filter),
+  // not the raw institutionIds the caller belongs to.
+  const ownedFilter = analyticsInstitutionIds.length > 0
+    ? `creator_id.eq.${userId},proprietor_id.in.(${analyticsInstitutionIds.join(',')})`
     : `creator_id.eq.${userId}`
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

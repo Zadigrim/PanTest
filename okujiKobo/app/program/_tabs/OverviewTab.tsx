@@ -1,10 +1,12 @@
 import Link from 'next/link'
 import type { ProgramOverview } from '@/lib/program/load'
+import type { TrialUsage } from '@/lib/trial/limits'
 import { Sparkline } from '@/components/program/Sparkline'
 import {
   SectionLabel,
   Card,
   MetricStrip,
+  Note,
   EmptyState,
   DataTable,
   Pill,
@@ -27,7 +29,13 @@ import {
  * metrics, same sparkline threshold, same drill-in URLs. All
  * vocabulary now flows through @/components/program/ui.
  */
-export function OverviewTab({ data }: { data: ProgramOverview }) {
+export function OverviewTab({
+  data,
+  trialUsage,
+}: {
+  data: ProgramOverview
+  trialUsage: TrialUsage | null
+}) {
   const { kpis, perPassport, trend, attention, totals } = data
 
   const totalAcqIn12w = trend.weeklyAcquisitions.reduce((a, b) => a + b, 0)
@@ -80,8 +88,25 @@ export function OverviewTab({ data }: { data: ProgramOverview }) {
     },
   ]
 
+  // Trial-cap counter (DEC-03 / BLD-06). Renders only for Free-tier
+  // users who aren't exempt (admin / Pro / Studio) — honest counter,
+  // never a fake "upgrade now" nag for users who don't need it.
+  const trialCounterCopy = renderTrialCounter(trialUsage)
+
   return (
     <div className="space-y-8">
+      {trialCounterCopy && (
+        <Note>
+          <span className="font-semibold text-ink">{trialCounterCopy.headline}</span>
+          {' — '}
+          {trialCounterCopy.body}{' '}
+          <Link href="/upgrade" className="font-semibold text-green underline-offset-2 hover:underline">
+            Upgrade to Pro
+          </Link>
+          {' for unlimited passports and pages.'}
+        </Note>
+      )}
+
       {/* ── KPI band ────────────────────────────────────────────── */}
       <section aria-label="Institution KPIs">
         <SectionLabel>This institution · last 30/90 days</SectionLabel>
@@ -175,4 +200,25 @@ export function OverviewTab({ data }: { data: ProgramOverview }) {
       </section>
     </div>
   )
+}
+
+/** Returns the trial counter copy to render in a Note, or null
+ *  when the caller is exempt OR exempt-info isn't available.
+ *  Honest copy only — actual remaining count, not a fake CTA. */
+function renderTrialCounter(usage: TrialUsage | null): { headline: string; body: string } | null {
+  if (!usage) return null
+  if (usage.exempt) return null
+  const used = usage.passportsUsed
+  const cap  = usage.passportsCap
+  const remaining = Math.max(0, cap - used)
+  if (remaining === 0) {
+    return {
+      headline: `Trial limit reached: ${used} of ${cap} passports used.`,
+      body: 'New passport creation is blocked until you upgrade.',
+    }
+  }
+  return {
+    headline: `Free trial: ${used} of ${cap} passports used.`,
+    body: `${remaining} passport${remaining === 1 ? '' : 's'} remaining on the trial tier. Each passport is capped at 12 pages.`,
+  }
 }

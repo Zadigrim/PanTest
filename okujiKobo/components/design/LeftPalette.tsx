@@ -267,30 +267,31 @@ export function LeftPalette() {
     setShowPageTypePicker(false)
     if (!passport) return
     setAddingPage(true)
-    const db = createClient() as any
-    const nextOrder = pages.length
-    const { data, error } = await db
-      .from('passport_pages')
-      .insert({
+    // CREATE goes through the server route so the 12-page trial cap
+    // (DEC-03 / BLD-06) is enforced server-side. The debounced
+    // UPDATE path (lib/design/persist.ts) stays direct via the
+    // Supabase JS client — only CREATE flows through this route.
+    const res = await fetch('/api/passport_pages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
         passport_id: passport.id,
-        page_order: nextOrder,
         page_type: pageType,
-        section_name: `Section ${nextOrder + 1}`,
-        background_type: 'guilloche',
-        background_color: '0D1B2A',
-        paper_color: 'F5F2EC',
-      })
-      .select()
-      .single()
-
+      }),
+    })
     setAddingPage(false)
-    if (error) {
-      console.error('[add-page] insert failed:', error)
-      alert(`Could not create page: ${error.message}`)
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({})) as {
+        error?: string; detail?: string; pagesUsed?: number; pagesCap?: number
+      }
+      console.error('[add-page] insert failed:', body)
+      const msg = body.detail ?? body.error ?? 'Could not create page'
+      alert(msg)
       return
     }
+    const data = await res.json() as DesignerPassportPage
     if (data) {
-      addPage(data as DesignerPassportPage)
+      addPage(data)
     }
   }
 
