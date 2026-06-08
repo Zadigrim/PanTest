@@ -234,10 +234,12 @@ export function CreateInstitutionModal({ onClose }: { onClose: () => void }) {
               onChange={(e) => setTier(e.target.value)}
               className="mt-1 w-full rounded-[8px] border-[1.5px] border-hairline bg-white px-3 py-2 text-sm focus:border-ink focus:outline-none"
             >
-              <option value="pending">pending</option>
-              <option value="free">free</option>
-              <option value="paid">paid</option>
-              <option value="strategic">strategic</option>
+              {/* institutions_tier_check (migration 034). Adjust the
+                  list if a later migration replaces the constraint. */}
+              <option value="pending">Pending (unset)</option>
+              <option value="civic">Civic</option>
+              <option value="municipal">Municipal</option>
+              <option value="business">Business</option>
             </select>
           </label>
 
