@@ -81,6 +81,17 @@ They are not preferences; they are the substrate.
    analytics. Counts, rates, timestamps — yes. Names, emails,
    per-collector journeys — no.
 
+8. **`collector_passports` is the acquisition record for any
+   credential type, persistent or consumable.** Persistent
+   stamping reads/writes via `stamps.collector_passport_id`;
+   consumable punching reads/writes via
+   `card_instances.collector_passport_id` and
+   `punches.card_instance_id`. The web-side `acquisitions` table
+   records the purchase event and is upstream of either path.
+   Do not invent a parallel acquisition table per credential
+   type; the discriminator lives on `passports.credential_type`,
+   the acquisition shape does not.
+
 ## Brand rules
 
 - The okuji wordmark is **lowercase** in product chrome. The brand

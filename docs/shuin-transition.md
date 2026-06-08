@@ -201,88 +201,112 @@ fixed or explicitly accepted as known.
 ## M2 — Consumable credential schema (shipped)
 
 The data-model milestone for the moichido (consumable punch-card)
-credential type. Schema + RLS + one leak guard only — no
-verify-stamp changes, no token-issuing function, no designer or
-terminal UI (M3 / M4 territory).
+credential type. Schema + RLS + leak guard + one doc note only —
+no verify-stamp changes, no token issue/consume logic, no UI,
+no mobile code (M3 / M4 territory).
 
 ### Rulings binding on later milestones
 
 - **credential_type discriminator** on `passports`: `'persistent'`
   (today's model) | `'consumable'` (moichido).
-- **Per-punch stamp rows** — each punch is its own `stamps` row
-  with its own appearance params + date. No counter column.
+- **Per-punch rows in a DEDICATED `punches` table** — stamps stays
+  byte-identical. The earlier approach (migration 014 adding
+  `stamps.card_instance_id` + partial-unique-index replacement)
+  was abandoned and reverted by migration 017; the dedicated
+  table is cleaner. Each punch carries its own date and
+  (optionally) its own visual position.
 - **One active card instance per user × passport**, sequential
   reissue. After consume, a new instance can be issued referencing
   the same `collector_passports` row.
 - **`consumed_at` state, never DELETE** — consumables stay inside
   the preservation invariant (CLAUDE.md governing invariant #1).
+- **`collector_passports` is the universal acquisition record** —
+  per CLAUDE.md governing invariant #8. Persistent stamping and
+  consumable punching both hang off it.
 - **Vendor-presented one-off single-use QR per punch** — the
-  `stop_qr_tokens` table holds these. Distinct from the existing
-  per-stop `qr_code_id` mechanism, which remains the persistent
-  path.
+  `stop_qr_tokens` table holds these. Structure only at M2; the
+  issue + redeem functions are M3.
 
-### Tables, columns, and the constraint replacement
+### Tables, columns, and the constraint NON-replacement
 
 | Object | Tree | Migration | Notes |
 | --- | --- | --- | --- |
 | `passports.credential_type` text NOT NULL DEFAULT `'persistent'` CHECK IN (`persistent`, `consumable`) | web | `okujiKobo/.../069_consumable_credential_passport.sql` | additive; existing rows default to `persistent` |
 | `passports.distribution_only` bool NOT NULL DEFAULT `false` | web | same 069 | additive; the leak-guard column |
-| `card_instances` table (id, collector_passport_id FK, sequence, issued_at, consumed_at) | mobile | `supabase/.../014_consumable_credentials.sql` | one-active-per-acq enforced by partial unique index |
-| `stamps.card_instance_id` uuid NULL FK → card_instances | mobile | same 014 | nullable; NULL = persistent stamp |
-| stamps `UNIQUE(user_id, stop_id)` replacement | mobile | same 014 | dropped; replaced by two partial indexes |
-| `stop_qr_tokens` table | mobile | `supabase/.../015_stop_qr_tokens.sql` | admin-only RLS; M3 issue + redeem functions handle writes via service role |
+| `card_instances` table (id, collector_passport_id FK, sequence, issued_at, consumed_at) | mobile | `supabase/.../014_consumable_credentials.sql` | one-active-per-acquisition enforced by partial unique index. **Note**: migration 014 ALSO modified stamps; those modifications were reverted by migration 017 — the card_instances portion stays. |
+| stamps modifications from 014 (card_instance_id + partial unique indexes) | mobile | reverted by `supabase/.../017_stamps_revert_card_instance.sql` | stamps now byte-identical to its pre-1a8a078 shape |
+| `punches` table | mobile | `supabase/.../018_consumable_punches.sql` | dedicated table; stamps untouched |
+| `stop_qr_tokens` table | mobile | `supabase/.../015_stop_qr_tokens.sql` | admin-only RLS; M3 functions handle writes via service role |
 | `find_passports_nearby` RPC | mobile | `supabase/.../016_find_passports_nearby_distribution_guard.sql` | `CREATE OR REPLACE` adds `AND p.distribution_only = false` |
 
-**Stamps constraint replacement — equivalence proof for the
-persistent path:**
+**The compensating migration (017) is a Path B artifact** — 014
+had already been applied to production before the re-spec landed,
+so the stamps modifications needed to be ROLLED FORWARD via a new
+migration rather than edited out of 014's file. The card_instances
+portion of 014 stays in place; only the stamps-side ALTERs got
+undone.
 
-Original: `UNIQUE(user_id, stop_id)` on stamps (table-level
-constraint auto-named `stamps_user_id_stop_id_key`).
+### `punches` — slim column set
 
-Replacement:
+Per Nathan's M2 re-spec ruling (Clean Loop brand direction:
+closing-loop, not finger-press ink):
+
 ```
-CREATE UNIQUE INDEX stamps_user_stop_persistent
-  ON stamps (user_id, stop_id) WHERE card_instance_id IS NULL;
-CREATE UNIQUE INDEX stamps_user_stop_per_instance
-  ON stamps (user_id, stop_id, card_instance_id) WHERE card_instance_id IS NOT NULL;
+id                  uuid PK
+card_instance_id    uuid NOT NULL FK card_instances
+punch_sequence      int  NOT NULL
+user_id             uuid NOT NULL FK profiles (denormalized for RLS)
+stop_id             uuid NOT NULL FK stops
+punched_at          timestamptz NOT NULL DEFAULT now()
+geohash             text NULL
+verification_method text NULL
+stamp_pos_x         float NULL  -- with 0..100 CHECK (migration 013 pattern)
+stamp_pos_y         float NULL  -- with 0..100 CHECK
+UNIQUE(card_instance_id, punch_sequence)
 ```
 
-For every persistent stamp (every row today; every row written
-by the existing mobile stamping flow forever, because that flow
-never sets `card_instance_id`), `card_instance_id IS NULL` and
-the `stamps_user_stop_persistent` partial index enforces exactly
-the same uniqueness predicate as the original constraint.
-**Behaviorally identical for the persistent path.**
+**Excluded** (moichido's punch is a "closing loop," not a
+finger-press ink mark):
 
-**Stamps constraint is irreversible without data risk** once a
-consumable stamp (row with non-NULL `card_instance_id`) lands.
-With zero users at M2 ship time, this is fine; documented so a
-future "rollback to persistent-only" attempt isn't tried after
-data exists.
+- `saturation`, `smudge_dx`, `smudge_dy`, `smudge_intensity` —
+  okuji-specific gesture-derived appearance (migration 040)
+- `contact_size_px`, `rotation_deg` — okuji-specific press-derived
+  appearance
+
+**Appearance parity with stamps deferred unless the punch render
+needs it.** Adding the excluded columns back is a one-line follow-up
+migration if M4 surfaces a need.
+
+### `user_id` denormalization on `punches`
+
+Denormalized from `card_instances → collector_passports.user_id`
+for a clean RLS predicate (`user_id = auth.uid()` instead of an
+EXISTS chain through three tables). **No equality trigger.** M3
+SECURITY DEFINER write functions are trusted to set `user_id`
+consistent with the card_instance's collector_passport's user_id;
+the trust comes from those writes being concentrated in a single
+PL/pgSQL surface.
 
 ### Deploy order
 
-1. Web 069 — passports columns + listable partial index.
-2. Mobile 014 — card_instances + stamps constraint replacement.
-3. Mobile 015 — stop_qr_tokens (independent of order beyond
-   stops + profiles already existing).
-4. Mobile 016 — find_passports_nearby RPC; depends on 069
-   having added `distribution_only`.
+(1) Web 069 → (2) Mobile 014 → (3) Mobile 015 → (4) Mobile 016 →
+(5) Mobile 017 (compensating, reverts 014's stamps modifications) →
+(6) Mobile 018 (punches table).
 
-Application-layer leak guards (explore page + detail + creator
-listing + marketplace detail + OG metadata) ship in the same PR
-and become operative the moment 069 lands (default `false` means
-no-op for every existing passport).
+Steps 1–4 already applied (Path B). Steps 5 and 6 ship in this PR.
 
-### Application surfaces gated on distribution_only
+### Application surfaces gated on `distribution_only`
 
 | File | Surface | Behavior |
 | --- | --- | --- |
 | `okujiKobo/app/explore/page.tsx` | public Explore browse | filter `.eq('distribution_only', false)` |
 | `okujiKobo/app/explore/[id]/page.tsx` | Explore detail + metadata | filter `.eq('distribution_only', false)` |
 | `okujiKobo/app/(marketplace)/creator/[id]/page.tsx` | per-creator marketplace listing | filter `.eq('distribution_only', false)` |
-| `okujiKobo/app/(marketplace)/passport/[id]/page.tsx` | marketplace detail (page + metadata) | branched: 404 for non-holder non-creator non-admin when distribution_only=true; holders still see their copy (parallels migration 062's holder-acquired-read pattern) |
+| `okujiKobo/app/(marketplace)/passport/[id]/page.tsx` | marketplace detail (page + metadata) | branched: 404 for non-holder non-creator non-admin when distribution_only=true; holders still see their copy (mirrors migration 062 holder-acquired-read pattern) |
 | `supabase/migrations/012` → `016` | `find_passports_nearby` RPC | `AND p.distribution_only = false` in the WHERE |
+
+All five guards landed in 1a8a078 — no application code changes
+this PR.
 
 ### KI-08 — Server-side center-within-box rule is unenforced
 
