@@ -34,15 +34,29 @@ import type {
 } from './types'
 import { fontByKey } from '../fonts'
 import { arcPathD, renderText } from './geometry'
+import { computeContentBBox } from './bbox'
 
 export function serializeStampSvg(doc: ComposerMetadata): string {
-  const w = doc.surface.w
-  const h = doc.surface.h
   const body = doc.elements.map(elementToSvg).join('\n  ')
 
+  // Tight content-bounds viewBox so every renderer (kobo canvas,
+  // mobile react-native-svg, react-pdf) scales-to-fit + centers
+  // via the default preserveAspectRatio="xMidYMid meet" behavior.
+  // No padding — the composer's stroke half-widths are already
+  // baked into the bbox by elementBBox.
+  //
+  // Empty doc: fall back to the full surface. Save flow currently
+  // permits empty save (rare; the modal usually has at least one
+  // element from a preset), and a zero-extent viewBox would make
+  // every consumer crash on division-by-zero.
+  const bb = computeContentBBox(doc.elements)
+  const vb = bb !== null
+    ? `${num(bb.x)} ${num(bb.y)} ${num(bb.w)} ${num(bb.h)}`
+    : `0 0 ${doc.surface.w} ${doc.surface.h}`
+
   return (
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" ` +
-    `width="${w}" height="${h}" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">\n` +
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${vb}" ` +
+    `fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">\n` +
     `  ${body}\n` +
     `</svg>`
   )
