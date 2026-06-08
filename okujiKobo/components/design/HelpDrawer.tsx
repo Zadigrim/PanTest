@@ -66,7 +66,7 @@ export function HelpDrawer({ onClose }: Props) {
               <li><strong>Stops</strong> — the individual things people do: visit a park, read a book, try a café. Each stop gets a stamp box on a page, and collectors stamp it when they complete it.</li>
             </ul>
             <Tip>
-              Plan before you build: sketch your pages and stops on paper first. (One current limitation: pages can’t be deleted once added — so it pays to know your page list before you start. You can reorder them anytime.)
+              Plan before you build: sketch your pages and stops on paper first. You can add, reorder, and delete pages at any point — but knowing your shape up front saves rework.
             </Tip>
           </Section>
 
@@ -108,15 +108,24 @@ export function HelpDrawer({ onClose }: Props) {
             </Note>
           </Section>
 
-          <Section title="5. Add your pages">
+          <Section title="5. Add, reorder, and delete pages">
+            <h4 className="font-semibold text-ink">Add a page</h4>
             <ol>
               <li>In the left panel’s <UI>Pages</UI> section, click <UI>+ Add page</UI>.</li>
               <li>Choose a type: <UI>Stamp page</UI> ("Has location boxes for collecting stamps") for pages with stops, or <UI>Information page</UI> ("Text, images, and decorative elements only") for an intro, instructions, or prize page.</li>
-              <li>Repeat for each page. Drag the <UI>⋮⋮</UI> handle next to a page name to reorder. Reordering becomes permanent when you save.</li>
+              <li>The new page is added to the end of the list. Use reorder (below) to move it.</li>
             </ol>
-            <Warning>
-              Pages can’t currently be deleted from the designer. Add pages deliberately — if you’re experimenting, do it in a scratch passport, not your real one.
-            </Warning>
+            <h4 className="font-semibold text-ink">Reorder pages</h4>
+            <p>Drag the <UI>⋮⋮</UI> handle next to a page name up or down. The page list reflows immediately; the new order becomes permanent when you save.</p>
+            <h4 className="font-semibold text-ink">Delete a page</h4>
+            <p>Click the <UI>×</UI> at the right edge of a page row. What happens next depends on whether the passport has been collected yet:</p>
+            <ul>
+              <li><strong>Draft / no collectors yet</strong> — the page is removed completely, along with every stop on it and any test stamps you’ve made yourself. You’ll be asked to confirm; if there are test stamps, you’ll need to type the page name to acknowledge that they’ll be lost.</li>
+              <li><strong>Published, with collectors</strong> — the page is <em>closed</em>, not erased. The designer hides it (so you can’t keep editing it), but the historical record of who collected what on that page survives. The closure shows up in the republish review as a Page closure, and your collectors’ existing stamps stay on their copies. New copies acquired after the next republish won’t include the closed page.</li>
+            </ul>
+            <Note>
+              Every passport needs at least one page. The <UI>×</UI> is hidden on the last remaining page so you can’t accidentally leave the passport empty.
+            </Note>
             <h4 className="font-semibold text-ink">Designing a page’s look</h4>
             <p>Click the page (with no stop or element selected) and the right panel shows <UI>PAGE</UI> settings:</p>
             <ul>
@@ -260,7 +269,7 @@ export function HelpDrawer({ onClose }: Props) {
             </ul>
             <h4 className="font-semibold text-ink">Current limitations (good to know up front)</h4>
             <ul>
-              <li>Pages can’t be deleted once added — plan your page list first.</li>
+              <li>New pages add to the end of the list — use the <UI>⋮⋮</UI> handle to drag them into position.</li>
               <li>No unpublish button — publish when you mean it.</li>
               <li>Templates aren’t available yet ("Templates coming soon").</li>
               <li>Expected spend is set for the whole passport (in <UI>Settings</UI>), not per stop.</li>
