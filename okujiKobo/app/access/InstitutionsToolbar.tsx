@@ -1,5 +1,8 @@
 'use client'
 
+import { useState } from 'react'
+import { CreateInstitutionModal } from './CreateInstitutionModal'
+
 export type InstAccessFilter = 'all' | 'free-civic' | 'commercial'
 
 export function InstitutionsToolbar({
@@ -21,6 +24,7 @@ export function InstitutionsToolbar({
   onAccess: (v: InstAccessFilter) => void
   isAdmin: boolean
 }) {
+  const [showCreate, setShowCreate] = useState(false)
   return (
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div className="flex flex-wrap items-center gap-3">
@@ -58,20 +62,25 @@ export function InstitutionsToolbar({
         </select>
       </div>
 
-      {/* TODO: needs an admin-only `+ Add institution` flow.
-          /access/institutions/[id] is the deep editor for existing
-          institutions; there's no create form yet. Button stays
-          disabled with the explanation, never faked. */}
+      {/* Admins get the live create modal; non-admins still see a
+          disabled button with the explanation so the affordance is
+          discoverable. /api/institutions enforces is_platform_admin
+          server-side regardless. */}
       <button
         type="button"
-        disabled
-        title={isAdmin
-          ? 'Institution create flow is not built yet — admins seed institutions via SQL today.'
-          : 'Admins only.'}
-        className="inline-flex h-9 cursor-not-allowed items-center rounded-[8px] border-[1.5px] border-hairline bg-white px-3 text-sm font-semibold text-hairline"
+        disabled={!isAdmin}
+        onClick={isAdmin ? () => setShowCreate(true) : undefined}
+        title={isAdmin ? 'Create a new institution' : 'Admins only.'}
+        className={`inline-flex h-9 items-center rounded-[8px] border-[1.5px] px-3 text-sm font-semibold ${
+          isAdmin
+            ? 'cursor-pointer border-ink bg-white text-ink hover:bg-paper'
+            : 'cursor-not-allowed border-hairline bg-white text-hairline'
+        }`}
       >
         + Add institution
       </button>
+
+      {showCreate && <CreateInstitutionModal onClose={() => setShowCreate(false)} />}
     </div>
   )
 }
