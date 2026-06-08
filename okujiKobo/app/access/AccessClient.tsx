@@ -63,13 +63,24 @@ export function AccessClient({
 
   return (
     <div>
-      <div role="tablist" aria-label="Access Management tabs" className="mb-4 flex gap-6 border-b border-hairline">
+      <div role="tablist" aria-label="Access Management tabs" className="mb-4 flex items-center gap-6 border-b border-hairline">
         <TabHandle active={tab === 'institutions'} onClick={() => setTabAndUrl('institutions')}>
           Institutions <span className="ml-1.5 text-[11px] text-muted">{institutions.length}</span>
         </TabHandle>
         <TabHandle active={tab === 'users'} onClick={() => setTabAndUrl('users')}>
           Users <span className="ml-1.5 text-[11px] text-muted">{people.length}</span>
         </TabHandle>
+        {/* Admin-only inspection entry. Read-only render of any
+            passport for content-safety review; not linked from any
+            non-admin chrome. */}
+        {isAdmin && (
+          <a
+            href="/access/inspect"
+            className="-mb-px ml-auto pb-2 pt-1 text-[12px] text-muted hover:text-ink"
+          >
+            Inspect passport →
+          </a>
+        )}
       </div>
 
       {tab === 'institutions' ? (
