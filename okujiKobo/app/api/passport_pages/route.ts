@@ -2,6 +2,15 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { authorizePassportMutation } from '@/lib/roles/require-flag'
 import { getPageUsage, getTrialUsage } from '@/lib/trial/limits'
+import { OKUJI_PAGE_BACKGROUNDS } from '@/lib/assets/okuji-presets'
+
+// Default ground used for any new page when the caller omits
+// background_type — the Guilloche medallion preset. Pulled from
+// OKUJI_PAGE_BACKGROUNDS so adding/renaming a preset file in one
+// place doesn't leave this stale.
+const DEFAULT_OKUJI_PRESET_URL =
+  OKUJI_PAGE_BACKGROUNDS.find((p) => p.id === 'pbg_okuji_ground_01')?.url
+  ?? OKUJI_PAGE_BACKGROUNDS[0].url
 
 /**
  * POST /api/passport_pages
@@ -168,13 +177,29 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     ? body.section_name
     : `Section ${effectivePosition + 1}`
 
+  // Default background: the Guilloche medallion okuji preset.
+  // When the caller doesn't pass a background_type, we land on
+  // 'okuji' + the preset URL so new pages arrive with okuji
+  // chrome rather than the older bare 'guilloche' pattern.
+  // background_color stays the same dark navy used for stamp
+  // foregrounds; the okuji renderer treats it identically to
+  // 'custom' (image overlay over paper_color, controlled by
+  // custom_background_opacity which DB-defaults to 100).
+  const backgroundType: string = typeof body.background_type === 'string' && body.background_type
+    ? body.background_type
+    : 'okuji'
   const insertRow: Record<string, unknown> = {
     passport_id:        passportId,
     page_order:         effectivePosition,
     section_name:       sectionName,
-    background_type:    body.background_type    ?? 'guilloche',
+    background_type:    backgroundType,
     background_color:   body.background_color   ?? '0D1B2A',
     paper_color:        body.paper_color        ?? 'F5F2EC',
+  }
+  if (backgroundType === 'okuji' && typeof body.background_image_url !== 'string') {
+    insertRow.background_image_url = DEFAULT_OKUJI_PRESET_URL
+  } else if (typeof body.background_image_url === 'string') {
+    insertRow.background_image_url = body.background_image_url
   }
   if (typeof body.page_type === 'string') insertRow.page_type = body.page_type
 
