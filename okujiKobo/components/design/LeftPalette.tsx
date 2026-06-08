@@ -137,15 +137,14 @@ function SortablePage({
         </span>
       </button>
       {/* Delete affordance — hidden when no handler is provided
-          (caller suppresses for last-remaining page). Surfaces
-          as a faint × that brightens on hover; the actual
+          (caller suppresses for last-remaining page). The actual
           confirmation lives in the caller so it can name what
           would be lost. */}
       {onDelete && (
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); onDelete() }}
-          className="flex-none px-1.5 py-1.5 text-muted/40 hover:text-red"
+          className="flex-none px-2 py-1 mr-1 text-base leading-none text-muted hover:text-red hover:bg-paper rounded"
           aria-label={`Delete ${page.section_title ?? page.section_name ?? `page ${index + 1}`}`}
           title="Delete page"
         >
