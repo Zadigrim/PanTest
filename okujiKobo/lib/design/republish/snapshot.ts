@@ -37,6 +37,12 @@ export interface SnapshotPage {
   id: string
   page_order: number
   title: string | null
+  /** When non-null, the page was soft-closed (migration 020).
+   *  The republish diff treats a snapshot→next transition of
+   *  closed_at NULL → non-NULL as a 'page_closure' change. The
+   *  snapshot includes ALL pages including closed ones so the
+   *  diff sees the closure event. */
+  closed_at: string | null
 }
 
 export interface SnapshotStop {
@@ -99,7 +105,10 @@ export async function captureLiveSnapshot(
 
   const { data: pageRows, error: pgErr } = await db
     .from('passport_pages')
-    .select('id, page_order, title')
+    // closed_at included: the diff engine needs to see closure
+    // events (snapshot null → next non-null). NO `WHERE
+    // closed_at IS NULL` filter — capture the full state.
+    .select('id, page_order, title, closed_at')
     .eq('passport_id', passportId)
     .order('page_order', { ascending: true })
   if (pgErr) throw new Error(`snapshot: pages — ${pgErr.message}`)

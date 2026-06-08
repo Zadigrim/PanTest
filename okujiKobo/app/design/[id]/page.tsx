@@ -44,14 +44,28 @@ export default async function DesignWorkspacePage({ params }: Props) {
   const creatorInstitutionId: string | null =
     (profile as { institution_id: string | null } | null)?.institution_id ?? null
 
-  // Load pages ordered by page_order
-  const { data: pages } = await supabase
+  // Load pages ordered by page_order. Closed pages (migration
+  // 020 — closed_at IS NOT NULL) are filtered from the active
+  // designer view. They live on in the DB for snapshot diffing
+  // (republish-flow needs to see the closure event) but the
+  // designer never edits a closed page; closure is final from
+  // the editing surface.
+  //
+  // The .is('closed_at', null) chain casts through `any` because
+  // `closed_at` isn't yet in the generated Database types — same
+  // pattern as every other code surface that reads added-by-
+  // migration columns (e.g. migration-040 stamps appearance
+  // fields, migration-046 canonical pair).
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: pages } = await (supabase as any)
     .from('passport_pages')
     .select('*')
     .eq('passport_id', params.id)
+    .is('closed_at', null)
     .order('page_order', { ascending: true })
 
-  const pageIds = (pages ?? []).map((p) => p.id)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const pageIds = (pages ?? []).map((p: any) => p.id)
 
   // Load stops for all pages (skip query if no pages exist)
   const { data: stops } =

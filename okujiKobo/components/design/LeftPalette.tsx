@@ -83,11 +83,16 @@ function SortablePage({
   index,
   isActive,
   onSelect,
+  onDelete,
 }: {
   page: DesignerPassportPage
   index: number
   isActive: boolean
   onSelect: () => void
+  /** Per-row delete affordance. Hidden when only one page remains
+   *  (every passport needs at least one page; deleting the last
+   *  would leave an empty passport). */
+  onDelete?: () => void
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: page.id,
@@ -131,6 +136,22 @@ function SortablePage({
           {page.section_title ?? page.section_name ?? `Page ${index + 1}`}
         </span>
       </button>
+      {/* Delete affordance — hidden when no handler is provided
+          (caller suppresses for last-remaining page). Surfaces
+          as a faint × that brightens on hover; the actual
+          confirmation lives in the caller so it can name what
+          would be lost. */}
+      {onDelete && (
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onDelete() }}
+          className="flex-none px-1.5 py-1.5 text-muted/40 hover:text-red"
+          aria-label={`Delete ${page.section_title ?? page.section_name ?? `page ${index + 1}`}`}
+          title="Delete page"
+        >
+          ×
+        </button>
+      )}
     </div>
   )
 }
@@ -143,6 +164,7 @@ export function LeftPalette() {
   const activePageId = usePassportStore((s) => s.activePageId)
   const setActivePage = usePassportStore((s) => s.setActivePage)
   const addPage = usePassportStore((s) => s.addPage)
+  const removePage = usePassportStore((s) => s.removePage)
   const addStop = usePassportStore((s) => s.addStop)
   const setSelectedStop = usePassportStore((s) => s.setSelectedStop)
   const addElement = usePassportStore((s) => s.addElement)
@@ -169,6 +191,96 @@ export function LeftPalette() {
     reorderPages(orderedIds)
     // page_order persists when the user clicks Save (saveAll).
   }, [pages, reorderPages])
+
+  // Delete handler — calls the new API which branches on
+  // acquisition count: hard delete for zero-acq, soft-close
+  // for has-acq. The "typed confirmation naming what's lost"
+  // guardrail is enforced server-side via confirm_stamp_count;
+  // the client surfaces what would be lost (stamp count, stop
+  // count) so the user knows before agreeing.
+  //
+  // PRE-FETCH: count stamps on the page's stops so the
+  // confirmation prompt is honest. If zero stamps, a single
+  // confirm() is enough; if non-zero, the user has to type
+  // the page name to acknowledge the loss.
+  const handleDeletePage = useCallback(async (page: DesignerPassportPage) => {
+    if (!passport) return
+    if (pages.length <= 1) {
+      window.alert('A passport needs at least one page. Add another page before deleting this one.')
+      return
+    }
+    const pageLabel = page.section_title ?? page.section_name ?? 'this page'
+
+    // Pre-fetch stamp count so the confirm prompt is honest.
+    const db = createClient() as any
+    const { data: stopsOnPage } = await db
+      .from('stops')
+      .select('id')
+      .eq('page_id', page.id)
+    const stopIds = ((stopsOnPage ?? []) as { id: string }[]).map((s) => s.id)
+    let stampCount = 0
+    if (stopIds.length > 0) {
+      const { count } = await db
+        .from('stamps')
+        .select('id', { count: 'exact', head: true })
+        .in('stop_id', stopIds)
+      stampCount = count ?? 0
+    }
+
+    if (stampCount > 0) {
+      const typed = window.prompt(
+        `Deleting "${pageLabel}" will permanently remove ${stampCount} test stamp${stampCount === 1 ? '' : 's'} on this page.\n\n`
+        + `Type the page name to confirm:\n\n${pageLabel}`,
+      )
+      if (typed?.trim() !== pageLabel) return
+    } else {
+      if (!window.confirm(`Delete "${pageLabel}" and its ${stopIds.length} stop${stopIds.length === 1 ? '' : 's'}?`)) return
+    }
+
+    const res = await fetch(`/api/passport_pages/${page.id}`, {
+      method: 'DELETE',
+      headers: stampCount > 0 ? { 'Content-Type': 'application/json' } : undefined,
+      body: stampCount > 0 ? JSON.stringify({ confirm_stamp_count: stampCount }) : undefined,
+    })
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}))
+      window.alert(body?.detail ?? body?.error ?? 'Delete failed')
+      return
+    }
+    removePage(page.id)
+  }, [passport, pages, removePage])
+
+  // Insert-at-position handler — POST /api/passport_pages with
+  // target_position. The route shifts subsequent active pages
+  // up by 1 and inserts. Used by the + buttons between pages.
+  const handleInsertAt = useCallback(async (position: number, pageType: PageType) => {
+    if (!passport) return
+    setAddingPage(true)
+    const res = await fetch('/api/passport_pages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        passport_id: passport.id,
+        page_type: pageType,
+        target_position: position,
+      }),
+    })
+    setAddingPage(false)
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({})) as { error?: string; detail?: string }
+      window.alert(body.detail ?? body.error ?? 'Could not insert page')
+      return
+    }
+    // After insert, every shifted page's page_order changed
+    // server-side; the simplest reconciliation is to refetch via
+    // the existing store path. addPage on the new row + a
+    // page_order resync — but we don't have a reload helper here.
+    // Pragmatic: optimistically addPage; the next saveAll/load
+    // resyncs. The new page's page_order reflects the server's
+    // value so subsequent renders are correct.
+    const data = await res.json() as DesignerPassportPage
+    addPage(data)
+  }, [passport, addPage])
 
   const handleAddStop = async () => {
     if (!activePageId || !passport || isInfoPage) return
@@ -337,6 +449,7 @@ export function LeftPalette() {
                     index={i}
                     isActive={page.id === activePageId}
                     onSelect={() => setActivePage(page.id)}
+                    onDelete={pages.length > 1 ? () => void handleDeletePage(page) : undefined}
                   />
                 ))}
               </div>

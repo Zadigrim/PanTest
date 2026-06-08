@@ -154,7 +154,14 @@ export default async function PassportDetailPage({
   const quality_score = null
 
   const pagesRaw = (raw['pages'] ?? []) as Array<Record<string, unknown>>
+  // Filter out closed pages (migration 020). PostgREST nested
+  // SELECTs can't easily express "WHERE closed_at IS NULL" on
+  // the embedded table, so the filter lives here. Closed pages
+  // exist in the DB for snapshot diffing but never render to
+  // holders. Earned stamps on stops belonging to closed pages
+  // survive via the existing stop_closure preservation path.
   const pages: PassportFull['pages'] = pagesRaw
+    .filter((p) => p['closed_at'] == null)
     .map((p) => ({
       ...(p as unknown as PassportPage),
       stops: ((p['stops'] ?? []) as Stop[]).sort((a, b) => a.stop_order - b.stop_order),

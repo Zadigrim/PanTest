@@ -164,6 +164,9 @@ export default async function ExplorePassportDetailPage({
         'custom_background_opacity, paper_color, elements',
     )
     .eq('passport_id', id)
+    // Filter out closed pages (migration 020). They live in the
+    // DB for snapshot diffing but never render in Explore.
+    .is('closed_at', null)
     .order('page_order', { ascending: true })
 
   const pageIds = (pagesRaw ?? []).map((p: { id: string }) => p.id)

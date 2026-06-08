@@ -33,6 +33,8 @@ export type DiffCategory =
   | 'location_data'
   | 'verification_mechanics'
   | 'stop_closure'
+  | 'page_closure'
+  | 'page_reorder'
   | 'factual_text'
   | 'other'
 
@@ -52,6 +54,8 @@ export type DiffChange =
   | { category: 'location_data';           stop_id: string; fields: string[] }
   | { category: 'verification_mechanics';  stop_id: string; fields: string[] }
   | { category: 'stop_closure';            stop_id: string; reason: 'closed' | 'removed' }
+  | { category: 'page_closure';            page_id: string; reason: 'closed' | 'removed' }
+  | { category: 'page_reorder';            order: string[] } // new page-id sequence
   | { category: 'factual_text';            scope: 'passport' | 'stop'; entity_id: string; fields: string[] }
   | { category: 'other';                   detail: string }
 
@@ -117,20 +121,69 @@ export function diffSnapshots(
     changes.push({ category: 'other', detail: 'cover_image_url changed' })
   }
 
-  // ── Pages: count changes ──
-  if (prior.pages.length !== next.pages.length) {
-    changes.push({
-      category: 'other',
-      detail: `page count changed: ${prior.pages.length} → ${next.pages.length}`,
-    })
-  }
-  // Per-page title changes go into `other` (cosmetic).
+  // ── Pages: closure / removal / reorder / title ──
+  //
+  // Closure: snapshot.closed_at NULL → next.closed_at non-NULL.
+  // Removal: id present in snapshot, absent in next. Both flow
+  // through 'page_closure' — holder render treats them identically
+  // (the page disappears from active rendering; any earned stamps
+  // on its stops remain via the existing stop_closure preservation).
+  //
+  // Reorder: same set of ids in a different sequence. Single
+  // 'page_reorder' change carrying the new id sequence. Verdict
+  // permits it — reordering doesn't lose any holder-earned data.
+  //
+  // Per-page title delta stays in 'other' (cosmetic; blocks unless
+  // admin-overridden). M-page-ops did not carve title editing out
+  // of the existing block.
   const priorPageById = new Map(prior.pages.map((p) => [p.id, p]))
+  const nextPageById  = new Map(next.pages.map((p) => [p.id, p]))
+
+  // Removed pages — id absent from next.
+  for (const op of prior.pages) {
+    if (!nextPageById.has(op.id)) {
+      changes.push({ category: 'page_closure', page_id: op.id, reason: 'removed' })
+    }
+  }
+  // Newly closed pages — id present, closed_at went NULL → non-NULL.
+  for (const np of next.pages) {
+    const op = priorPageById.get(np.id)
+    if (op && op.closed_at == null && np.closed_at != null) {
+      changes.push({ category: 'page_closure', page_id: np.id, reason: 'closed' })
+    }
+  }
+  // Page additions — id present in next, absent from prior. These
+  // are content additions (not corrections); classified as 'other'
+  // so the republish blocks unless admin-overridden, parallel to
+  // the stop-addition rule.
+  for (const np of next.pages) {
+    if (!priorPageById.has(np.id)) {
+      changes.push({ category: 'other', detail: `new page added (${np.id})` })
+    }
+  }
+  // Title deltas on pages present in both — cosmetic, 'other'.
   for (const np of next.pages) {
     const op = priorPageById.get(np.id)
     if (op && norm(op.title) !== norm(np.title)) {
       changes.push({ category: 'other', detail: `page title changed (${np.id})` })
     }
+  }
+  // Reorder detection — same set of ACTIVE ids (excluding closed
+  // and removed), different sequence. Single change carrying the
+  // new id order. Detected over active pages only so a closure
+  // doesn't double-count as a reorder.
+  const priorActiveIds = prior.pages
+    .filter((p) => p.closed_at == null && nextPageById.has(p.id))
+    .sort((a, b) => a.page_order - b.page_order)
+    .map((p) => p.id)
+  const nextActiveIds = next.pages
+    .filter((p) => p.closed_at == null && priorPageById.has(p.id))
+    .sort((a, b) => a.page_order - b.page_order)
+    .map((p) => p.id)
+  if (priorActiveIds.length === nextActiveIds.length
+      && priorActiveIds.length > 0
+      && priorActiveIds.some((id, i) => id !== nextActiveIds[i])) {
+    changes.push({ category: 'page_reorder', order: nextActiveIds })
   }
 
   // ── Stops: walk both sides ──
@@ -188,6 +241,8 @@ export function diffSnapshots(
     location_data: 0,
     verification_mechanics: 0,
     stop_closure: 0,
+    page_closure: 0,
+    page_reorder: 0,
     factual_text: 0,
     other: 0,
   }
@@ -229,6 +284,13 @@ export function defaultWhatChanged(summary: DiffSummary): string {
   if (summary.counts.stop_closure > 0) {
     const n = summary.counts.stop_closure
     parts.push(`${n} stop${n === 1 ? '' : 's'} closed`)
+  }
+  if (summary.counts.page_closure > 0) {
+    const n = summary.counts.page_closure
+    parts.push(`${n} page${n === 1 ? '' : 's'} removed`)
+  }
+  if (summary.counts.page_reorder > 0) {
+    parts.push('Pages reordered')
   }
   if (summary.counts.factual_text > 0) {
     parts.push('Text corrections')

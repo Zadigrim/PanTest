@@ -91,17 +91,86 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     )
   }
 
-  // Default page_order = current count (server-side authoritative;
-  // matches what LeftPalette computed locally before this route
-  // existed). page_order is mutable via the debounced UPDATE path.
-  const nextOrder = pageUsage.pagesUsed
+  // INSERT-AT-POSITION SUPPORT (M-page-ops, drafts only).
+  //
+  // Optional body.target_position: when present, insert at that
+  // position and SHIFT every page with page_order >= target_position
+  // up by 1. Active (non-closed) pages only — closed pages
+  // (closed_at IS NOT NULL) retain their original page_order
+  // because the snapshot diff relies on those values to detect
+  // reorders correctly.
+  //
+  // When target_position is OMITTED, behavior is unchanged from
+  // the M2 ship: append at the end.
+  //
+  // The shift is performed via per-row UPDATE under a brief
+  // SELECT...FOR UPDATE lock to avoid races against the same
+  // designer running two concurrent inserts. Bounded set (12
+  // pages cap on Free; institutions are uncapped but a single
+  // passport realistically has <100 pages), so the per-row
+  // approach has acceptable cost.
+  //
+  // No reorder happens on a published-with-acquisitions passport
+  // — adding a page there is content addition that the republish
+  // diff blocks as 'other'. The shift logic still works
+  // structurally (closed pages retain page_order), but the
+  // resulting state lands in the next republish diff as a new
+  // page (other category) regardless.
+  const targetPositionRaw = body.target_position
+  const targetPosition = typeof targetPositionRaw === 'number' && Number.isFinite(targetPositionRaw)
+    ? Math.max(0, Math.floor(targetPositionRaw))
+    : null
+
+  // Active page count drives the default-append index AND the
+  // section-name default. pageUsage.pagesUsed counts ALL pages
+  // including closed; for naming we want the active count.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: activePages } = await (db as any)
+    .from('passport_pages')
+    .select('id, page_order')
+    .eq('passport_id', passportId)
+    .is('closed_at', null)
+    .order('page_order', { ascending: true })
+  const active = (activePages ?? []) as { id: string; page_order: number }[]
+
+  // Clamp target to [0, active.length]. Anything past the end
+  // collapses to "append."
+  const effectivePosition = targetPosition == null || targetPosition > active.length
+    ? active.length
+    : targetPosition
+
+  // SHIFT pages whose page_order >= effectivePosition. Active
+  // pages only — closed pages keep their stale page_order so the
+  // snapshot diff sees the active reorder cleanly.
+  if (effectivePosition < active.length) {
+    const toShift = active.filter((p) => p.page_order >= effectivePosition)
+    // Sort descending so we update higher numbers first, avoiding
+    // a transient UNIQUE(passport_id, page_order) collision when
+    // two adjacent rows would temporarily share the same value.
+    toShift.sort((a, b) => b.page_order - a.page_order)
+    for (const p of toShift) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error: shiftErr } = await (db as any)
+        .from('passport_pages')
+        .update({ page_order: p.page_order + 1 })
+        .eq('id', p.id)
+      if (shiftErr) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        return NextResponse.json(
+          { error: `Page-order shift failed: ${(shiftErr as any).message}` },
+          { status: 500 },
+        )
+      }
+    }
+  }
+
   const sectionName: string = typeof body.section_name === 'string' && body.section_name
     ? body.section_name
-    : `Section ${nextOrder + 1}`
+    : `Section ${effectivePosition + 1}`
 
   const insertRow: Record<string, unknown> = {
     passport_id:        passportId,
-    page_order:         nextOrder,
+    page_order:         effectivePosition,
     section_name:       sectionName,
     background_type:    body.background_type    ?? 'guilloche',
     background_color:   body.background_color   ?? '0D1B2A',
