@@ -238,7 +238,18 @@ export async function safeUpdate(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const db = createClient() as any
       try {
-        const { error } = await db.from(table).update(patch).eq(eqColumn, eqValue)
+        let { error } = await db.from(table).update(patch).eq(eqColumn, eqValue)
+        // 57014 = canceling statement due to statement timeout. Postgres
+        // hits this on pool pressure / RLS-eval slow paths; the SAME row
+        // updated 500ms later usually goes through cleanly because the
+        // contention has cleared. One auto-retry masks the common
+        // transient without hiding a real recurring problem (a second
+        // 57014 falls through to the retryQueue + visible Save failed).
+        if (error && (error as { code?: string }).code === '57014') {
+          await new Promise((r) => setTimeout(r, 500))
+          const retry = await db.from(table).update(patch).eq(eqColumn, eqValue)
+          error = retry.error
+        }
         if (error) {
           console.error('[persist] safeUpdate failed', { table, eqColumn, eqValue, patch, error })
           usePassportStore.getState().setSaveError(describeError(error))
@@ -312,6 +323,23 @@ export async function safeInsert<T = unknown>(
 
 interface BatchError { table: string; id: string; message: string }
 
+// Run an UPDATE under serialize() with a one-shot 57014 retry — the
+// statement-timeout slow path is usually transient (pool pressure,
+// momentary RLS-eval spike) and the SAME UPDATE 500ms later goes
+// through. A second 57014 surfaces normally so a real recurring
+// problem still raises a Save failed banner.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function updateWithRetry(db: any, table: string, patch: Record<string, unknown>, eqColumn: string, eqValue: string): Promise<{ error: { message?: string; code?: string } | null }> {
+  return serialize<{ error: { message?: string; code?: string } | null }>(async () => {
+    let res = await db.from(table).update(patch).eq(eqColumn, eqValue)
+    if (res.error && (res.error as { code?: string }).code === '57014') {
+      await new Promise((r) => setTimeout(r, 500))
+      res = await db.from(table).update(patch).eq(eqColumn, eqValue)
+    }
+    return { error: res.error }
+  })
+}
+
 export async function saveAll(): Promise<BatchError[]> {
   // Drain pending debounced writes before snapshotting the store so we
   // don't race with their results landing after our own UPDATEs.
@@ -325,32 +353,29 @@ export async function saveAll(): Promise<BatchError[]> {
   const errors: BatchError[] = []
 
   try {
-    const { error: passportErr } = await serialize<{ error: { message?: string } | null }>(() => db
-      .from('passports')
-      .update({
-        title:                  passport.title,
-        description:            passport.description,
-        cover_emblem:           passport.cover_emblem,
-        cover_paper_color:      passport.cover_paper_color,
-        cover_bg_color:         passport.cover_bg_color,
-        cover_outside_data:     passport.cover_outside_data,
-        cover_inside_data:      passport.cover_inside_data,
-        expected_spend_tier:    passport.expected_spend_tier,
-        expected_spend_note:    passport.expected_spend_note,
-        transit_accessible:     passport.transit_accessible,
-        wheelchair_accessible:  passport.wheelchair_accessible,
-        print_journal_setting:  passport.print_journal_setting,
-        // M2 follow-up — per-copy serial display toggle + expiry
-        // duration. show_copy_number gates the {{copy_number}} token
-        // resolution at render. expiry_duration_days affects FUTURE
-        // acquisitions only — existing collector_passports.expires_at
-        // is stored concretely so design-side changes never
-        // retroactively expire holders.
-        show_copy_number:       passport.show_copy_number,
-        expiry_duration_days:   passport.expiry_duration_days,
-        updated_at:             new Date().toISOString(),
-      })
-      .eq('id', passport.id))
+    const { error: passportErr } = await updateWithRetry(db, 'passports', {
+      title:                  passport.title,
+      description:            passport.description,
+      cover_emblem:           passport.cover_emblem,
+      cover_paper_color:      passport.cover_paper_color,
+      cover_bg_color:         passport.cover_bg_color,
+      cover_outside_data:     passport.cover_outside_data,
+      cover_inside_data:      passport.cover_inside_data,
+      expected_spend_tier:    passport.expected_spend_tier,
+      expected_spend_note:    passport.expected_spend_note,
+      transit_accessible:     passport.transit_accessible,
+      wheelchair_accessible:  passport.wheelchair_accessible,
+      print_journal_setting:  passport.print_journal_setting,
+      // M2 follow-up — per-copy serial display toggle + expiry
+      // duration. show_copy_number gates the {{copy_number}} token
+      // resolution at render. expiry_duration_days affects FUTURE
+      // acquisitions only — existing collector_passports.expires_at
+      // is stored concretely so design-side changes never
+      // retroactively expire holders.
+      show_copy_number:       passport.show_copy_number,
+      expiry_duration_days:   passport.expiry_duration_days,
+      updated_at:             new Date().toISOString(),
+    }, 'id', passport.id)
     if (passportErr) {
       console.error('[persist] saveAll passports failed', { id: passport.id, error: passportErr })
       errors.push({ table: 'passports', id: passport.id, message: passportErr.message ?? 'unknown' })
@@ -363,23 +388,20 @@ export async function saveAll(): Promise<BatchError[]> {
     // in flight at a time across both saveAll AND the per-mutation
     // debounced writes from updateStop / updatePage / etc.
     for (const page of pages) {
-      const { error: pageErr } = await serialize<{ error: { message?: string } | null }>(() => db
-        .from('passport_pages')
-        .update({
-          section_title:             page.section_title,
-          section_subtitle:          page.section_subtitle,
-          prize_description:         page.prize_description,
-          prize_location_constraint: page.prize_location_constraint,
-          background_type:           page.background_type,
-          background_color:          page.background_color,
-          background_opacity:        page.background_opacity,
-          background_image_url:      page.background_image_url,
-          custom_background_opacity: page.custom_background_opacity,
-          paper_color:               page.paper_color,
-          page_order:                page.page_order,
-          elements:                  page.elements ?? [],
-        })
-        .eq('id', page.id))
+      const { error: pageErr } = await updateWithRetry(db, 'passport_pages', {
+        section_title:             page.section_title,
+        section_subtitle:          page.section_subtitle,
+        prize_description:         page.prize_description,
+        prize_location_constraint: page.prize_location_constraint,
+        background_type:           page.background_type,
+        background_color:          page.background_color,
+        background_opacity:        page.background_opacity,
+        background_image_url:      page.background_image_url,
+        custom_background_opacity: page.custom_background_opacity,
+        paper_color:               page.paper_color,
+        page_order:                page.page_order,
+        elements:                  page.elements ?? [],
+      }, 'id', page.id)
       if (pageErr) {
         console.error('[persist] saveAll page failed', { id: page.id, error: pageErr })
         errors.push({ table: 'passport_pages', id: page.id, message: pageErr.message ?? 'unknown' })
@@ -389,48 +411,45 @@ export async function saveAll(): Promise<BatchError[]> {
     for (const stop of stops) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const s: any = stop
-      const { error: stopErr } = await serialize<{ error: { message?: string } | null }>(() => db
-        .from('stops')
-        .update({
-          name:               stop.name,
-          stop_order:         stop.stop_order,
-          learning_objective: stop.learning_objective,
-          journal_prompt:     stop.journal_prompt,
-          classifiers:        stop.classifiers ?? [],
-          grade_levels:       stop.grade_levels ?? [],
-          subject_areas:      stop.subject_areas ?? [],
-          is_shared:          stop.is_shared ?? false,
-          shared_at:          stop.shared_at ?? null,
-          // Location / address fields. location_type is retired by
-          // migration 046 — the canonical pair below replaces it.
-          address_street:     s.address_street,
-          address_city:       s.address_city,
-          address_state:      s.address_state,
-          address_zip:        s.address_zip,
-          country:            s.country,
-          lat:                stop.lat,
-          lng:                stop.lng,
-          // Verification — canonical pair drives verification_tier via
-          // the migration-046 sync trigger, so we don't send tier here.
-          verification_radius_meters:  stop.verification_radius_meters,
-          experience_type:             stop.experience_type,
-          experience_verification_method: stop.experience_verification_method,
-          stamp_icon:         stop.stamp_icon,
-          stamp_color:        stop.stamp_color,
-          stamp_rotation_min: stop.stamp_rotation_min,
-          stamp_rotation_max: stop.stamp_rotation_max,
-          stamp_rotation_fixed: stop.stamp_rotation_fixed,
-          smudge_intensity:   stop.smudge_intensity,
-          stamp_type:         stop.stamp_type,
-          stamp_asset_id:     stop.stamp_asset_id,
-          box_x:              stop.box_x,
-          box_y:              stop.box_y,
-          box_width:          stop.box_width,
-          box_height:         stop.box_height,
-          rotation:           stop.rotation,
-          print_include_journal: stop.print_include_journal,
-        })
-        .eq('id', stop.id))
+      const { error: stopErr } = await updateWithRetry(db, 'stops', {
+        name:               stop.name,
+        stop_order:         stop.stop_order,
+        learning_objective: stop.learning_objective,
+        journal_prompt:     stop.journal_prompt,
+        classifiers:        stop.classifiers ?? [],
+        grade_levels:       stop.grade_levels ?? [],
+        subject_areas:      stop.subject_areas ?? [],
+        is_shared:          stop.is_shared ?? false,
+        shared_at:          stop.shared_at ?? null,
+        // Location / address fields. location_type is retired by
+        // migration 046 — the canonical pair below replaces it.
+        address_street:     s.address_street,
+        address_city:       s.address_city,
+        address_state:      s.address_state,
+        address_zip:        s.address_zip,
+        country:            s.country,
+        lat:                stop.lat,
+        lng:                stop.lng,
+        // Verification — canonical pair drives verification_tier via
+        // the migration-046 sync trigger, so we don't send tier here.
+        verification_radius_meters:  stop.verification_radius_meters,
+        experience_type:             stop.experience_type,
+        experience_verification_method: stop.experience_verification_method,
+        stamp_icon:         stop.stamp_icon,
+        stamp_color:        stop.stamp_color,
+        stamp_rotation_min: stop.stamp_rotation_min,
+        stamp_rotation_max: stop.stamp_rotation_max,
+        stamp_rotation_fixed: stop.stamp_rotation_fixed,
+        smudge_intensity:   stop.smudge_intensity,
+        stamp_type:         stop.stamp_type,
+        stamp_asset_id:     stop.stamp_asset_id,
+        box_x:              stop.box_x,
+        box_y:              stop.box_y,
+        box_width:          stop.box_width,
+        box_height:         stop.box_height,
+        rotation:           stop.rotation,
+        print_include_journal: stop.print_include_journal,
+      }, 'id', stop.id)
       if (stopErr) {
         console.error('[persist] saveAll stop failed', { id: stop.id, error: stopErr })
         errors.push({ table: 'stops', id: stop.id, message: stopErr.message ?? 'unknown' })
