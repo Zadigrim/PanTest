@@ -143,10 +143,12 @@ export const usePassportStore = create<PassportStore>((set, get) => ({
       return { ...p, page_order: idx }
     })
     set({ pages: newPages, isDirty: true })
-    // Each page is a distinct row; the keys don't coalesce.
-    newPages.forEach((p, idx) => {
-      debouncedUpdate('passport_pages', { page_order: idx }, 'id', p.id)
-    })
+    // Persistence is fired by the caller via the /api/passport_pages/
+    // reorder endpoint — the per-row debouncedUpdate that lived here
+    // hit the UNIQUE(passport_id, page_order) constraint on any swap
+    // (each row's UPDATE collided with another row's current order
+    // before the second UPDATE landed). The single-endpoint path
+    // does a two-phase write that respects the immediate constraint.
   },
 
   updateStop: (id, patch) => {

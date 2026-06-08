@@ -188,8 +188,23 @@ export function LeftPalette() {
     const newOrder = arrayMove(pages, oldIndex, newIndex)
     const orderedIds = newOrder.map((p) => p.id)
     reorderPages(orderedIds)
-    // page_order persists when the user clicks Save (saveAll).
-  }, [pages, reorderPages])
+    // Persist via the dedicated reorder route — see the route's
+    // file-level comment for why per-row UPDATEs from the store
+    // collide on UNIQUE(passport_id, page_order). On failure roll
+    // the local state back so the UI matches the DB.
+    if (!passport) return
+    const res = await fetch('/api/passport_pages/reorder', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ passport_id: passport.id, ordered_ids: orderedIds }),
+    })
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({})) as { error?: string }
+      window.alert(body.error ?? 'Reorder failed — refresh and try again')
+      // Roll back to original order.
+      reorderPages(pages.map((p) => p.id))
+    }
+  }, [pages, reorderPages, passport])
 
   // Delete handler — calls the new API which branches on
   // acquisition count: hard delete for zero-acq, soft-close
