@@ -125,10 +125,16 @@ export function usePublishedPassports() {
 }
 
 export async function acquirePassport(passportId: string, userId: string) {
-  const { data, error } = await supabase
-    .from('collector_passports')
-    .insert({ user_id: userId, passport_id: passportId })
-    .select()
-    .single()
-  return { data, error }
+  // Routes through the SECURITY DEFINER ensure_collector_passport
+  // function (mobile migration 019) so the copy_number is
+  // allocated atomically and expires_at is computed from the
+  // passport's expiry_duration_days in one transaction.
+  // Idempotent: returns the existing row if already acquired.
+  const { data, error } = await (supabase as any).rpc('ensure_collector_passport', {
+    p_user_id: userId,
+    p_passport_id: passportId,
+  })
+  // RPC returns a setof so data is an array; flatten to single.
+  const row = Array.isArray(data) ? data[0] : data
+  return { data: row, error }
 }

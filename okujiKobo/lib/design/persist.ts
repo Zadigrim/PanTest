@@ -340,6 +340,14 @@ export async function saveAll(): Promise<BatchError[]> {
         transit_accessible:     passport.transit_accessible,
         wheelchair_accessible:  passport.wheelchair_accessible,
         print_journal_setting:  passport.print_journal_setting,
+        // M2 follow-up — per-copy serial display toggle + expiry
+        // duration. show_copy_number gates the {{copy_number}} token
+        // resolution at render. expiry_duration_days affects FUTURE
+        // acquisitions only — existing collector_passports.expires_at
+        // is stored concretely so design-side changes never
+        // retroactively expire holders.
+        show_copy_number:       passport.show_copy_number,
+        expiry_duration_days:   passport.expiry_duration_days,
         updated_at:             new Date().toISOString(),
       })
       .eq('id', passport.id))

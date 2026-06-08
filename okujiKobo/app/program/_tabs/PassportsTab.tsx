@@ -28,6 +28,13 @@ export interface PassportProgramRowData {
   prizeTexts: string[]
   acquisitionCount: number
   prizeDistributedCount: number
+  /** Number of copies issued so far (next_copy_number - 1).
+   *  When 0, no copies issued; renders the "no copies" treatment.
+   *  M2 follow-up (migration 070 / 019). */
+  copyIssuedCount: number
+  /** Designer's expiry duration in days. NULL = never expires.
+   *  M2 follow-up. Display only — no enforcement this PR. */
+  expiryDurationDays: number | null
 }
 
 export function PassportsTab({ rows }: { rows: PassportProgramRowData[] }) {
@@ -95,6 +102,27 @@ function PassportRow({ row }: { row: PassportProgramRowData }) {
       <div className="mt-3">
         <InlineMetrics metrics={metrics} />
       </div>
+
+      {/* Copies + expiry — M2 follow-up. Honest copy: render the
+          actual issued range; "No expiry" when the design has no
+          duration set. No fabricated dates ever. */}
+      <p className="mt-3 text-[11.5px] text-muted">
+        <span className="font-mono uppercase text-muted" style={{ letterSpacing: '1.3px' }}>
+          Copies ·
+        </span>{' '}
+        {row.copyIssuedCount === 0
+          ? <>none issued yet</>
+          : row.copyIssuedCount === 1
+            ? <>#1 issued</>
+            : <>#1&ndash;#{row.copyIssuedCount} issued</>}
+        {' · '}
+        <span className="font-mono uppercase text-muted" style={{ letterSpacing: '1.3px' }}>
+          expiry ·
+        </span>{' '}
+        {row.expiryDurationDays == null
+          ? <>copies never expire</>
+          : <>each copy valid for {row.expiryDurationDays} days from acquisition</>}
+      </p>
 
       {row.prizeTexts.length > 0 ? (
         <section className="mt-4 border-t border-hairline pt-3">

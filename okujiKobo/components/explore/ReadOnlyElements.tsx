@@ -13,6 +13,7 @@ import type {
   LinePageElement,
 } from '@/lib/design/types'
 import { runsToReact } from '@/lib/design/rich-text'
+import { applyCopyNumberToken } from '@/lib/design/page-tokens'
 
 interface ViewerStop {
   id: string
@@ -52,9 +53,29 @@ export function ReadOnlyStop({ stop }: { stop: ViewerStop }) {
   )
 }
 
-export function ReadOnlyElement({ element }: { element: DesignerPageElement }) {
+export function ReadOnlyElement({
+  element,
+  copyNumber,
+  showCopyNumber,
+}: {
+  element: DesignerPageElement
+  /** Holder's copy_number from collector_passports. Null in
+   *  preview contexts (designer canvas, OG metadata). The
+   *  {{copy_number}} token resolves to this; null renders the
+   *  placeholder "#" (lib/design/page-tokens.ts) per honest-data
+   *  rules — never a fabricated real-looking value. */
+  copyNumber?: number | null
+  /** Designer's passport-level toggle. When false, the
+   *  {{copy_number}} token is left LITERAL (designer can see it
+   *  in preview but no holder render fills it in). When true,
+   *  the token resolves. */
+  showCopyNumber?: boolean
+}) {
   if (element.type === 'text') {
     const el = element as TextPageElement
+    const content = (showCopyNumber && el.content)
+      ? applyCopyNumberToken(el.content, { copyNumber })
+      : (el.content ?? '')
     return (
       <div
         style={{
@@ -74,7 +95,7 @@ export function ReadOnlyElement({ element }: { element: DesignerPageElement }) {
           overflow: 'hidden',
         }}
       >
-        {el.content ?? ''}
+        {content}
       </div>
     )
   }

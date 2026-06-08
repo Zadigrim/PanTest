@@ -33,6 +33,23 @@ async function insertAcquisition(passportId: string, userId: string): Promise<vo
     // 23505 = UNIQUE violation → already owned, safe to ignore
     console.error('[stripe-webhook] acquisition insert error:', error)
   }
+
+  // Mirror to collector_passports — the canonical per-copy
+  // record per CLAUDE.md governing invariant #8. Idempotent.
+  // The RPC allocates copy_number atomically + computes
+  // expires_at from passports.expiry_duration_days. Fire even
+  // on the 23505 path so a prior acquisition missing its mirror
+  // gets repaired this attempt.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error: cpErr } = await (supabase as any).rpc('ensure_collector_passport', {
+    p_user_id: userId,
+    p_passport_id: passportId,
+  })
+  if (cpErr) {
+    // Webhook can't surface to the user. Log; a later acquisition
+    // attempt (or repair job) will populate.
+    console.error('[stripe-webhook] collector_passports mirror failed:', cpErr)
+  }
 }
 
 // Webhooks require the raw request body for signature verification,

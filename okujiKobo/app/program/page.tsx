@@ -144,11 +144,15 @@ async function loadPassportsTabRows(
 
   const { data: ownedRaw } = await db
     .from('passports')
-    .select('id, title, status, is_published')
+    .select('id, title, status, is_published, expiry_duration_days, next_copy_number')
     .or(ownedFilter)
     .order('updated_at', { ascending: false })
 
-  const owned = (ownedRaw ?? []) as { id: string; title: string; status: string; is_published: boolean }[]
+  const owned = (ownedRaw ?? []) as {
+    id: string; title: string; status: string; is_published: boolean
+    expiry_duration_days: number | null
+    next_copy_number: number
+  }[]
   const ownedIds = owned.map((p) => p.id)
   if (ownedIds.length === 0) return []
 
@@ -178,13 +182,22 @@ async function loadPassportsTabRows(
     distByPassport.set(t.passport_id, (distByPassport.get(t.passport_id) ?? 0) + 1)
   }
 
-  return owned.map((p) => ({
-    id: p.id,
-    title: p.title,
-    status: p.status,
-    is_published: p.is_published,
-    prizeTexts: prizesByPassport.get(p.id) ?? [],
-    acquisitionCount: acqByPassport.get(p.id) ?? 0,
-    prizeDistributedCount: distByPassport.get(p.id) ?? 0,
-  }))
+  return owned.map((p) => {
+    // Copy-number range: passports.next_copy_number is "the
+    // number the NEXT acquisition would receive." If no copies
+    // exist, next_copy_number is 1 and the range is empty.
+    // Otherwise #1..(next_copy_number - 1) have been issued.
+    const issued = (p.next_copy_number ?? 1) - 1
+    return {
+      id: p.id,
+      title: p.title,
+      status: p.status,
+      is_published: p.is_published,
+      prizeTexts: prizesByPassport.get(p.id) ?? [],
+      acquisitionCount: acqByPassport.get(p.id) ?? 0,
+      prizeDistributedCount: distByPassport.get(p.id) ?? 0,
+      copyIssuedCount:    issued,
+      expiryDurationDays: p.expiry_duration_days,
+    }
+  })
 }

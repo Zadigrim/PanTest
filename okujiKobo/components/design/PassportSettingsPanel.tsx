@@ -255,6 +255,53 @@ export function PassportSettingsPanel({ onClose }: Props) {
             </section>
           )}
 
+          {/* Per-copy serial + optional expiry (M2 follow-up) */}
+          <section className="space-y-3">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-muted">
+              Per-copy serial &amp; expiry
+            </h3>
+
+            <label className="flex cursor-pointer items-start gap-3">
+              <input
+                type="checkbox"
+                checked={passport.show_copy_number ?? false}
+                onChange={(e) => persist({ show_copy_number: e.target.checked })}
+                className="mt-0.5 h-4 w-4 rounded accent-green"
+              />
+              <span className="text-sm text-navy">
+                Show copy number on artwork
+                <span className="mt-0.5 block text-xs italic text-muted">
+                  Add a text element with <code className="rounded bg-paper px-1 py-0.5 text-[10.5px]">{'{{copy_number}}'}</code> to position
+                  the holder&rsquo;s serial. When this is off the token
+                  is ignored at render.
+                </span>
+              </span>
+            </label>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-navy">
+                Expiry duration (days)
+              </Label>
+              <Input
+                type="number"
+                min={1}
+                placeholder="Blank = never expires"
+                value={passport.expiry_duration_days ?? ''}
+                onChange={(e) => {
+                  const raw = e.target.value.trim()
+                  const next = raw === '' ? null : Math.max(1, parseInt(raw, 10) || 0)
+                  persist({ expiry_duration_days: next })
+                }}
+                className="h-9 w-full"
+              />
+              <p className="text-xs italic text-muted">
+                Each acquired copy stores its own expiry date at acquisition,
+                so changing this number affects future copies only —
+                existing holders keep the duration they were issued.
+              </p>
+            </div>
+          </section>
+
           {/* Spend tier + AI verification */}
           <section className="space-y-3">
             <h3 className="text-xs font-semibold uppercase tracking-wider text-muted">

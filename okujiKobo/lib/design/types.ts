@@ -188,6 +188,14 @@ export interface DesignerPassport {
   created_at: string
   updated_at: string
   published_at: string | null
+  // M2 follow-up — per-copy serial + optional expiry (migration
+  // 070 web-tree). show_copy_number toggles whether the holder's
+  // {{copy_number}} token resolves on the artwork. NULL
+  // expiry_duration_days means copies of this design never expire;
+  // changing this field affects FUTURE acquisitions only (concrete
+  // expires_at is stored on collector_passports per copy).
+  show_copy_number?: boolean
+  expiry_duration_days?: number | null
 }
 
 export type PageType = 'stamp' | 'information'
