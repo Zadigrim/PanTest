@@ -4,6 +4,95 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 
 /**
+ * Canonical institution_type values — matches the
+ * institutions_institution_type_check CHECK constraint (migration
+ * 015_pricing_model, the most-recently-replaced version). If you
+ * add a new value to the constraint, add it here too — free text
+ * is rejected by the DB.
+ */
+const INSTITUTION_TYPE_GROUPS: { label: string; options: { value: string; label: string }[] }[] = [
+  { label: 'Educational', options: [
+    { value: 'k12_school',              label: 'K-12 school' },
+    { value: 'public_library',          label: 'Public library' },
+    { value: 'museum',                  label: 'Museum' },
+    { value: 'educational_nonprofit',   label: 'Educational nonprofit' },
+    { value: 'after_school_program',    label: 'After-school program' },
+    { value: 'literacy_organization',   label: 'Literacy organization' },
+    { value: 'youth_development',       label: 'Youth development' },
+    { value: 'homeschool_cooperative',  label: 'Homeschool cooperative' },
+  ] },
+  { label: 'Cultural preservation', options: [
+    { value: 'historical_society',      label: 'Historical society' },
+    { value: 'heritage_organization',   label: 'Heritage organization' },
+    { value: 'cultural_center',         label: 'Cultural center' },
+    { value: 'oral_history_project',    label: 'Oral history project' },
+  ] },
+  { label: 'Community arts', options: [
+    { value: 'community_theater',         label: 'Community theater' },
+    { value: 'public_art_organization',   label: 'Public art organization' },
+    { value: 'community_arts_center',     label: 'Community arts center' },
+    { value: 'community_music_program',   label: 'Community music program' },
+    { value: 'writing_center',            label: 'Writing center' },
+  ] },
+  { label: 'Social services', options: [
+    { value: 'food_bank',                  label: 'Food bank' },
+    { value: 'homeless_shelter',           label: 'Homeless shelter' },
+    { value: 'refugee_immigrant_services', label: 'Refugee / immigrant services' },
+    { value: 'free_health_clinic',         label: 'Free health clinic' },
+    { value: 'adult_literacy',             label: 'Adult literacy' },
+  ] },
+  { label: 'Environmental / conservation', options: [
+    { value: 'parks_department',         label: 'Parks department' },
+    { value: 'nature_conservatory',      label: 'Nature conservatory' },
+    { value: 'land_trust',               label: 'Land trust' },
+    { value: 'watershed_council',        label: 'Watershed council' },
+    { value: 'native_plant_society',     label: 'Native plant society' },
+    { value: 'wildlife_rehabilitation',  label: 'Wildlife rehabilitation' },
+    { value: 'environmental_education',  label: 'Environmental education' },
+  ] },
+  { label: 'Nature & science (admission determines pricing)', options: [
+    { value: 'zoo',                label: 'Zoo' },
+    { value: 'aquarium',           label: 'Aquarium' },
+    { value: 'botanical_garden',   label: 'Botanical garden' },
+    { value: 'science_museum',     label: 'Science museum' },
+    { value: 'childrens_museum',   label: "Children's museum" },
+    { value: 'nature_center',      label: 'Nature center' },
+  ] },
+  { label: 'Community access', options: [
+    { value: 'community_garden',       label: 'Community garden' },
+    { value: 'maker_space',            label: 'Maker space' },
+    { value: 'tool_lending_library',   label: 'Tool lending library' },
+    { value: 'seed_library',           label: 'Seed library' },
+  ] },
+  { label: 'Municipal', options: [
+    { value: 'municipality',           label: 'Municipality' },
+  ] },
+  { label: 'Commercial', options: [
+    { value: 'chamber_of_commerce',    label: 'Chamber of commerce' },
+    { value: 'local_tourism_board',    label: 'Local tourism board' },
+    { value: 'state_tourism_board',    label: 'State tourism board' },
+    { value: 'convention_bureau',      label: 'Convention bureau' },
+    { value: 'proprietor',             label: 'Proprietor (single-operator business)' },
+    { value: 'hotel_group_small',      label: 'Hotel group — small' },
+    { value: 'hotel_chain',            label: 'Hotel chain' },
+    { value: 'airline',                label: 'Airline' },
+    { value: 'expo_organizer',         label: 'Expo organizer' },
+    { value: 'national_tourism_org',   label: 'National tourism organization' },
+    { value: 'theme_park',             label: 'Theme park' },
+    { value: 'cruise_line',            label: 'Cruise line' },
+  ] },
+  { label: 'Patron', options: [
+    { value: 'corporate_sponsor',      label: 'Corporate sponsor' },
+    { value: 'foundation',             label: 'Foundation' },
+  ] },
+  { label: 'Other', options: [
+    { value: 'general',                label: 'General (catch-all)' },
+    { value: 'nonprofit',              label: 'Nonprofit (legacy)' },
+    { value: 'other',                  label: 'Other' },
+  ] },
+]
+
+/**
  * Minimal admin-only "create institution" modal. The toolbar button
  * opens this when isAdmin; the form POSTs to /api/institutions
  * (which already enforces is_platform_admin server-side) and
@@ -18,7 +107,7 @@ import { useRouter } from 'next/navigation'
 export function CreateInstitutionModal({ onClose }: { onClose: () => void }) {
   const router = useRouter()
   const [name, setName] = useState('')
-  const [institutionType, setInstitutionType] = useState('')
+  const [institutionType, setInstitutionType] = useState('general')
   const [tier, setTier] = useState('pending')
   const [chargesAdmission, setChargesAdmission] = useState(false)
   const [contactEmail, setContactEmail] = useState('')
@@ -36,7 +125,7 @@ export function CreateInstitutionModal({ onClose }: { onClose: () => void }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: name.trim(),
-          institution_type: institutionType.trim() || undefined,
+          institution_type: institutionType,
           charges_admission: chargesAdmission,
           contact_email: contactEmail.trim() || undefined,
           tier,
@@ -99,14 +188,21 @@ export function CreateInstitutionModal({ onClose }: { onClose: () => void }) {
 
           <label className="block">
             <span className="block text-xs font-medium text-ink">Institution type</span>
-            <input
+            <select
               value={institutionType}
               onChange={(e) => setInstitutionType(e.target.value)}
-              placeholder="museum, library, brewery, …"
               className="mt-1 w-full rounded-[8px] border-[1.5px] border-hairline bg-white px-3 py-2 text-sm focus:border-ink focus:outline-none"
-            />
+            >
+              {INSTITUTION_TYPE_GROUPS.map((g) => (
+                <optgroup key={g.label} label={g.label}>
+                  {g.options.map((opt) => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
             <span className="mt-1 block text-[11px] text-muted">
-              Free text — drives pricing-model computation when paired with the admission flag.
+              Pairs with the admission flag to compute pricing model. Pick &quot;General&quot; if unsure.
             </span>
           </label>
 
