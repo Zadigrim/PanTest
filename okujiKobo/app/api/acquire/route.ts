@@ -53,7 +53,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     )
   }
 
-  // Insert acquisition
+  // Insert acquisition (the purchase-event record)
   const { data: acquisition, error: insertError } = await supabase
     .from('acquisitions')
     .insert({
@@ -67,11 +67,43 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   if (insertError) {
     // Postgres UNIQUE violation code: 23505
     if (insertError.code === '23505') {
+      // Already-owned path still mirrors collector_passports
+      // (defensive — if a prior acquisition didn't get its mirror,
+      // this attempt repairs it idempotently).
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supabase as any).rpc('ensure_collector_passport', {
+        p_user_id: user.id,
+        p_passport_id: passportId,
+      })
       return NextResponse.json({ already_owned: true })
     }
     console.error('[acquire] insert error:', insertError)
     return NextResponse.json({ error: 'Failed to acquire passport' }, { status: 500 })
   }
 
-  return NextResponse.json({ success: true, acquisitionId: acquisition.id })
+  // Mirror to collector_passports — the canonical per-copy
+  // record per CLAUDE.md governing invariant #8. The function
+  // allocates the per-copy serial atomically + computes
+  // expires_at from the passport's expiry_duration_days.
+  // Idempotent: returns the existing row if already mirrored.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: cpRows, error: cpErr } = await (supabase as any).rpc('ensure_collector_passport', {
+    p_user_id: user.id,
+    p_passport_id: passportId,
+  })
+  if (cpErr) {
+    // Acquisitions row landed; the cp mirror failed. Surface
+    // honestly but don't 500 — the purchase happened. A later
+    // re-attempt (re-acquire, or a future repair job) will
+    // populate the cp row.
+    console.error('[acquire] collector_passports mirror failed:', cpErr)
+  }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const cp = Array.isArray(cpRows) ? cpRows[0] : (cpRows as any)
+  return NextResponse.json({
+    success: true,
+    acquisitionId: acquisition.id,
+    copyNumber:    cp?.copy_number ?? null,
+    expiresAt:     cp?.expires_at  ?? null,
+  })
 }
