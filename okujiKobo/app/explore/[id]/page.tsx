@@ -75,10 +75,17 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { id } = await params
   const supabase = await createClient()
+  // M2 leak guard (migration 069): also filter distribution_only
+  // here so a guessed/shared URL for a consumable can't leak the
+  // passport title via Open Graph metadata. Holders read the
+  // passport through the marketplace detail page (which has the
+  // holder branch); Explore is a public-discovery surface.
   const { data } = await supabase
     .from('passports')
     .select('title, description')
     .eq('id', id)
+    .eq('is_published', true)
+    .eq('distribution_only', false)
     .single()
 
   if (!data) return { title: 'Passport · okujiKobo' }
@@ -130,6 +137,12 @@ export default async function ExplorePassportDetailPage({
     .select('*')
     .eq('id', id)
     .eq('is_published', true)
+    // M2 leak guard (migration 069). Explore is public-discovery
+    // only — consumables are never listed here. Holders reach
+    // their consumable via the marketplace detail page or their
+    // library, where the holder-acquired branch (migration 062)
+    // permits the read.
+    .eq('distribution_only', false)
     .single()
 
   if (passportError || !passportRaw) {

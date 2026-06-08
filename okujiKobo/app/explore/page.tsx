@@ -258,6 +258,9 @@ export default function ExplorePage() {
         pages_count:passport_pages(count)
       `)
       .eq('is_published', true)
+      // M2 leak guard (migration 069): consumable distribution-only
+      // passports never appear in public Explore browse.
+      .eq('distribution_only', false)
       .order('created_at', { ascending: false })
 
     if (passportsError) {

@@ -27,6 +27,9 @@ export default async function CreatorPage({ params }: { params: { id: string } }
     .select('*, quality_score:creator_quality_scores(composite_score, avg_mood_rating, completion_rate)')
     .eq('creator_id', params.id)
     .eq('is_published', true)
+    // M2 leak guard (migration 069): consumable distribution-only
+    // passports never appear in per-creator marketplace listings.
+    .eq('distribution_only', false)
     .order('created_at', { ascending: false })
 
   const { data: { user } } = await supabase.auth.getUser()

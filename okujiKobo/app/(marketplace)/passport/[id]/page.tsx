@@ -30,13 +30,25 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { id } = await params
   const supabase = await createClient()
+  // M2 leak guard (migration 069): metadata for distribution_only
+  // consumables doesn't surface the title/description publicly via
+  // Open Graph. The full page applies a holder gate below; the
+  // metadata path can't easily share that gate (it doesn't get
+  // user context), so we conservatively hide title + description
+  // for distribution_only passports at the metadata layer. Holders
+  // see the title in their own library; the metadata-only loss
+  // is acceptable.
   const { data } = await supabase
     .from('passports')
-    .select('title, description')
+    .select('title, description, distribution_only')
     .eq('id', id)
     .single()
 
   if (!data) return { title: 'Passport · okujiKobo' }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  if ((data as any).distribution_only === true) {
+    return { title: 'Passport · okujiKobo' }
+  }
   return {
     title:       `${data.title} · okujiKobo`,
     description: data.description ?? undefined,
@@ -178,7 +190,17 @@ export default async function PassportDetailPage({
   // surface.
   // Creator + platform admin pass through too (they
   // legitimately preview their own draft / any draft).
-  if (!passport.is_published && !isOwned && passport.creator_id !== user?.id) {
+  //
+  // M2 leak guard (migration 069): distribution_only=true
+  // consumables follow the same gate shape — holders can view
+  // their own copy, but non-holder non-creator non-admin gets
+  // a 404 even when the passport IS published. The marketplace
+  // detail page is reachable only by direct link for
+  // distribution_only; nothing lists them publicly.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const isDistributionOnly = (passport as any).distribution_only === true
+  const needsHolderGate = !passport.is_published || isDistributionOnly
+  if (needsHolderGate && !isOwned && passport.creator_id !== user?.id) {
     let viewerIsAdmin = false
     if (user) {
       const { data: prof } = await supabase
