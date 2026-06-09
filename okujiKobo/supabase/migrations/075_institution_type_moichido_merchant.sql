@@ -17,6 +17,14 @@
 
 DO $$
 BEGIN
+  -- TWO historical constraint names sit on this column:
+  --   institutions_type_check             (added in 010/011)
+  --   institutions_institution_type_check (added in 014/015)
+  -- Both must permit the value or INSERTs fail. We drop both and
+  -- re-add the canonical one so the table ends up with exactly the
+  -- whitelist below.
+  ALTER TABLE public.institutions
+    DROP CONSTRAINT IF EXISTS institutions_type_check;
   ALTER TABLE public.institutions
     DROP CONSTRAINT IF EXISTS institutions_institution_type_check;
   ALTER TABLE public.institutions
