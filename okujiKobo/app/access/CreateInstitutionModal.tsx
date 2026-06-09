@@ -85,6 +85,12 @@ const INSTITUTION_TYPE_GROUPS: { label: string; options: { value: string; label:
     { value: 'corporate_sponsor',      label: 'Corporate sponsor' },
     { value: 'foundation',             label: 'Foundation' },
   ] },
+  { label: 'moichido', options: [
+    // M4.2 — merchant accounts that surface on moichido.app. Pilot path:
+    // platform admin creates an institution with this type, then attaches
+    // the merchant's user via employee_authorizations (existing flow).
+    { value: 'moichido_merchant',      label: 'moichido merchant' },
+  ] },
   { label: 'Other', options: [
     { value: 'general',                label: 'General (catch-all)' },
     { value: 'nonprofit',              label: 'Nonprofit (legacy)' },

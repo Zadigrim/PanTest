@@ -35,13 +35,22 @@ export async function middleware(request: NextRequest) {
   // Run BEFORE the auth check so the wrong-surface response is the
   // honest 404 / rewrite even if the user is signed out.
   //
-  // Internal-only paths (/_next, /api) are surface-agnostic for
-  // now. /api/moichido/* will get host-checked when those routes
-  // ship in M4.x — for now there are no moichido APIs and no
-  // moichido-shell client fetches, so /api is a shared concern.
+  // Internal-only paths (/_next, /api, /auth) are surface-agnostic.
+  // /auth/callback is shared by both surfaces — the route handler
+  // uses request.origin to build the post-exchange redirect, so it
+  // naturally lands the merchant back on moichido.app and the
+  // okuji user back on okuji.app from the same handler. Excluding
+  // /auth/ from the rewrite is what makes OAuth work on moichido
+  // after Supabase's allowlist (Fix A) is in place.
+  //
+  // /api/moichido/* will get host-checked when those routes ship
+  // in M4.3 — for now there are no moichido APIs, so /api stays
+  // a shared concern (the okuji-shell-only fetches that already
+  // exist run as today).
   const isInternal =
     pathname.startsWith('/_next') ||
     pathname.startsWith('/api/') ||
+    pathname.startsWith('/auth/') ||
     pathname === '/favicon.ico'
 
   if (!isInternal) {
@@ -95,9 +104,9 @@ export async function middleware(request: NextRequest) {
   const { data: { session } } = await supabase.auth.getSession()
 
   // OkujiKobo requires login for all pages except auth routes, public passport
-  // pages (share tokens), and the explore section. The moichido placeholder
-  // is currently public — when M4.x adds merchant features behind auth, this
-  // list grows a /moichido entry.
+  // pages (share tokens), and the explore section. moichido's auth surfaces
+  // (/moichido/auth/login, /moichido/auth/denied) stay public; the rest of
+  // the moichido tree requires auth as of M4.2.
   const isPublic =
     pathname.startsWith('/login') ||
     pathname.startsWith('/signup') ||
@@ -106,13 +115,16 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/explore') ||
     pathname.startsWith('/passport/') ||
     pathname.startsWith('/creator/') ||
-    pathname.startsWith('/moichido') ||   // M4.1 placeholder is public; tighten when merchant auth ships
+    pathname.startsWith('/moichido/auth/') || // moichido login + denied page
     pathname.startsWith('/_next') ||
     pathname.startsWith('/api/')
 
   if (!session && !isPublic) {
     const url = request.nextUrl.clone()
-    url.pathname = '/login'
+    // Host-aware login target: the moichido surface bounces to its
+    // own login (M4.2), never to the okuji /login. After Fix D the
+    // moichido auth path lives at /moichido/auth/login.
+    url.pathname = onMoichidoHost ? '/moichido/auth/login' : '/login'
     url.searchParams.set('next', pathname)
     return NextResponse.redirect(url)
   }
