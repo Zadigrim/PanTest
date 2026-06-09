@@ -1,7 +1,9 @@
 import { redirect } from 'next/navigation'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { RingMark } from '@/components/moichido/marks/RingMark'
 import { SignOutButton } from '@/components/moichido/SignOutButton'
+import { NewCardButton } from '@/components/moichido/designer/NewCardButton'
 
 /**
  * Moichido merchant home — M4.2 pilot dashboard.
@@ -102,21 +104,28 @@ export default async function MerchantHome() {
       </section>
 
       <section className="rounded-[12px] border border-moichido-hairline bg-white p-6">
-        <h2 className="text-sm font-semibold text-moichido-ink">Cards</h2>
-        <p className="mt-2 text-sm text-moichido-muted">
-          {cardCount === 0
-            ? 'No punch cards yet. The card designer is coming in the next release.'
-            : `You have ${cardCount} active card${cardCount === 1 ? '' : 's'}. Edit them via the card designer (coming soon).`}
-        </p>
-        <button
-          type="button"
-          disabled
-          title="The card designer ships in M4.3."
-          className="mt-4 inline-flex cursor-not-allowed items-center gap-2 rounded-[8px] border border-moichido-hairline bg-moichido-paper px-4 py-2 text-sm font-semibold text-moichido-muted"
-        >
-          <RingMark size={16} strokeWidth={2.4} />
-          Create card &mdash; coming
-        </button>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h2 className="text-sm font-semibold text-moichido-ink">Cards</h2>
+            <p className="mt-2 text-sm text-moichido-muted">
+              {cardCount === 0
+                ? 'No punch cards yet. Start one to see it here.'
+                : `You have ${cardCount} card${cardCount === 1 ? '' : 's'}.`}
+            </p>
+          </div>
+          <NewCardButton />
+        </div>
+        {cardCount > 0 && (
+          <div className="mt-4">
+            <Link
+              href="/moichido/cards"
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-moichido-teal hover:underline"
+            >
+              <RingMark size={14} strokeWidth={2.4} />
+              View all cards →
+            </Link>
+          </div>
+        )}
       </section>
 
       <p className="text-[11px] text-moichido-muted">

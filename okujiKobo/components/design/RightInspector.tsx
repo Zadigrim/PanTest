@@ -679,6 +679,13 @@ function StopInspector({
   const updateStop = usePassportStore((s) => s.updateStop)
   const removeStop = usePassportStore((s) => s.removeStop)
   const setSelectedStop = usePassportStore((s) => s.setSelectedStop)
+  // Consumable passports / moichido cards don't carry the passport-
+  // world stop concerns: no verification tier (vendor-presented token
+  // is the proof), no per-stop stamp picker (shape is card-level),
+  // no learning/educational/share semantics. Hide those sections;
+  // name + rotation stay so the merchant can still label a punch
+  // location and rotate the box.
+  const isConsumable = usePassportStore((s) => s.passport?.credential_type === 'consumable')
 
   const persist = async (patch: Partial<DesignerStop>) => {
     updateStop(stop.id, patch)
@@ -758,7 +765,7 @@ function StopInspector({
         </Section>
       )}
 
-      <Section title="Stamp">
+      {!isConsumable && <Section title="Stamp">
         <StampPicker stop={stop} persist={persist} />
 
         <Field label="Ink color">
@@ -796,14 +803,15 @@ function StopInspector({
             ))}
           </div>
         </div>
-      </Section>
+      </Section>}
 
-      <LocationSection stop={stop} updateStop={updateStop} persist={persist} />
+      {!isConsumable && <LocationSection stop={stop} updateStop={updateStop} persist={persist} />}
 
 
       {/* The duplicate "Type: Location / Activity" selector that lived
           here is gone — the canonical stop type now lives in the
           Location & Verification section above (migration 046). */}
+      {!isConsumable && <>
       <Section title="Learning">
         <Field label="Learning objective">
           <Input
@@ -944,6 +952,7 @@ function StopInspector({
           )}
         </Section>
       )}
+      </>}
 
       <div className="border-t border-hairline pt-4">
         <Button variant="danger" size="sm" className="w-full" onClick={handleDelete}>

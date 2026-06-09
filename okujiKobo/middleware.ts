@@ -77,6 +77,24 @@ export async function middleware(request: NextRequest) {
     }
   }
 
+  // ── API host gate (M4.3) ───────────────────────────────────────
+  // /api/moichido/* is the merchant API surface (cards write, future
+  // analytics, etc.). It must be reachable ONLY from the moichido
+  // host so a passport-surface client can't call it; conversely
+  // /api/* (non-moichido) is unreachable from the moichido host so
+  // the merchant shell can't accidentally call into okuji APIs.
+  //
+  // This runs AFTER the rewrite block above. /auth/* and other
+  // shared concerns are not /api/* so unaffected.
+  if (pathname.startsWith('/api/')) {
+    if (onMoichidoHost && !pathname.startsWith('/api/moichido/')) {
+      return new NextResponse('Not found', { status: 404 })
+    }
+    if (!onMoichidoHost && pathname.startsWith('/api/moichido/')) {
+      return new NextResponse('Not found', { status: 404 })
+    }
+  }
+
   // ── Auth gate (unchanged from pre-M4.1) ───────────────────────
   let supabaseResponse = NextResponse.next({ request })
 
