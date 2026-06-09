@@ -5,6 +5,7 @@ import {
   Lora,
   Bebas_Neue,
   Abril_Fatface,
+  Space_Grotesk,
 } from 'next/font/google'
 import { AdminOverlay } from '@/components/admin/AdminOverlay'
 import { Analytics } from '@vercel/analytics/next'
@@ -44,6 +45,18 @@ const abril = Abril_Fatface({
   display: 'swap',
 })
 
+// Space Grotesk — moichido brand font. Lives on the body via the
+// CSS variable so the moichido surface (app/moichido/*) can opt
+// in via `font-moichido` Tailwind class. The okuji surfaces never
+// reach for `font-moichido`; the variable is declared but unused
+// outside moichido chrome.
+const spaceGrotesk = Space_Grotesk({
+  subsets: ['latin'],
+  variable: '--font-space-grotesk',
+  weight: ['400', '500', '700'],
+  display: 'swap',
+})
+
 export const metadata: Metadata = {
   title: 'okujiKobo',
   description: 'Discover and collect passport experiences',
@@ -61,7 +74,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body
-        className={`${inter.variable} ${playfair.variable} ${lora.variable} ${bebas.variable} ${abril.variable}`}
+        className={`${inter.variable} ${playfair.variable} ${lora.variable} ${bebas.variable} ${abril.variable} ${spaceGrotesk.variable}`}
       >
         <AdminOverlay>
           {children}

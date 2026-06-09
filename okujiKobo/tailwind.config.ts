@@ -59,10 +59,35 @@ const config: Config = {
           walnut:  '#5a3a1a',
           jet:     '#2a1f12',
         },
+
+        // moichido tokens — totally isolated palette for the
+        // moichido merchant surface (app/moichido/*). The okuji
+        // tree never references bg-moichido-* / text-moichido-*;
+        // the moichido tree never references bg-paper / text-ink /
+        // etc. Surface isolation per CLAUDE.md.
+        //
+        // Source of truth: okujiKobo/lib/moichido/tokens.ts. When
+        // refining brand hexes, update both files — they read as
+        // independent because Tailwind doesn't import TS objects
+        // into its config without a build step we'd rather avoid.
+        moichido: {
+          teal:     '#0F4C5C',
+          apricot:  '#E8915D',
+          ink:      '#1A1410',
+          paper:    '#FBF7F2',
+          hairline: '#E2D7C6',
+          muted:    '#7A6F62',
+        },
       },
       fontFamily: {
         sans:  ['Inter', 'system-ui', 'sans-serif'],
         serif: ['Georgia', 'serif'],
+        // moichido wordmark + chrome font. Registered via
+        // next/font in app/layout.tsx; the variable is set on
+        // body and inherited inside the moichido layout via the
+        // `font-moichido` utility (used on the body wrapper there).
+        // okuji surfaces never set this utility.
+        moichido: ['var(--font-space-grotesk)', 'Inter', 'system-ui', 'sans-serif'],
       },
       borderRadius: {
         card:  '6px',

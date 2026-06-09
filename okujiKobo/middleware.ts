@@ -1,7 +1,74 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 
+/**
+ * Host-based surface isolation (M4.1).
+ *
+ * Two surfaces share one Next.js app:
+ *   - okuji (passport world)         → any host that isn't moichido
+ *   - moichido (merchant world)      → host matches MOICHIDO_HOST env var
+ *
+ * The moichido tree lives under app/moichido/*. Requests to the
+ * moichido host get rewritten so /foo → /moichido/foo internally
+ * (the URL the user sees stays clean — moichido.app/foo, not
+ * moichido.app/moichido/foo). Requests to the okuji host that try
+ * to address /moichido/* directly get 404'd.
+ *
+ * MOICHIDO_HOST is read from the environment. Local dev / Vercel
+ * preview / production each set it independently. Unset → no host
+ * matches → moichido tree is entirely unreachable (the safe
+ * default).
+ */
+const MOICHIDO_HOST = process.env.MOICHIDO_HOST?.toLowerCase() ?? null
+
+function hostMatches(request: NextRequest): boolean {
+  if (!MOICHIDO_HOST) return false
+  const host = (request.headers.get('host') ?? '').toLowerCase()
+  return host === MOICHIDO_HOST
+}
+
 export async function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl
+  const onMoichidoHost = hostMatches(request)
+
+  // ── Surface isolation gate ─────────────────────────────────────
+  // Run BEFORE the auth check so the wrong-surface response is the
+  // honest 404 / rewrite even if the user is signed out.
+  //
+  // Internal-only paths (/_next, /api) are surface-agnostic for
+  // now. /api/moichido/* will get host-checked when those routes
+  // ship in M4.x — for now there are no moichido APIs and no
+  // moichido-shell client fetches, so /api is a shared concern.
+  const isInternal =
+    pathname.startsWith('/_next') ||
+    pathname.startsWith('/api/') ||
+    pathname === '/favicon.ico'
+
+  if (!isInternal) {
+    if (onMoichidoHost) {
+      // moichido host. Anything outside the moichido tree gets
+      // rewritten into it. /dashboard → /moichido/dashboard. If
+      // the rewritten path doesn't exist (most paths don't yet),
+      // Next.js 404s naturally.
+      if (!pathname.startsWith('/moichido')) {
+        const rewrite = request.nextUrl.clone()
+        rewrite.pathname = '/moichido' + (pathname === '/' ? '' : pathname)
+        return NextResponse.rewrite(rewrite)
+      }
+      // Already in the moichido tree — let it through. The /moichido
+      // prefix is internal-only; users see clean URLs because of
+      // the rewrite above on every other path.
+    } else {
+      // okuji host (or any unrecognised host). The moichido tree
+      // is unreachable: a typed-by-hand /moichido/X URL on the
+      // okuji host 404s instead of rendering the moichido shell.
+      if (pathname.startsWith('/moichido')) {
+        return new NextResponse('Not found', { status: 404 })
+      }
+    }
+  }
+
+  // ── Auth gate (unchanged from pre-M4.1) ───────────────────────
   let supabaseResponse = NextResponse.next({ request })
 
   const supabase = createServerClient(
@@ -27,10 +94,10 @@ export async function middleware(request: NextRequest) {
   // getUser() there, which is the authoritative security check.
   const { data: { session } } = await supabase.auth.getSession()
 
-  const { pathname } = request.nextUrl
-
   // OkujiKobo requires login for all pages except auth routes, public passport
-  // pages (share tokens), and the explore section.
+  // pages (share tokens), and the explore section. The moichido placeholder
+  // is currently public — when M4.x adds merchant features behind auth, this
+  // list grows a /moichido entry.
   const isPublic =
     pathname.startsWith('/login') ||
     pathname.startsWith('/signup') ||
@@ -39,6 +106,7 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/explore') ||
     pathname.startsWith('/passport/') ||
     pathname.startsWith('/creator/') ||
+    pathname.startsWith('/moichido') ||   // M4.1 placeholder is public; tighten when merchant auth ships
     pathname.startsWith('/_next') ||
     pathname.startsWith('/api/')
 
