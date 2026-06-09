@@ -196,6 +196,15 @@ export interface DesignerPassport {
   // expires_at is stored on collector_passports per copy).
   show_copy_number?: boolean
   expiry_duration_days?: number | null
+  // M2 (web-tree 069 + 071) — credential type + consumable target.
+  // 'persistent' = traditional stamp collection (default).
+  // 'consumable' = punch-card / loyalty card; cards consume + reissue
+  //                via M3's redeem_completion. consumable_target_count
+  //                is the design-time default punch count per card.
+  // The whole-passport discriminator: a passport is either stamp or
+  // punch. Per-page hybrid is a deferred decision.
+  credential_type?: 'persistent' | 'consumable'
+  consumable_target_count?: number | null
 }
 
 export type PageType = 'stamp' | 'information'

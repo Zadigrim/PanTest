@@ -374,6 +374,14 @@ export async function saveAll(): Promise<BatchError[]> {
       // retroactively expire holders.
       show_copy_number:       passport.show_copy_number,
       expiry_duration_days:   passport.expiry_duration_days,
+      // M2 — credential type + design-time consumable target.
+      // Whole-passport discriminator (persistent | consumable).
+      // consumable_target_count is only meaningful on consumable;
+      // unset on persistent. Persisted so the M3
+      // ensure_collector_passport SECDEF picks up the right value
+      // when seeding a holder's first card_instance at acquisition.
+      credential_type:         passport.credential_type,
+      consumable_target_count: passport.consumable_target_count,
       updated_at:             new Date().toISOString(),
     }, 'id', passport.id)
     if (passportErr) {

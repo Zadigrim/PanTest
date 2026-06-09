@@ -151,6 +151,85 @@ export function PassportSettingsPanel({ onClose }: Props) {
             </div>
           </section>
 
+          {/* Credential type — passports.credential_type (M2 web-tree 069).
+              Whole-passport discriminator. Switching from persistent to
+              consumable on a passport that has acquisitions is allowed
+              structurally but won't reseed existing card_instances; the
+              warning text below names the constraint. Per-page hybrid is
+              a deferred decision. */}
+          <section className="space-y-3">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-muted">
+              Credential type
+            </h3>
+            <div className="space-y-2">
+              <label className="flex items-start gap-2 rounded-panel border border-hairline p-3 cursor-pointer hover:bg-paper">
+                <input
+                  type="radio"
+                  name="credential_type"
+                  value="persistent"
+                  checked={(passport.credential_type ?? 'persistent') === 'persistent'}
+                  onChange={() => persist({ credential_type: 'persistent', consumable_target_count: null })}
+                  className="mt-0.5"
+                />
+                <div className="flex-1">
+                  <span className="block text-sm font-medium text-ink">Passport (stamp collection)</span>
+                  <span className="block text-xs text-muted">
+                    Collectors earn one stamp per stop. Default model.
+                  </span>
+                </div>
+              </label>
+              <label className="flex items-start gap-2 rounded-panel border border-hairline p-3 cursor-pointer hover:bg-paper">
+                <input
+                  type="radio"
+                  name="credential_type"
+                  value="consumable"
+                  checked={passport.credential_type === 'consumable'}
+                  onChange={() => persist({
+                    credential_type: 'consumable',
+                    // Default to 10 punches when first switching — a
+                    // sensible loyalty-card default; the creator can
+                    // override below.
+                    consumable_target_count: passport.consumable_target_count ?? 10,
+                  })}
+                  className="mt-0.5"
+                />
+                <div className="flex-1">
+                  <span className="block text-sm font-medium text-ink">Loyalty card (punch)</span>
+                  <span className="block text-xs text-muted">
+                    Collectors punch the same card repeatedly. Card consumes + reissues at the target count.
+                  </span>
+                </div>
+              </label>
+
+              {passport.credential_type === 'consumable' && (
+                <div className="space-y-1 pt-1">
+                  <Label className="text-xs text-muted">Target punches per card</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={100}
+                    value={passport.consumable_target_count ?? 10}
+                    onChange={(e) => {
+                      const n = Number(e.target.value)
+                      updatePassport({ consumable_target_count: Number.isFinite(n) ? n : null })
+                    }}
+                    onBlur={(e) => {
+                      const n = Number(e.target.value)
+                      const v = Number.isFinite(n) && n > 0 ? n : 10
+                      persist({ consumable_target_count: v })
+                    }}
+                    className="h-8 w-24 text-sm"
+                  />
+                  <p className="text-xs text-muted">
+                    New holders receive a fresh card configured for this many punches. Changing this
+                    affects FUTURE acquisitions only — existing holders keep their card&apos;s original
+                    target.
+                  </p>
+                </div>
+              )}
+            </div>
+          </section>
+
           {/* Cover */}
           <section className="space-y-3">
             <h3 className="text-xs font-semibold uppercase tracking-wider text-muted">

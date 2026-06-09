@@ -176,6 +176,13 @@ export function LeftPalette() {
 
   const activePage = pages.find((p) => p.id === activePageId)
   const isInfoPage = activePage?.page_type === 'information'
+  // Relabel a handful of affordances when this is a loyalty card so
+  // the chrome matches the model (punch / punch location vs stamp /
+  // stop). Backend semantics live on credential_type already; this
+  // is purely a labeling concern.
+  const isConsumable = passport?.credential_type === 'consumable'
+  const stopLabel  = isConsumable ? 'punch location' : 'stop'
+  const stopsLabel = isConsumable ? 'Punch locations' : 'Stops'
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }))
 
@@ -480,11 +487,11 @@ export function LeftPalette() {
           </Button>
         </div>
 
-        {/* Stops — only on stamp pages */}
+        {/* Stops / Punch locations — only on stamp pages */}
         {!isInfoPage && (
           <div className="border-b border-hairline px-3 py-2">
             <p className="mb-1.5 text-xs font-medium uppercase tracking-wider text-muted">
-              Stops
+              {stopsLabel}
             </p>
             <StopsList />
             <Button
@@ -494,7 +501,7 @@ export function LeftPalette() {
               onClick={handleAddStop}
               disabled={addingStop || !activePageId}
             >
-              {addingStop ? 'Adding…' : '+ Add stop'}
+              {addingStop ? 'Adding…' : `+ Add ${stopLabel}`}
             </Button>
           </div>
         )}
