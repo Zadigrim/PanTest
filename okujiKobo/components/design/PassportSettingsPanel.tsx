@@ -8,7 +8,7 @@ import { Button } from './ui/Button'
 import { Input } from './ui/Input'
 import { Label } from './ui/Label'
 import { SPEND_TIERS, spendTierLabel } from '@/lib/design/spend-tiers'
-import { downloadPrintPdf } from '@/lib/print/download'
+import { PrintOptionsDialog } from './PrintOptionsDialog'
 import type { SpendTier, CreatorDecision } from '@/lib/design/types'
 
 interface Props {
@@ -38,19 +38,9 @@ export function PassportSettingsPanel({ onClose }: Props) {
   const [verifyResult, setVerifyResult] = useState<VerifyResult | null>(null)
   const [verifyError, setVerifyError] = useState<string | null>(null)
   const [decision, setDecision] = useState<CreatorDecision | null>(null)
-  const [printing, setPrinting] = useState(false)
-  const [printError, setPrintError] = useState<string | null>(null)
+  const [printOpen, setPrintOpen] = useState(false)
 
   if (!passport) return null
-
-  async function handlePrint() {
-    if (!passport || printing) return
-    setPrinting(true)
-    setPrintError(null)
-    const result = await downloadPrintPdf(passport.id, passport.title)
-    if (!result.ok) setPrintError(result.error)
-    setPrinting(false)
-  }
 
   const persist = async (patch: Parameters<typeof updatePassport>[0]) => {
     updatePassport(patch)
@@ -318,17 +308,15 @@ export function PassportSettingsPanel({ onClose }: Props) {
                     variant="secondary"
                     size="sm"
                     className="w-full"
-                    onClick={handlePrint}
-                    disabled={printing}
+                    onClick={() => setPrintOpen(true)}
                   >
-                    🖨 {printing ? 'Generating…' : 'Print for kids'}
+                    Print for kids
                   </Button>
-                  {printError && (
-                    <p role="alert" className="text-xs text-accent">
-                      {printError}
-                      <button type="button" onClick={() => setPrintError(null)} className="ml-2 underline">dismiss</button>
-                    </p>
-                  )}
+                  <PrintOptionsDialog
+                    passport={{ id: passport.id, title: passport.title }}
+                    open={printOpen}
+                    onOpenChange={setPrintOpen}
+                  />
                 </>
               )}
             </section>

@@ -1,31 +1,32 @@
 'use client'
 
-// One-click PDF download for the "Print physical passports" feature.
+// PDF download for the "Print physical passports" feature.
 //
-// The previous flow opened a modal that exposed stop-selection, copies,
-// journal-override radios, a Preview button, and a Download button. All
-// of those options have been removed: every stop is always included,
-// copies are chosen at the printer, and journal lines don't render
-// at all (that mechanism — lines layered onto stop pages — is being
-// retired; future journal-line support will be implemented as dedicated
-// journal pages, not as an overlay on stop pages).
+// An earlier flow exposed stop-selection, copies, and journal-override
+// radios; those were removed (every stop is always included, copies are
+// chosen at the printer, journal lines don't render). The one option
+// that survives is `showStamps`: whether to render each stop's stamp
+// image inside its location box. Off by default — a blank box is what
+// collectors physically stamp into; on is a "how it'll look when
+// stamped" preview. The caller opens a small modal to set it.
 //
-// What's left is this: POST the request, take the blob, fire an <a>
-// click to download. The caller wires a single button (no modal, no
-// state). Returns a result so the caller can surface an error banner.
+// POST the request, take the blob, fire an <a> click to download.
+// Returns a result so the caller can surface an error banner.
 
 export type DownloadResult = { ok: true } | { ok: false; error: string }
 
 export async function downloadPrintPdf(
   passportId: string,
   passportTitle: string,
+  showStamps = false,
 ): Promise<DownloadResult> {
   const res = await fetch(`/api/passports/${passportId}/print-pdf`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    // No body fields anymore. The route accepts empty JSON and includes
-    // every stop, no copy multiplication, no journal toggle.
-    body: '{}',
+    // show_stamps drives whether stop stamp images render in the boxes.
+    // Every stop is still always included; no copy multiplication, no
+    // journal toggle.
+    body: JSON.stringify({ show_stamps: showStamps }),
   })
 
   if (!res.ok) {

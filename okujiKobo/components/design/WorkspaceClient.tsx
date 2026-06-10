@@ -10,10 +10,10 @@ import { CoverCanvas } from './CoverCanvas'
 import { CoverInspector } from './CoverInspector'
 import { CoverPalette } from './CoverPalette'
 import { PassportSettingsPanel } from './PassportSettingsPanel'
+import { PrintOptionsDialog } from './PrintOptionsDialog'
 import { PublishFlow } from './PublishFlow'
 import { HelpDrawer } from './HelpDrawer'
 import { Button } from './ui/Button'
-import { downloadPrintPdf } from '@/lib/print/download'
 import { useAutosave } from '@/hooks/useAutosave'
 import { retryFailed, saveAll } from '@/lib/design/persist'
 import { useWorkspaceKeyboard } from '@/hooks/useWorkspaceKeyboard'
@@ -44,8 +44,7 @@ export function WorkspaceClient({ passport, pages, stops, creatorInstitutionId }
   const [showSettings, setShowSettings] = useState(false)
   const [showPublish, setShowPublish] = useState(false)
   const [showHelp, setShowHelp] = useState(false)
-  const [printing, setPrinting] = useState(false)
-  const [printError, setPrintError] = useState<string | null>(null)
+  const [printOpen, setPrintOpen] = useState(false)
   const [navigating, setNavigating] = useState(false)
   const [viewMode, setViewMode] = useState<'cover' | 'pages'>('pages')
   const [coverFace, setCoverFace] = useState<CoverFace>('outside')
@@ -152,24 +151,15 @@ export function WorkspaceClient({ passport, pages, stops, creatorInstitutionId }
           <Button
             variant="ghost"
             size="sm"
-            onClick={async () => {
-              if (printing) return
-              setPrinting(true)
-              setPrintError(null)
-              const r = await downloadPrintPdf(displayPassport.id, displayPassport.title)
-              if (!r.ok) setPrintError(r.error)
-              setPrinting(false)
-            }}
-            disabled={printing}
+            onClick={() => setPrintOpen(true)}
           >
-            {printing ? 'Generating…' : 'Print'}
+            Print
           </Button>
-          {printError && (
-            <span role="alert" className="text-xs text-accent">
-              {printError}
-              <button type="button" onClick={() => setPrintError(null)} className="ml-1 underline">×</button>
-            </span>
-          )}
+          <PrintOptionsDialog
+            passport={{ id: displayPassport.id, title: displayPassport.title }}
+            open={printOpen}
+            onOpenChange={setPrintOpen}
+          />
           <Button variant="ghost" size="sm" onClick={() => setShowSettings(true)}>
             Settings
           </Button>
