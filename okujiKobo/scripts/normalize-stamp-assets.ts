@@ -30,6 +30,7 @@
 
 import { createClient } from '@supabase/supabase-js'
 import { serializeStampSvg } from '@/lib/design/stamp-composer/svg'
+import { normalizeStampSvgBuffer } from '@/lib/design/stamp-composer/normalize-svg-buffer'
 import type { ComposerMetadata } from '@/lib/design/stamp-composer/types'
 
 function fail(msg: string): never {
@@ -41,6 +42,7 @@ interface StampAssetRow {
   id: string
   name: string | null
   storage_path: string | null
+  url: string | null
   metadata: ComposerMetadata | null
 }
 
@@ -57,7 +59,7 @@ async function main() {
 
   const { data: rows, error } = await sb
     .from('design_assets')
-    .select('id, name, storage_path, metadata')
+    .select('id, name, storage_path, url, metadata')
     .eq('asset_type', 'stamp')
     .eq('file_format', 'image/svg+xml')
   if (error) fail(`Lookup failed: ${error.message}`)
@@ -70,19 +72,41 @@ async function main() {
   let failed = 0
 
   for (const row of stamps) {
-    if (!row.metadata || !Array.isArray(row.metadata.elements)) {
-      console.log(`  · skip ${row.id} (${row.name ?? 'unnamed'}) — no composer metadata`)
-      skipped++
-      continue
-    }
     if (!row.storage_path) {
       console.log(`  · skip ${row.id} (${row.name ?? 'unnamed'}) — no storage_path`)
       skipped++
       continue
     }
 
-    const svg = serializeStampSvg(row.metadata)
-    const blob = new Blob([svg], { type: 'image/svg+xml' })
+    // Two paths:
+    //   - Has composer metadata → re-serialize via the canonical
+    //     serializer (cheapest, deterministic).
+    //   - No metadata (raw uploads pre-056 or via /api/assets/upload)
+    //     → fetch the stored SVG, run the alpha-channel trim
+    //     normalizer (the same one /api/assets/upload uses going
+    //     forward).
+    let bytes: Buffer
+    if (row.metadata && Array.isArray(row.metadata.elements)) {
+      const svg = serializeStampSvg(row.metadata)
+      bytes = Buffer.from(svg, 'utf-8')
+    } else if (row.url) {
+      try {
+        const res = await fetch(row.url)
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        const buf = Buffer.from(await res.arrayBuffer())
+        bytes = await normalizeStampSvgBuffer(buf)
+      } catch (err) {
+        console.log(`  ✗ ${row.id} (${row.name ?? 'unnamed'}) — fetch/normalize failed: ${err instanceof Error ? err.message : String(err)}`)
+        failed++
+        continue
+      }
+    } else {
+      console.log(`  · skip ${row.id} (${row.name ?? 'unnamed'}) — no metadata and no url`)
+      skipped++
+      continue
+    }
+
+    const blob = new Blob([new Uint8Array(bytes)], { type: 'image/svg+xml' })
 
     const { error: upErr } = await sb.storage
       .from('design-assets')

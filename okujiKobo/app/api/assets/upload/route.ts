@@ -156,12 +156,22 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const storagePath = `${user.id}/${assetType}/${Date.now()}.${ext}`
 
   const bytes = await file.arrayBuffer()
-  const buffer = Buffer.from(bytes)
+  let buffer = Buffer.from(bytes)
 
   // Run monochrome detection for stamp uploads
   let isMonochrome: boolean | null = null
   if (assetType === 'stamp') {
     isMonochrome = await detectMonochrome(buffer, file.type)
+  }
+
+  // Stamp + SVG → normalize the alpha-channel content bounds so the
+  // stored file fills its container centered. Renders via sharp,
+  // trims transparent edges, maps the resulting bbox back to SVG
+  // coordinates, rewrites the root <svg>. Failure returns the
+  // original buffer unchanged (upload is never blocked on this).
+  if (assetType === 'stamp' && file.type === 'image/svg+xml') {
+    const { normalizeStampSvgBuffer } = await import('@/lib/design/stamp-composer/normalize-svg-buffer')
+    buffer = await normalizeStampSvgBuffer(buffer)
   }
 
   const { error: uploadErr } = await supabase.storage
