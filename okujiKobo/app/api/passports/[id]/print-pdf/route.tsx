@@ -188,6 +188,11 @@ function twemojiPngUrl(emoji: string | null | undefined): string | null {
 // baseline JPEG. URLs that failed to normalize are nulled out so the
 // slot renders blank rather than a broken image.
 //
+// Exception: stamp preview images normalize with preserveAlpha — they
+// keep transparency and come back as a clean 8-bit RGBA `data:image/
+// png;base64,...` URL (the pdfkit-safe PNG subset), so a transparent
+// stamp sits over the page background without a paper-colored box.
+//
 // (Earlier attempt used React.createContext to propagate the normalized
 // buffers, but Next.js 14 App Router compiles API routes against
 // react-server which omits createContext. The pre-processing approach
@@ -1191,10 +1196,11 @@ async function handlePrintRequest(request: Request, passportId: string) {
         if (u) items.push({ url: u, paperHex: pageHex })
       }
     }
-    // Raster/emoji stamp images (preview mode) — flatten against the
-    // page's paper colour, the same surface the box sits on.
+    // Raster/emoji stamp images (preview mode) — preserve alpha so a
+    // transparent PNG stamp (or a Twemoji glyph) sits cleanly over the
+    // page background instead of carrying a paper-colored rectangle.
     for (const stop of page.stops) {
-      if (stop.stampImageUrl) items.push({ url: stop.stampImageUrl, paperHex: pageHex })
+      if (stop.stampImageUrl) items.push({ url: stop.stampImageUrl, paperHex: pageHex, preserveAlpha: true })
     }
   }
 
@@ -1205,9 +1211,9 @@ async function handlePrintRequest(request: Request, passportId: string) {
   // data:image/jpeg;base64,... URL from the normalizer for the specific
   // paper colour it was flattened against, or null if normalization
   // failed (so the component skips rather than rendering a broken slot).
-  const remap = (u: string | null | undefined, paperHex: string): string | null => {
+  const remap = (u: string | null | undefined, paperHex: string, preserveAlpha = false): string | null => {
     if (!u) return null
-    return normalized.get(normalizeKey(u, paperHex)) ?? null
+    return normalized.get(normalizeKey(u, paperHex, preserveAlpha)) ?? null
   }
   const remapElements = (els: PageElement[], paperHex: string): PageElement[] =>
     (els ?? []).map((el) => {
@@ -1236,7 +1242,7 @@ async function handlePrintRequest(request: Request, passportId: string) {
       // data:image URI (null if the fetch/decode failed → blank box).
       stops: p.stops.map((stop) =>
         stop.stampImageUrl
-          ? { ...stop, stampImageUrl: remap(stop.stampImageUrl, pageHex) }
+          ? { ...stop, stampImageUrl: remap(stop.stampImageUrl, pageHex, true) }
           : stop,
       ),
     }

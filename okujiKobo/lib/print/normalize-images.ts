@@ -33,25 +33,35 @@ export interface NormalizeContext {
    *  the source has alpha. The route passes each image's destination
    *  paper color so flattened pixels match what the user designed —
    *  page element images use their page's paper_color, cover images
-   *  use cover_paper_color, etc. */
+   *  use cover_paper_color, etc. Ignored when preserveAlpha is set. */
   paperHex: string
+  /** When true, keep the source's alpha channel instead of flattening
+   *  onto paperHex: re-encode as a clean 8-bit, non-interlaced RGBA PNG
+   *  (the subset pdfkit decodes reliably) so transparency survives into
+   *  the PDF. Used for stamp images, which sit in boxes over page
+   *  backgrounds and must not carry a paper-colored rectangle. */
+  preserveAlpha?: boolean
 }
 
 /** A single image to normalize, with the paper colour its transparent
  *  pixels should blend into. Different pages on the same passport can
  *  have different paper colours; flattening on the wrong one shows
  *  up as a visible bounding rectangle where the alpha-flattened pixels
- *  meet the actual page background. */
+ *  meet the actual page background. Set preserveAlpha to skip flattening
+ *  entirely and keep transparency (stamp images). */
 export interface NormalizeItem {
   url: string
   paperHex: string
+  preserveAlpha?: boolean
 }
 
 /** Key for the Map returned by normalizeAll. Exposed so callers can
  *  look up images they queued. Lowercased so 'FFFFFF' and 'ffffff'
- *  collapse to one cache key. */
-export function normalizeKey(url: string, paperHex: string): string {
-  return `${url}::${paperHex.replace(/^#/, '').toLowerCase()}`
+ *  collapse to one cache key. preserveAlpha is part of the key so the
+ *  same URL requested both flattened and alpha-preserved stays
+ *  distinct. */
+export function normalizeKey(url: string, paperHex: string, preserveAlpha = false): string {
+  return `${url}::${paperHex.replace(/^#/, '').toLowerCase()}::${preserveAlpha ? 'a' : 'j'}`
 }
 
 function paperHexToRgb(hex: string): { r: number; g: number; b: number } {
@@ -90,8 +100,7 @@ export async function normalizeImage(
     return null
   }
   try {
-    const bg = paperHexToRgb(ctx.paperHex)
-    const out = await sharp(bytes, { failOn: 'none' })
+    const base = sharp(bytes, { failOn: 'none' })
       .rotate() // honour EXIF orientation
       .resize({
         width: MAX_DIMENSION,
@@ -99,6 +108,22 @@ export async function normalizeImage(
         fit: 'inside',
         withoutEnlargement: true,
       })
+
+    if (ctx.preserveAlpha) {
+      // Keep transparency. Re-encode to the PNG subset pdfkit handles
+      // cleanly: 8-bit depth, no interlace, full RGBA (no palette), sRGB,
+      // metadata/ICC stripped (sharp drops metadata unless asked to keep
+      // it). This avoids the 16-bit / Adam7 / ICC decode gaps that the
+      // JPEG path was built to dodge, while preserving the alpha channel.
+      const out = await base
+        .toColourspace('srgb')
+        .png({ compressionLevel: 9, adaptiveFiltering: false, palette: false, force: true })
+        .toBuffer()
+      return `data:image/png;base64,${out.toString('base64')}`
+    }
+
+    const bg = paperHexToRgb(ctx.paperHex)
+    const out = await base
       // Flatten any alpha onto the surrounding paper color. JPEG output
       // discards transparency anyway; doing the composite explicitly
       // means edge pixels of partially-transparent PNGs blend to the
@@ -124,7 +149,7 @@ export async function normalizeAll(
   const unique: NormalizeItem[] = []
   for (const it of items) {
     if (!it.url) continue
-    const k = normalizeKey(it.url, it.paperHex)
+    const k = normalizeKey(it.url, it.paperHex, it.preserveAlpha)
     if (seen.has(k)) continue
     seen.add(k)
     unique.push(it)
@@ -137,8 +162,8 @@ export async function normalizeAll(
     while (cursor < unique.length) {
       const i = cursor++
       const it = unique[i]
-      const result = await normalizeImage(it.url, { paperHex: it.paperHex })
-      if (result) out.set(normalizeKey(it.url, it.paperHex), result)
+      const result = await normalizeImage(it.url, { paperHex: it.paperHex, preserveAlpha: it.preserveAlpha })
+      if (result) out.set(normalizeKey(it.url, it.paperHex, it.preserveAlpha), result)
     }
   }
 
