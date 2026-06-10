@@ -26,8 +26,15 @@ export const portland: PassportTemplate = {
   description: 'I knew what was in every direction.',
   passportType: 'location',
   expectedSpendTier: '15_50',
-  isPublished: true,
-  // Rose for City of Roses — distinct from Bainbridge's compass.
+  // isPublished intentionally OMITTED — the publish-gate trigger
+  // (enforce_publish_gate, migration 045) calls auth.uid() to resolve
+  // who's publishing and verify their Studio status. The seeder runs
+  // as the service role where auth.uid() is NULL, so trigger-side
+  // publish from this script fails even when the creator's Studio
+  // comp is granted. Open the seeded passport in /design and click
+  // Publish once — the gate passes against your real session and the
+  // browser-side image pipeline runs as a side effect, caching PNGs.
+  // Result is identical to a server-side publish would be.
   coverEmblem: '🌹',
 
   pages: [
