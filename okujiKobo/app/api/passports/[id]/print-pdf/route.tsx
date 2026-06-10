@@ -31,6 +31,10 @@ async function loadMarketingMark(): Promise<string | null> {
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
+// Resample cap for stamp preview images. Stamps render under an inch in
+// the box; a PNG is fully decoded (+ SMask) by pdfkit at render, so this
+// bound keeps a passport full of stamps from exhausting function memory.
+const STAMP_MAX_DIMENSION = 384
 const ARTBOARD_W = 612, ARTBOARD_H = 792
 const COVER_DESIGN_W = 1248, COVER_DESIGN_H = 792, COVER_PANEL_W = 612, COVER_SPINE_W = 24
 const SHEET_W = 612, SHEET_H = 792
@@ -1199,8 +1203,11 @@ async function handlePrintRequest(request: Request, passportId: string) {
     // Raster/emoji stamp images (preview mode) — preserve alpha so a
     // transparent PNG stamp (or a Twemoji glyph) sits cleanly over the
     // page background instead of carrying a paper-colored rectangle.
+    // Cap the resample small: stamps print under an inch, and a PNG is
+    // fully decoded (+ SMask) by pdfkit, so a large one is what blows
+    // memory/time on a passport with many stamps.
     for (const stop of page.stops) {
-      if (stop.stampImageUrl) items.push({ url: stop.stampImageUrl, paperHex: pageHex, preserveAlpha: true })
+      if (stop.stampImageUrl) items.push({ url: stop.stampImageUrl, paperHex: pageHex, preserveAlpha: true, maxDimension: STAMP_MAX_DIMENSION })
     }
   }
 

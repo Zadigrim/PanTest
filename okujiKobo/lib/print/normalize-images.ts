@@ -41,6 +41,12 @@ export interface NormalizeContext {
    *  the PDF. Used for stamp images, which sit in boxes over page
    *  backgrounds and must not carry a paper-colored rectangle. */
   preserveAlpha?: boolean
+  /** Optional override for the resampling cap (default MAX_DIMENSION).
+   *  Stamp images pass a small value: unlike a JPEG (which pdfkit embeds
+   *  whole), a PNG is fully DECODED to raw pixels + an SMask at render,
+   *  so a large stamp PNG is memory/CPU-heavy. Stamps display under an
+   *  inch, so a few hundred px is plenty and keeps the render bounded. */
+  maxDimension?: number
 }
 
 /** A single image to normalize, with the paper colour its transparent
@@ -53,6 +59,8 @@ export interface NormalizeItem {
   url: string
   paperHex: string
   preserveAlpha?: boolean
+  /** Resampling cap override (default MAX_DIMENSION). See NormalizeContext. */
+  maxDimension?: number
 }
 
 /** Key for the Map returned by normalizeAll. Exposed so callers can
@@ -100,11 +108,12 @@ export async function normalizeImage(
     return null
   }
   try {
+    const cap = ctx.maxDimension ?? MAX_DIMENSION
     const base = sharp(bytes, { failOn: 'none' })
       .rotate() // honour EXIF orientation
       .resize({
-        width: MAX_DIMENSION,
-        height: MAX_DIMENSION,
+        width: cap,
+        height: cap,
         fit: 'inside',
         withoutEnlargement: true,
       })
@@ -162,7 +171,7 @@ export async function normalizeAll(
     while (cursor < unique.length) {
       const i = cursor++
       const it = unique[i]
-      const result = await normalizeImage(it.url, { paperHex: it.paperHex, preserveAlpha: it.preserveAlpha })
+      const result = await normalizeImage(it.url, { paperHex: it.paperHex, preserveAlpha: it.preserveAlpha, maxDimension: it.maxDimension })
       if (result) out.set(normalizeKey(it.url, it.paperHex, it.preserveAlpha), result)
     }
   }
