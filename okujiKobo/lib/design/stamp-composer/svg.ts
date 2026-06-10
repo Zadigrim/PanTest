@@ -56,6 +56,7 @@ export function serializeStampSvg(doc: ComposerMetadata): string {
 
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${vb}" ` +
+    `width="100%" height="100%" ` +
     `fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">\n` +
     `  ${body}\n` +
     `</svg>`

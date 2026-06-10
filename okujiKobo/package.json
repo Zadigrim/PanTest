@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "seed:passport": "tsx --env-file=.env.local scripts/seed-sample-passports.ts"
+    "seed:passport": "tsx --env-file=.env.local scripts/seed-sample-passports.ts",
+    "normalize:stamps": "tsx --env-file=.env.local scripts/normalize-stamp-assets.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
