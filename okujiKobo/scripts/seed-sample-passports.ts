@@ -31,12 +31,14 @@ import type {
 } from './templates/types'
 import { bainbridge } from './templates/bainbridge'
 import { pugetSoundIslands } from './templates/puget-sound-islands'
+import { portland } from './templates/portland'
 import { geocode, geocodeAvailable } from '@/lib/maps/server-geocode'
 import type { ResolvedPlace } from '@/lib/maps/types'
 
 const TEMPLATES: Record<string, PassportTemplate> = {
   bainbridge,
   'puget-sound-islands': pugetSoundIslands,
+  portland,
 }
 
 function fail(msg: string): never {
@@ -149,6 +151,13 @@ async function main() {
   }
 
   // 2. Insert the passport.
+  // is_published / status / published_at honor the template's
+  // optional isPublished flag. The image pipeline
+  // (generateAndUploadPassportImages) is browser-only; for a
+  // seeded-as-published passport, Explore falls back to live-render
+  // until someone opens the passport in the designer and clicks
+  // Publish (which runs the pipeline and caches PNGs).
+  const publishNow = template.isPublished === true
   const { data: passportRow, error: passErr } = await sb
     .from('passports')
     .insert({
@@ -161,10 +170,12 @@ async function main() {
       cover_template:        'guilloche_blue',
       cover_paper_color:     'F5F2EC',
       cover_bg_color:        '0D1B2A',
-      cover_emblem:          '🧭',
-      status:                'draft',
-      is_published:          false,
+      cover_emblem:          template.coverEmblem ?? '🧭',
+      status:                publishNow ? 'published' : 'draft',
+      is_published:          publishNow,
+      published_at:          publishNow ? new Date().toISOString() : null,
       price_cents:           0,
+      is_free:               true,
       transit_accessible:    false,
       wheelchair_accessible: false,
     })

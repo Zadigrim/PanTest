@@ -92,4 +92,13 @@ export interface PassportTemplate {
   expectedSpendTier?: PassportSpendTier
   expectedSpendNote?: string
   pages: PageTemplate[]
+  /** Optional override of the seeder default. When set true, the
+   *  seeder writes is_published=true + status='published' +
+   *  published_at=now so the passport lands in Explore immediately.
+   *  Image pre-rendering still happens on the first designer-side
+   *  Publish click; Explore falls back to live-render until then. */
+  isPublished?: boolean
+  /** Optional cover emblem (emoji). Defaults to '🧭' in the seeder
+   *  when unset. */
+  coverEmblem?: string
 }
