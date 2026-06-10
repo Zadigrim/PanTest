@@ -37,16 +37,19 @@ export async function normalizeStampSvgBuffer(input: Buffer): Promise<Buffer> {
     const src = readSvgDimensions(svgText)
     if (!src || src.w <= 0 || src.h <= 0) return input
 
-    // Render at high density so trim is precise even for small content.
-    const baseSharp = sharp(input, { density: RENDER_DENSITY })
-    const renderedMeta = await baseSharp.metadata()
-    const renderedW = renderedMeta.width
-    const renderedH = renderedMeta.height
-    if (!renderedW || !renderedH) return input
+    // CRITICAL: sharp metadata() on an SVG returns the SOURCE
+    // dimensions in SVG user units, NOT the rasterized pixel count.
+    // trim().info dimensions and offsets are in raster PIXELS.
+    // We render to a raster buffer first so both sides of the bbox
+    // math use the same units (pixels), then trim that raster.
+    const rendered = await sharp(input, { density: RENDER_DENSITY })
+      .png()
+      .toBuffer({ resolveWithObject: true })
+    const renderedWpx = rendered.info.width
+    const renderedHpx = rendered.info.height
+    if (!renderedWpx || !renderedHpx) return input
 
-    // Trim transparent edges; sharp returns offsets into the original
-    // rendered raster.
-    const trimmed = await sharp(input, { density: RENDER_DENSITY })
+    const trimmed = await sharp(rendered.data)
       .trim({
         background: { r: 0, g: 0, b: 0, alpha: 0 },
         threshold: TRIM_THRESHOLD,
@@ -56,28 +59,25 @@ export async function normalizeStampSvgBuffer(input: Buffer): Promise<Buffer> {
     const { width: tw, height: th, trimOffsetTop = 0, trimOffsetLeft = 0 } = trimmed.info
     if (!tw || !th) return input
 
-    // Map pixel bbox → SVG coordinates. Renderer's pixel/SVG ratio
-    // is renderedW/src.w (and the same vertical); apply per-axis to
-    // tolerate non-square viewBoxes.
-    const scaleX = renderedW / src.w
-    const scaleY = renderedH / src.h
-    // trimOffset is from the top-left of the rendered raster (which
-    // covers the source viewBox's origin (src.x, src.y) at scale).
+    // Pixel-to-SVG-units scale: pixels per SVG unit on each axis.
+    const pxPerUnitX = renderedWpx / src.w
+    const pxPerUnitY = renderedHpx / src.h
+    // trimOffset is from the top-left of the rendered raster, which
+    // corresponds to the source viewBox's (src.x, src.y) corner.
     const newBox: BBox = {
-      x: src.x + trimOffsetLeft / scaleX,
-      y: src.y + trimOffsetTop  / scaleY,
-      w: tw / scaleX,
-      h: th / scaleY,
+      x: src.x + trimOffsetLeft / pxPerUnitX,
+      y: src.y + trimOffsetTop  / pxPerUnitY,
+      w: tw / pxPerUnitX,
+      h: th / pxPerUnitY,
     }
 
-    // Tight zero-extent → degenerate; skip rewrite.
     if (newBox.w <= 0 || newBox.h <= 0) return input
-    // If trimming was a no-op (full image kept), leave the file
-    // untouched except for width/height 100% (still needed for
-    // the kobo span path). Detect by comparing the trimmed dims
-    // to the rendered dims within 1px.
+
+    // No-trim case: the raster came out unchanged. Still rewrite
+    // the root to add width/height=100% (needed for the kobo span
+    // inline-SVG path) but keep the source viewBox.
     const trimmedAll = (
-      Math.abs(tw - renderedW) <= 1 && Math.abs(th - renderedH) <= 1
+      Math.abs(tw - renderedWpx) <= 1 && Math.abs(th - renderedHpx) <= 1
     )
 
     const targetBox = trimmedAll ? src : newBox
