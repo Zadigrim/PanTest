@@ -457,6 +457,10 @@ export async function saveAll(): Promise<BatchError[]> {
         box_height:         stop.box_height,
         rotation:           stop.rotation,
         print_include_journal: stop.print_include_journal,
+        // Location caption (migration 079) — display choice only; the
+        // address_*/lat/lng data is persisted via their own fields.
+        location_caption_mode:      s.location_caption_mode,
+        location_caption_placement: s.location_caption_placement,
       }, 'id', stop.id)
       if (stopErr) {
         console.error('[persist] saveAll stop failed', { id: stop.id, error: stopErr })

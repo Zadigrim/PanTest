@@ -147,6 +147,21 @@ export interface Stop {
   box_height: number
   rotation: number   // visual rotation of the location box, 0–359 degrees
   verification_type: VerificationType | null
+  // Location caption (migration 079). mode 'off' (default) renders
+  // nothing. 'address' uses the address_* fields; 'coordinates' uses
+  // lat/lng. placement = interior-lower vs exterior-below. The earned
+  // stamp always renders ON TOP of the caption. lat/lng + address_* are
+  // read by the renderer only for the caption (they already existed on
+  // the shared stops table for verification/web).
+  location_caption_mode: 'off' | 'address' | 'coordinates'
+  location_caption_placement: 'interior' | 'exterior'
+  lat: number | null
+  lng: number | null
+  address_street: string | null
+  address_city: string | null
+  address_state: string | null
+  address_zip: string | null
+  country: string | null
   created_at: string
 }
 

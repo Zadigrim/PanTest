@@ -3,6 +3,7 @@
 import { useRef, useCallback } from 'react'
 import type { DesignerStop } from '@/lib/design/types'
 import { StampPreview } from './StampPreview'
+import { locationCaptionText } from '@/lib/design/location-caption'
 
 const ROT_HANDLE_OFFSET = 28
 
@@ -48,6 +49,13 @@ export function LocationBox({
   const w = stop.box_width ?? 120
   const h = stop.box_height ?? 120
   const rotation = stop.rotation ?? 0
+
+  // Optional location caption (migration 079). Single-source formatter
+  // shared with mobile + print; null when off or when the chosen mode
+  // has no data. Monochrome, beneath the stamp/name (the stamp prints
+  // on top of it on the collector surfaces).
+  const caption = locationCaptionText(stop.location_caption_mode, stop)
+  const captionPlacement = stop.location_caption_placement ?? 'interior'
 
   const containerRef = useRef<HTMLDivElement>(null)
   const rotState = useRef<{ cx: number; cy: number } | null>(null)
@@ -248,6 +256,16 @@ export function LocationBox({
           )}
         </div>
 
+        {/* Interior-lower caption — sits at the bottom inside the box.
+            pointer-events-none so it never blocks drag. The stamp design
+            preview above is the base; on collector surfaces the earned
+            stamp lands on top of this. */}
+        {caption && captionPlacement === 'interior' && (
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 px-1 pb-0.5 text-center">
+            <span className="block truncate text-[8px] leading-tight text-ink/70">{caption}</span>
+          </div>
+        )}
+
         {/* Location indicator badge */}
         {isSelected && (
           <div className="absolute -top-5 left-0 whitespace-nowrap rounded-t-sm bg-green px-2 py-0.5 text-[10px] font-medium text-white">
@@ -255,6 +273,13 @@ export function LocationBox({
           </div>
         )}
       </div>
+
+      {/* Exterior-below caption — sits just under the box. */}
+      {caption && captionPlacement === 'exterior' && (
+        <div className="pointer-events-none absolute inset-x-0 top-full pt-0.5 text-center">
+          <span className="block truncate text-[8px] leading-tight text-ink/70">{caption}</span>
+        </div>
+      )}
 
       {/* Rotation handle (when selected) */}
       {isSelected && (

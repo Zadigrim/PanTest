@@ -8,6 +8,7 @@ import {
 import { createClient } from '@/lib/supabase/server'
 import { normalizeAll, normalizeKey, type NormalizeItem } from '@/lib/print/normalize-images'
 import { renderStampForPdf } from '@/lib/design/stamp-composer/pdf-render'
+import { locationCaptionText } from '@/lib/design/location-caption'
 
 // ── Marketing mark loader ────────────────────────────────────────────────────
 // The okuji-ground-03 woven-waves PNG used on the free-passport
@@ -76,6 +77,8 @@ const S = StyleSheet.create({
   // overlapping it visually.
   locationBox: { position: 'absolute', borderWidth: 1, borderColor: '#999999', borderStyle: 'dashed', borderRadius: 2, alignItems: 'center', justifyContent: 'center' },
   locationBoxName: { position: 'absolute', top: 2, left: 0, right: 0, textAlign: 'center', fontSize: 5, color: '#000000', fontFamily: 'Helvetica' },
+  // Location caption — small, monochrome, beneath the stamp.
+  captionText: { textAlign: 'center', fontSize: 4.5, color: '#555555', fontFamily: 'Helvetica' },
   namePage: { flex: 1, flexDirection: 'column', justifyContent: 'center', paddingHorizontal: 10 },
   nameTitle: { fontSize: 14, fontFamily: 'Helvetica-Bold', color: '#1A1A1A', textAlign: 'center', marginBottom: 24 },
   nameField: { marginBottom: 16 },
@@ -121,6 +124,11 @@ interface StopForPrint {
   /** Normalized data:image/jpeg URI for raster (PNG/JPG) and emoji
    *  (Twemoji) stamps (preview mode only). Null otherwise. */
   stampImageUrl?: string | null
+  /** Optional location caption (migration 079), pre-resolved to its
+   *  final single line via the shared formatter (null when off / no
+   *  data). Rendered beneath the stamp — the stamp is topmost. */
+  caption?: string | null
+  captionPlacement?: 'interior' | 'exterior'
 }
 interface BaseElement { id: string; x: number; y: number; width: number; height: number }
 interface TextPageElement extends BaseElement { type: 'text'; content?: string; fontSize?: number; fontWeight?: 'normal' | 'bold'; color?: string; align?: 'left' | 'center' | 'right'; rotation?: number }
@@ -347,11 +355,22 @@ function PassportPageSlotContent({ page }: { page: PassportPageForPrint }) {
             ? <Image src={stop.stampImageUrl} style={{ width: w * 0.7, height: h * 0.7, objectFit: 'contain' }} />
             : null
           return (
-            <View key={stop.id} style={[S.locationBox, { left: x, top: y, width: w, height: h, transform: stop.rotation ? `rotate(${stop.rotation}deg)` : undefined }]}>
-              {stampSvgNode}
-              {stampImageNode}
-              <Text style={S.locationBoxName}>{stop.name}</Text>
-            </View>
+            <React.Fragment key={stop.id}>
+              <View style={[S.locationBox, { left: x, top: y, width: w, height: h, transform: stop.rotation ? `rotate(${stop.rotation}deg)` : undefined }]}>
+                {/* Base layer: pre-printed name + (interior) caption. */}
+                <Text style={S.locationBoxName}>{stop.name}</Text>
+                {stop.caption && stop.captionPlacement === 'interior' && (
+                  <Text style={[S.captionText, { position: 'absolute', bottom: 1, left: 0, right: 0 }]}>{stop.caption}</Text>
+                )}
+                {/* Top layer: the stamp — ink stamped over the printed page. */}
+                {stampSvgNode}
+                {stampImageNode}
+              </View>
+              {/* Exterior caption sits just below the box. */}
+              {stop.caption && stop.captionPlacement === 'exterior' && (
+                <Text style={[S.captionText, { position: 'absolute', left: x, top: y + h + 1, width: w }]}>{stop.caption}</Text>
+              )}
+            </React.Fragment>
           )
         })}
       </View>
@@ -1057,10 +1076,10 @@ async function handlePrintRequest(request: Request, passportId: string) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: stopsRaw, error: stopsErr } = await (supabase as any)
     .from('stops')
-    .select('id, page_id, stop_order, name, box_x, box_y, box_width, box_height, rotation, stamp_type, stamp_color, stamp_asset_id, stamp_icon')
+    .select('id, page_id, stop_order, name, box_x, box_y, box_width, box_height, rotation, stamp_type, stamp_color, stamp_asset_id, stamp_icon, location_caption_mode, location_caption_placement, lat, lng, address_street, address_city, address_state, address_zip, country')
     .in('page_id', pageIds)
     .order('stop_order', { ascending: true }) as {
-      data: { id: string; page_id: string; stop_order: number; name: string; box_x: number | null; box_y: number | null; box_width: number; box_height: number; rotation: number | null; stamp_type: string | null; stamp_color: string | null; stamp_asset_id: string | null; stamp_icon: string | null }[] | null
+      data: { id: string; page_id: string; stop_order: number; name: string; box_x: number | null; box_y: number | null; box_width: number; box_height: number; rotation: number | null; stamp_type: string | null; stamp_color: string | null; stamp_asset_id: string | null; stamp_icon: string | null; location_caption_mode: string | null; location_caption_placement: string | null; lat: number | null; lng: number | null; address_street: string | null; address_city: string | null; address_state: string | null; address_zip: string | null; country: string | null }[] | null
       error: unknown
     }
 
@@ -1131,6 +1150,12 @@ async function handlePrintRequest(request: Request, passportId: string) {
               stampImageUrl = twemojiPngUrl(s.stamp_icon)
             }
           }
+          // Resolve the location caption once, server-side, via the
+          // shared single-source formatter so print matches kobo + mobile.
+          const caption = locationCaptionText(
+            s.location_caption_mode as 'off' | 'address' | 'coordinates' | null,
+            { lat: s.lat, lng: s.lng, address_street: s.address_street, address_city: s.address_city, address_state: s.address_state, address_zip: s.address_zip, country: s.country },
+          )
           return {
             id: s.id, name: s.name, stop_order: s.stop_order,
             box_x: s.box_x ?? 40, box_y: s.box_y ?? 40,
@@ -1140,6 +1165,8 @@ async function handlePrintRequest(request: Request, passportId: string) {
             stamp_color: s.stamp_color,
             stampSvgContent,
             stampImageUrl,
+            caption,
+            captionPlacement: (s.location_caption_placement as 'interior' | 'exterior' | null) ?? 'interior',
           }
         })
       return {

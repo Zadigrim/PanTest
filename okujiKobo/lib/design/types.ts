@@ -251,6 +251,13 @@ export interface DesignerStop {
   lat: number | null
   lng: number | null
   geohash: string | null
+  // Optional location caption on the LocationBox (migration 079).
+  // mode 'off' (default) renders nothing; 'address' composes a single
+  // line from the address_* fields; 'coordinates' renders lat/lng.
+  // placement controls interior-lower vs exterior-below. The earned
+  // stamp always renders ON TOP of the caption.
+  location_caption_mode: 'off' | 'address' | 'coordinates'
+  location_caption_placement: 'interior' | 'exterior'
   verification_tier: number
   verification_radius_meters: number
   qr_code_token: string | null   // legacy column name; the live mobile schema uses qr_code_id

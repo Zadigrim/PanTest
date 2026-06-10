@@ -34,6 +34,7 @@ import type {
 import { domToRuns, runsToHtml, stopAddressToRuns } from '@/lib/design/rich-text'
 import type { StampAsset } from '@/lib/design/stamp-assets'
 import { StampComposer } from './StampComposer'
+import { composeAddressLine, formatCoordinates } from '@/lib/design/location-caption'
 
 export function RightInspector({
   creatorInstitutionId,
@@ -159,6 +160,8 @@ const STAMP_ICONS = [
 ]
 
 const SMUDGE_OPTIONS = ['none', 'light', 'medium', 'heavy'] as const
+const CAPTION_MODE_OPTIONS = ['off', 'address', 'coordinates'] as const
+const CAPTION_PLACEMENT_OPTIONS = ['interior', 'exterior'] as const
 
 // ── StampPicker ────────────────────────────────────────────────────────────────
 
@@ -665,6 +668,67 @@ function LocationSection({
           )}
         </>
       )}
+
+      {/* Location caption — optional small line on the LocationBox.
+          Default off. 'address' composes a single line from the address
+          fields above; 'coordinates' shows lat/lng. The earned stamp
+          always prints ON TOP of the caption. */}
+      <div className="border-t border-hairline pt-3">
+        <Label className="text-xs text-muted">Location caption</Label>
+        <div className="mt-1.5 flex gap-1">
+          {CAPTION_MODE_OPTIONS.map((mode) => (
+            <button
+              key={mode}
+              onClick={() => persist({ location_caption_mode: mode })}
+              className={`flex-1 rounded-card border py-1 text-xs capitalize transition-colors ${
+                (stop.location_caption_mode ?? 'off') === mode
+                  ? 'border-green bg-cream text-green font-medium'
+                  : 'border-hairline text-muted hover:border-green/40'
+              }`}
+            >
+              {mode}
+            </button>
+          ))}
+        </div>
+
+        {(stop.location_caption_mode ?? 'off') !== 'off' && (
+          <>
+            {/* Live preview of the exact text the renderers will show. */}
+            {(() => {
+              const preview =
+                stop.location_caption_mode === 'coordinates'
+                  ? formatCoordinates(stop.lat, stop.lng)
+                  : composeAddressLine(stop)
+              return preview ? (
+                <p className="mt-2 truncate text-xs text-navy">{preview}</p>
+              ) : (
+                <p className="mt-2 text-xs text-accent">
+                  {stop.location_caption_mode === 'coordinates'
+                    ? 'No coordinates set — add lat/lng above to show this caption.'
+                    : 'No address set — fill the address fields above to show this caption.'}
+                </p>
+              )
+            })()}
+
+            <Label className="mt-3 block text-xs text-muted">Placement</Label>
+            <div className="mt-1.5 flex gap-1">
+              {CAPTION_PLACEMENT_OPTIONS.map((p) => (
+                <button
+                  key={p}
+                  onClick={() => persist({ location_caption_placement: p })}
+                  className={`flex-1 rounded-card border py-1 text-xs capitalize transition-colors ${
+                    (stop.location_caption_placement ?? 'interior') === p
+                      ? 'border-green bg-cream text-green font-medium'
+                      : 'border-hairline text-muted hover:border-green/40'
+                  }`}
+                >
+                  {p === 'interior' ? 'Interior' : 'Exterior'}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
     </Section>
   )
 }
