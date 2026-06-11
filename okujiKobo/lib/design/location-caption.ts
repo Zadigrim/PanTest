@@ -22,9 +22,10 @@ export interface CaptionStopFields {
 }
 
 /**
- * "45.5762°N · 122.1158°W" — 4 decimals, hemisphere letters, unsigned.
- * Returns null when either coordinate is missing or NaN (honest blank;
- * never faked).
+ * Signed decimal degrees, 4 decimals: "45.5762°, -122.1158°". Negative
+ * latitudes (south) and longitudes (west) keep their minus sign. Returns
+ * null when either coordinate is missing or NaN (honest blank; never
+ * faked).
  */
 export function formatCoordinates(
   lat: number | null | undefined,
@@ -32,9 +33,7 @@ export function formatCoordinates(
 ): string | null {
   if (lat == null || lng == null) return null
   if (Number.isNaN(lat) || Number.isNaN(lng)) return null
-  const latStr = `${Math.abs(lat).toFixed(4)}°${lat >= 0 ? 'N' : 'S'}`
-  const lngStr = `${Math.abs(lng).toFixed(4)}°${lng >= 0 ? 'E' : 'W'}`
-  return `${latStr} · ${lngStr}`
+  return `${lat.toFixed(4)}°, ${lng.toFixed(4)}°`
 }
 
 /**
