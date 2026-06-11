@@ -1029,18 +1029,6 @@ function StopInspector({
 
 // ── Custom background image picker ────────────────────────────────────────────
 
-// Built-in preset grounds from public/presets/png/. Free for any creator
-// to pick — no upload required. Labels mirror public/presets/README.md
-// so the in-app copy matches the asset filenames.
-const PRESET_BACKGROUNDS: { url: string; label: string }[] = [
-  { url: '/presets/png/okuji-ground-01-guilloche-medallion.png',  label: 'Guilloche medallion' },
-  { url: '/presets/png/okuji-ground-02-topographic-contours.png', label: 'Topographic contours' },
-  { url: '/presets/png/okuji-ground-03-woven-waves.png',          label: 'Woven waves' },
-  { url: '/presets/png/okuji-ground-04-trail-waypoints.png',      label: 'Trail waypoints' },
-  { url: '/presets/png/okuji-ground-05-rosette-tiling.png',       label: 'Rosette tiling' },
-  { url: '/presets/png/okuji-ground-06-field-rule.png',           label: 'Field rule' },
-]
-
 interface BgAsset { id: string; url: string | null; name: string | null }
 
 function CustomBgPicker({
@@ -1215,15 +1203,52 @@ function OkujiPresetPicker({
   page: DesignerPassportPage
   persist: (patch: Partial<DesignerPassportPage>) => Promise<void>
 }) {
+  // Built-in preset grounds now live in design_assets (is_built_in,
+  // owned by the custodial account; seeded via scripts/seed-okuji-presets).
+  // Readable by any authenticated user via the design_assets read policy,
+  // so a plain client query works. Managed from the Assets library's
+  // platform-owner account switcher — no redeploy to add/retire one.
+  const [presets, setPresets] = useState<{ id: string; url: string; label: string }[]>([])
+  useEffect(() => {
+    let cancelled = false
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = createClient() as any
+    void db
+      .from('design_assets')
+      .select('id, name, display_name, url')
+      .eq('asset_type', 'background')
+      .eq('is_built_in', true)
+      .order('created_at', { ascending: true })
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .then(({ data }: { data: any[] | null }) => {
+        if (cancelled || !data) return
+        setPresets(
+          data
+            .filter((a) => a.url)
+            .map((a) => ({ id: a.id as string, url: a.url as string, label: (a.display_name ?? a.name ?? 'Preset') as string })),
+        )
+      })
+    return () => { cancelled = true }
+  }, [])
+
+  if (presets.length === 0) {
+    return (
+      <div className="space-y-2">
+        <Label className="text-xs text-muted">Okuji presets</Label>
+        <p className="text-xs text-muted">No preset grounds available.</p>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-2">
       <Label className="text-xs text-muted">Okuji presets</Label>
       <div className="grid grid-cols-3 gap-1.5">
-        {PRESET_BACKGROUNDS.map((preset) => {
+        {presets.map((preset) => {
           const selected = page.background_image_url === preset.url
           return (
             <button
-              key={preset.url}
+              key={preset.id}
               onClick={() => void persist({ background_image_url: preset.url })}
               className={`relative aspect-[3/4] w-full overflow-hidden rounded border-2 transition-colors ${
                 selected ? 'border-green' : 'border-transparent hover:border-green/40'

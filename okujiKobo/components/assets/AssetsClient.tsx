@@ -56,10 +56,13 @@ export function AssetsClient({
   kind,
   assets,
   scopeOptions,
+  uploadAsCustodial = false,
 }: {
   kind: AssetTypeDb
   assets: ServerAsset[]
   scopeOptions: ScopeOption[]
+  /** Platform-admin custodial scope — uploads go to the okuji library. */
+  uploadAsCustodial?: boolean
 }) {
   const router = useRouter()
   const [list, setList] = useState<ServerAsset[]>(assets)
@@ -161,6 +164,7 @@ export function AssetsClient({
       form.append('file', file)
       form.append('asset_type', kind)
       form.append('name', file.name)
+      if (uploadAsCustodial) form.append('as_custodial', 'true')
       const res = await fetch('/api/assets/upload', { method: 'POST', body: form })
       if (!res.ok) {
         const body = await res.json().catch(() => ({}))

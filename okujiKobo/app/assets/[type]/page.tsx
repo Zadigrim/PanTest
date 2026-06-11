@@ -12,7 +12,6 @@ import {
   isAssetSlug,
   type AssetTypeSlug,
 } from '@/lib/assets/kinds'
-import { OKUJI_PAGE_BACKGROUNDS } from '@/lib/assets/okuji-presets'
 
 // ─── Top-of-page slim section bar ─────────────────────────────────────────────
 //
@@ -95,8 +94,13 @@ function Tabs({ current }: { current: AssetTypeSlug }) {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
+// Custodial account owns the built-in okuji library assets. The
+// platform-admin-only account switcher flips the page to manage them.
+const CUSTODIAL_ID = '00000000-0000-0000-0000-000000000001'
+
 interface Props {
   params: { type: string }
+  searchParams: { owner?: string }
 }
 
 export async function generateMetadata({ params }: Props) {
@@ -104,7 +108,7 @@ export async function generateMetadata({ params }: Props) {
   return { title: `${KIND_RULES[SLUG_TO_DB[params.type]].sectionLabel} — okuji Assets` }
 }
 
-export default async function AssetTypePage({ params }: Props) {
+export default async function AssetTypePage({ params, searchParams }: Props) {
   const { type } = params
   if (!isAssetSlug(type)) notFound()
 
@@ -115,6 +119,13 @@ export default async function AssetTypePage({ params }: Props) {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabase as any
+
+  // Platform-admin-only account switcher. In "custodial" scope the page
+  // manages the built-in okuji library (owner_id = custodial); otherwise
+  // it's the caller's own library plus the read-only built-in presets.
+  const { data: isAdminRpc } = await db.rpc('is_platform_admin')
+  const isPlatformAdmin = isAdminRpc === true
+  const custodialScope = isPlatformAdmin && searchParams?.owner === 'custodial'
 
   // Resolve institution membership (drives the "Institution" group's
   // visibility — RLS already lets the user read institution_id rows
@@ -131,19 +142,27 @@ export default async function AssetTypePage({ params }: Props) {
   // Query the user's assets of this kind + institution-shared ones.
   // Includes new metadata columns from migration 053 — null on
   // legacy rows; the drawer's meta-line helper handles that.
-  const { data: assetRows } = await db
+  const baseSelect = db
     .from('design_assets')
     .select(
       'id, name, display_name, url, owner_id, institution_id, is_built_in, scoped_passport_id, file_format, bytes_size, width_px, height_px, created_at, scoped_passport:passports!design_assets_scoped_passport_id_fkey(id, title)',
     )
     .eq('asset_type', dbType)
-    .or(
-      [
-        `owner_id.eq.${user.id}`,
-        ...(userInstitutionId ? [`institution_id.eq.${userInstitutionId}`] : []),
-      ].join(','),
-    )
-    .order('created_at', { ascending: false })
+
+  const { data: assetRows } = custodialScope
+    // Manage view: only the custodial-owned (built-in) library.
+    ? await baseSelect.eq('owner_id', CUSTODIAL_ID).order('created_at', { ascending: false })
+    // Normal view: the caller's own + institution + the read-only
+    // built-in presets (is_built_in is the global-read discriminator).
+    : await baseSelect
+        .or(
+          [
+            `owner_id.eq.${user.id}`,
+            'is_built_in.eq.true',
+            ...(userInstitutionId ? [`institution_id.eq.${userInstitutionId}`] : []),
+          ].join(','),
+        )
+        .order('created_at', { ascending: false })
 
   type Row = {
     id: string
@@ -191,6 +210,10 @@ export default async function AssetTypePage({ params }: Props) {
     .map((p) => ({ id: p.id, title: p.title ?? 'Untitled' }))
 
   // Project to ServerAsset shape; classify source.
+  //   - custodial scope: every row is the okuji library the admin is
+  //     managing → 'owned' so the manage chrome (rename/delete) shows.
+  //   - normal scope: built-in rows are the read-only 'okuji' group;
+  //     others are institution/owned.
   const dbAssets: ServerAsset[] = rows.map((a) => {
     const isOwned = a.owner_id === user.id
     const isInstitution =
@@ -198,7 +221,13 @@ export default async function AssetTypePage({ params }: Props) {
       && a.institution_id !== null
       && userInstitutionId !== null
       && a.institution_id === userInstitutionId
-    const source: ServerAsset['source'] = isInstitution ? 'institution' : 'owned'
+    const source: ServerAsset['source'] = custodialScope
+      ? 'owned'
+      : a.is_built_in === true
+        ? 'okuji'
+        : isInstitution
+          ? 'institution'
+          : 'owned'
     return {
       id:                  a.id,
       url:                 a.url,
@@ -216,50 +245,58 @@ export default async function AssetTypePage({ params }: Props) {
     }
   })
 
-  // Synthetic "Okuji library" presets, surfaced only on the
-  // Backgrounds tab. These ship as static files under /public/presets
-  // and are NOT design_assets rows. We tag them source='okuji' so
-  // the orchestrator hides delete / rename / scope chrome.
-  const presetAssets: ServerAsset[] =
-    dbType === 'background'
-      ? OKUJI_PAGE_BACKGROUNDS.map((p) => ({
-          id:                  p.id,
-          url:                 p.url,
-          filename:            p.url.split('/').pop() ?? null,
-          displayName:         p.label,
-          scopedPassportId:    null,
-          scopedPassportTitle: null,
-          source:              'okuji',
-          usageCount:          0,
-          widthPx:             null,
-          heightPx:            null,
-          bytesSize:           null,
-          fileFormat:          p.format === 'PNG' ? 'image/png' : 'image/svg+xml',
-          // Presets sort to the top of "Recently added" regardless,
-          // but we still give them a stable timestamp.
-          createdAt:           '1970-01-01T00:00:00Z',
-        }))
-      : []
-
-  const allAssets: ServerAsset[] = [...presetAssets, ...dbAssets]
+  // Okuji preset backgrounds now live in design_assets (is_built_in),
+  // seeded into the custodial library — they come through the query
+  // above. No synthetic injection.
+  const allAssets: ServerAsset[] = dbAssets
 
   return (
     <div className="min-h-screen bg-surface-workspace">
       <AssetsTopBar />
 
       <main className="mx-auto max-w-6xl px-8 py-8">
-        <header className="mb-5">
-          <h1 className="text-[25px] font-bold text-ink" style={{ letterSpacing: '-0.01em' }}>
-            Assets
-          </h1>
-          <p className="mt-1 text-[13px] text-muted">
-            Your library of {KIND_RULES[dbType].sectionLabel.toLowerCase()} and bundled presets.
-          </p>
+        <header className="mb-5 flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-[25px] font-bold text-ink" style={{ letterSpacing: '-0.01em' }}>
+              Assets
+            </h1>
+            <p className="mt-1 text-[13px] text-muted">
+              {custodialScope
+                ? 'Managing the okuji built-in library (custodial account).'
+                : `Your library of ${KIND_RULES[dbType].sectionLabel.toLowerCase()} and bundled presets.`}
+            </p>
+          </div>
+
+          {/* Platform-owner-only account switcher. */}
+          {isPlatformAdmin && (
+            <div role="group" aria-label="Asset account" className="inline-flex shrink-0 rounded-[8px] border border-hairline bg-surface-rail p-1 text-[12px]">
+              <Link
+                href={`/assets/${type}`}
+                aria-current={!custodialScope}
+                className={cn(
+                  'rounded-[6px] px-2.5 py-1 font-medium transition-colors',
+                  !custodialScope ? 'bg-white text-ink shadow-sm' : 'text-muted hover:text-ink',
+                )}
+              >
+                My account
+              </Link>
+              <Link
+                href={`/assets/${type}?owner=custodial`}
+                aria-current={custodialScope}
+                className={cn(
+                  'rounded-[6px] px-2.5 py-1 font-medium transition-colors',
+                  custodialScope ? 'bg-white text-ink shadow-sm' : 'text-muted hover:text-ink',
+                )}
+              >
+                Okuji custodial
+              </Link>
+            </div>
+          )}
         </header>
 
         <Tabs current={type} />
 
-        <AssetsClient kind={dbType} assets={allAssets} scopeOptions={scopeOptions} />
+        <AssetsClient kind={dbType} assets={allAssets} scopeOptions={scopeOptions} uploadAsCustodial={custodialScope} />
       </main>
     </div>
   )

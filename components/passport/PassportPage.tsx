@@ -68,8 +68,8 @@ export function PassportPage({
         <GridBackground color={bgColor} opacity={bgOpacity} width={width} height={height} />
       )}
 
-      {/* Custom background image */}
-      {bgType === 'custom' && !!page.background_image_url && (
+      {/* Custom + okuji-preset background image (both store an image URL) */}
+      {(bgType === 'custom' || bgType === 'okuji') && !!page.background_image_url && (
         <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}>
           <Image
             source={{ uri: page.background_image_url }}

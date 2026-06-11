@@ -4,6 +4,11 @@ import { createClient } from '@/lib/supabase/server'
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/svg+xml']
 const MAX_BYTES = 10 * 1024 * 1024 // 10 MB
 
+// Custodial account — owns the built-in okuji library assets. Uploading
+// "as custodial" is the asset-library account switcher; gated to platform
+// admins server-side (never trust the client flag).
+const CUSTODIAL_ID = '00000000-0000-0000-0000-000000000001'
+
 const ASSET_TYPES = ['background', 'stamp', 'cover'] as const
 type AssetType = (typeof ASSET_TYPES)[number]
 
@@ -111,6 +116,22 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     ? scopedPassportIdRaw
     : null
 
+  // Account switcher: upload into the custodial library instead of the
+  // caller's own. Allowed ONLY for platform admins — verified here via
+  // the is_platform_admin RPC, never from the client-supplied flag alone.
+  const asCustodial = formData.get('as_custodial') === 'true'
+  let effectiveOwnerId = user.id
+  let isBuiltIn = false
+  if (asCustodial) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: isAdmin } = await (supabase as any).rpc('is_platform_admin')
+    if (isAdmin !== true) {
+      return NextResponse.json({ error: 'Not authorized to manage the okuji library' }, { status: 403 })
+    }
+    effectiveOwnerId = CUSTODIAL_ID
+    isBuiltIn = true
+  }
+
   if (!(file instanceof File)) {
     return NextResponse.json({ error: 'No file provided' }, { status: 400 })
   }
@@ -153,7 +174,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   const ext = file.name.split('.').pop() ?? 'bin'
-  const storagePath = `${user.id}/${assetType}/${Date.now()}.${ext}`
+  const storagePath = `${effectiveOwnerId}/${assetType}/${Date.now()}.${ext}`
 
   const bytes = await file.arrayBuffer()
   let buffer = Buffer.from(bytes)
@@ -195,7 +216,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const { data: asset, error: insertErr } = await (supabase as any)
     .from('design_assets')
     .insert({
-      owner_id:           user.id,
+      owner_id:           effectiveOwnerId,
+      is_built_in:        isBuiltIn,
       name:               name ?? file.name,
       asset_type:         assetType,
       url:                publicUrl,
