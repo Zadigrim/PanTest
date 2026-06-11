@@ -1249,7 +1249,7 @@ async function handlePrintRequest(request: Request, passportId: string) {
   }
 
   const normalized = await normalizeAll(items)
-  console.log(`[print-pdf] normalized ${normalized.size}/${items.length} image variants`)
+  // (normalizeAll logs accurate unique/requested/failure accounting.)
 
   // Rewrite URLs in the doc data: each original URL becomes the
   // data:image/jpeg;base64,... URL from the normalizer for the specific

@@ -18,8 +18,9 @@
 // behaviour for any image that already failed, but with diagnostics.
 
 import sharp from 'sharp'
-import { promises as fs } from 'fs'
+import { promises as fs, writeFileSync, mkdirSync } from 'fs'
 import path from 'path'
+import os from 'os'
 
 const FETCH_TIMEOUT_MS = 15_000
 const MAX_PARALLEL = 6
@@ -161,6 +162,56 @@ export async function normalizeImage(
   }
 }
 
+// ── Fonts for librsvg text rendering ─────────────────────────────────────────
+//
+// Serverless runtimes (Vercel lambdas) ship with NO system fonts, so an
+// SVG stamp containing <text> rasterizes with the text silently missing
+// — fine in the designer (browser fonts), invisible in the PDF, no
+// error anywhere. Bundle DejaVu (freely redistributable) under
+// public/fonts/print/ and point fontconfig at it via a generated config,
+// with aliases mapping the composer's font catalog (Georgia, Times New
+// Roman, Courier New, Inter, Impact + generics) onto the bundled faces.
+// Faces are substitutes, not exact (exact embedding is the deferred
+// "Push 6"); the point is that text RENDERS.
+//
+// Must run before fontconfig initializes inside libvips — i.e. before
+// the first text rasterization in this process. Memoized.
+let fontsConfigured = false
+function ensurePrintFonts(): void {
+  if (fontsConfigured) return
+  fontsConfigured = true
+  try {
+    const fontDir = path.join(process.cwd(), 'public', 'fonts', 'print')
+    const cacheDir = path.join(os.tmpdir(), 'fontconfig-cache')
+    try { mkdirSync(cacheDir, { recursive: true }) } catch { /* exists */ }
+    const alias = (from: string, to: string) =>
+      `<alias><family>${from}</family><prefer><family>${to}</family></prefer></alias>`
+    const conf = `<?xml version="1.0"?>
+<!DOCTYPE fontconfig SYSTEM "fonts.dtd">
+<fontconfig>
+  <dir>${fontDir}</dir>
+  <cachedir>${cacheDir}</cachedir>
+  ${alias('Georgia', 'DejaVu Serif')}
+  ${alias('Times New Roman', 'DejaVu Serif')}
+  ${alias('Times', 'DejaVu Serif')}
+  ${alias('Courier New', 'DejaVu Sans Mono')}
+  ${alias('Courier', 'DejaVu Sans Mono')}
+  ${alias('Inter', 'DejaVu Sans')}
+  ${alias('Impact', 'DejaVu Sans')}
+  ${alias('serif', 'DejaVu Serif')}
+  ${alias('sans-serif', 'DejaVu Sans')}
+  ${alias('monospace', 'DejaVu Sans Mono')}
+</fontconfig>
+`
+    const confPath = path.join(os.tmpdir(), 'okuji-print-fonts.conf')
+    writeFileSync(confPath, conf)
+    // Don't clobber an explicitly-configured environment.
+    if (!process.env.FONTCONFIG_FILE) process.env.FONTCONFIG_FILE = confPath
+  } catch (err) {
+    console.warn('[print-pdf] font setup failed (text in SVG stamps may not render):', err instanceof Error ? err.message : String(err))
+  }
+}
+
 /**
  * Rasterize an SVG string to a transparent `data:image/png` URI via
  * sharp/librsvg. Used for custom-asset / composer stamps in the print
@@ -176,6 +227,7 @@ export async function normalizeImage(
  */
 export async function rasterizeSvg(svg: string, maxDimension = 384): Promise<string | null> {
   try {
+    ensurePrintFonts()
     const sized = svg.replace(
       /width="[^"]*"\s+height="[^"]*"/,
       `width="${maxDimension}" height="${maxDimension}"`,
@@ -222,5 +274,11 @@ export async function normalizeAll(
 
   const workers = Array.from({ length: Math.min(MAX_PARALLEL, unique.length) }, () => worker())
   await Promise.all(workers)
+  // Accurate accounting: compare successes against UNIQUE work items.
+  // (items.length counts pre-dedupe requests — two pages sharing one
+  // background dedupe to one normalize — so success/items.length reads
+  // like a failure when nothing failed.)
+  const failed = unique.length - out.size
+  console.log(`[print-pdf] normalized ${out.size}/${unique.length} unique images (${items.length} requested${failed > 0 ? `, ${failed} FAILED — see warnings above` : ''})`)
   return out
 }
