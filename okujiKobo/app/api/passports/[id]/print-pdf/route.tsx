@@ -6,8 +6,7 @@ import {
   Svg, Ellipse, Path, Line, Polyline, Polygon, Rect, Image,
 } from '@react-pdf/renderer'
 import { createClient } from '@/lib/supabase/server'
-import { normalizeAll, normalizeKey, type NormalizeItem } from '@/lib/print/normalize-images'
-import { renderStampForPdf } from '@/lib/design/stamp-composer/pdf-render'
+import { normalizeAll, normalizeKey, rasterizeSvg, type NormalizeItem } from '@/lib/print/normalize-images'
 import { locationCaptionText } from '@/lib/design/location-caption'
 
 // ── Marketing mark loader ────────────────────────────────────────────────────
@@ -110,19 +109,16 @@ function BlankByDesignLabel({ top, text }: { top: number; text: string }) {
 interface StopForPrint {
   id: string; name: string; stop_order: number
   box_x: number; box_y: number; box_width: number; box_height: number; rotation: number
-  // Composer-era stamp fields. When stamp previews are requested
-  // (show_stamps), custom-asset SVG stops get their SVG embedded via
-  // the SVG → @react-pdf translator; raster (PNG/JPG) and emoji stops
-  // get a normalized data:image URI in stampImageUrl. When previews
-  // are off, both are null and the box renders blank.
+  // Stamp preview (show_stamps): every stamp type resolves to a single
+  // image URL rendered in the box. Custom-asset SVGs (incl. composer /
+  // vector stamps) are rasterized via librsvg to a data:image/png URI;
+  // raster (PNG/JPG) + emoji stamps get a normalized data:image URI.
+  // Null when previews are off → blank box.
   stamp_type?: 'emoji' | 'custom_asset' | null
   stamp_color?: string | null
-  /** Inline SVG for custom_asset SVG stamps (preview mode only).
-   *  Null for raster/emoji stamps, on a fetch failure, or when
-   *  previews are off. */
-  stampSvgContent?: string | null
-  /** Normalized data:image/jpeg URI for raster (PNG/JPG) and emoji
-   *  (Twemoji) stamps (preview mode only). Null otherwise. */
+  /** Final image for the stamp: a pre-rasterized data:image/png for
+   *  SVG stamps, or a (later-normalized) URL for raster/emoji. Null
+   *  when previews are off or the asset couldn't be resolved. */
   stampImageUrl?: string | null
   /** Optional location caption (migration 079), pre-resolved to its
    *  final single line via the shared formatter (null when off / no
@@ -338,20 +334,11 @@ function PassportPageSlotContent({ page }: { page: PassportPageForPrint }) {
         {page.stops.map((stop) => {
           const x = stop.box_x * CANVAS_SCALE, y = stop.box_y * CANVAS_SCALE
           const w = stop.box_width * CANVAS_SCALE, h = stop.box_height * CANVAS_SCALE
-          // Stamp previews (show_stamps). custom_asset SVG stamps
-          // embed via the translator; raster (PNG/JPG) and emoji
-          // (Twemoji) stamps arrive as a normalized data:image URI.
-          // When previews are off both are null → blank box for the
-          // collector to physically stamp into.
-          const stampSvgNode = stop.stampSvgContent
-            ? renderStampForPdf({
-                svg: stop.stampSvgContent,
-                hexColor: `#${stop.stamp_color ?? '1D9E75'}`,
-                width: w * 0.7,
-                height: h * 0.7,
-              })
-            : null
-          const stampImageNode = !stampSvgNode && stop.stampImageUrl
+          // Stamp previews (show_stamps): one image per stamp — SVG
+          // stamps are pre-rasterized (data:image/png), raster/emoji
+          // arrive as a normalized data:image URI. Null → blank box for
+          // the collector to physically stamp into.
+          const stampImageNode = stop.stampImageUrl
             ? <Image src={stop.stampImageUrl} style={{ width: w * 0.7, height: h * 0.7, objectFit: 'contain' }} />
             : null
           return (
@@ -363,7 +350,6 @@ function PassportPageSlotContent({ page }: { page: PassportPageForPrint }) {
                   <Text style={[S.captionText, { position: 'absolute', bottom: 1, left: 0, right: 0 }]}>{stop.caption}</Text>
                 )}
                 {/* Top layer: the stamp — ink stamped over the printed page. */}
-                {stampSvgNode}
                 {stampImageNode}
               </View>
               {/* Exterior caption sits just below the box. */}
@@ -1123,6 +1109,30 @@ async function handlePrintRequest(request: Request, passportId: string) {
     } catch { /* keep going; missing stamps render as label-only */ }
   }))
 
+  // Pre-rasterize each (SVG stamp, ink color) once via librsvg. The old
+  // inline SVG→@react-pdf translator mis-parsed nested same-tag groups
+  // (composer / traced "vector" stamps), silently dropping the artwork;
+  // rasterizing renders any valid SVG. Keyed by url+color since two
+  // stops can share one asset with different inks.
+  const svgRasterByKey = new Map<string, string>()
+  if (showStamps && svgByUrl.size > 0) {
+    const seen = new Set<string>()
+    const tasks: Promise<void>[] = []
+    for (const s of (stopsRaw ?? [])) {
+      if (s.stamp_type !== 'custom_asset' || !s.stamp_asset_id) continue
+      const asset = assetMap.get(s.stamp_asset_id)
+      const svg = asset?.url ? svgByUrl.get(asset.url) : undefined
+      if (!asset?.url || !svg) continue
+      const color = s.stamp_color ?? '1D9E75'
+      const key = `${asset.url}::${color}`
+      if (seen.has(key)) continue
+      seen.add(key)
+      const recolored = svg.replace(/currentColor/g, `#${color}`)
+      tasks.push(rasterizeSvg(recolored, STAMP_MAX_DIMENSION).then((uri) => { if (uri) svgRasterByKey.set(key, uri) }))
+    }
+    await Promise.all(tasks)
+  }
+
   // Build per-page data. Every stop is always included now; the old
   // selectedIds filter is gone alongside the modal's stop checkboxes.
   const pagesForPrint: PassportPageForPrint[] = pagesRaw
@@ -1131,20 +1141,17 @@ async function handlePrintRequest(request: Request, passportId: string) {
         .filter((s) => s.page_id === page.id)
         .map<StopForPrint>((s) => {
           const asset = s.stamp_asset_id ? assetMap.get(s.stamp_asset_id) ?? null : null
-          // SVG custom assets embed inline via the translator.
-          const stampSvgContent =
-            s.stamp_type === 'custom_asset' && asset?.url
-              ? (svgByUrl.get(asset.url) ?? null)
-              : null
-          // Raster (PNG/JPG) custom assets + emoji become an image URL
-          // (raster asset URL, or the emoji's Twemoji PNG) that the
-          // normalize pass below turns into a data:image URI. Only when
-          // previews are on, and never for the SVG path above. This
-          // holds the RAW url here; remappedPages swaps it for the
-          // normalized data URI.
+          // One image per stamp (preview mode):
+          //   SVG custom asset → pre-rasterized data:image/png (already
+          //     final; skipped by the normalize pass).
+          //   raster custom asset → raw asset URL (normalized below).
+          //   emoji → Twemoji PNG URL (normalized below).
           let stampImageUrl: string | null = null
-          if (showStamps && !stampSvgContent) {
-            if (s.stamp_type === 'custom_asset' && asset?.url) {
+          if (showStamps) {
+            const svg = asset?.url ? svgByUrl.get(asset.url) : undefined
+            if (s.stamp_type === 'custom_asset' && asset?.url && svg) {
+              stampImageUrl = svgRasterByKey.get(`${asset.url}::${s.stamp_color ?? '1D9E75'}`) ?? null
+            } else if (s.stamp_type === 'custom_asset' && asset?.url) {
               stampImageUrl = asset.url
             } else if (s.stamp_type === 'emoji') {
               stampImageUrl = twemojiPngUrl(s.stamp_icon)
@@ -1163,7 +1170,6 @@ async function handlePrintRequest(request: Request, passportId: string) {
             rotation: s.rotation ?? 0,
             stamp_type: (s.stamp_type as 'emoji' | 'custom_asset' | null) ?? null,
             stamp_color: s.stamp_color,
-            stampSvgContent,
             stampImageUrl,
             caption,
             captionPlacement: (s.location_caption_placement as 'interior' | 'exterior' | null) ?? 'interior',
@@ -1234,7 +1240,11 @@ async function handlePrintRequest(request: Request, passportId: string) {
     // fully decoded (+ SMask) by pdfkit, so a large one is what blows
     // memory/time on a passport with many stamps.
     for (const stop of page.stops) {
-      if (stop.stampImageUrl) items.push({ url: stop.stampImageUrl, paperHex: pageHex, preserveAlpha: true, maxDimension: STAMP_MAX_DIMENSION })
+      // SVG stamps are already final data: URIs (pre-rasterized) — only
+      // raster/emoji raw URLs go through the normalize pass.
+      if (stop.stampImageUrl && !stop.stampImageUrl.startsWith('data:')) {
+        items.push({ url: stop.stampImageUrl, paperHex: pageHex, preserveAlpha: true, maxDimension: STAMP_MAX_DIMENSION })
+      }
     }
   }
 
@@ -1275,7 +1285,7 @@ async function handlePrintRequest(request: Request, passportId: string) {
       // Swap each raster/emoji stamp's raw URL for its normalized
       // data:image URI (null if the fetch/decode failed → blank box).
       stops: p.stops.map((stop) =>
-        stop.stampImageUrl
+        stop.stampImageUrl && !stop.stampImageUrl.startsWith('data:')
           ? { ...stop, stampImageUrl: remap(stop.stampImageUrl, pageHex, true) }
           : stop,
       ),

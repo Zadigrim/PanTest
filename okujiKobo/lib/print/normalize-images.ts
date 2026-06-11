@@ -161,6 +161,36 @@ export async function normalizeImage(
   }
 }
 
+/**
+ * Rasterize an SVG string to a transparent `data:image/png` URI via
+ * sharp/librsvg. Used for custom-asset / composer stamps in the print
+ * PDF: far more robust than the hand-rolled SVG→@react-pdf translator,
+ * which mis-parses nested same-tag groups (traced/vector stamps) and
+ * silently drops artwork. Any valid SVG renders here.
+ *
+ * The caller passes an SVG whose `currentColor` is already replaced with
+ * the concrete ink hex. We force an explicit pixel size (the composer's
+ * root uses width="100%") so librsvg rasterizes crisply; preserveAspect
+ * keeps the viewBox shape. Alpha preserved so the stamp sits cleanly in
+ * its box.
+ */
+export async function rasterizeSvg(svg: string, maxDimension = 384): Promise<string | null> {
+  try {
+    const sized = svg.replace(
+      /width="[^"]*"\s+height="[^"]*"/,
+      `width="${maxDimension}" height="${maxDimension}"`,
+    )
+    const out = await sharp(Buffer.from(sized), { density: 384 })
+      .resize({ width: maxDimension, height: maxDimension, fit: 'inside', withoutEnlargement: true })
+      .png({ compressionLevel: 9, adaptiveFiltering: false, palette: false, force: true })
+      .toBuffer()
+    return `data:image/png;base64,${out.toString('base64')}`
+  } catch (err) {
+    console.warn('[print-pdf] svg rasterize failed:', err instanceof Error ? err.message : String(err))
+    return null
+  }
+}
+
 /** Concurrency-limited batch normalize.
  *  Returns a map keyed by `${url}::${paperHex}` (use normalizeKey()) so
  *  the same image flattened onto different paper colours stays
