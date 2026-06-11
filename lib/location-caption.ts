@@ -21,10 +21,12 @@ export interface CaptionStopFields {
 }
 
 /**
- * Signed decimal degrees, 4 decimals: "45.5762°, -122.1158°". Negative
- * latitudes (south) and longitudes (west) keep their minus sign. Returns
- * null when either coordinate is missing or NaN (honest blank; never
- * faked).
+ * Signed decimal degrees, 4 decimals, plain "lat, lng" form:
+ * "45.5762, -122.1158". No degree symbols — this exact string pastes
+ * straight into Google/Apple Maps and GPS apps, which is the point of
+ * the caption. Negative (south/west) values keep their minus sign.
+ * Returns null when either coordinate is missing or NaN (honest blank;
+ * never faked).
  */
 export function formatCoordinates(
   lat: number | null | undefined,
@@ -32,7 +34,7 @@ export function formatCoordinates(
 ): string | null {
   if (lat == null || lng == null) return null
   if (Number.isNaN(lat) || Number.isNaN(lng)) return null
-  return `${lat.toFixed(4)}°, ${lng.toFixed(4)}°`
+  return `${lat.toFixed(4)}, ${lng.toFixed(4)}`
 }
 
 /**
