@@ -42,15 +42,27 @@ const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
   auth: { autoRefreshToken: false, persistSession: false },
 })
 
-async function findUserByEmail(email) {
-  for (let page = 1; page <= 50; page++) {
-    const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 200 })
-    if (error) die(`listUsers failed: ${error.message}`)
-    const match = data.users.find((u) => (u.email || '').toLowerCase() === email.toLowerCase())
-    if (match) return match
-    if (data.users.length < 200) break
+// Resolve an existing account's id WITHOUT admin.listUsers — that API
+// scans every auth.users row and fails outright if any row is broken
+// (e.g. the manually-inserted custodial row before migration 081).
+// We know the password we intend the account to have, so a plain
+// sign-in both proves the credentials and returns the user id. If the
+// password doesn't match (e.g. it was changed), fall back to a direct
+// service-role query of auth.users by email.
+async function findUserIdByEmail(email, password) {
+  if (ANON_KEY && password) {
+    const anon = createClient(SUPABASE_URL, ANON_KEY, { auth: { persistSession: false } })
+    const { data } = await anon.auth.signInWithPassword({ email, password })
+    if (data?.user?.id) {
+      await anon.auth.signOut()
+      return data.user.id
+    }
   }
-  return null
+  // Fallback: generateLink resolves a single user by email without
+  // scanning the table (no email is sent by the admin API).
+  const { data, error } = await admin.auth.admin.generateLink({ type: 'magiclink', email })
+  if (error) die(`user lookup by email failed: ${error.message}`)
+  return data?.user?.id ?? null
 }
 
 async function main() {
@@ -69,9 +81,9 @@ async function main() {
   if (createErr) {
     const exists = createErr.status === 422 || /already|registered|exist/i.test(createErr.message || '')
     if (!exists) die(`createUser failed: ${createErr.message}`)
-    const existing = await findUserByEmail(REVIEWER_EMAIL)
-    if (!existing) die('createUser said the email exists but it was not found via listUsers.')
-    userId = existing.id
+    const existingId = await findUserIdByEmail(REVIEWER_EMAIL, REVIEWER_PASSWORD)
+    if (!existingId) die('createUser said the email exists but it could not be resolved by sign-in or auth.users lookup.')
+    userId = existingId
     // Reconcile: force the chosen password + confirmed email so login works.
     const { error: updErr } = await admin.auth.admin.updateUserById(userId, {
       password: REVIEWER_PASSWORD,
