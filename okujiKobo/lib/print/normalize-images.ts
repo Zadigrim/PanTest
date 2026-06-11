@@ -18,6 +18,8 @@
 // behaviour for any image that already failed, but with diagnostics.
 
 import sharp from 'sharp'
+import { promises as fs } from 'fs'
+import path from 'path'
 
 const FETCH_TIMEOUT_MS = 15_000
 const MAX_PARALLEL = 6
@@ -83,6 +85,18 @@ function paperHexToRgb(hex: string): { r: number; g: number; b: number } {
 }
 
 async function fetchBytes(url: string): Promise<Buffer | null> {
+  // Site-relative URLs (e.g. the okuji preset grounds at
+  // "/presets/png/...") can't be fetched server-side — there's no
+  // origin. Read them from the bundled public/ directory instead, the
+  // same way the print route loads its marketing mark.
+  if (url.startsWith('/')) {
+    try {
+      return await fs.readFile(path.join(process.cwd(), 'public', url))
+    } catch (err) {
+      console.warn('[print-pdf] local asset read failed:', url, err instanceof Error ? err.message : String(err))
+      return null
+    }
+  }
   const ctrl = new AbortController()
   const timer = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS)
   try {

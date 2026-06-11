@@ -331,7 +331,7 @@ function PassportPageSlotContent({ page }: { page: PassportPageForPrint }) {
       <View style={[S.pageCanvas, { width: CANVAS_W, height: CANVAS_H, marginLeft: CANVAS_OFFSET_X, backgroundColor: paperColor }]}>
         {page.background_type === 'guilloche' && <GuillocheOverlay color={bgColor} opacity={bgOpacity} />}
         {page.background_type === 'grid' && <GridOverlay color={bgColor} opacity={bgOpacity} />}
-        {page.background_type === 'custom' && page.background_image_url && (
+        {(page.background_type === 'custom' || page.background_type === 'okuji') && page.background_image_url && (
           <Image src={page.background_image_url} style={{ position: 'absolute', top: 0, left: 0, width: CANVAS_W, height: CANVAS_H, objectFit: 'contain', opacity: customBgOpacity / 100 }} />
         )}
         <PageElementsLayer elements={page.elements} scale={CANVAS_SCALE} />
@@ -1218,7 +1218,7 @@ async function handlePrintRequest(request: Request, passportId: string) {
   }
   for (const page of pagesForPrint) {
     const pageHex = (page.paper_color ?? 'F5F2EC').replace(/^#/, '')
-    if (page.background_type === 'custom' && page.background_image_url) {
+    if ((page.background_type === 'custom' || page.background_type === 'okuji') && page.background_image_url) {
       items.push({ url: page.background_image_url, paperHex: pageHex })
     }
     for (const el of page.elements ?? []) {
