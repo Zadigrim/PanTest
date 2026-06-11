@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState, useRef } from 'react'
+import { useMemo, useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import type { AssetTypeDb } from '@/lib/assets/kinds'
 import { KIND_RULES } from '@/lib/assets/kinds'
@@ -66,6 +66,11 @@ export function AssetsClient({
 }) {
   const router = useRouter()
   const [list, setList] = useState<ServerAsset[]>(assets)
+  // Re-sync from the server payload whenever it changes — e.g. after an
+  // upload calls router.refresh(). Without this the freshly uploaded
+  // asset never appears (useState ignores prop changes after mount), so
+  // a completed upload looked like nothing happened.
+  useEffect(() => { setList(assets) }, [assets])
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<FilterKey>('all')
   const [sort, setSort] = useState<SortKey>('recent')
@@ -73,6 +78,7 @@ export function AssetsClient({
   const [dragging, setDragging] = useState(false)
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
+  const [uploadedCount, setUploadedCount] = useState(0)
   const fileInputRef = useRef<HTMLInputElement>(null)
   // Stamp composer modal — only meaningful on the Stamps tab.
   const [composerOpen, setComposerOpen] = useState(false)
@@ -173,7 +179,9 @@ export function AssetsClient({
       }
       // Refresh the server payload so the new asset appears with
       // its real metadata (the upload route already captured
-      // bytes_size + file_format).
+      // bytes_size + file_format). The list re-syncs via the effect on
+      // `assets`, so the new tile shows up = visible "done".
+      setUploadedCount((n) => n + 1)
       router.refresh()
     } finally {
       setUploading(false)
@@ -291,6 +299,10 @@ export function AssetsClient({
             Upload error: {uploadError}
             <button type="button" onClick={() => setUploadError(null)} className="ml-1 underline">dismiss</button>
           </span>
+        )}
+        {uploading && <span className="ml-3 text-muted">Uploading…</span>}
+        {!uploading && uploadedCount > 0 && (
+          <span className="ml-3 text-green">✓ Uploaded — {uploadedCount} added this session</span>
         )}
       </p>
 
