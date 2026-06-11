@@ -123,8 +123,13 @@ export async function awaitPending(): Promise<void> {
 // this layer adds debouncing so 60Hz drag streams become one write at
 // drag-end instead of sixty. Loop-safe because each timer fires at
 // most once and clears itself before issuing safeUpdate.
+//
+// 1500ms (was 600): with per-row RLS cost on stops UPDATEs, a short
+// window fired a write at every brief pause while the user was still
+// actively editing the same stop. The longer window waits until they
+// have actually stopped before issuing the coalesced write.
 
-const DEBOUNCE_MS = 600
+const DEBOUNCE_MS = 1500
 
 interface DebounceMeta { table: string; eqColumn: string; eqValue: string | number }
 
@@ -313,13 +318,17 @@ export async function safeInsert<T = unknown>(
 
 // ── Explicit save ────────────────────────────────────────────────────────────
 //
-// The designer no longer auto-persists field edits or drag changes — every
-// in-place mutation just updates the local store and marks isDirty. The
-// user (or handleBack) calls saveAll() to write everything in one pass.
+// saveAll() is the manual flush + sweep (Save button, navigate-away,
+// autosave backstop). It writes the FULL editable surface of each row it
+// touches — but only for rows the store has marked dirty since the last
+// successful save (dirtyPassport / dirtyPageIds / dirtyStopIds). Sweeping
+// every row regardless of change was N sequential UPDATEs paying per-row
+// RLS cost on a many-stop passport; the dirty filter makes Save scale
+// with what actually changed.
 //
-// saveAll writes the FULL editable surface for each entity even if only one
-// field changed. Cheaper than tracking a diff, and the row-level lock is
-// held only as long as the single UPDATE takes.
+// Safety net: if isDirty is set but all three dirty sets are empty (a
+// mutation that forgot to record itself), fall back to the full sweep —
+// the same catch-all useAutosave documents.
 
 interface BatchError { table: string; id: string; message: string }
 
@@ -344,8 +353,18 @@ export async function saveAll(): Promise<BatchError[]> {
   // Drain pending debounced writes before snapshotting the store so we
   // don't race with their results landing after our own UPDATEs.
   await flushDebounced()
-  const { passport, pages, stops } = usePassportStore.getState()
+  const { passport, pages, stops, isDirty, dirtyPassport, dirtyPageIds, dirtyStopIds } =
+    usePassportStore.getState()
   if (!passport) return []
+
+  // Dirty filter (see header comment). Snapshot the sets BEFORE writing;
+  // edits made mid-save re-mark their rows and keep their own debounced
+  // writes, so nothing is lost if the user keeps working.
+  const fullSweep =
+    isDirty && !dirtyPassport && dirtyPageIds.size === 0 && dirtyStopIds.size === 0
+  const writePassport = fullSweep || dirtyPassport
+  const pagesToWrite = fullSweep ? pages : pages.filter((p) => dirtyPageIds.has(p.id))
+  const stopsToWrite = fullSweep ? stops : stops.filter((st) => dirtyStopIds.has(st.id))
 
   inc()
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -353,6 +372,7 @@ export async function saveAll(): Promise<BatchError[]> {
   const errors: BatchError[] = []
 
   try {
+    if (writePassport) {
     const { error: passportErr } = await updateWithRetry(db, 'passports', {
       title:                  passport.title,
       description:            passport.description,
@@ -388,6 +408,7 @@ export async function saveAll(): Promise<BatchError[]> {
       console.error('[persist] saveAll passports failed', { id: passport.id, error: passportErr })
       errors.push({ table: 'passports', id: passport.id, message: passportErr.message ?? 'unknown' })
     }
+    }
 
     // Pages — issue updates sequentially through the shared write chain.
     // Parallel writes are what caused the 57014 statement-timeout pile-up:
@@ -395,7 +416,7 @@ export async function saveAll(): Promise<BatchError[]> {
     // the 8s Supabase timeout. serialize() guarantees only one update is
     // in flight at a time across both saveAll AND the per-mutation
     // debounced writes from updateStop / updatePage / etc.
-    for (const page of pages) {
+    for (const page of pagesToWrite) {
       const { error: pageErr } = await updateWithRetry(db, 'passport_pages', {
         section_title:             page.section_title,
         section_subtitle:          page.section_subtitle,
@@ -416,7 +437,7 @@ export async function saveAll(): Promise<BatchError[]> {
       }
     }
 
-    for (const stop of stops) {
+    for (const stop of stopsToWrite) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const s: any = stop
       const { error: stopErr } = await updateWithRetry(db, 'stops', {

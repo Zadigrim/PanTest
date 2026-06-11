@@ -32,6 +32,15 @@ interface PassportStore {
   // Cleared on the next successful persist or by the Retry button.
   saveError: string | null
 
+  // Row-level dirty tracking so saveAll() writes only what changed
+  // instead of sweeping every row. Each mutator records the rows it
+  // touched; markSaved clears. If isDirty is true but all three are
+  // empty (a mutation that forgot to record itself), saveAll falls
+  // back to the full sweep — same safety net useAutosave documents.
+  dirtyPassport: boolean
+  dirtyPageIds: Set<string>
+  dirtyStopIds: Set<string>
+
   hydrate: (
     passport: DesignerPassport,
     pages: DesignerPassportPage[],
@@ -77,6 +86,9 @@ export const usePassportStore = create<PassportStore>((set, get) => ({
   isSaving: false,
   lastSavedAt: null,
   saveError: null,
+  dirtyPassport: false,
+  dirtyPageIds: new Set<string>(),
+  dirtyStopIds: new Set<string>(),
 
   hydrate: (passport, pages, stops) => {
     const sorted = [...pages]
@@ -90,6 +102,9 @@ export const usePassportStore = create<PassportStore>((set, get) => ({
       selectedStopId: null,
       selectedElementId: null,
       isDirty: false,
+      dirtyPassport: false,
+      dirtyPageIds: new Set<string>(),
+      dirtyStopIds: new Set<string>(),
     })
   },
 
@@ -102,6 +117,7 @@ export const usePassportStore = create<PassportStore>((set, get) => ({
     set((s) => ({
       passport: s.passport ? { ...s.passport, ...patch } : null,
       isDirty: true,
+      dirtyPassport: true,
     }))
     const id = get().passport?.id
     if (id) debouncedUpdate('passports', patch, 'id', id)
@@ -111,6 +127,7 @@ export const usePassportStore = create<PassportStore>((set, get) => ({
     set((s) => ({
       pages: s.pages.map((p) => (p.id === id ? { ...p, ...patch } : p)),
       isDirty: true,
+      dirtyPageIds: new Set(s.dirtyPageIds).add(id),
     }))
     debouncedUpdate('passport_pages', patch, 'id', id)
   },
@@ -122,6 +139,7 @@ export const usePassportStore = create<PassportStore>((set, get) => ({
       ),
       activePageId: page.id,
       isDirty: true,
+      dirtyPageIds: new Set(s.dirtyPageIds).add(page.id),
     })),
 
   removePage: (id) =>
@@ -142,7 +160,14 @@ export const usePassportStore = create<PassportStore>((set, get) => ({
       const p = get().pages.find((pg) => pg.id === id)!
       return { ...p, page_order: idx }
     })
-    set({ pages: newPages, isDirty: true })
+    set((s) => {
+      // page_order changed on every page; mark them all so the saveAll
+      // backstop sweeps the new order if the reorder endpoint's write
+      // is what failed. (No Set spread — tsconfig target predates it.)
+      const nextDirty = new Set(s.dirtyPageIds)
+      orderedIds.forEach((id) => nextDirty.add(id))
+      return { pages: newPages, isDirty: true, dirtyPageIds: nextDirty }
+    })
     // Persistence is fired by the caller via the /api/passport_pages/
     // reorder endpoint — the per-row debouncedUpdate that lived here
     // hit the UNIQUE(passport_id, page_order) constraint on any swap
@@ -155,11 +180,17 @@ export const usePassportStore = create<PassportStore>((set, get) => ({
     set((s) => ({
       stops: s.stops.map((st) => (st.id === id ? { ...st, ...patch } : st)),
       isDirty: true,
+      dirtyStopIds: new Set(s.dirtyStopIds).add(id),
     }))
     debouncedUpdate('stops', patch, 'id', id)
   },
 
-  addStop: (stop) => set((s) => ({ stops: [...s.stops, stop], isDirty: true })),
+  addStop: (stop) =>
+    set((s) => ({
+      stops: [...s.stops, stop],
+      isDirty: true,
+      dirtyStopIds: new Set(s.dirtyStopIds).add(stop.id),
+    })),
 
   removeStop: (id) =>
     set((s) => ({
@@ -173,7 +204,7 @@ export const usePassportStore = create<PassportStore>((set, get) => ({
       if (p.id !== pageId) return p
       return { ...p, elements: [...(p.elements ?? []), element] }
     })
-    set({ pages, isDirty: true })
+    set((s) => ({ pages, isDirty: true, dirtyPageIds: new Set(s.dirtyPageIds).add(pageId) }))
     const elements = pages.find((p) => p.id === pageId)!.elements
     debouncedUpdate('passport_pages', { elements }, 'id', pageId)
     return elements
@@ -189,7 +220,7 @@ export const usePassportStore = create<PassportStore>((set, get) => ({
         ),
       }
     })
-    set({ pages, isDirty: true })
+    set((s) => ({ pages, isDirty: true, dirtyPageIds: new Set(s.dirtyPageIds).add(pageId) }))
     const elements = pages.find((p) => p.id === pageId)!.elements
     debouncedUpdate('passport_pages', { elements }, 'id', pageId)
     return elements
@@ -203,14 +234,23 @@ export const usePassportStore = create<PassportStore>((set, get) => ({
         elements: (p.elements ?? []).filter((el) => el.id !== elementId),
       }
     })
-    set({ pages, isDirty: true })
+    set((s) => ({ pages, isDirty: true, dirtyPageIds: new Set(s.dirtyPageIds).add(pageId) }))
     const elements = pages.find((p) => p.id === pageId)!.elements
     debouncedUpdate('passport_pages', { elements }, 'id', pageId)
     return elements
   },
 
   markDirty: () => set({ isDirty: true }),
-  markSaved: () => set({ isDirty: false, isSaving: false, lastSavedAt: new Date(), saveError: null }),
+  markSaved: () =>
+    set({
+      isDirty: false,
+      isSaving: false,
+      lastSavedAt: new Date(),
+      saveError: null,
+      dirtyPassport: false,
+      dirtyPageIds: new Set<string>(),
+      dirtyStopIds: new Set<string>(),
+    }),
   setSaving: (v) => set({ isSaving: v }),
   setSaveError: (msg) => set({ saveError: msg, isSaving: false }),
 }))
