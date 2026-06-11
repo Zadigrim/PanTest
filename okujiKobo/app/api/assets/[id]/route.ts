@@ -65,12 +65,14 @@ export async function PATCH(
     .maybeSingle()
   if (fetchErr) return NextResponse.json({ error: fetchErr.message }, { status: 500 })
   if (!asset)    return NextResponse.json({ error: 'Not found' }, { status: 404 })
-  if (asset.is_built_in === true) {
-    return NextResponse.json({ error: 'Built-in assets cannot be modified' }, { status: 403 })
-  }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: isAdminRpc } = await (supabase as any).rpc('is_platform_admin')
   const isAdmin = isAdminRpc === true
+  // Built-in (okuji library) assets are managed only by platform admins
+  // via the asset-library account switcher; everyone else read-only.
+  if (asset.is_built_in === true && !isAdmin) {
+    return NextResponse.json({ error: 'Built-in assets cannot be modified' }, { status: 403 })
+  }
   if (!isAdmin && asset.owner_id !== user.id) {
     return NextResponse.json({ error: 'Not authorized' }, { status: 403 })
   }
@@ -140,17 +142,19 @@ export async function DELETE(
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
 
-  if (asset.is_built_in === true) {
+  // Admin bypass via is_platform_admin RPC; otherwise must be owner.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: isAdminRpc } = await (supabase as any).rpc('is_platform_admin')
+  const isAdmin = isAdminRpc === true
+
+  // Built-in (okuji library) assets are managed only by platform admins
+  // via the asset-library account switcher; everyone else read-only.
+  if (asset.is_built_in === true && !isAdmin) {
     return NextResponse.json(
       { error: 'Built-in assets cannot be deleted' },
       { status: 403 },
     )
   }
-
-  // Admin bypass via is_platform_admin RPC; otherwise must be owner.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: isAdminRpc } = await (supabase as any).rpc('is_platform_admin')
-  const isAdmin = isAdminRpc === true
 
   if (!isAdmin && asset.owner_id !== user.id) {
     return NextResponse.json({ error: 'Not authorized' }, { status: 403 })
