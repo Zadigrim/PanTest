@@ -23,6 +23,7 @@ export default function ProfileScreen() {
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
   const [backfilling, setBackfilling] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const { isEmployee, employeeMode, setEmployeeMode } = useEmployeeContext()
 
   useEffect(() => {
@@ -67,6 +68,45 @@ export default function ProfileScreen() {
     } finally {
       setBackfilling(false)
     }
+  }
+
+  // Permanent, irreversible account deletion. Calls the same
+  // close_user_account RPC the web uses (migration 049): it deletes the
+  // caller's journal, photos, stamps, and collection and removes the
+  // auth.users row, while preserving other holders' acquired passports
+  // in custodial form. The RPC self-authorizes (caller may only close
+  // their own account), so we pass the current user's id.
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      'Delete account',
+      'This permanently deletes your account, journal entries, photos, stamps, and collection. This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete account',
+          style: 'destructive',
+          onPress: async () => {
+            const user = await getCurrentUser()
+            if (!user) { router.replace('/(auth)/login'); return }
+            setDeleting(true)
+            try {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const { error } = await (supabase as any).rpc('close_user_account', { target_user_id: user.id })
+              if (error) {
+                setDeleting(false)
+                Alert.alert('Could not delete account', error.message ?? 'Please try again later.')
+                return
+              }
+              await supabase.auth.signOut()
+              router.replace('/(auth)/login')
+            } catch {
+              setDeleting(false)
+              Alert.alert('Could not delete account', 'Please try again later.')
+            }
+          },
+        },
+      ],
+    )
   }
 
   if (loading) {
@@ -157,6 +197,19 @@ export default function ProfileScreen() {
         </TouchableOpacity>
       </View>
 
+      {/* Danger zone — permanent account deletion (Play data-deletion
+          requirement: an in-app path to delete your account + data). */}
+      <View style={s.section}>
+        <Text style={s.sectionLabel}>DANGER ZONE</Text>
+        <TouchableOpacity style={s.menuRow} onPress={handleDeleteAccount} disabled={deleting}>
+          <Text style={s.deleteText}>{deleting ? 'Deleting…' : 'Delete account'}</Text>
+          {deleting && <ActivityIndicator color="#c0392b" />}
+        </TouchableOpacity>
+        <Text style={s.dangerHint}>
+          Permanently deletes your account, journal, stamps, and collection. This cannot be undone.
+        </Text>
+      </View>
+
       <Text style={s.privacy}>
         Location is accessed only when stamping — never in the background.
         Your journal entries are private to you.
@@ -220,6 +273,9 @@ const s = StyleSheet.create({
 
   signOutRow: { paddingVertical: 10 },
   signOutText: { fontSize: 15, color: '#c0392b', fontWeight: '500' },
+
+  deleteText: { fontSize: 15, color: '#c0392b', fontWeight: '600' },
+  dangerHint: { fontSize: 12, color: MUTED, marginTop: 4, lineHeight: 17 },
 
   privacy: {
     paddingHorizontal: 24, paddingTop: 32,
