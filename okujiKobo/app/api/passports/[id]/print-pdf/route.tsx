@@ -129,10 +129,15 @@ interface StopForPrint {
 interface BaseElement { id: string; x: number; y: number; width: number; height: number }
 interface TextPageElement extends BaseElement { type: 'text'; content?: string; fontSize?: number; fontWeight?: 'normal' | 'bold'; color?: string; align?: 'left' | 'center' | 'right'; rotation?: number }
 interface ImagePageElement extends BaseElement { type: 'image'; imageUrl?: string; opacity?: number; rotation?: number }
+// Layout (table/grid) element — same box/url shape as image, but its
+// normalization PRESERVES ALPHA (thin-line art sits over the page
+// background; flattening onto paper color would occlude it) and the
+// SVG source rasterizes at high density so lines stay crisp.
+interface LayoutPageElement extends BaseElement { type: 'layout'; imageUrl?: string; opacity?: number; rotation?: number }
 interface LinePageElement { id: string; type: 'line'; x1: number; y1: number; x2: number; y2: number; thickness?: number; lineColor?: string }
 interface HLinePageElement extends BaseElement { type: 'hline'; thickness?: number; lineColor?: string }
 interface VLinePageElement extends BaseElement { type: 'vline'; thickness?: number; lineColor?: string }
-type PageElement = TextPageElement | ImagePageElement | LinePageElement | HLinePageElement | VLinePageElement
+type PageElement = TextPageElement | ImagePageElement | LayoutPageElement | LinePageElement | HLinePageElement | VLinePageElement
 
 interface PassportPageForPrint {
   id: string; page_order: number; page_type: 'stamp' | 'information'
@@ -263,6 +268,9 @@ function PageElementsLayer({ elements, scale }: { elements: PageElement[]; scale
         try {
           if (el.type === 'text') return <TextEl key={el.id} el={el} scale={scale} />
           if (el.type === 'image') return <ImageEl key={el.id} el={el} scale={scale} />
+          // Same slot render as image; the type difference matters in the
+          // normalize queue (alpha preserved, high-density rasterization).
+          if (el.type === 'layout') return <ImageEl key={el.id} el={el as unknown as ImagePageElement} scale={scale} />
           if (el.type === 'line') return <LineEl key={el.id} el={el} scale={scale} />
           if (el.type === 'hline') return <HLineEl key={el.id} el={el} scale={scale} />
           if (el.type === 'vline') return <VLineEl key={el.id} el={el} scale={scale} />
@@ -1232,6 +1240,14 @@ async function handlePrintRequest(request: Request, passportId: string) {
         const u = (el as ImagePageElement).imageUrl
         if (u) items.push({ url: u, paperHex: pageHex })
       }
+      // Layout (table/grid) art: KEEP the alpha — the thin lines sit
+      // over the page background/pattern; flattening onto paper color
+      // (the image-element default) would occlude everything beneath
+      // the table's transparent cells.
+      if (el.type === 'layout') {
+        const u = (el as LayoutPageElement).imageUrl
+        if (u) items.push({ url: u, paperHex: pageHex, preserveAlpha: true })
+      }
     }
     // Raster/emoji stamp images (preview mode) — preserve alpha so a
     // transparent PNG stamp (or a Twemoji glyph) sits cleanly over the
@@ -1263,6 +1279,10 @@ async function handlePrintRequest(request: Request, passportId: string) {
     (els ?? []).map((el) => {
       if (el.type === 'image') {
         return { ...el, imageUrl: remap((el as ImagePageElement).imageUrl, paperHex) ?? undefined }
+      }
+      if (el.type === 'layout') {
+        // preserveAlpha key — must match how the queue normalized it.
+        return { ...el, imageUrl: remap((el as LayoutPageElement).imageUrl, paperHex, true) ?? undefined }
       }
       return el
     })

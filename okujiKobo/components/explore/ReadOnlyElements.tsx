@@ -127,7 +127,10 @@ export function ReadOnlyElement({
     )
   }
 
-  if (element.type === 'image') {
+  if (element.type === 'image' || element.type === 'layout') {
+    // Layout (table/grid) elements render exactly like image elements in
+    // the browser — SVG with alpha via <img>. The distinct type matters
+    // only to the print renderer's alpha-preserving path.
     const el = element as ImagePageElement
     if (!el.imageUrl) return null
     return (

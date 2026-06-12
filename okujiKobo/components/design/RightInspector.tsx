@@ -26,6 +26,7 @@ import type {
   DesignerPageElement,
   PassportType,
   ImagePageElement,
+  LayoutPageElement,
   TextPageElement,
   RichTextPageElement,
   TextRun,
@@ -56,6 +57,7 @@ export function RightInspector({
     : selectedElement
     ? selectedElement.type === 'text'  ? 'Label'
       : selectedElement.type === 'image' ? 'Image'
+      : selectedElement.type === 'layout' ? 'Layout'
       : selectedElement.type === 'line'  ? 'Line'
       : selectedElement.type === 'hline' ? 'H-Line'
       : 'V-Line'
@@ -68,6 +70,7 @@ export function RightInspector({
     : selectedElement
     ? selectedElement.type === 'text'  ? (selectedElement.content ?? '—')
       : selectedElement.type === 'image' ? 'Image element'
+      : selectedElement.type === 'layout' ? 'Layout element'
       : selectedElement.type === 'line'  ? 'Line'
       : selectedElement.type === 'hline' ? 'H-Line'
       : 'V-Line'
@@ -1676,6 +1679,160 @@ function ImageElementPicker({
   )
 }
 
+// Lists layout (table/grid) assets — the okuji built-in library plus the
+// creator's own uploads — for the layout element. Same structure as
+// ImageElementPicker; the differences are the asset_type filter, the
+// built-in group (layouts are primarily okuji-supplied art), and the
+// aspect snap: picking a layout re-derives the element's height from the
+// asset's native ratio so thin-line art lands undistorted.
+
+interface LayoutAsset {
+  id: string
+  url: string
+  name: string | null
+  is_built_in: boolean | null
+  width_px: number | null
+  height_px: number | null
+}
+
+function LayoutElementPicker({
+  element,
+  persist,
+}: {
+  element: LayoutPageElement
+  persist: (patch: Partial<LayoutPageElement>) => Promise<void>
+}) {
+  const currentPassportId = usePassportStore((s) => s.passport?.id ?? null)
+  const [uploading, setUploading] = useState(false)
+  const [assets, setAssets] = useState<LayoutAsset[]>([])
+  const [loading, setLoading] = useState(true)
+  const [uploadToLibrary, setUploadToLibrary] = useState(false)
+
+  useEffect(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = createClient() as any
+    void (async () => {
+      const { data: { user } } = await (db as ReturnType<typeof createClient>).auth.getUser()
+      if (!user) { setLoading(false); return }
+      // Built-in okuji layouts + own (library-wide or this-passport-scoped).
+      let q = db
+        .from('design_assets')
+        .select('id, url, name, is_built_in, width_px, height_px, scoped_passport_id, owner_id')
+        .eq('asset_type', 'layout')
+        .or(`owner_id.eq.${user.id},is_built_in.eq.true`)
+      q = currentPassportId
+        ? q.or(`scoped_passport_id.is.null,scoped_passport_id.eq.${currentPassportId}`)
+        : q.is('scoped_passport_id', null)
+      const { data } = await q.order('created_at', { ascending: true })
+      setAssets((data ?? []) as LayoutAsset[])
+      setLoading(false)
+    })()
+  }, [currentPassportId])
+
+  const pick = (asset: LayoutAsset) => {
+    const patch: Partial<LayoutPageElement> = { imageUrl: asset.url }
+    if (asset.width_px && asset.height_px) {
+      // Snap height to the asset's native ratio at the current width.
+      patch.height = Math.round(element.width * (asset.height_px / asset.width_px))
+    }
+    void persist(patch)
+  }
+
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploading(true)
+    try {
+      // Through /api/assets/upload (same route as the Assets section) so
+      // the row gets its metadata (dimensions, format) captured — the
+      // aspect snap above depends on width_px/height_px.
+      const form = new FormData()
+      form.append('file', file)
+      form.append('asset_type', 'layout')
+      form.append('name', file.name)
+      if (!uploadToLibrary && currentPassportId) form.append('scoped_passport_id', currentPassportId)
+      const res = await fetch('/api/assets/upload', { method: 'POST', body: form })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({})) as { error?: string }
+        usePassportStore.getState().setSaveError(`Upload failed: ${body.error ?? res.statusText}`)
+        return
+      }
+      const asset = await res.json() as LayoutAsset
+      setAssets((prev) => [...prev, asset])
+      pick(asset)
+    } finally {
+      setUploading(false)
+      e.target.value = ''
+    }
+  }
+
+  const builtIn = assets.filter((a) => a.is_built_in === true)
+  const own = assets.filter((a) => a.is_built_in !== true)
+
+  const grid = (rows: LayoutAsset[], deletable: boolean) => (
+    <div className="mt-1 grid grid-cols-2 gap-1.5">
+      {rows.map((asset) => (
+        <div key={asset.id} className="group relative">
+          <button
+            type="button"
+            onClick={() => pick(asset)}
+            title={asset.name ?? ''}
+            className={`relative w-full overflow-hidden rounded-card border bg-paper transition-colors ${
+              element.imageUrl === asset.url
+                ? 'border-green ring-1 ring-green'
+                : 'border-hairline hover:border-green/40'
+            }`}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={asset.url} alt={asset.name ?? ''} className="h-20 w-full object-contain p-1" />
+          </button>
+          {deletable && (
+            <AssetDeleteButton
+              assetId={asset.id}
+              assetName={asset.name ?? 'Untitled'}
+              onDeleted={() => setAssets((prev) => prev.filter((a) => a.id !== asset.id))}
+            />
+          )}
+        </div>
+      ))}
+    </div>
+  )
+
+  return (
+    <div className="space-y-2">
+      {!loading && builtIn.length > 0 && (
+        <div>
+          <Label className="text-xs text-muted">okuji layouts</Label>
+          {grid(builtIn, false)}
+        </div>
+      )}
+      {!loading && own.length > 0 && (
+        <div>
+          <Label className="text-xs text-muted">Your layouts</Label>
+          {grid(own, true)}
+        </div>
+      )}
+      {!loading && assets.length === 0 && (
+        <p className="text-xs text-muted">No layouts yet — upload an SVG below.</p>
+      )}
+
+      <label
+        className={`flex cursor-pointer items-center justify-center gap-2 rounded-card border border-hairline px-3 py-2 text-xs transition-colors ${
+          uploading ? 'pointer-events-none opacity-50' : 'text-muted hover:border-green/40'
+        }`}
+      >
+        <input type="file" accept="image/svg+xml,image/png" className="hidden" onChange={handleUpload} disabled={uploading} />
+        {uploading ? 'Uploading…' : '+ Upload layout'}
+      </label>
+      <UploadScopeToggle
+        checked={uploadToLibrary}
+        onChange={setUploadToLibrary}
+        disabled={uploading || !currentPassportId}
+      />
+    </div>
+  )
+}
+
 // ── Element Inspector ──────────────────────────────────────────────────────────
 
 const LABEL_COLORS = ['0D1B2A', '1D9E75', 'C9A84C', 'D85A30', '7F77DD', '888888']
@@ -1725,6 +1882,31 @@ function ElementInspector({
               max={100}
               step={1}
               value={(element as ImagePageElement).opacity ?? 100}
+              onChange={(e) =>
+                updateElement(pageId, element.id, { opacity: Number(e.target.value) } as Partial<DesignerPageElement>)
+              }
+              onMouseUp={(e) =>
+                void persist({ opacity: Number((e.target as HTMLInputElement).value) } as Partial<DesignerPageElement>)
+              }
+              className="w-full accent-green"
+            />
+          </Field>
+        </Section>
+      )}
+
+      {element.type === 'layout' && (
+        <Section title="Layout">
+          <LayoutElementPicker
+            element={element as LayoutPageElement}
+            persist={(patch) => persist(patch as Partial<DesignerPageElement>)}
+          />
+          <Field label={`Opacity: ${(element as LayoutPageElement).opacity ?? 100}%`}>
+            <input
+              type="range"
+              min={10}
+              max={100}
+              step={1}
+              value={(element as LayoutPageElement).opacity ?? 100}
               onChange={(e) =>
                 updateElement(pageId, element.id, { opacity: Number(e.target.value) } as Partial<DesignerPageElement>)
               }
@@ -1910,14 +2092,14 @@ function ElementInspector({
           </div>
         )}
 
-        {/* Rotation — text and image only */}
-        {(element.type === 'text' || element.type === 'image') && (
+        {/* Rotation — text, image, and layout only */}
+        {(element.type === 'text' || element.type === 'image' || element.type === 'layout') && (
           <Field label="Rotation (°)">
             <Input
               type="number"
               min={0}
               max={359}
-              value={(element as TextPageElement | ImagePageElement).rotation ?? 0}
+              value={(element as TextPageElement | ImagePageElement | LayoutPageElement).rotation ?? 0}
               onChange={(e) =>
                 updateElement(pageId, element.id, { rotation: Number(e.target.value) } as Partial<DesignerPageElement>)
               }

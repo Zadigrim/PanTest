@@ -7,10 +7,11 @@
 // `scale` for screen pixels.
 import React from 'react'
 import { View, Text, Image } from 'react-native'
-import Svg, { Line as SvgLine } from 'react-native-svg'
+import Svg, { Line as SvgLine, SvgUri } from 'react-native-svg'
 import type {
   TextDesignerEl,
   ImageDesignerEl,
+  LayoutDesignerEl,
   LineDesignerEl,
   HLineDesignerEl,
   VLineDesignerEl,
@@ -70,6 +71,43 @@ function ImageEl({ el, scale }: { el: ImageDesignerEl; scale: number }) {
         style={{ width: '100%', height: '100%' }}
         resizeMode="contain"
       />
+    </View>
+  )
+}
+
+// Layout (table/grid) art — kobo-designed SVG with alpha, placed above
+// the page background and below the LocationBoxes/stamps (the elements
+// layer renders before the stop layer in DesignerCanvas). RN's Image
+// component can't decode SVG, so the .svg case goes through
+// react-native-svg's SvgUri; a raster layout (PNG upload) falls back to
+// the plain Image path.
+function LayoutEl({ el, scale }: { el: LayoutDesignerEl; scale: number }) {
+  const rotation = el.rotation ?? 0
+  const opacity = (el.opacity ?? 100) / 100
+  if (!el.imageUrl) return null
+  const isSvg = el.imageUrl.split('?')[0].toLowerCase().endsWith('.svg')
+  return (
+    <View
+      style={{
+        position: 'absolute',
+        left: el.x * scale,
+        top: el.y * scale,
+        width: el.width * scale,
+        height: el.height * scale,
+        transform: rotation ? [{ rotate: `${rotation}deg` }] : undefined,
+        opacity,
+      }}
+      pointerEvents="none"
+    >
+      {isSvg ? (
+        <SvgUri uri={el.imageUrl} width="100%" height="100%" />
+      ) : (
+        <Image
+          source={{ uri: el.imageUrl }}
+          style={{ width: '100%', height: '100%' }}
+          resizeMode="contain"
+        />
+      )}
     </View>
   )
 }
@@ -140,11 +178,12 @@ function VLineEl({ el, scale }: { el: VLineDesignerEl; scale: number }) {
 
 export function renderPageElement(el: PageDesignerElement, scale: number) {
   switch (el.type) {
-    case 'text':  return <TextEl  key={el.id} el={el} scale={scale} />
-    case 'image': return <ImageEl key={el.id} el={el} scale={scale} />
-    case 'line':  return <LineEl  key={el.id} el={el} scale={scale} />
-    case 'hline': return <HLineEl key={el.id} el={el} scale={scale} />
-    case 'vline': return <VLineEl key={el.id} el={el} scale={scale} />
-    default:      return null
+    case 'text':   return <TextEl   key={el.id} el={el} scale={scale} />
+    case 'image':  return <ImageEl  key={el.id} el={el} scale={scale} />
+    case 'layout': return <LayoutEl key={el.id} el={el} scale={scale} />
+    case 'line':   return <LineEl   key={el.id} el={el} scale={scale} />
+    case 'hline':  return <HLineEl  key={el.id} el={el} scale={scale} />
+    case 'vline':  return <VLineEl  key={el.id} el={el} scale={scale} />
+    default:       return null
   }
 }

@@ -80,6 +80,14 @@ export interface ImageDesignerEl {
   x: number; y: number; width: number; height: number
   imageUrl: string; rotation?: number; opacity?: number
 }
+// Table/grid layout element — pre-made thin-lined SVG (kobo asset_type
+// 'layout') placed to organize stamps. Renders via react-native-svg
+// (RN's Image can't decode SVG); same box shape as image.
+export interface LayoutDesignerEl {
+  id: string; type: 'layout'
+  x: number; y: number; width: number; height: number
+  imageUrl: string; rotation?: number; opacity?: number
+}
 export interface LineDesignerEl {
   id: string; type: 'line'
   x1: number; y1: number; x2: number; y2: number
@@ -96,7 +104,7 @@ export interface VLineDesignerEl {
   thickness?: number; lineColor?: string
 }
 export type PageDesignerElement =
-  | TextDesignerEl | ImageDesignerEl | LineDesignerEl | HLineDesignerEl | VLineDesignerEl
+  | TextDesignerEl | ImageDesignerEl | LayoutDesignerEl | LineDesignerEl | HLineDesignerEl | VLineDesignerEl
 
 export interface PassportPage {
   id: string

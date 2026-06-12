@@ -9,7 +9,7 @@ const MAX_BYTES = 10 * 1024 * 1024 // 10 MB
 // admins server-side (never trust the client flag).
 const CUSTODIAL_ID = '00000000-0000-0000-0000-000000000001'
 
-const ASSET_TYPES = ['background', 'stamp', 'cover'] as const
+const ASSET_TYPES = ['background', 'stamp', 'cover', 'layout'] as const
 type AssetType = (typeof ASSET_TYPES)[number]
 
 function isAssetType(v: string): v is AssetType {
@@ -150,7 +150,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const assetType = typeof assetTypeRaw === 'string' ? assetTypeRaw : ''
   if (!isAssetType(assetType)) {
     return NextResponse.json(
-      { error: 'asset_type must be one of: background, stamp, cover' },
+      { error: 'asset_type must be one of: background, stamp, cover, layout' },
       { status: 400 },
     )
   }

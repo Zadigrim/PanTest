@@ -6,7 +6,7 @@ export type SpendTier = 'free' | 'under_15' | '15_50' | '50_150' | '150_500' | '
 
 // ── Page element types ────────────────────────────────────────────────────────
 
-export type PageElementType = 'text' | 'richtext' | 'image' | 'line' | 'hline' | 'vline'
+export type PageElementType = 'text' | 'richtext' | 'image' | 'layout' | 'line' | 'hline' | 'vline'
 
 interface BaseBoxElement {
   id: string
@@ -82,6 +82,23 @@ export interface ImagePageElement extends BaseBoxElement {
   opacity?: number    // 0–100, default 100
 }
 
+// Table/grid layout element — a pre-made thin-lined SVG (asset_type
+// 'layout') the designer places and sizes to organize stamps and
+// structure a page. Same box/url shape as ImagePageElement but a
+// DISTINCT discriminator: the print renderer must preserve its alpha
+// and rasterize at high density (thin lines over the page background),
+// whereas ordinary page images are flattened onto the paper color —
+// reusing 'image' would either break layout transparency in print or
+// silently change how existing published images print.
+// v1 is place-and-size of pre-made assets; parametric (rows/cols
+// generated) tables are future work and would be a separate type.
+export interface LayoutPageElement extends BaseBoxElement {
+  type: 'layout'
+  imageUrl: string
+  rotation?: number   // degrees 0–359, default 0
+  opacity?: number    // 0–100, default 100
+}
+
 export interface LinePageElement {
   id: string
   type: 'line'
@@ -109,6 +126,7 @@ export type DesignerPageElement =
   | TextPageElement
   | RichTextPageElement
   | ImagePageElement
+  | LayoutPageElement
   | LinePageElement
   | HLinePageElement
   | VLinePageElement
@@ -118,9 +136,10 @@ export const isLineEl     = (el: DesignerPageElement): el is LinePageElement    
 export const isTextEl     = (el: DesignerPageElement): el is TextPageElement     => el.type === 'text'
 export const isRichTextEl = (el: DesignerPageElement): el is RichTextPageElement => el.type === 'richtext'
 export const isImageEl    = (el: DesignerPageElement): el is ImagePageElement    => el.type === 'image'
+export const isLayoutEl   = (el: DesignerPageElement): el is LayoutPageElement   => el.type === 'layout'
 export const isBoxEl      = (
   el: DesignerPageElement,
-): el is TextPageElement | RichTextPageElement | ImagePageElement | HLinePageElement | VLinePageElement =>
+): el is TextPageElement | RichTextPageElement | ImagePageElement | LayoutPageElement | HLinePageElement | VLinePageElement =>
   el.type !== 'line'
 
 // ── Other types ───────────────────────────────────────────────────────────────

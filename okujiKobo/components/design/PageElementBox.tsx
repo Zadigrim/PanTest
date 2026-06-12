@@ -5,12 +5,13 @@ import type {
   TextPageElement,
   RichTextPageElement,
   ImagePageElement,
+  LayoutPageElement,
   HLinePageElement,
   VLinePageElement,
 } from '@/lib/design/types'
 import { runsToReact } from '@/lib/design/rich-text'
 
-type BoxElement = TextPageElement | RichTextPageElement | ImagePageElement | HLinePageElement | VLinePageElement
+type BoxElement = TextPageElement | RichTextPageElement | ImagePageElement | LayoutPageElement | HLinePageElement | VLinePageElement
 
 const MIN_SIZE = 30
 const ROT_HANDLE_OFFSET = 28  // px above element in local space
@@ -226,6 +227,25 @@ export function PageElementBox({
         ) : (
           <div className="flex h-full w-full items-center justify-center rounded-sm border-2 border-dashed border-hairline bg-paper/50 text-xs text-muted pointer-events-none">
             No image — set URL in inspector
+          </div>
+        )
+      )}
+
+      {/* Layout (table/grid) content — same render as image in the
+          browser (SVG with alpha via img); the type stays distinct for
+          the print renderer's alpha-preserving path. */}
+      {element.type === 'layout' && (
+        element.imageUrl ? (
+          <img
+            src={element.imageUrl}
+            alt=""
+            className="h-full w-full object-contain pointer-events-none select-none"
+            style={{ opacity: (element.opacity ?? 100) / 100 }}
+            draggable={false}
+          />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center rounded-sm border-2 border-dashed border-hairline bg-paper/50 text-xs text-muted pointer-events-none">
+            No layout — pick one in inspector
           </div>
         )
       )}

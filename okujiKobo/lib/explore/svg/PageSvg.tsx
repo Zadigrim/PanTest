@@ -191,7 +191,9 @@ function ElementSvg({ element }: { element: DesignerPageElement }) {
     )
   }
 
-  if (element.type === 'image') {
+  if (element.type === 'image' || element.type === 'layout') {
+    // Layout (table/grid) elements share the image slot in the static
+    // SVG — alpha is preserved natively by the <image> element.
     const el = element as ImagePageElement
     if (!el.imageUrl) return null
     const rotateAttr = el.rotation ? `rotate(${el.rotation} ${el.x} ${el.y})` : undefined

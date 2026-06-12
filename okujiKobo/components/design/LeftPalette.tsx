@@ -382,6 +382,11 @@ export function LeftPalette() {
       defaults = { id, type, x1: 40, y1: 100, x2: 572, y2: 100, thickness: 2, lineColor: '0D1B2A' }
     } else if (type === 'image') {
       defaults = { id, type, x: 40, y: 40, width: 200, height: 200, imageUrl: '', rotation: 0, opacity: 100 }
+    } else if (type === 'layout') {
+      // Native size of the ticket layouts (532 wide in the 612-space).
+      // Height matches the 3-row variant; the designer resizes to fit
+      // the variant actually picked in the inspector.
+      defaults = { id, type, x: 40, y: 40, width: 532, height: 298, imageUrl: '', rotation: 0, opacity: 100 }
     } else {
       return
     }
@@ -544,6 +549,16 @@ export function LeftPalette() {
               variant="ghost"
               size="sm"
               className="w-full justify-start text-xs gap-2"
+              onClick={() => handleAddElement('layout')}
+              disabled={!activePageId}
+              title="Thin-lined table/grid art for organizing stamps. Sits over the page background; stops and stamps render on top."
+            >
+              <span>▦</span> Add layout
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full justify-start text-xs gap-2"
               onClick={() => handleAddElement('line')}
               disabled={!activePageId}
             >
@@ -606,6 +621,7 @@ function ElementsList({ pageId }: { pageId: string | null }) {
     if (type === 'text')     return 'T'
     if (type === 'richtext') return '¶'
     if (type === 'image')    return '🖼'
+    if (type === 'layout')   return '▦'
     if (type === 'line')     return '╱'
     if (type === 'hline')    return '—'
     return '|'
@@ -618,9 +634,10 @@ function ElementsList({ pageId }: { pageId: string | null }) {
       const flat = el.runs.map((r) => r.text).join(' ').replace(/\s+/g, ' ').trim()
       return flat || 'Text block'
     }
-    if (el.type === 'image') return 'Image'
-    if (el.type === 'line')  return 'Line'
-    if (el.type === 'hline') return 'H-Line'
+    if (el.type === 'image')  return 'Image'
+    if (el.type === 'layout') return 'Layout'
+    if (el.type === 'line')   return 'Line'
+    if (el.type === 'hline')  return 'H-Line'
     return 'V-Line'
   }
 

@@ -8,9 +8,9 @@
  * crop to a fixed box).
  */
 
-export type AssetTypeDb = 'background' | 'stamp' | 'cover' | 'image'
+export type AssetTypeDb = 'background' | 'stamp' | 'cover' | 'image' | 'layout'
 
-export const ASSET_TYPE_URL_SLUGS = ['backgrounds', 'stamps', 'covers', 'images'] as const
+export const ASSET_TYPE_URL_SLUGS = ['backgrounds', 'stamps', 'covers', 'images', 'layouts'] as const
 export type AssetTypeSlug = (typeof ASSET_TYPE_URL_SLUGS)[number]
 
 export const SLUG_TO_DB: Record<AssetTypeSlug, AssetTypeDb> = {
@@ -18,6 +18,7 @@ export const SLUG_TO_DB: Record<AssetTypeSlug, AssetTypeDb> = {
   stamps:      'stamp',
   covers:      'cover',
   images:      'image',
+  layouts:     'layout',
 }
 
 export const DB_TO_SLUG: Record<AssetTypeDb, AssetTypeSlug> = {
@@ -25,6 +26,7 @@ export const DB_TO_SLUG: Record<AssetTypeDb, AssetTypeSlug> = {
   stamp:      'stamps',
   cover:      'covers',
   image:      'images',
+  layout:     'layouts',
 }
 
 export interface AssetKindRules {
@@ -73,6 +75,14 @@ export const KIND_RULES: Record<AssetTypeDb, AssetKindRules> = {
     sectionLabel: 'Images',
     emptyHeading: 'No page images yet.',
     emptyBody:    'Images placed on passport pages via "Add image" in the designer show up here.',
+  },
+  layout: {
+    aspectRatio: null,   // native; variants differ (3–6 ticket rows etc.)
+    ratioLabel:  'native',
+    kindLabel:   'Layout · table',
+    sectionLabel: 'Layouts',
+    emptyHeading: 'No layouts yet.',
+    emptyBody:    'Thin-lined tables and grids for organizing stamps and structuring pages. Place them via "Add layout" in the designer.',
   },
 }
 

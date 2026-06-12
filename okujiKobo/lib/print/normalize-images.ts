@@ -112,6 +112,23 @@ async function fetchBytes(url: string): Promise<Buffer | null> {
   }
 }
 
+/** Sniff SVG sources (by content, not extension — storage URLs don't
+ *  always carry one). SVG goes through librsvg inside libvips, which
+ *  needs (a) the bundled fonts configured for any <text>, and (b) a
+ *  density boost — at the default 72dpi a 532-unit-wide layout would
+ *  rasterize at 532px and its thin 0.7–1.2-unit lines would alias when
+ *  printed. Supersampling to the cap keeps them crisp. */
+function looksLikeSvg(bytes: Buffer): boolean {
+  const head = bytes.subarray(0, 1024).toString('utf8').trimStart()
+  return head.startsWith('<svg') || (head.startsWith('<?xml') && head.includes('<svg'))
+}
+
+// librsvg rasterization density for SVG inputs. 72dpi default × 4.5 ≈
+// 324dpi at intrinsic size — beyond the cap for typical layout art
+// (532 units → ~2400px), so the resize-to-cap step downsamples, which
+// anti-aliases the hairlines instead of upscaling them.
+const SVG_DENSITY = 324
+
 /** Returns a `data:image/jpeg;base64,...` URL or null on failure. */
 export async function normalizeImage(
   url: string,
@@ -124,7 +141,9 @@ export async function normalizeImage(
   }
   try {
     const cap = ctx.maxDimension ?? MAX_DIMENSION
-    const base = sharp(bytes, { failOn: 'none' })
+    const isSvg = looksLikeSvg(bytes)
+    if (isSvg) ensurePrintFonts()
+    const base = sharp(bytes, { failOn: 'none', ...(isSvg ? { density: SVG_DENSITY } : {}) })
       .rotate() // honour EXIF orientation
       .resize({
         width: cap,

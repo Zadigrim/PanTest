@@ -163,7 +163,7 @@ async function inlineImageElementUrls(
 ): Promise<DesignerPageElement[]> {
   const out: DesignerPageElement[] = []
   for (const el of elements) {
-    if (el.type === 'image' && el.imageUrl) {
+    if ((el.type === 'image' || el.type === 'layout') && el.imageUrl) {
       out.push({ ...el, imageUrl: await urlToDataUri(el.imageUrl) })
     } else {
       out.push(el)
