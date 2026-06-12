@@ -125,6 +125,19 @@ export function usePublishedPassports() {
 }
 
 export async function acquirePassport(passportId: string, userId: string) {
+  // Premium (paid) passports are NOT acquirable in the mobile app yet:
+  // there is no in-app purchase rail (Google Play Billing is future
+  // work), and granting a paid passport for free is wrong. Free
+  // passports (price_cents 0 / null) acquire normally. Paid passports
+  // are sold on the web (Stripe); a passport purchased there simply
+  // appears in the holder's collection without coming through here.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: p } = await (supabase as any)
+    .from('passports').select('price_cents').eq('id', passportId).single()
+  if (p && (p.price_cents ?? 0) > 0) {
+    return { data: null, error: { message: 'premium_unavailable_in_app' } }
+  }
+
   // Routes through the SECURITY DEFINER ensure_collector_passport
   // function (mobile migration 019) so the copy_number is
   // allocated atomically and expires_at is computed from the

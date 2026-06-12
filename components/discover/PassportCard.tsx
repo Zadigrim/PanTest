@@ -8,7 +8,7 @@
 // CatalogueMode.
 
 import React from 'react'
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native'
+import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native'
 import { router } from 'expo-router'
 import { getCurrentUser } from '../../lib/supabase'
 import { acquirePassport } from '../../hooks/usePassport'
@@ -56,7 +56,17 @@ export function PassportCard({ passport, state, onAcquired, nearbyInfo }: Props)
       router.push('/(auth)/login')
       return
     }
-    await acquirePassport(passport.id, user.id)
+    // Premium passports can't be acquired in-app yet (no in-app purchase
+    // rail). Neutral message — no steering to web checkout (Play policy).
+    if (state === 'paid') {
+      Alert.alert('Premium passport', 'Premium passports aren’t available to acquire in the app yet.')
+      return
+    }
+    const { error } = await acquirePassport(passport.id, user.id)
+    if (error) {
+      Alert.alert('Couldn’t acquire', 'Please try again in a moment.')
+      return
+    }
     onAcquired()
     router.push(`/passport/${passport.id}`)
   }
