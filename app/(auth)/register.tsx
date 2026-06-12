@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, KeyboardAvoidingView, Platform,
+  ImageBackground,
 } from 'react-native'
 import { router } from 'expo-router'
 import { makeRedirectUri } from 'expo-auth-session'
@@ -89,9 +90,12 @@ export default function RegisterScreen() {
 
   if (awaitingConfirmation) {
     return (
-      <View style={styles.container}>
+      <ImageBackground
+        source={require('../../assets/brand/okuji-bg.png')}
+        style={styles.container}
+        resizeMode="cover"
+      >
         <View style={styles.inner}>
-          <Text style={styles.logo}>📨</Text>
           <Text style={styles.title}>Check your email</Text>
           <Text style={styles.body}>
             We sent a verification link to <Text style={styles.email}>{awaitingConfirmation}</Text>. Open it on this
@@ -108,17 +112,23 @@ export default function RegisterScreen() {
             <Text style={styles.linkText}>← Back to sign in</Text>
           </TouchableOpacity>
         </View>
-      </View>
+      </ImageBackground>
     )
   }
 
   return (
-    <KeyboardAvoidingView
+    // Same brand background as login (crest/wordmark baked into the art —
+    // no logo element of its own; see login.tsx).
+    <ImageBackground
+      source={require('../../assets/brand/okuji-bg.png')}
       style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      resizeMode="cover"
     >
-      <View style={styles.inner}>
-        <Text style={styles.logo}>🧭</Text>
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <View style={styles.inner}>
         <Text style={styles.title}>Create account</Text>
 
         <TextInput
@@ -158,22 +168,27 @@ export default function RegisterScreen() {
         <TouchableOpacity onPress={() => router.back()} style={styles.link}>
           <Text style={styles.linkText}>Already have an account? Sign in</Text>
         </TouchableOpacity>
-      </View>
-    </KeyboardAvoidingView>
+        </View>
+      </KeyboardAvoidingView>
+    </ImageBackground>
   )
 }
 
 const styles = StyleSheet.create({
+  // Forest field comes from the background art; navy fallback only if
+  // the asset fails to load.
   container: { flex: 1, backgroundColor: palette.navy },
-  inner: { flex: 1, justifyContent: 'center', padding: 32 },
-  logo: { fontSize: 48, textAlign: 'center', marginBottom: 8 },
+  flex: { flex: 1 },
+  // paddingTop biases the form below the baked brand block (see login).
+  inner: { flex: 1, justifyContent: 'center', padding: 32, paddingTop: 140 },
   title: {
     fontSize: 26, fontWeight: '700', color: palette.cream,
     textAlign: 'center', fontFamily: 'serif', letterSpacing: 1, marginBottom: 32,
   },
+  // Ink-translucent fields over the forest field (matches login).
   input: {
-    borderWidth: 1, borderColor: '#2a3d52', borderRadius: 10,
-    padding: 14, color: palette.cream, backgroundColor: '#152232',
+    borderWidth: 1, borderColor: 'rgba(244,236,216,0.22)', borderRadius: 10,
+    padding: 14, color: palette.cream, backgroundColor: 'rgba(31,29,26,0.4)',
     fontSize: 15, marginBottom: 12,
   },
   btn: {

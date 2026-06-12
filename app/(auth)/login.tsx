@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, KeyboardAvoidingView, Platform,
+  ImageBackground,
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { router } from 'expo-router'
@@ -113,15 +114,20 @@ export default function LoginScreen() {
   }
 
   return (
-    <KeyboardAvoidingView
+    // Brand background (assets/brand/okuji-bg*.png density triplet — RN
+    // picks per device). Crest, wordmark, and tagline are baked into the
+    // art, so the screen renders no logo/title of its own; the form sits
+    // in the clear band beneath the brand block.
+    <ImageBackground
+      source={require('../../assets/brand/okuji-bg.png')}
       style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      resizeMode="cover"
     >
-      <View style={styles.inner}>
-        <Text style={styles.logo}>🧭</Text>
-        <Text style={styles.title}>Okuji</Text>
-        <Text style={styles.subtitle}>Your passport to real experiences</Text>
-
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <View style={styles.inner}>
         <TextInput
           style={styles.input}
           placeholder="Email"
@@ -181,26 +187,25 @@ export default function LoginScreen() {
         <TouchableOpacity onPress={() => router.push('/(auth)/register')} style={styles.link}>
           <Text style={styles.linkText}>Don't have an account? Register</Text>
         </TouchableOpacity>
-      </View>
-    </KeyboardAvoidingView>
+        </View>
+      </KeyboardAvoidingView>
+    </ImageBackground>
   )
 }
 
 const styles = StyleSheet.create({
+  // Forest field comes from the background art; navy fallback shows only
+  // if the asset somehow fails to load.
   container: { flex: 1, backgroundColor: palette.navy },
-  inner: { flex: 1, justifyContent: 'center', padding: 32 },
-  logo: { fontSize: 56, textAlign: 'center', marginBottom: 8 },
-  title: {
-    fontSize: 32, fontWeight: '700', color: palette.cream,
-    textAlign: 'center', fontFamily: 'serif', letterSpacing: 2, marginBottom: 4,
-  },
-  subtitle: {
-    fontSize: 13, color: palette.accent, textAlign: 'center',
-    fontStyle: 'italic', marginBottom: 40,
-  },
+  flex: { flex: 1 },
+  // paddingTop biases the centered form downward so it clears the baked
+  // wordmark + tagline block in the art's upper third.
+  inner: { flex: 1, justifyContent: 'center', padding: 32, paddingTop: 140 },
+  // Ink-translucent fields over the forest field (okuji palette: ink
+  // #1f1d1a, cream hairline) — the old navy boxes clashed with the art.
   input: {
-    borderWidth: 1, borderColor: '#2a3d52', borderRadius: 10,
-    padding: 14, color: palette.cream, backgroundColor: '#152232',
+    borderWidth: 1, borderColor: 'rgba(244,236,216,0.22)', borderRadius: 10,
+    padding: 14, color: palette.cream, backgroundColor: 'rgba(31,29,26,0.4)',
     fontSize: 15, marginBottom: 12,
   },
   passwordRow: {
@@ -226,8 +231,8 @@ const styles = StyleSheet.create({
   btnDisabled: { opacity: 0.6 },
   btnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
   dividerRow: { flexDirection: 'row', alignItems: 'center', marginTop: 20, marginBottom: 4 },
-  divider: { flex: 1, height: 1, backgroundColor: '#2a3d52' },
-  dividerText: { color: palette.hairline, fontSize: 12, marginHorizontal: 10 },
+  divider: { flex: 1, height: 1, backgroundColor: 'rgba(244,236,216,0.22)' },
+  dividerText: { color: 'rgba(244,236,216,0.6)', fontSize: 12, marginHorizontal: 10 },
   googleBtn: {
     backgroundColor: palette.cream, borderRadius: 10, padding: 16,
     alignItems: 'center', marginTop: 12,
