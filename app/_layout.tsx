@@ -116,22 +116,9 @@ export default function RootLayout() {
             name="journal/[stampId]"
             options={{ title: 'Journal', presentation: 'modal' }}
           />
-          <Stack.Screen
-            name="designer/index"
-            options={{ title: 'Passport Designer' }}
-          />
-          <Stack.Screen
-            name="designer/[id]"
-            options={{ headerShown: false }}
-          />
-          <Stack.Screen
-            name="designer/page/[pageId]"
-            options={{ title: 'Edit Section' }}
-          />
-          <Stack.Screen
-            name="designer/stop/[stopId]"
-            options={{ title: 'Edit Stop' }}
-          />
+          {/* Passport design is web-only (okujikobo.okuji.app, desktop).
+              The old mobile designer routes were removed — collectors
+              design nothing in this app. */}
           <Stack.Screen name="employee" options={{ headerShown: false }} />
           <Stack.Screen name="field" options={{ headerShown: false }} />
         </Stack>
