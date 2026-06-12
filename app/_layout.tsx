@@ -8,6 +8,7 @@ import * as Sentry from '@sentry/react-native'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
 import { EmployeeProvider } from '../contexts/EmployeeContext'
+import { DemoProvider } from '../contexts/DemoContext'
 import { initJournalPhotoSync } from '../lib/journal-photo-queue'
 
 // Global deep-link consumer for Supabase auth redirects. Handles:
@@ -101,6 +102,7 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={styles.root}>
       <EmployeeProvider>
+        <DemoProvider>
         <Stack>
           <Stack.Screen name="(auth)" options={{ headerShown: false }} />
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
@@ -122,6 +124,7 @@ export default function RootLayout() {
           <Stack.Screen name="employee" options={{ headerShown: false }} />
           <Stack.Screen name="field" options={{ headerShown: false }} />
         </Stack>
+        </DemoProvider>
       </EmployeeProvider>
     </GestureHandlerRootView>
   )

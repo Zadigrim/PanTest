@@ -3,6 +3,7 @@
 import { useState, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import { getCurrentLocation, type LocationReading } from '../lib/gps'
+import type { Stamp } from '../types'
 
 export type GPSState = 'idle' | 'checking' | 'verified' | 'failed' | 'denied'
 
@@ -30,14 +31,21 @@ export function useGPS() {
   return { state, location, checkLocation, reset }
 }
 
+export interface VerifyStampResult {
+  verified: boolean
+  geohash?: string | null
+  verificationMethod?: string
+  reason?: string
+  // The stamp row written by the function. Since migration 026 the
+  // verify-stamp function is the ONLY stamp writer (client INSERT on
+  // stamps is revoked) — verification or authorized-demo happens
+  // server-side, then the row comes back here.
+  stamp?: Stamp
+}
+
 export function useStampVerification() {
   const [verifying, setVerifying] = useState(false)
-  const [result, setResult] = useState<{
-    verified: boolean
-    geohash?: string
-    verificationMethod?: string
-    reason?: string
-  } | null>(null)
+  const [result, setResult] = useState<VerifyStampResult | null>(null)
 
   const verify = useCallback(async (params: {
     stopId: string
@@ -45,6 +53,19 @@ export function useStampVerification() {
     longitude: number
     qrCodeId?: string
     stopOpenedAt: string
+    // Demo bypass request — honored only for server-authorized demo
+    // users (is_demo_authorized()); anyone else gets a 403.
+    demo?: boolean
+    placement?: {
+      posX?: number
+      posY?: number
+      contactSizePx?: number
+      rotationDeg?: number
+      saturation?: number
+      smudgeDx?: number
+      smudgeDy?: number
+      smudgeIntensity?: number
+    }
   }) => {
     setVerifying(true)
     setResult(null)
@@ -61,13 +82,14 @@ export function useStampVerification() {
       const reason =
         status === 401 ? 'Please sign in again to stamp.'
         : status === 403 ? "You don't have access to this passport."
+        : status === 409 ? 'Already stamped.'
         : 'Verification failed'
       setResult({ verified: false, reason })
       return null
     }
 
     setResult(data)
-    return data as { verified: boolean; geohash: string; verificationMethod: string; reason?: string }
+    return data as VerifyStampResult
   }, [])
 
   const reset = useCallback(() => setResult(null), [])

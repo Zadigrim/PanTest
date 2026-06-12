@@ -9,6 +9,7 @@ import * as Location from 'expo-location'
 import { Ionicons } from '@expo/vector-icons'
 import { supabase, getCurrentUser } from '../../lib/supabase'
 import { useEmployeeContext } from '../../contexts/EmployeeContext'
+import { useDemoContext } from '../../contexts/DemoContext'
 import { backfillJournalPhotos } from '../../lib/journal-photo-backfill'
 import { formatCoordinates } from '../../lib/location-caption'
 import type { Profile } from '../../types'
@@ -30,6 +31,7 @@ export default function ProfileScreen() {
   const [isAdmin, setIsAdmin] = useState(false)
   const [locating, setLocating] = useState(false)
   const { isEmployee, employeeMode, setEmployeeMode } = useEmployeeContext()
+  const { demoAuthorized, demoMode, setDemoMode } = useDemoContext()
 
   useEffect(() => {
     async function load() {
@@ -206,19 +208,41 @@ export default function ProfileScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Employee mode toggle */}
-      {isEmployee && (
+      {/* Employee mode + demo mode toggles. Demo Mode renders ONLY for
+          server-authorized users (is_demo_authorized(): platform admin or
+          an admin-set reviewer flag) — invisible to ordinary users, and
+          every bypass it enables is re-checked server-side anyway. */}
+      {(isEmployee || demoAuthorized) && (
         <View style={s.section}>
           <Text style={s.sectionLabel}>SETTINGS</Text>
-          <View style={s.menuRow}>
-            <Text style={s.menuRowText}>Employee mode</Text>
-            <Switch
-              value={employeeMode}
-              onValueChange={setEmployeeMode}
-              trackColor={{ false: HAIRLINE, true: ACCENT }}
-              thumbColor={employeeMode ? NAVY : '#f4f3f4'}
-            />
-          </View>
+          {isEmployee && (
+            <View style={s.menuRow}>
+              <Text style={s.menuRowText}>Employee mode</Text>
+              <Switch
+                value={employeeMode}
+                onValueChange={setEmployeeMode}
+                trackColor={{ false: HAIRLINE, true: ACCENT }}
+                thumbColor={employeeMode ? NAVY : '#f4f3f4'}
+              />
+            </View>
+          )}
+          {demoAuthorized && (
+            <>
+              <View style={s.menuRow}>
+                <Text style={s.menuRowText}>Demo mode</Text>
+                <Switch
+                  value={demoMode}
+                  onValueChange={setDemoMode}
+                  trackColor={{ false: HAIRLINE, true: ACCENT }}
+                  thumbColor={demoMode ? NAVY : '#f4f3f4'}
+                />
+              </View>
+              <Text style={s.dangerHint}>
+                Acquire passports free and stamp without verification. Demo
+                stamps are marked and never count as verified visits.
+              </Text>
+            </>
+          )}
         </View>
       )}
 

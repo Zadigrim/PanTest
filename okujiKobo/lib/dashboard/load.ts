@@ -188,6 +188,9 @@ export async function loadDashboard(
     noOwned ? Promise.resolve({ data: [] }) : db.from('stamps')
       .select('id, passport_id, stop_id, verified_at')
       .in('passport_id', ownedIds)
+      // Demo stamps (migration 026) are never verified presence —
+      // operator surfaces count real stamps only.
+      .eq('is_demo', false)
       .gte('verified_at', activityCutoff)
       .order('verified_at', { ascending: false })
       .limit(8),

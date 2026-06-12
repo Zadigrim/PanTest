@@ -13,6 +13,7 @@ import { LinearGradient } from 'expo-linear-gradient'
 import { router } from 'expo-router'
 import { getCurrentUser } from '../../lib/supabase'
 import { acquirePassport } from '../../hooks/usePassport'
+import { useDemoContext } from '../../contexts/DemoContext'
 import { palette } from '../../lib/colors'
 import type { Passport } from '../../types'
 
@@ -49,6 +50,7 @@ interface Props {
 }
 
 export function PassportCard({ passport, state, onAcquired, nearbyInfo }: Props) {
+  const { demoActive } = useDemoContext()
   const handlePress = () => router.push(`/passport/${passport.id}`)
 
   const handleAcquire = async () => {
@@ -59,11 +61,13 @@ export function PassportCard({ passport, state, onAcquired, nearbyInfo }: Props)
     }
     // Premium passports can't be acquired in-app yet (no in-app purchase
     // rail). Neutral message — no steering to web checkout (Play policy).
-    if (state === 'paid') {
+    // Demo mode (server-authorized) acquires them as marked demo rows via
+    // ensure_collector_passport's p_demo path instead.
+    if (state === 'paid' && !demoActive) {
       Alert.alert('Premium passport', 'Premium passports aren’t available to acquire in the app yet.')
       return
     }
-    const { error } = await acquirePassport(passport.id, user.id)
+    const { error } = await acquirePassport(passport.id, user.id, { demo: demoActive })
     if (error) {
       Alert.alert('Couldn’t acquire', 'Please try again in a moment.')
       return

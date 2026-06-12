@@ -2,7 +2,7 @@ export type Role = 'collector' | 'creator' | 'employee' | 'admin'
 export type PassportType = 'location' | 'experience' | 'learning'
 export type StampShape = 'circle' | 'rectangle' | 'hexagon' | 'badge'
 export type StampSmudge = 'none' | 'light' | 'medium' | 'heavy'
-export type VerificationMethod = 'qr_gps' | 'gps_only' | 'employee' | 'self_reported'
+export type VerificationMethod = 'qr_gps' | 'gps_only' | 'employee' | 'self_reported' | 'demo'
 export type VerificationType = 'witnessed' | 'documented' | 'presence' | 'honor'
 export type InputMethod = 'keyboard' | 'voice' | 'both'
 export type CoverBgType = 'color' | 'gradient' | 'image'
@@ -14,6 +14,10 @@ export interface Profile {
   family_id: string | null
   role: Role
   pro_expires_at: string | null
+  // Reviewer demo authorization (migration 026). Settable only by a
+  // platform admin (guard trigger); the authoritative check is the
+  // is_demo_authorized() RPC, not this column.
+  demo_mode_enabled?: boolean
   created_at: string
   updated_at: string
 }
@@ -147,6 +151,13 @@ export interface Stop {
   box_height: number
   rotation: number   // visual rotation of the location box, 0–359 degrees
   verification_type: VerificationType | null
+  // Canonical verification pair (kobo migration 046; CLAUDE.md invariant
+  // 5). Mobile reads the method to decide whether stamping requires a QR
+  // scan; verification_tier is the derived fallback for pre-046 rows
+  // (tiers 1/2 = QR required).
+  experience_type?: string | null
+  experience_verification_method?: 'gps' | 'qr' | 'witnessed' | 'documented' | 'honor' | null
+  verification_tier?: number | null
   // Location caption (migration 079). mode 'off' (default) renders
   // nothing. 'address' uses the address_* fields; 'coordinates' uses
   // lat/lng. placement = interior-lower vs exterior-below. The earned
@@ -172,6 +183,8 @@ export interface CollectorPassport {
   acquired_at: string
   last_used_at: string | null
   completed_at: string | null
+  // True when granted via an authorized demo acquisition (migration 026).
+  acquired_demo?: boolean
 }
 
 export interface Stamp {
@@ -191,6 +204,9 @@ export interface Stamp {
   smudge_dy: number | null
   smudge_intensity: number | null
   verification_method: VerificationMethod
+  // Demo stamps (migration 026): marked, never counted as verified
+  // presence, purgeable. Always paired with verification_method 'demo'.
+  is_demo?: boolean
   verifier_id: string | null
   verifier_note: string | null
   stop_opened_at: string | null

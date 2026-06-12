@@ -169,6 +169,9 @@ export async function GET(
     .from('stamps')
     .select('id, stop_id, user_id')
     .eq('passport_id', passportId)
+    // Demo stamps (migration 026) are never verified presence —
+    // analytics count real stamps only.
+    .eq('is_demo', false)
     .in('stop_id', stopIds.length > 0 ? stopIds : ['__none__'])
     .returns<StampRow[]>()
 

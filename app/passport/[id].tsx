@@ -2,16 +2,17 @@
 // Page sequence: Cover → InsideCover → TOC → [SectionDivider + StopsPage + ExitVisa] × N
 import React, { useEffect, useCallback, useState, useMemo, useRef } from 'react'
 import {
-  View, Text, TouchableOpacity, ActivityIndicator, StyleSheet, Alert, useWindowDimensions,
+  View, Text, TouchableOpacity, ActivityIndicator, StyleSheet, Alert,
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { useLocalSearchParams, router } from 'expo-router'
 import { supabase, getCurrentUser } from '../../lib/supabase'
-import { usePassport } from '../../hooks/usePassport'
+import { usePassport, acquirePassport } from '../../hooks/usePassport'
 import { useGPS, useStampVerification } from '../../hooks/useGPS'
+import { useDemoContext } from '../../contexts/DemoContext'
 import { checkPageComplete, generateTokenForPage } from '../../lib/token'
 
-import { PassportFrame } from '../../components/passport/PassportFrame'
+import { PassportFrame, usePageDimensions } from '../../components/passport/PassportFrame'
 import { PageFlipper, type PageFlipperHandle } from '../../components/passport/PageFlipper'
 import { BookCover } from '../../components/passport/BookCover'
 import { InsideCoverPage } from '../../components/passport/InsideCoverPage'
@@ -20,32 +21,33 @@ import { SectionDivider } from '../../components/passport/SectionDivider'
 import { PassportPage } from '../../components/passport/PassportPage'
 import { ExitVisa } from '../../components/passport/ExitVisa'
 import { PostStampCaptureSheet } from '../../components/passport/PostStampCaptureSheet'
+import { QRScanSheet } from '../../components/stamp/QRScanSheet'
 
-import type { StampPlacement, StampSlotState, CollectorPassport, Stamp } from '../../types'
+import type { StampPlacement, StampSlotState, CollectorPassport, Stamp, Stop } from '../../types'
 import { palette } from '../../lib/colors'
 
-// BLD-32: a passport.is_demo + viewer-is-platform-admin pair. Activates the
-// stamp-flow bypass and renders the persistent banner. Non-admins viewing
-// a demo passport see normal behavior (no bypass, no banner) — the flag is
-// an admin-only override, not a relaxation of the public access model.
-function useDemoMode(passportIsDemo: boolean | undefined, isAdmin: boolean) {
-  return Boolean(isAdmin && passportIsDemo)
+// Whether stamping this stop requires a real QR scan. Reads the canonical
+// experience_verification_method (CLAUDE.md invariant 5) with the derived
+// verification_tier / legacy evidence_tier as fallback for pre-046 rows
+// (tiers 1/2 are the QR+GPS tiers in verify-stamp).
+function stopRequiresQr(stop: Stop): boolean {
+  if (stop.experience_verification_method != null) {
+    return stop.experience_verification_method === 'qr'
+  }
+  const tier = stop.verification_tier ?? stop.evidence_tier ?? 5
+  return tier === 1 || tier === 2
 }
 
 export default function PassportScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
-  const { width: sw, height: sh } = useWindowDimensions()
-  const pageW = sw * 0.82
-  const pageH = sh * 0.96
+  const { pageW, pageH } = usePageDimensions()
 
-  const { passport, pages, stops, loading, reload: reloadPassport } = usePassport(id)
+  const { passport, pages, stops, loading } = usePassport(id)
   const [stamps, setStamps] = useState<Record<string, Record<string, Stamp>>>({})
   const [slotStates, setSlotStates] = useState<Record<string, Record<string, StampSlotState>>>({})
   const [collectorPassport, setCollectorPassport] = useState<CollectorPassport | null>(null)
   const [userId, setUserId] = useState<string | null>(null)
   const [bearerName, setBearerName] = useState<string>('')
-  const [isAdmin, setIsAdmin] = useState(false)
-  const [togglingDemo, setTogglingDemo] = useState(false)
   // Post-stamp capture surface state. stampId is the just-placed stamp;
   // redemptionCode is non-null when the stamp completed a section.
   const [captureSheet, setCaptureSheet] = useState<{ stampId: string; redemptionCode: string | null } | null>(null)
@@ -55,7 +57,24 @@ export default function PassportScreen() {
   const flipperRef = useRef<PageFlipperHandle>(null)
   const [navIdx, setNavIdx] = useState(0)
 
-  const isDemo = useDemoMode(passport?.is_demo, isAdmin)
+  // Contained demo mode: demoActive = server-authorized (is_demo_authorized)
+  // AND the profile toggle is on. Every bypass below is re-checked
+  // server-side (verify-stamp / ensure_collector_passport); this flag only
+  // chooses which requests the client makes.
+  const { demoActive } = useDemoContext()
+
+  // QR-scan-on-press state: when a placement lands on a QR-verified stop,
+  // the scanner sheet opens and the placement waits here until the code
+  // is scanned (or the scan is cancelled). Scanned codes are cached per
+  // stop for the session so re-stamping after a failed GPS check doesn't
+  // demand a second scan.
+  const [pendingScan, setPendingScan] = useState<{
+    pageId: string
+    stopId: string
+    stopName?: string
+    placement: StampPlacement
+  } | null>(null)
+  const scannedCodes = useRef<Record<string, string>>({})
 
   // ── init: auth + collector passport + existing stamps ──────────────────────
   useEffect(() => {
@@ -63,11 +82,6 @@ export default function PassportScreen() {
       const user = await getCurrentUser()
       if (!user) { router.replace('/(auth)/login'); return }
       setUserId(user.id)
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const adminResult = await (supabase as any).rpc('is_platform_admin')
-      const callerIsAdmin = adminResult?.data === true
-      setIsAdmin(callerIsAdmin)
 
       const [cpResult, profileResult] = await Promise.all([
         supabase
@@ -85,19 +99,23 @@ export default function PassportScreen() {
 
       let cp = cpResult.data
       if (!cp) {
-        // BLD-32: platform admin viewing a demo passport without owning a
-        // collector_passports row gets one auto-created. The acquisition
-        // gate is one of the constraints demo mode explicitly bypasses
-        // per the locked spec. The row is a real row (untagged) and gets
-        // truncated alongside the demo passport pre-launch.
-        if (callerIsAdmin && passport?.is_demo) {
-          const { data: newCp } = await supabase
+        // Demo mode: an authorized demo user opening an unowned passport
+        // acquires it through the server path (ensure_collector_passport
+        // p_demo — authorization re-checked in the function, row marked
+        // acquired_demo). Replaces the old BLD-32 client-side INSERT.
+        if (demoActive) {
+          const { data: demoCp } = await acquirePassport(id, user.id, { demo: true })
+          if (!demoCp) { router.back(); return }
+          // RPC returns the row shape minus user/passport ids; refetch the
+          // full row so downstream consumers see a normal CollectorPassport.
+          const { data: fullCp } = await supabase
             .from('collector_passports')
-            .insert({ user_id: user.id, passport_id: id })
-            .select()
+            .select('*')
+            .eq('user_id', user.id)
+            .eq('passport_id', id)
             .single()
-          if (!newCp) { router.back(); return }
-          cp = newCp
+          if (!fullCp) { router.back(); return }
+          cp = fullCp
         } else {
           router.back(); return
         }
@@ -129,10 +147,10 @@ export default function PassportScreen() {
       setSlotStates(initial)
     }
     if (!loading) init()
-    // passport?.is_demo intentionally in deps: an admin flipping demo on
-    // for a passport they don't own re-runs init to auto-acquire. The
-    // SELECTs and INSERT inside init are idempotent on subsequent runs.
-  }, [loading, id, pages, stops, passport?.is_demo])
+    // demoActive intentionally in deps: turning the profile demo toggle
+    // on re-runs init so an unowned passport demo-acquires. The SELECTs
+    // and the RPC inside init are idempotent on subsequent runs.
+  }, [loading, id, pages, stops, demoActive])
 
   // ── Correction-notice state ────────────────────────────────────────────────
   // Holder banner: shows the latest republish_log entry's
@@ -196,74 +214,65 @@ export default function PassportScreen() {
     }))
   }, [])
 
-  const handleStampPlaced = useCallback(async (
+  // Verification + write both happen in the verify-stamp function (the
+  // only stamp writer since migration 026 — client INSERT on stamps is
+  // revoked). Demo mode sends demo: true, which the function honors only
+  // after its own is_demo_authorized() check; the stamp comes back marked
+  // is_demo / verification_method 'demo'.
+  const submitStamp = useCallback(async (
     pageId: string,
     stopId: string,
     placement: StampPlacement,
+    qrCodeId?: string,
   ) => {
     if (!userId || !collectorPassport) return
 
     const stopOpenedAt = new Date().toISOString()
+    const placementBody = {
+      posX: placement.posX,
+      posY: placement.posY,
+      contactSizePx: placement.contactSizePx,
+      rotationDeg: placement.rotationDeg,
+      // Gesture-derived appearance (migration 040). Optional on the
+      // StampPlacement type so legacy callers without these still
+      // type-check; the gesture component fills them in.
+      saturation: placement.saturation,
+      smudgeDx: placement.smudgeDx,
+      smudgeDy: placement.smudgeDy,
+      smudgeIntensity: placement.smudgeIntensity,
+    }
 
-    // BLD-32: in demo mode, skip GPS check + verify. The stamp INSERT is
-    // unchanged structurally; verification_method is recorded as
-    // 'self_reported' so the row isn't claiming GPS verification it didn't
-    // do, but is otherwise indistinguishable from a real self-reported
-    // stamp (no is_demo_data tag per the locked spec). Demo passports get
-    // TRUNCATEd pre-launch.
-    let verifiedGeohash: string | null = null
-    let verificationMethod: string = 'self_reported'
-    if (!isDemo) {
+    let result
+    if (demoActive) {
+      result = await verify({
+        stopId,
+        latitude: 0,
+        longitude: 0,
+        stopOpenedAt,
+        demo: true,
+        placement: placementBody,
+      })
+    } else {
       const location = await checkLocation()
-      const result = await verify({
+      result = await verify({
         stopId,
         latitude: location?.latitude ?? 0,
         longitude: location?.longitude ?? 0,
+        qrCodeId,
         stopOpenedAt,
+        placement: placementBody,
       })
-
-      if (!result?.verified) {
-        Alert.alert(
-          'Not quite there',
-          result?.reason ?? 'You need to be at the location to stamp.',
-        )
-        handlePressCancel(pageId, stopId)
-        return
-      }
-      verifiedGeohash = result.geohash
-      verificationMethod = result.verificationMethod
     }
 
-    const { data: stampData, error } = await supabase
-      .from('stamps')
-      .insert({
-        user_id: userId,
-        stop_id: stopId,
-        collector_passport_id: collectorPassport.id,
-        geohash: verifiedGeohash,
-        stamp_pos_x: placement.posX,
-        stamp_pos_y: placement.posY,
-        contact_size_px: placement.contactSizePx,
-        rotation_deg: placement.rotationDeg,
-        // Gesture-derived appearance (migration 040). Optional on the
-        // StampPlacement type so legacy callers without these still
-        // type-check; the gesture component fills them in.
-        saturation: placement.saturation ?? null,
-        smudge_dx: placement.smudgeDx ?? null,
-        smudge_dy: placement.smudgeDy ?? null,
-        smudge_intensity: placement.smudgeIntensity ?? null,
-        verification_method: verificationMethod,
-        stop_opened_at: stopOpenedAt,
-        verified_at: new Date().toISOString(),
-      })
-      .select()
-      .single()
-
-    if (error) {
-      Alert.alert('Error', 'Could not save stamp.')
+    if (!result?.verified || !result.stamp) {
+      Alert.alert(
+        'Not quite there',
+        result?.reason ?? 'You need to be at the location to stamp.',
+      )
       handlePressCancel(pageId, stopId)
       return
     }
+    const stampData = result.stamp
 
     setStamps((prev) => ({
       ...prev,
@@ -292,25 +301,44 @@ export default function PassportScreen() {
       }
     }
     setCaptureSheet({ stampId: stampData.id, redemptionCode })
-  }, [userId, collectorPassport, isDemo, checkLocation, verify, handlePressCancel])
+  }, [userId, collectorPassport, demoActive, checkLocation, verify, handlePressCancel])
 
-  // BLD-32: admin-only toggle for passports.is_demo. Reload the passport
-  // via the usePassport hook so isDemo derives off the new value.
-  const handleToggleDemo = useCallback(async () => {
-    if (!passport || togglingDemo) return
-    setTogglingDemo(true)
-    const next = !passport.is_demo
-    const { error } = await supabase
-      .from('passports')
-      .update({ is_demo: next })
-      .eq('id', passport.id)
-    if (error) {
-      Alert.alert('Demo mode', error.message)
-    } else {
-      await reloadPassport()
+  // Placement entry point. QR-verified stops route through the scanner
+  // sheet first (real scan, all users — this enables verification, never
+  // bypasses it); everything else goes straight to submitStamp. Demo mode
+  // skips the scan because the server-authorized demo path skips all
+  // verification anyway.
+  const handleStampPlaced = useCallback(async (
+    pageId: string,
+    stopId: string,
+    placement: StampPlacement,
+  ) => {
+    const stop = (stops[pageId] ?? []).find((s) => s.id === stopId)
+    if (stop && !demoActive && stopRequiresQr(stop)) {
+      const cached = scannedCodes.current[stopId]
+      if (cached) {
+        await submitStamp(pageId, stopId, placement, cached)
+        return
+      }
+      setPendingScan({ pageId, stopId, stopName: stop.name, placement })
+      return
     }
-    setTogglingDemo(false)
-  }, [passport, togglingDemo, reloadPassport])
+    await submitStamp(pageId, stopId, placement)
+  }, [stops, demoActive, submitStamp])
+
+  const handleQrScanned = useCallback(async (qrCodeId: string) => {
+    const pending = pendingScan
+    setPendingScan(null)
+    if (!pending) return
+    scannedCodes.current[pending.stopId] = qrCodeId
+    await submitStamp(pending.pageId, pending.stopId, pending.placement, qrCodeId)
+  }, [pendingScan, submitStamp])
+
+  const handleQrCancelled = useCallback(() => {
+    const pending = pendingScan
+    setPendingScan(null)
+    if (pending) handlePressCancel(pending.pageId, pending.stopId)
+  }, [pendingScan, handlePressCancel])
 
   // (Modal-based overlay callbacks removed in the expressive-gesture PR.
   // The gesture component now delivers placement directly to
@@ -512,26 +540,23 @@ export default function PassportScreen() {
         />
       )}
 
-      {/* BLD-32 demo banner + admin toggle. The banner is intentionally
-          obtrusive — demo stamps must never be mistaken for real ones.
-          The toggle is admin-only and visible whether demo is on or off so
-          an admin can flip it from inside the passport view itself. */}
-      {isDemo && (
+      {/* QR-scan-on-press: opens when a placement lands on a QR-verified
+          stop. The scanned code feeds the existing verify-stamp QR check —
+          this enables real verification, it bypasses nothing. */}
+      <QRScanSheet
+        stopId={pendingScan?.stopId ?? null}
+        stopName={pendingScan?.stopName}
+        onScanned={handleQrScanned}
+        onCancel={handleQrCancelled}
+      />
+
+      {/* Demo banner — intentionally obtrusive; demo stamps must never be
+          mistaken for real ones. Shown whenever the (server-authorized)
+          demo toggle is active; the toggle itself lives in Profile. */}
+      {demoActive && (
         <View pointerEvents="none" style={styles.demoBanner}>
-          <Text style={styles.demoBannerText}>DEMO MODE — constraints bypassed</Text>
+          <Text style={styles.demoBannerText}>DEMO MODE — verification bypassed, stamps marked demo</Text>
         </View>
-      )}
-      {isAdmin && (
-        <TouchableOpacity
-          onPress={handleToggleDemo}
-          disabled={togglingDemo}
-          style={[styles.demoTogglePill, isDemo && styles.demoTogglePillActive]}
-          accessibilityLabel={isDemo ? 'Turn demo mode off' : 'Turn demo mode on'}
-        >
-          <Text style={[styles.demoToggleText, isDemo && styles.demoToggleTextActive]}>
-            {togglingDemo ? '…' : isDemo ? 'DEMO: ON' : 'DEMO: OFF'}
-          </Text>
-        </TouchableOpacity>
       )}
     </View>
   )
@@ -550,7 +575,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: '#2a1f12',
   },
-  // ── BLD-32 demo mode overlay ─────────────────────────────────────────────
+  // ── Demo mode banner ─────────────────────────────────────────────────────
   demoBanner: {
     position: 'absolute',
     top: 0,
@@ -566,30 +591,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     letterSpacing: 1.5,
-  },
-  demoTogglePill: {
-    position: 'absolute',
-    top: 48,
-    right: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.12)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.3)',
-  },
-  demoTogglePillActive: {
-    backgroundColor: '#fff',
-    borderColor: '#fff',
-  },
-  demoToggleText: {
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 1,
-    color: 'rgba(255,255,255,0.85)',
-  },
-  demoToggleTextActive: {
-    color: '#C0392B',
   },
 })
 

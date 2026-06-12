@@ -177,11 +177,13 @@ export async function POST(_request: NextRequest): Promise<NextResponse> {
     stopsByPassport.get(pid)!.push(stop.id)
   }
 
-  // All stamps (excluding under-13 users)
+  // All stamps (excluding under-13 users and demo stamps — migration
+  // 026: demo is never verified presence, never feeds quality scores)
   let stampsQuery = supabase
     .from('stamps')
     .select('id, user_id, passport_id, stop_id, verifier_id')
     .in('passport_id', passportIds)
+    .eq('is_demo', false)
     .returns<StampRow[]>()
 
   if (under13Ids.size > 0) {

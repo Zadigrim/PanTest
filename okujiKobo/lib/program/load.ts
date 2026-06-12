@@ -185,20 +185,25 @@ export async function loadProgramOverview(
     db.from('acquisitions')
       .select('passport_id, user_id, acquired_at')
       .in('passport_id', ownedIds),
+    // Demo stamps (migration 026) are never verified presence — all
+    // program-hub numbers count real stamps only.
     db.from('stamps')
       .select('passport_id, user_id')
       .in('passport_id', ownedIds)
+      .eq('is_demo', false)
       .gte('verified_at', thirtyAgo.toISOString()),
     db.from('stamps')
       .select('passport_id, user_id, verified_at')
       .in('passport_id', ownedIds)
+      .eq('is_demo', false)
       .gte('verified_at', ninetyAgo.toISOString()),
     // Full stamps history for completion-rate math — no time
     // window, because a collector who completed 6 months ago is
     // still complete today.
     db.from('stamps')
       .select('passport_id, user_id, stop_id')
-      .in('passport_id', ownedIds),
+      .in('passport_id', ownedIds)
+      .eq('is_demo', false),
     db.from('completion_tokens')
       .select('passport_id, prize_distributed, distribution_pending')
       .in('passport_id', ownedIds),

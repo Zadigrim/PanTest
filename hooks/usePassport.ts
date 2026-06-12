@@ -124,28 +124,45 @@ export function usePublishedPassports() {
   return { passports, ownedIds, loading, reload: load }
 }
 
-export async function acquirePassport(passportId: string, userId: string) {
+export async function acquirePassport(
+  passportId: string,
+  userId: string,
+  opts?: { demo?: boolean },
+) {
   // Premium (paid) passports are NOT acquirable in the mobile app yet:
   // there is no in-app purchase rail (Google Play Billing is future
   // work), and granting a paid passport for free is wrong. Free
   // passports (price_cents 0 / null) acquire normally. Paid passports
   // are sold on the web (Stripe); a passport purchased there simply
   // appears in the holder's collection without coming through here.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: p } = await (supabase as any)
-    .from('passports').select('price_cents').eq('id', passportId).single()
-  if (p && (p.price_cents ?? 0) > 0) {
-    return { data: null, error: { message: 'premium_unavailable_in_app' } }
+  //
+  // EXCEPTION — demo mode: opts.demo requests a demo acquisition.
+  // Since migration 026 the payment gate lives in
+  // ensure_collector_passport itself: a paid passport acquires only
+  // when p_demo is true AND the caller passes is_demo_authorized()
+  // server-side, and the row is marked acquired_demo. The price check
+  // below is just a friendlier client-side error for ordinary users;
+  // it is no longer what protects paid passports.
+  if (!opts?.demo) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: p } = await (supabase as any)
+      .from('passports').select('price_cents').eq('id', passportId).single()
+    if (p && (p.price_cents ?? 0) > 0) {
+      return { data: null, error: { message: 'premium_unavailable_in_app' } }
+    }
   }
 
   // Routes through the SECURITY DEFINER ensure_collector_passport
-  // function (mobile migration 019) so the copy_number is
-  // allocated atomically and expires_at is computed from the
-  // passport's expiry_duration_days in one transaction.
-  // Idempotent: returns the existing row if already acquired.
+  // function (mobile migration 019, payment/identity gate added in
+  // 026) so the copy_number is allocated atomically and expires_at
+  // is computed from the passport's expiry_duration_days in one
+  // transaction. Idempotent: returns the existing row if already
+  // acquired.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await (supabase as any).rpc('ensure_collector_passport', {
     p_user_id: userId,
     p_passport_id: passportId,
+    p_demo: opts?.demo ?? false,
   })
   // RPC returns a setof so data is an array; flatten to single.
   const row = Array.isArray(data) ? data[0] : data

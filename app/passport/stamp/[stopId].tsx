@@ -7,6 +7,7 @@ import {
 import { useLocalSearchParams, router } from 'expo-router'
 import { supabase, getCurrentUser } from '../../../lib/supabase'
 import { useGPS, useStampVerification } from '../../../hooks/useGPS'
+import { useDemoContext } from '../../../contexts/DemoContext'
 import { StampArtwork } from '../../../components/stamp/StampArtwork'
 import type { Stop } from '../../../types'
 import { palette } from '../../../lib/colors'
@@ -22,6 +23,7 @@ export default function StampScreen() {
   const [visitorCode, setVisitorCode] = useState('')
   const { checkLocation } = useGPS()
   const { verify } = useStampVerification()
+  const { demoActive } = useDemoContext()
 
   useEffect(() => {
     async function load() {
@@ -65,6 +67,10 @@ export default function StampScreen() {
     load()
   }, [stopId])
 
+  // verify-stamp verifies AND writes the stamp (the only stamp writer
+  // since migration 026 — client INSERT on stamps is revoked). Demo mode
+  // sends demo: true; the function honors it only for server-authorized
+  // demo users and marks the row is_demo.
   const handleStamp = async () => {
     setVerifying(true)
     const user = await getCurrentUser()
@@ -76,40 +82,31 @@ export default function StampScreen() {
       return
     }
 
-    const location = await checkLocation()
-    if (!location) {
-      Alert.alert('Location needed', 'Enable location to stamp this stop.')
-      setVerifying(false)
-      return
-    }
-
     const stopOpenedAt = new Date().toISOString()
-    const result = await verify({
-      stopId,
-      latitude: location.latitude,
-      longitude: location.longitude,
-      qrCodeId: qrCodeId,
-      stopOpenedAt,
-    })
-
-    if (!result?.verified) {
-      Alert.alert('Not verified', result?.reason ?? 'Could not confirm your location.')
-      setVerifying(false)
-      return
+    let result
+    if (demoActive) {
+      result = await verify({ stopId, latitude: 0, longitude: 0, stopOpenedAt, demo: true })
+    } else {
+      const location = await checkLocation()
+      if (!location) {
+        Alert.alert('Location needed', 'Enable location to stamp this stop.')
+        setVerifying(false)
+        return
+      }
+      result = await verify({
+        stopId,
+        latitude: location.latitude,
+        longitude: location.longitude,
+        qrCodeId: qrCodeId,
+        stopOpenedAt,
+      })
     }
-
-    const { error } = await supabase.from('stamps').insert({
-      user_id: user.id,
-      stop_id: stopId,
-      collector_passport_id: collectorPassportId,
-      geohash: result.geohash,
-      verification_method: result.verificationMethod,
-      stop_opened_at: stopOpenedAt,
-      verified_at: new Date().toISOString(),
-    })
 
     setVerifying(false)
-    if (error) { Alert.alert('Error', error.message); return }
+    if (!result?.verified || !result.stamp) {
+      Alert.alert('Not verified', result?.reason ?? 'Could not confirm your location.')
+      return
+    }
     setStamped(true)
   }
 
