@@ -5,9 +5,12 @@ import {
 } from 'react-native'
 import { router } from 'expo-router'
 import * as WebBrowser from 'expo-web-browser'
+import * as Location from 'expo-location'
+import { Ionicons } from '@expo/vector-icons'
 import { supabase, getCurrentUser } from '../../lib/supabase'
 import { useEmployeeContext } from '../../contexts/EmployeeContext'
 import { backfillJournalPhotos } from '../../lib/journal-photo-backfill'
+import { formatCoordinates } from '../../lib/location-caption'
 import type { Profile } from '../../types'
 import { palette } from '../../lib/colors'
 
@@ -24,6 +27,8 @@ export default function ProfileScreen() {
   const [loading, setLoading] = useState(true)
   const [backfilling, setBackfilling] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [isAdmin, setIsAdmin] = useState(false)
+  const [locating, setLocating] = useState(false)
   const { isEmployee, employeeMode, setEmployeeMode } = useEmployeeContext()
 
   useEffect(() => {
@@ -32,10 +37,41 @@ export default function ProfileScreen() {
       if (!user) { router.replace('/(auth)/login'); return }
       const { data } = await supabase.from('profiles').select('*').eq('id', user.id).single()
       setProfile(data)
+      // Owner-only surfaces gate on the canonical is_platform_admin() RPC —
+      // the single admin check (never a parallel role test on profiles).
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: adminFlag } = await (supabase as any).rpc('is_platform_admin')
+      setIsAdmin(adminFlag === true)
       setLoading(false)
     }
     load()
   }, [])
+
+  // Owner-only diagnostic: read the current GPS fix and show it once.
+  // Ephemeral — nothing is stored, logged, or sent anywhere. Same
+  // foreground-only permission posture as stamping.
+  const handleShowLocation = async () => {
+    setLocating(true)
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync()
+      if (status !== 'granted') {
+        Alert.alert('Location', 'Location permission is needed to read your current GPS fix.')
+        return
+      }
+      const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Highest })
+      const coords = formatCoordinates(pos.coords.latitude, pos.coords.longitude)
+      Alert.alert(
+        'Current GPS',
+        coords
+          ? `${coords}\n±${Math.round(pos.coords.accuracy ?? 0)} m\n\nNot stored — diagnostic only.`
+          : 'Could not read a valid GPS fix.',
+      )
+    } catch {
+      Alert.alert('Location', 'Could not read your current location.')
+    } finally {
+      setLocating(false)
+    }
+  }
 
   const handleSignOut = () => {
     Alert.alert('Sign out', 'Are you sure?', [
@@ -113,7 +149,12 @@ export default function ProfileScreen() {
     return <View style={s.centered}><ActivityIndicator color={ACCENT} /></View>
   }
 
-  const isEmp = profile?.role === 'employee' || profile?.role === 'admin' || isEmployee
+  // Verifier surfaces gate on the live can_verify authorization only
+  // (EmployeeContext sets isEmployee strictly from an employee_authorizations
+  // row with can_verify = true). A stale profiles.role is not enough — the
+  // terminal is hidden AND the route guard in app/employee/_layout.tsx
+  // redirects non-verifiers, so this is enforced, not merely visual.
+  const isEmp = isEmployee
 
   return (
     <ScrollView style={s.container} contentContainerStyle={s.content}>
@@ -189,6 +230,22 @@ export default function ProfileScreen() {
           {backfilling && <ActivityIndicator color={ACCENT} />}
         </TouchableOpacity>
       </View>
+
+      {/* Owner tools — platform admin only (is_platform_admin RPC).
+          GPS read is ephemeral: shown once, never stored. */}
+      {isAdmin && (
+        <View style={s.section}>
+          <Text style={s.sectionLabel}>OWNER TOOLS</Text>
+          <TouchableOpacity style={s.menuRow} onPress={handleShowLocation} disabled={locating}>
+            <View style={s.ownerRowLeft}>
+              <Ionicons name="location-outline" size={18} color={INK} />
+              <Text style={s.menuRowText}>{locating ? 'Reading GPS…' : 'Show current GPS'}</Text>
+            </View>
+            {locating && <ActivityIndicator color={ACCENT} />}
+          </TouchableOpacity>
+          <Text style={s.dangerHint}>Ephemeral diagnostic — your location is shown once and never stored.</Text>
+        </View>
+      )}
 
       {/* Sign out */}
       <View style={s.section}>
@@ -270,6 +327,7 @@ const s = StyleSheet.create({
     paddingVertical: 8,
   },
   menuRowText: { fontSize: 15, color: INK },
+  ownerRowLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
 
   signOutRow: { paddingVertical: 10 },
   signOutText: { fontSize: 15, color: '#c0392b', fontWeight: '500' },

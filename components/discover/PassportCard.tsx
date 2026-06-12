@@ -8,7 +8,8 @@
 // CatalogueMode.
 
 import React from 'react'
-import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native'
+import { View, Text, TouchableOpacity, StyleSheet, Alert, Image } from 'react-native'
+import { LinearGradient } from 'expo-linear-gradient'
 import { router } from 'expo-router'
 import { getCurrentUser } from '../../lib/supabase'
 import { acquirePassport } from '../../hooks/usePassport'
@@ -77,11 +78,29 @@ export function PassportCard({ passport, state, onAcquired, nearbyInfo }: Props)
       onPress={state === 'owned' ? handlePress : undefined}
       activeOpacity={0.88}
     >
-      <Text style={styles.cardEmblem}>{passport.cover_emblem ?? '🧭'}</Text>
-
-      <Text style={styles.cardTitle} numberOfLines={2}>
-        {passport.title}
-      </Text>
+      {/* Front-cover thumbnail (kobo-generated, rightmost 612px panel).
+          Falls back to the cover color + emblem + title when absent. */}
+      {passport.cover_thumbnail ? (
+        <>
+          <Image
+            source={{ uri: passport.cover_thumbnail }}
+            style={StyleSheet.absoluteFill}
+            resizeMode="cover"
+          />
+          <LinearGradient
+            colors={['transparent', 'rgba(0,0,0,0.55)']}
+            style={StyleSheet.absoluteFill}
+            pointerEvents="none"
+          />
+        </>
+      ) : (
+        <>
+          <Text style={styles.cardEmblem}>{passport.cover_emblem ?? '🧭'}</Text>
+          <Text style={styles.cardTitle} numberOfLines={2}>
+            {passport.title}
+          </Text>
+        </>
+      )}
 
       {nearbyInfo && (
         <Text style={styles.nearbyLine} numberOfLines={1}>

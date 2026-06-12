@@ -4,6 +4,7 @@ import React, { useEffect, useCallback, useState, useMemo, useRef } from 'react'
 import {
   View, Text, TouchableOpacity, ActivityIndicator, StyleSheet, Alert, useWindowDimensions,
 } from 'react-native'
+import { Ionicons } from '@expo/vector-icons'
 import { useLocalSearchParams, router } from 'expo-router'
 import { supabase, getCurrentUser } from '../../lib/supabase'
 import { usePassport } from '../../hooks/usePassport'
@@ -52,6 +53,7 @@ export default function PassportScreen() {
   const { checkLocation } = useGPS()
   const { verify } = useStampVerification()
   const flipperRef = useRef<PageFlipperHandle>(null)
+  const [navIdx, setNavIdx] = useState(0)
 
   const isDemo = useDemoMode(passport?.is_demo, isAdmin)
 
@@ -466,7 +468,34 @@ export default function PassportScreen() {
         ref={flipperRef}
         pages={pageNodes}
         initialIndex={0}
+        onPageChange={setNavIdx}
       />
+
+      {/* Page navigation — lives in the bands above/below the page,
+          outside the swipe area; complements swipe (does not replace it). */}
+      {pageNodes.length > 1 && (
+        <View style={navStyles.bar} pointerEvents="box-none">
+          <TouchableOpacity
+            style={[navStyles.btn, navIdx <= 0 && navStyles.btnDisabled]}
+            onPress={() => flipperRef.current?.prev()}
+            disabled={navIdx <= 0}
+            accessibilityLabel="Previous page"
+          >
+            <Ionicons name="chevron-back" size={22} color={navIdx <= 0 ? palette.hairline : palette.paper} />
+          </TouchableOpacity>
+
+          <Text style={navStyles.indicator}>{navIdx + 1} / {pageNodes.length}</Text>
+
+          <TouchableOpacity
+            style={[navStyles.btn, navIdx >= pageNodes.length - 1 && navStyles.btnDisabled]}
+            onPress={() => flipperRef.current?.next()}
+            disabled={navIdx >= pageNodes.length - 1}
+            accessibilityLabel="Next page"
+          >
+            <Ionicons name="chevron-forward" size={22} color={navIdx >= pageNodes.length - 1 ? palette.hairline : palette.paper} />
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* (The pre-stamp modal overlay was removed in the expressive-
           gesture PR — gesture + live preview live in the LocationBox
@@ -568,6 +597,39 @@ const styles = StyleSheet.create({
 // Co-located with the screen because it consumes the screen's
 // existing supabase client + state. Mirrors the web
 // CorrectionNoticeBanner in copy + behavior.
+const navStyles = StyleSheet.create({
+  bar: {
+    position: 'absolute',
+    bottom: 24,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 18,
+  },
+  btn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.35)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.18)',
+  },
+  btnDisabled: {
+    opacity: 0.4,
+  },
+  indicator: {
+    minWidth: 56,
+    textAlign: 'center',
+    fontSize: 13,
+    color: palette.paper,
+    fontVariant: ['tabular-nums'],
+  },
+})
+
 const correctionStyles = StyleSheet.create({
   banner: {
     flexDirection: 'row',

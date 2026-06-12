@@ -12,6 +12,10 @@ interface EmployeeContextValue {
   catalogUrl: string | null
   employeeMode: boolean
   setEmployeeMode: (v: boolean) => void
+  // True once the can_verify authorization lookup has completed (success
+  // or none). Lets gated screens redirect non-verifiers without bouncing
+  // a real employee during the async load.
+  authResolved: boolean
 }
 
 const EmployeeContext = createContext<EmployeeContextValue>({
@@ -21,6 +25,7 @@ const EmployeeContext = createContext<EmployeeContextValue>({
   catalogUrl: null,
   employeeMode: false,
   setEmployeeMode: () => {},
+  authResolved: false,
 })
 
 export function useEmployeeContext() {
@@ -31,6 +36,7 @@ export function EmployeeProvider({ children }: { children: React.ReactNode }) {
   const [employeeAuth, setEmployeeAuth] = useState<EmployeeAuthorization | null>(null)
   const [employeeMode, setEmployeeModeState] = useState(false)
   const [hydrated, setHydrated] = useState(false)
+  const [authResolved, setAuthResolved] = useState(false)
 
   // Load persisted mode on mount
   useEffect(() => {
@@ -48,12 +54,14 @@ export function EmployeeProvider({ children }: { children: React.ReactNode }) {
       } else {
         setEmployeeAuth(null)
         setEmployeeModeState(false)
+        setAuthResolved(true)
       }
     })
 
     // Also load immediately for any current session
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) fetchEmployeeAuth(session.user.id)
+      else setAuthResolved(true)
     })
 
     return () => subscription.unsubscribe()
@@ -76,6 +84,7 @@ export function EmployeeProvider({ children }: { children: React.ReactNode }) {
 
     if (error || !data) {
       setEmployeeAuth(null)
+      setAuthResolved(true)
       return
     }
 
@@ -91,6 +100,7 @@ export function EmployeeProvider({ children }: { children: React.ReactNode }) {
       catalog_url: inst?.catalog_url ?? null,
     }
     setEmployeeAuth(auth)
+    setAuthResolved(true)
   }
 
   const setEmployeeMode = useCallback((v: boolean) => {
@@ -109,6 +119,7 @@ export function EmployeeProvider({ children }: { children: React.ReactNode }) {
     catalogUrl: employeeAuth?.catalog_url ?? null,
     employeeMode: hydrated ? employeeMode : false,
     setEmployeeMode,
+    authResolved,
   }
 
   return (

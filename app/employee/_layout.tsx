@@ -45,9 +45,18 @@ export default function CounterLayout() {
   const pathname = usePathname()
   const isRedeem = pathname.includes('/redeem')
 
-  const { employeeAuth } = useEmployeeContext()
+  const { employeeAuth, authResolved } = useEmployeeContext()
   const [userId, setUserId] = useState<string | null>(null)
   const [venueName, setVenueName] = useState('')
+
+  // Enforce verifier access: once the can_verify lookup resolves, bounce
+  // any user without an authorization out of the terminal (not just
+  // hidden in the profile). Server functions also reject non-verifiers.
+  useEffect(() => {
+    if (authResolved && !employeeAuth) {
+      router.replace('/(tabs)/profile' as any)
+    }
+  }, [authResolved, employeeAuth])
   const [stats, setStats] = useState<Stats>({ scans: 0, given: 0, pending: 0 })
   const [recent, setRecent] = useState<RecentItem[]>([])
 

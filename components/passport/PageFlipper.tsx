@@ -5,7 +5,7 @@
 import React, {
   useState, useCallback, useRef, forwardRef, useImperativeHandle,
 } from 'react'
-import { StyleSheet, TouchableWithoutFeedback, View } from 'react-native'
+import { StyleSheet, View } from 'react-native'
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -18,6 +18,8 @@ import { usePageDimensions } from './PassportFrame'
 
 export interface PageFlipperHandle {
   goTo: (index: number) => void
+  next: () => void
+  prev: () => void
 }
 
 interface Props {
@@ -65,7 +67,8 @@ export const PageFlipper = forwardRef<PageFlipperHandle, Props>(function PageFli
     })
   }, [currentIdx, pages.length, flipAngle, completeFlip])
 
-  // Imperative handle — allows parent to jump directly to a page without animation.
+  // Imperative handle — jump directly (goTo) or animate to the adjacent
+  // page (next/prev, used by the on-screen nav buttons).
   useImperativeHandle(ref, () => ({
     goTo(index: number) {
       if (flipping.current) return
@@ -75,7 +78,9 @@ export const PageFlipper = forwardRef<PageFlipperHandle, Props>(function PageFli
       setCurrentIdx(clamped)
       onPageChange?.(clamped)
     },
-  }), [flipAngle, pages.length, onPageChange])
+    next() { triggerFlip('forward') },
+    prev() { triggerFlip('backward') },
+  }), [flipAngle, pages.length, onPageChange, triggerFlip])
 
   const panGesture = Gesture.Pan()
     .activeOffsetX([-15, 15])
@@ -99,11 +104,6 @@ export const PageFlipper = forwardRef<PageFlipperHandle, Props>(function PageFli
     }
   })
 
-  const handleTap = useCallback((x: number) => {
-    if (x > pageW * 0.68) triggerFlip('forward')
-    else if (x < pageW * 0.32) triggerFlip('backward')
-  }, [pageW, triggerFlip])
-
   return (
     <GestureDetector gesture={panGesture}>
       <View style={{ width: pageW, height: pageH }}>
@@ -125,11 +125,9 @@ export const PageFlipper = forwardRef<PageFlipperHandle, Props>(function PageFli
             frontStyle,
           ]}
         >
-          <TouchableWithoutFeedback
-            onPress={(e) => handleTap(e.nativeEvent.locationX)}
-          >
-            <View style={{ flex: 1 }}>{pages[currentIdx]}</View>
-          </TouchableWithoutFeedback>
+          {/* Tap-to-turn removed — navigation is swipe + the prev/next
+              buttons in the bands above/below the page. */}
+          <View style={{ flex: 1 }}>{pages[currentIdx]}</View>
         </Animated.View>
       </View>
     </GestureDetector>

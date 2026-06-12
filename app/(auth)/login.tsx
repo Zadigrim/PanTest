@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, KeyboardAvoidingView, Platform,
 } from 'react-native'
+import { Ionicons } from '@expo/vector-icons'
 import { router } from 'expo-router'
 import { makeRedirectUri } from 'expo-auth-session'
 import * as WebBrowser from 'expo-web-browser'
@@ -44,6 +45,7 @@ async function completeOAuth(url: string) {
 export default function LoginScreen() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
 
   const handleLogin = async () => {
@@ -131,15 +133,28 @@ export default function LoginScreen() {
           autoCorrect={false}
           editable={!loading}
         />
-        <TextInput
-          style={styles.input}
-          placeholder="Password"
-          placeholderTextColor="#aaa"
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry
-          editable={!loading}
-        />
+        {/* Password with show/hide toggle. NOTE: a login restyle (design
+            mock) is incoming — carry this eye toggle into the new screen. */}
+        <View style={styles.passwordRow}>
+          <TextInput
+            style={[styles.input, styles.passwordInput]}
+            placeholder="Password"
+            placeholderTextColor="#aaa"
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry={!showPassword}
+            editable={!loading}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          <TouchableOpacity
+            style={styles.eyeBtn}
+            onPress={() => setShowPassword((v) => !v)}
+            accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
+          >
+            <Ionicons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={20} color="#aaa" />
+          </TouchableOpacity>
+        </View>
 
         <TouchableOpacity
           style={[styles.btn, loading && styles.btnDisabled]}
@@ -187,6 +202,22 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: '#2a3d52', borderRadius: 10,
     padding: 14, color: palette.cream, backgroundColor: '#152232',
     fontSize: 15, marginBottom: 12,
+  },
+  passwordRow: {
+    position: 'relative',
+    justifyContent: 'center',
+  },
+  passwordInput: {
+    paddingRight: 48,
+  },
+  eyeBtn: {
+    position: 'absolute',
+    right: 6,
+    top: 0,
+    bottom: 12,
+    width: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   btn: {
     backgroundColor: palette.green, borderRadius: 10, padding: 16,

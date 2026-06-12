@@ -16,8 +16,13 @@ const RULE_COLOR = 'rgba(0,0,0,0.055)'
 const RULE_SPACING = 22
 
 export function usePageDimensions() {
-  const { width: sw, height: sh } = useWindowDimensions()
-  return { pageW: sw * 0.82, pageH: sh * 0.96 }
+  const { width: sw } = useWindowDimensions()
+  // Span the screen width; height follows the canonical 612:792 artboard
+  // ratio so the page is the exact shape kobo designs against. The frame
+  // centers this vertically, leaving bands above/below for nav controls.
+  const pageW = sw
+  const pageH = Math.round((sw * 792) / 612)
+  return { pageW, pageH }
 }
 
 export function PassportFrame({ children, bindingSide = 'left' }: Props) {
@@ -64,21 +69,8 @@ export function PassportFrame({ children, bindingSide = 'left' }: Props) {
           style={styles.insetBottom}
           pointerEvents="none"
         />
-        {/* Inset vignette — left/right */}
-        <LinearGradient
-          colors={['rgba(0,0,0,0.08)', 'rgba(0,0,0,0)']}
-          start={{ x: 0, y: 0.5 }}
-          end={{ x: 1, y: 0.5 }}
-          style={styles.insetLeft}
-          pointerEvents="none"
-        />
-        <LinearGradient
-          colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.08)']}
-          start={{ x: 0, y: 0.5 }}
-          end={{ x: 1, y: 0.5 }}
-          style={styles.insetRight}
-          pointerEvents="none"
-        />
+        {/* Left/right inset vignettes removed — they read as tap-to-turn
+            "shaded zones"; navigation is swipe + the prev/next buttons. */}
 
         {/* 8px binding gradient on spine side */}
         {bindingSide === 'left' ? (
@@ -136,20 +128,6 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: 30,
-  },
-  insetLeft: {
-    position: 'absolute',
-    top: 0,
-    bottom: 0,
-    left: 0,
-    width: 30,
-  },
-  insetRight: {
-    position: 'absolute',
-    top: 0,
-    bottom: 0,
-    right: 0,
-    width: 30,
   },
   bindingLeft: {
     position: 'absolute',
