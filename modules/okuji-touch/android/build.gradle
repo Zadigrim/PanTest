@@ -1,0 +1,49 @@
+// NOTE: This is the create-expo-module --local template's android
+// build.gradle. If an EAS build fails to configure this module, scaffold
+// a throwaway module with `npx create-expo-module@latest --local` on the
+// SAME Expo SDK and diff its android/build.gradle against this one —
+// the Expo-core plugin wiring is SDK-version-sensitive. See README.md.
+apply plugin: 'com.android.library'
+apply plugin: 'org.jetbrains.kotlin.android'
+
+group = 'expo.modules.okujitouch'
+version = '0.1.0'
+
+def expoModulesCorePlugin = new File(project(":expo-modules-core").projectDir.absolutePath, "ExpoModulesCorePlugin.gradle")
+apply from: expoModulesCorePlugin
+applyKotlinExpoModulesCorePlugin()
+useCoreDependencies()
+useExpoPublishing()
+
+android {
+  namespace "expo.modules.okujitouch"
+  defaultConfig {
+    minSdkVersion 24
+  }
+
+  lintOptions {
+    abortOnError false
+  }
+
+  publishing {
+    singleVariant("release") {
+      withSourcesJar()
+    }
+  }
+
+  compileSdk 35
+  compileOptions {
+    sourceCompatibility JavaVersion.VERSION_17
+    targetCompatibility JavaVersion.VERSION_17
+  }
+  kotlinOptions {
+    jvmTarget = "17"
+  }
+}
+
+repositories {
+  mavenCentral()
+}
+
+dependencies {
+}
