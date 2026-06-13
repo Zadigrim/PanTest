@@ -211,6 +211,10 @@ export interface Stamp {
   smudge_dx: number | null
   smudge_dy: number | null
   smudge_intensity: number | null
+  // Tilt (migration 083) — directional lightness from contact rock.
+  tilt_dx: number | null
+  tilt_dy: number | null
+  tilt_intensity: number | null
   verification_method: VerificationMethod
   // Demo stamps (migration 026): marked, never counted as verified
   // presence, purgeable. Always paired with verification_method 'demo'.
@@ -286,6 +290,13 @@ export interface StampPlacement {
   smudgeDx?: number
   smudgeDy?: number
   smudgeIntensity?: number
+  // Tilt (migration 083). Unit vector toward the PRESSED (darker) edge;
+  // the opposite edge lifts and renders lighter. Magnitude ~1 when set,
+  // scaled by tiltIntensity (0..1). Android: real contact-ellipse read;
+  // iOS + fallback: drift-direction proxy.
+  tiltDx?: number
+  tiltDy?: number
+  tiltIntensity?: number
 }
 
 export interface EmployeeAuthorization {

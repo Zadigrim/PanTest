@@ -240,6 +240,9 @@ export default function PassportScreen() {
       smudgeDx: placement.smudgeDx,
       smudgeDy: placement.smudgeDy,
       smudgeIntensity: placement.smudgeIntensity,
+      tiltDx: placement.tiltDx,
+      tiltDy: placement.tiltDy,
+      tiltIntensity: placement.tiltIntensity,
     }
 
     let result

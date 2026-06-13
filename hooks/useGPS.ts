@@ -65,6 +65,9 @@ export function useStampVerification() {
       smudgeDx?: number
       smudgeDy?: number
       smudgeIntensity?: number
+      tiltDx?: number
+      tiltDy?: number
+      tiltIntensity?: number
     }
   }) => {
     setVerifying(true)

@@ -75,6 +75,9 @@ interface PlacementBody {
   smudgeDx?: number
   smudgeDy?: number
   smudgeIntensity?: number
+  tiltDx?: number
+  tiltDy?: number
+  tiltIntensity?: number
 }
 
 serve(async (req) => {
@@ -244,6 +247,9 @@ serve(async (req) => {
         smudge_dx: placement?.smudgeDx ?? null,
         smudge_dy: placement?.smudgeDy ?? null,
         smudge_intensity: placement?.smudgeIntensity ?? null,
+        tilt_dx: placement?.tiltDx ?? null,
+        tilt_dy: placement?.tiltDy ?? null,
+        tilt_intensity: placement?.tiltIntensity ?? null,
         verification_method: verificationMethod,
         is_demo: isDemo,
         stop_opened_at: stopOpenedAt ?? null,

@@ -75,6 +75,9 @@ export function DesignerLocationBox({
                 smudgeDx={stamp.smudge_dx}
                 smudgeDy={stamp.smudge_dy}
                 smudgeIntensity={stamp.smudge_intensity}
+                tiltDx={stamp.tilt_dx}
+                tiltDy={stamp.tilt_dy}
+                tiltIntensity={stamp.tilt_intensity}
                 earnedAt={stamp.verified_at}
               />
             </View>

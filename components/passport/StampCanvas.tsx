@@ -39,6 +39,9 @@ export function StampCanvas({ stops, stamps, canvasWidth, canvasHeight }: Props)
               smudgeDx={stamp.smudge_dx}
               smudgeDy={stamp.smudge_dy}
               smudgeIntensity={stamp.smudge_intensity}
+              tiltDx={stamp.tilt_dx}
+              tiltDy={stamp.tilt_dy}
+              tiltIntensity={stamp.tilt_intensity}
             />
           </View>
         )

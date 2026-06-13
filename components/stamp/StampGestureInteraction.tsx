@@ -35,6 +35,7 @@ const MAX_SIZE_PX = 96
 const MIN_SATURATION = 0.45
 const MAX_SATURATION = 1.0
 const SMUDGE_FULL_PATH_PX = 80 // path length that maps to smudge intensity 1.0
+const TILT_FULL_NET_PX = 40 // NET displacement that maps to proxy tilt 1.0
 const PREVIEW_TICK_MS = 50 // preview refresh rate during press
 
 // Easing: feel physical, not linear — fast ramp up, settle near the cap.
@@ -71,6 +72,11 @@ export function StampGestureInteraction({
   // jitter threshold within the window, or the window has elapsed.
   const initialVectorRef = useRef<{ dx: number; dy: number } | null>(null)
   const initialVectorLockedRef = useRef(false)
+  // Native contact-ellipse tilt (Android, via the okuji-touch module).
+  // Populated by onTouchGeometry events when the native module is
+  // present; null otherwise (iOS, or module unavailable) → tilt falls
+  // back to the drift proxy in computeCurrentTilt(). { ...measured }.
+  const nativeTiltRef = useRef<{ dx: number; dy: number; intensity: number } | null>(null)
   const autoCommitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const previewTickRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const activeRef = useRef(false)
@@ -87,6 +93,9 @@ export function StampGestureInteraction({
     smudgeDx: number
     smudgeDy: number
     smudgeIntensity: number
+    tiltDx: number
+    tiltDy: number
+    tiltIntensity: number
   }>({
     active: false,
     localX: 0,
@@ -96,6 +105,9 @@ export function StampGestureInteraction({
     smudgeDx: 0,
     smudgeDy: 0,
     smudgeIntensity: 0,
+    tiltDx: 0,
+    tiltDy: 0,
+    tiltIntensity: 0,
   })
 
   const cleanup = useCallback(() => {
@@ -104,6 +116,7 @@ export function StampGestureInteraction({
     pathLengthRef.current = 0
     initialVectorRef.current = null
     initialVectorLockedRef.current = false
+    nativeTiltRef.current = null
     if (autoCommitTimerRef.current) {
       clearTimeout(autoCommitTimerRef.current)
       autoCommitTimerRef.current = null
@@ -132,6 +145,30 @@ export function StampGestureInteraction({
     return { smudgeDx, smudgeDy, smudgeIntensity: intensity }
   }, [])
 
+  // Tilt. Measured contact-ellipse wins (Android, native module) — it's a
+  // real read of how the fingertip rocked. Otherwise the proxy: the stamp
+  // leans toward the finger's NET travel (leading edge presses darker,
+  // trailing edge lifts lighter). Net displacement, not path length, so a
+  // straight drag tilts strongly while a back-and-forth wiggle (high path,
+  // low net) smears without tilting — physically what you'd expect.
+  const computeCurrentTilt = useCallback(() => {
+    const measured = nativeTiltRef.current
+    if (measured && measured.intensity > 0) {
+      return { tiltDx: measured.dx, tiltDy: measured.dy, tiltIntensity: measured.intensity }
+    }
+    const dxNet = lastPagePosRef.current.x - startPagePosRef.current.x
+    const dyNet = lastPagePosRef.current.y - startPagePosRef.current.y
+    const mag = Math.sqrt(dxNet * dxNet + dyNet * dyNet)
+    const intensity = Math.min(mag / TILT_FULL_NET_PX, 1)
+    let tiltDx = 0
+    let tiltDy = 0
+    if (intensity > 0.04 && mag > 0) {
+      tiltDx = dxNet / mag
+      tiltDy = dyNet / mag
+    }
+    return { tiltDx, tiltDy, tiltIntensity: intensity }
+  }, [])
+
   const commit = useCallback(() => {
     if (!activeRef.current || !startTimeRef.current) return
 
@@ -158,6 +195,7 @@ export function StampGestureInteraction({
     }
 
     const { smudgeDx, smudgeDy, smudgeIntensity } = computeCurrentSmudge()
+    const { tiltDx, tiltDy, tiltIntensity } = computeCurrentTilt()
 
     // Center-within-box rule: validate via the existing helper. Passes
     // contactRadius = size/2; the helper only uses it for the returned
@@ -191,8 +229,11 @@ export function StampGestureInteraction({
       smudgeDx,
       smudgeDy,
       smudgeIntensity,
+      tiltDx,
+      tiltDy,
+      tiltIntensity,
     })
-  }, [boxLayout, stop, computeCurrentSmudge, onStampPlaced, onPressCancel, cleanup])
+  }, [boxLayout, stop, computeCurrentSmudge, computeCurrentTilt, onStampPlaced, onPressCancel, cleanup])
 
   const updatePreview = useCallback(() => {
     if (!activeRef.current) return
@@ -203,6 +244,7 @@ export function StampGestureInteraction({
       ? (Math.atan2(initialVectorRef.current.dy, initialVectorRef.current.dx) * 180) / Math.PI
       : 0
     const { smudgeDx, smudgeDy, smudgeIntensity } = computeCurrentSmudge()
+    const { tiltDx, tiltDy, tiltIntensity } = computeCurrentTilt()
     setPreview((p) => ({
       ...p,
       progress: eased,
@@ -210,8 +252,11 @@ export function StampGestureInteraction({
       smudgeDx,
       smudgeDy,
       smudgeIntensity,
+      tiltDx,
+      tiltDy,
+      tiltIntensity,
     }))
-  }, [computeCurrentSmudge])
+  }, [computeCurrentSmudge, computeCurrentTilt])
 
   const handleGrant = useCallback((evt: GestureResponderEvent) => {
     if (slotState !== 'ready') return
@@ -236,6 +281,9 @@ export function StampGestureInteraction({
       smudgeDx: 0,
       smudgeDy: 0,
       smudgeIntensity: 0,
+      tiltDx: 0,
+      tiltDy: 0,
+      tiltIntensity: 0,
     })
 
     // Auto-commit at the 2s cap.
@@ -335,6 +383,9 @@ export function StampGestureInteraction({
             smudgeDx={preview.smudgeDx}
             smudgeDy={preview.smudgeDy}
             smudgeIntensity={preview.smudgeIntensity}
+            tiltDx={preview.tiltDx}
+            tiltDy={preview.tiltDy}
+            tiltIntensity={preview.tiltIntensity}
           />
         </View>
       )}

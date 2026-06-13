@@ -32,9 +32,13 @@
 // enum tells it to render.
 import React, { useEffect, useState } from 'react'
 import { View, Image } from 'react-native'
-import Svg, { Circle, Rect, Path, Text as SvgText, Defs, Filter, FeTurbulence, FeDisplacementMap, SvgXml } from 'react-native-svg'
+import Svg, { Circle, Rect, Path, Text as SvgText, Defs, Filter, FeTurbulence, FeDisplacementMap, SvgXml, LinearGradient, Stop as GradientStop } from 'react-native-svg'
 import type { Stop } from '../../types'
 import { substituteDateInSvg, formatStampDate } from '../../lib/stamp-date-token'
+
+// Paper tone the lifted (tilted-up) edge washes toward — okuji cream.
+// The wash thins the ink so the page reads through where contact lifts.
+const CREAM_WASH = '#f4ecd8'
 
 // Module-scoped SVG content cache. A passport with many stops
 // sharing the same composed stamp asset fetches each URL once.
@@ -120,6 +124,13 @@ interface Props {
   smudgeDx?: number | null
   smudgeDy?: number | null
   smudgeIntensity?: number | null
+  // Tilt (migration 083): unit vector toward the PRESSED (darker) edge;
+  // the opposite edge lifts and is washed lighter, scaled by
+  // tiltIntensity (0..1). Any non-null tilt prop also engages gesture
+  // mode. Absent → no tilt wash (flat ink).
+  tiltDx?: number | null
+  tiltDy?: number | null
+  tiltIntensity?: number | null
   // When the stamp's SVG contains the {{date}} token (designer
   // inserted it via the composer), substitute it per-instance:
   //   * earnedAt set → format MM/DD/YYYY in viewer-local tz.
@@ -141,13 +152,18 @@ function gestureSmudgeScale(intensity: number): number {
   return Math.max(0, Math.min(intensity, 1)) * 12
 }
 
-// Trail step count (and per-step offset and opacity attenuation).
-// Tuned so a high-intensity smudge gives a clearly readable motion-blur,
-// but a low-intensity one is barely visible. Capped at 4 ghosts so the
-// rendering cost stays bounded.
+// Smear sampling. The trail is rendered as N overlapping copies of the
+// stamp body along the smudge vector with a SMOOTH opacity falloff — a
+// continuous gradient from the full first impression to a faint last
+// one, not a few visibly-separate repeats. Density scales with
+// intensity (up to SMEAR_MAX_STEPS) and the copies OVERLAP (offset per
+// step is a fraction of the body) so there are no gaps. Trail copies are
+// filterless (the FeTurbulence displacement runs only on the primary),
+// which keeps the higher count cheap.
+const SMEAR_MAX_STEPS = 12
 function trailSteps(intensity: number): number {
   if (intensity <= 0.05) return 0
-  return Math.min(4, Math.ceil(intensity * 5))
+  return Math.min(SMEAR_MAX_STEPS, Math.max(2, Math.round(intensity * SMEAR_MAX_STEPS)))
 }
 
 export function StampArtwork({
@@ -159,15 +175,22 @@ export function StampArtwork({
   smudgeDx,
   smudgeDy,
   smudgeIntensity,
+  tiltDx,
+  tiltDy,
+  tiltIntensity,
   earnedAt,
 }: Props) {
   const isGestureMode =
-    saturation != null || smudgeDx != null || smudgeDy != null || smudgeIntensity != null
+    saturation != null || smudgeDx != null || smudgeDy != null || smudgeIntensity != null ||
+    tiltDx != null || tiltDy != null || tiltIntensity != null
 
   const effectiveSaturation = isGestureMode ? (saturation ?? 1) : 1
   const effectiveSmudgeIntensity = isGestureMode ? (smudgeIntensity ?? 0) : 0
   const effectiveSmudgeDx = isGestureMode ? (smudgeDx ?? 0) : 0
   const effectiveSmudgeDy = isGestureMode ? (smudgeDy ?? 0) : 0
+  const effectiveTiltIntensity = isGestureMode ? (tiltIntensity ?? 0) : 0
+  const effectiveTiltDx = isGestureMode ? (tiltDx ?? 0) : 0
+  const effectiveTiltDy = isGestureMode ? (tiltDy ?? 0) : 0
 
   const displacementScale = isGestureMode
     ? gestureSmudgeScale(effectiveSmudgeIntensity)
@@ -307,18 +330,25 @@ export function StampArtwork({
     )
   }
 
-  // Directional ghost trail. Each step is the stamp body offset along
-  // the smudge direction with declining opacity. The trail is rendered
-  // BEHIND the primary stamp so the primary reads clearly. Works for
-  // both custom-asset and shape+emoji modes — stampBody handles both.
+  // Directional smear. N overlapping copies of the stamp body stepped
+  // along the smudge vector with a SMOOTH opacity falloff, so the result
+  // reads as a continuous gradient from the full first impression to a
+  // faint trailing one — not a handful of separate repeats. The total
+  // smear span matches the prior feel (~0.5·size at full intensity); the
+  // higher step count just fills the gaps. Ghosts are FILTERLESS (null
+  // filterRef) so the extra copies stay cheap — only the primary carries
+  // the FeTurbulence displacement. Rendered BEHIND the primary.
   const steps = isGestureMode ? trailSteps(effectiveSmudgeIntensity) : 0
-  const stepOffsetPx = size * 0.12 * effectiveSmudgeIntensity
+  const smearSpanPx = size * 0.5 * effectiveSmudgeIntensity
   const ghostNodes: React.ReactNode[] = []
   for (let i = 1; i <= steps; i++) {
-    const t = i / (steps + 1) // 0..1 within trail
-    const offsetX = effectiveSmudgeDx * stepOffsetPx * i
-    const offsetY = effectiveSmudgeDy * stepOffsetPx * i
-    const trailOpacity = (1 - t) * 0.45 // back ghosts more transparent
+    const t = i / steps // 0..1 along the smear; 1 = farthest/faintest
+    const offsetX = effectiveSmudgeDx * smearSpanPx * t
+    const offsetY = effectiveSmudgeDy * smearSpanPx * t
+    // Smooth falloff: near-full close to the primary, fading toward 0 at
+    // the tail. The ^1.4 curve keeps the body of the smear inky and only
+    // the far end wispy, which reads as a real drag rather than a fan.
+    const trailOpacity = Math.pow(1 - t, 1.4) * 0.5
     ghostNodes.push(
       <View
         key={`trail-${i}`}
@@ -331,15 +361,54 @@ export function StampArtwork({
         }}
         pointerEvents="none"
       >
-        {stampBody(`${filterId}-trail-${i}`, trailOpacity)}
+        {stampBody(null, trailOpacity)}
       </View>,
     )
   }
+
+  // Tilt wash. A linear gradient from transparent on the PRESSED side
+  // (effectiveTilt vector) to a cream paper wash on the LIFTED side
+  // (opposite), scaled by tilt intensity — the lifted edge inks lighter
+  // as paper shows through. Overlaid uniformly so it works across all
+  // artwork modes (shape, composed SVG, raster) without per-mode masks.
+  // Gradient coords are in objectBoundingBox space; the lifted unit
+  // vector L = -(tiltDx, tiltDy) points from pressed → lifted.
+  const tiltMag = Math.sqrt(effectiveTiltDx * effectiveTiltDx + effectiveTiltDy * effectiveTiltDy)
+  const showTilt = isGestureMode && effectiveTiltIntensity > 0.04 && tiltMag > 0.001
+  const tiltWash = (() => {
+    if (!showTilt) return null
+    const lx = -effectiveTiltDx / tiltMag
+    const ly = -effectiveTiltDy / tiltMag
+    // Pressed point (transparent) → lifted point (cream wash).
+    const x1 = 0.5 - lx * 0.5
+    const y1 = 0.5 - ly * 0.5
+    const x2 = 0.5 + lx * 0.5
+    const y2 = 0.5 + ly * 0.5
+    const washOpacity = Math.min(effectiveTiltIntensity, 1) * 0.6
+    return (
+      <Svg
+        width={size}
+        height={size}
+        style={{ position: 'absolute', left: 0, top: 0 }}
+        pointerEvents="none"
+      >
+        <Defs>
+          <LinearGradient id="tiltWash" x1={x1} y1={y1} x2={x2} y2={y2}>
+            <GradientStop offset="0" stopColor={CREAM_WASH} stopOpacity={0} />
+            <GradientStop offset="0.55" stopColor={CREAM_WASH} stopOpacity={washOpacity * 0.4} />
+            <GradientStop offset="1" stopColor={CREAM_WASH} stopOpacity={washOpacity} />
+          </LinearGradient>
+        </Defs>
+        <Rect x={0} y={0} width={size} height={size} fill="url(#tiltWash)" />
+      </Svg>
+    )
+  })()
 
   return (
     <View style={{ width: size, height: size, transform: [{ rotate: `${rotationDeg}deg` }], opacity }}>
       {ghostNodes}
       {stampBody(filterId)}
+      {tiltWash}
     </View>
   )
 }
