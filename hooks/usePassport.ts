@@ -70,15 +70,25 @@ export function useCollectorPassports() {
       if (mountedRef.current) { setPassports([]); setLoading(false) }
       return
     }
-    const { data } = await supabase
+    // Do NOT order by last_used_at: that column exists only in the okuji-db
+    // baseline tree (migration 004), not in the mobile collector_passports
+    // schema (supabase/migrations/001) this app queries. Ordering by a column
+    // PostgREST can't resolve makes the whole request error and return null,
+    // which the `?? []` below then turned into an always-empty "No passports
+    // yet" — even though Discover→Catalogue (which never orders by it) worked.
+    // acquired_at is guaranteed present; sort by that.
+    const { data, error } = await supabase
       .from('collector_passports')
       .select('*, passport:passports(*)')
       .eq('user_id', user.id)
-      .order('last_used_at', { ascending: false, nullsFirst: false })
       .order('acquired_at', { ascending: false })
 
+    if (error) console.warn('[useCollectorPassports] load failed:', error.message)
     if (mountedRef.current) {
-      setPassports((data as any) ?? [])
+      // Drop any row whose passport embed came back null (RLS) so the list
+      // renderer never dereferences a missing passport.
+      const rows = ((data as any[]) ?? []).filter((cp) => cp && cp.passport)
+      setPassports(rows as any)
       setLoading(false)
     }
   }, [])
