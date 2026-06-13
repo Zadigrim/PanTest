@@ -57,6 +57,12 @@ export function VoiceRecorder({ onTranscriptUpdate }: Props) {
   const autoStopRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const startedAtRef = useRef<number>(0)
+  // Cumulative ms used across all start/stop sessions of THIS recorder
+  // instance. The 30s cap is a shared budget: speak 10s, stop, start again,
+  // and you get the remaining ~20s — each session appends to the journal —
+  // until the budget is exhausted. Resets when the recorder unmounts (a
+  // fresh journal-entry editing session).
+  const consumedMsRef = useRef<number>(0)
 
   useEffect(() => {
     recordingRef.current = recording
@@ -68,6 +74,20 @@ export function VoiceRecorder({ onTranscriptUpdate }: Props) {
     if (autoStopRef.current) { clearTimeout(autoStopRef.current); autoStopRef.current = null }
     if (tickRef.current) { clearInterval(tickRef.current); tickRef.current = null }
   }, [])
+
+  // End the current session: bank its elapsed time against the budget (once),
+  // stop the timers, and surface the remaining budget. startedAtRef is zeroed
+  // so a following 'end'/'error' for the same session can't double-count.
+  const finalizeSession = useCallback(() => {
+    if (startedAtRef.current > 0) {
+      const elapsed = Date.now() - startedAtRef.current
+      consumedMsRef.current = Math.min(MAX_RECORDING_MS, consumedMsRef.current + elapsed)
+      startedAtRef.current = 0
+    }
+    clearTimers()
+    setRecording(false)
+    setRemainingMs(Math.max(0, MAX_RECORDING_MS - consumedMsRef.current))
+  }, [clearTimers])
 
   // Stop any in-flight recognition + flush timers if the component unmounts
   // mid-session.
@@ -85,21 +105,24 @@ export function VoiceRecorder({ onTranscriptUpdate }: Props) {
   })
 
   useSpeechRecognitionEvent('end', () => {
-    clearTimers()
-    setRecording(false)
-    setRemainingMs(MAX_RECORDING_MS)
+    finalizeSession()
   })
 
   useSpeechRecognitionEvent('error', (event) => {
-    clearTimers()
-    setRecording(false)
-    setRemainingMs(MAX_RECORDING_MS)
+    finalizeSession()
     if (event.error === 'no-speech') return // benign: user didn't speak
     Alert.alert('Voice entry', event.message || 'Transcription failed. You can type your entry instead.')
   })
 
   const start = useCallback(async () => {
     try {
+      // Remaining shared budget for this entry. Stop here if it's spent.
+      const budget = MAX_RECORDING_MS - consumedMsRef.current
+      if (budget < 1000) {
+        Alert.alert('Voice entry', "You've used the 30 seconds of voice for this entry. You can keep typing.")
+        return
+      }
+
       // On-device recognition is mandatory for the privacy commitment.
       if (!ExpoSpeechRecognitionModule.supportsOnDeviceRecognition()) {
         Alert.alert(
@@ -140,27 +163,27 @@ export function VoiceRecorder({ onTranscriptUpdate }: Props) {
         // No recordingOptions => no audio file is written.
       })
       setRecording(true)
-      setRemainingMs(MAX_RECORDING_MS)
       startedAtRef.current = Date.now()
+      setRemainingMs(budget)
 
-      // Hard cap. The 'end' event handler clears the timer in the normal
-      // user-stop path; this is the safety net for "user keeps talking."
+      // Hard cap on the REMAINING budget (not a fresh 30s). The 'end' handler
+      // banks the elapsed time + clears timers on a normal user-stop; this is
+      // the safety net for "user keeps talking" past the budget.
       autoStopRef.current = setTimeout(() => {
         ExpoSpeechRecognitionModule.stop()
-      }, MAX_RECORDING_MS)
+      }, budget)
 
-      // Tick the visible countdown.
+      // Tick the visible countdown against the shared budget.
       tickRef.current = setInterval(() => {
-        const elapsed = Date.now() - startedAtRef.current
-        setRemainingMs(Math.max(0, MAX_RECORDING_MS - elapsed))
+        const used = consumedMsRef.current + (Date.now() - startedAtRef.current)
+        setRemainingMs(Math.max(0, MAX_RECORDING_MS - used))
       }, TICK_MS)
     } catch (e) {
-      clearTimers()
       setPreparing(false)
-      setRecording(false)
+      finalizeSession()
       Alert.alert('Voice entry', e instanceof Error ? e.message : 'Could not start voice entry. You can type your entry instead.')
     }
-  }, [clearTimers])
+  }, [finalizeSession])
 
   const stop = useCallback(() => {
     // Don't clear timers here — let 'end' clean up so we don't race the
@@ -175,10 +198,18 @@ export function VoiceRecorder({ onTranscriptUpdate }: Props) {
   }, [preparing, recording, start, stop])
 
   const remainingSec = Math.ceil(remainingMs / 1000)
+  // < 1s left can't start a session (matches the budget gate in start()).
+  const exhausted = remainingMs < 1000
+  const partial = !exhausted && remainingMs < MAX_RECORDING_MS
 
   return (
     <View style={styles.container}>
-      <TouchableOpacity onPress={toggle} disabled={preparing} style={styles.micBtn} activeOpacity={0.8}>
+      <TouchableOpacity
+        onPress={toggle}
+        disabled={preparing || (!recording && exhausted)}
+        style={[styles.micBtn, !recording && exhausted && { opacity: 0.5 }]}
+        activeOpacity={0.8}
+      >
         <View style={[styles.micCircle, { backgroundColor: recording ? '#C0392B' : palette.green }]}>
           <Text style={styles.micIcon}>🎤</Text>
         </View>
@@ -188,7 +219,11 @@ export function VoiceRecorder({ onTranscriptUpdate }: Props) {
           ? 'Preparing offline voice…'
           : recording
             ? `Listening… ${remainingSec}s left · tap to stop`
-            : 'Tap to speak · up to 30s · transcribed on-device'}
+            : exhausted
+              ? 'Voice limit reached for this entry'
+              : partial
+                ? `Tap to continue · ${remainingSec}s left`
+                : 'Tap to speak · up to 30s · transcribed on-device'}
       </Text>
     </View>
   )
