@@ -12,12 +12,13 @@
 // Tap anywhere to open (triggers onOpen) in either path.
 import React from 'react'
 import {
-  View, Text, StyleSheet, TouchableOpacity, useWindowDimensions,
+  View, Text, StyleSheet, TouchableOpacity,
 } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
 import { CoverPanel } from './CoverPanel'
 import type { Passport } from '../../types'
 import { palette } from '../../lib/colors'
+import { usePageDimensions } from './PassportFrame'
 
 interface Props {
   passport: Passport
@@ -31,9 +32,10 @@ const CREAM = palette.paper
 const GOLD = palette.accent
 
 export function BookCover({ passport, onOpen }: Props) {
-  const { width: sw, height: sh } = useWindowDimensions()
-  const pageW = sw * 0.82
-  const pageH = sh * 0.96
+  // Canonical 612:792 page dimensions (full-width), same as PassportPage —
+  // not sw*0.82/sh*0.96, which produced the white bar + wrong aspect + the
+  // navy cover_bg showing through.
+  const { pageW, pageH } = usePageDimensions()
 
   // Designed cover path: CoverPanel renders the front face (right half
   // of the 1248-wide outside spread) at page size.

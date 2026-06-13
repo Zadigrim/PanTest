@@ -11,6 +11,7 @@ import { supabase, getCurrentUser } from '../../lib/supabase'
 import { useEmployeeContext } from '../../contexts/EmployeeContext'
 import { useDemoContext } from '../../contexts/DemoContext'
 import { backfillJournalPhotos } from '../../lib/journal-photo-backfill'
+import { useViewerPrefs } from '../../lib/viewer-prefs'
 import { formatCoordinates } from '../../lib/location-caption'
 import type { Profile } from '../../types'
 import { palette } from '../../lib/colors'
@@ -32,6 +33,7 @@ export default function ProfileScreen() {
   const [locating, setLocating] = useState(false)
   const { isEmployee, employeeMode, setEmployeeMode } = useEmployeeContext()
   const { demoAuthorized, demoMode, setDemoMode } = useDemoContext()
+  const { prefs: viewerPrefs, update: updateViewerPref } = useViewerPrefs()
 
   useEffect(() => {
     async function load() {
@@ -245,6 +247,30 @@ export default function ProfileScreen() {
           )}
         </View>
       )}
+
+      {/* Reader display options — personal toggles, not part of the passport
+          design. Default on; opening a passport afresh reflects changes. */}
+      <View style={s.section}>
+        <Text style={s.sectionLabel}>READING</Text>
+        <View style={s.menuRow}>
+          <Text style={s.menuRowText}>Table of contents</Text>
+          <Switch
+            value={viewerPrefs.showToc}
+            onValueChange={(v) => void updateViewerPref('showToc', v)}
+            trackColor={{ false: HAIRLINE, true: ACCENT }}
+            thumbColor={viewerPrefs.showToc ? NAVY : '#f4f3f4'}
+          />
+        </View>
+        <View style={s.menuRow}>
+          <Text style={s.menuRowText}>Exit visa pages</Text>
+          <Switch
+            value={viewerPrefs.showExitVisa}
+            onValueChange={(v) => void updateViewerPref('showExitVisa', v)}
+            trackColor={{ false: HAIRLINE, true: ACCENT }}
+            thumbColor={viewerPrefs.showExitVisa ? NAVY : '#f4f3f4'}
+          />
+        </View>
+      </View>
 
       {/* Journal photo backup (on-demand) */}
       <View style={s.section}>

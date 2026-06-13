@@ -1,9 +1,10 @@
 // Table of contents — chapter list with ✓ / ½ / · completion status per section.
 import React from 'react'
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, useWindowDimensions } from 'react-native'
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native'
 import { GuillocheBackground } from '../ui/GuillocheBackground'
 import type { Passport, PassportPage, Stop, Stamp } from '../../types'
 import { palette } from '../../lib/colors'
+import { usePageDimensions } from './PassportFrame'
 
 interface Props {
   passport: Passport
@@ -46,9 +47,8 @@ export function TableOfContents({
   pageScreenIndex,
   onNavigate,
 }: Props) {
-  const { width: sw, height: sh } = useWindowDimensions()
-  const pageW = sw * 0.82
-  const pageH = sh * 0.96
+  // Canonical 612:792 page dimensions — conform to the frame like PassportPage.
+  const { pageW, pageH } = usePageDimensions()
 
   const allComplete = pages.every(
     (p) => sectionStatus(stops[p.id] ?? [], stamps[p.id] ?? {}) === '✓',

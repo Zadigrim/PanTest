@@ -1,11 +1,12 @@
 // Exit visa page — section completion certificate shown after each stops page.
 // Shows a "CERTIFIED COMPLETE" seal when all stops in the section are stamped.
 import React from 'react'
-import { View, Text, StyleSheet, useWindowDimensions } from 'react-native'
+import { View, Text, StyleSheet } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
 import { GuillocheBackground } from '../ui/GuillocheBackground'
 import type { Passport, PassportPage, Stop, Stamp } from '../../types'
 import { palette } from '../../lib/colors'
+import { usePageDimensions } from './PassportFrame'
 
 interface Props {
   passport: Passport
@@ -22,9 +23,8 @@ const GREEN = '#2E7D4D'
 const RED = palette.red
 
 export function ExitVisa({ passport, page, stops, stamps, chapterNumber }: Props) {
-  const { width: sw, height: sh } = useWindowDimensions()
-  const pageW = sw * 0.82
-  const pageH = sh * 0.96
+  // Canonical 612:792 page dimensions — conform to the frame like PassportPage.
+  const { pageW, pageH } = usePageDimensions()
 
   const stampedCount = stops.filter((s) => stamps[s.id]).length
   const isComplete = stops.length > 0 && stampedCount === stops.length

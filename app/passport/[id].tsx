@@ -1,5 +1,6 @@
 // Passport book view v2 — single-page-per-screen with left-edge rotateY flip.
-// Page sequence: Cover → InsideCover → TOC → [SectionDivider + StopsPage + ExitVisa] × N
+// Page sequence: Cover → InsideCover → [ToC?] → [StopsPage + ExitVisa?] × N
+// (ToC and ExitVisa are reader-toggleable in Profile; section dividers removed.)
 import React, { useEffect, useCallback, useState, useMemo, useRef } from 'react'
 import {
   View, Text, TouchableOpacity, ActivityIndicator, StyleSheet, Alert,
@@ -17,7 +18,7 @@ import { PageFlipper, type PageFlipperHandle } from '../../components/passport/P
 import { BookCover } from '../../components/passport/BookCover'
 import { InsideCoverPage } from '../../components/passport/InsideCoverPage'
 import { TableOfContents } from '../../components/passport/TableOfContents'
-import { SectionDivider } from '../../components/passport/SectionDivider'
+import { getViewerPrefs, DEFAULT_VIEWER_PREFS, type ViewerPrefs } from '../../lib/viewer-prefs'
 import { PassportPage } from '../../components/passport/PassportPage'
 import { ExitVisa } from '../../components/passport/ExitVisa'
 import { PostStampCaptureSheet } from '../../components/passport/PostStampCaptureSheet'
@@ -56,6 +57,11 @@ export default function PassportScreen() {
   const { verify } = useStampVerification()
   const flipperRef = useRef<PageFlipperHandle>(null)
   const [navIdx, setNavIdx] = useState(0)
+  // Reader display prefs (Table of contents / Exit visa) — personal toggles
+  // from Profile, not part of the kobo design. Loaded once at mount; opening
+  // a book afresh reflects the latest choice. Defaults match prior behavior.
+  const [prefs, setPrefs] = useState<ViewerPrefs>(DEFAULT_VIEWER_PREFS)
+  useEffect(() => { getViewerPrefs().then(setPrefs) }, [])
 
   // Contained demo mode: demoActive = server-authorized (is_demo_authorized)
   // AND the profile toggle is on. Every bypass below is re-checked
@@ -351,14 +357,13 @@ export default function PassportScreen() {
   // pageScreenIndex: maps page.id → index in the pages array (of the StopsPage screen index)
   const pageScreenIndex = useMemo(() => {
     const idx: Record<string, number> = {}
-    // Screen order: 0=Cover, 1=InsideCover, 2=TOC, then per page: divider, stops, exitvisa
-    let i = 3
-    for (const p of pages) {
-      idx[p.id] = i + 1 // StopsPage is after SectionDivider
-      i += 3
-    }
+    // Screen order: 0=Cover, 1=InsideCover, [2=ToC if enabled], then per page:
+    // StopsPage [+ ExitVisa if enabled]. Section dividers were removed.
+    const blockSize = prefs.showExitVisa ? 2 : 1
+    const firstPage = 2 + (prefs.showToc ? 1 : 0)
+    pages.forEach((p, i) => { idx[p.id] = firstPage + i * blockSize })
     return idx
-  }, [pages])
+  }, [pages, prefs.showToc, prefs.showExitVisa])
 
   const pageNodes = useMemo(() => {
     if (!passport || !collectorPassport) return []
@@ -386,37 +391,29 @@ export default function PassportScreen() {
       </PassportFrame>,
     )
 
-    // 2: Table of contents
-    nodes.push(
-      <PassportFrame key="toc" bindingSide="left">
-        <TableOfContents
-          passport={passport}
-          pages={pages}
-          stops={stops}
-          stamps={stamps}
-          pageScreenIndex={pageScreenIndex}
-          onNavigate={(screenIdx) => flipperRef.current?.goTo(screenIdx)}
-        />
-      </PassportFrame>,
-    )
+    // Table of contents (optional — reader preference)
+    if (prefs.showToc) {
+      nodes.push(
+        <PassportFrame key="toc" bindingSide="left">
+          <TableOfContents
+            passport={passport}
+            pages={pages}
+            stops={stops}
+            stamps={stamps}
+            pageScreenIndex={pageScreenIndex}
+            onNavigate={(screenIdx) => flipperRef.current?.goTo(screenIdx)}
+          />
+        </PassportFrame>,
+      )
+    }
 
-    // Per DB page: SectionDivider + StopsPage + ExitVisa
+    // Per DB page: StopsPage [+ ExitVisa]. Section dividers were removed
+    // (they rendered as empty intro pages with no content).
     pages.forEach((page, i) => {
       const pageStops = stops[page.id] ?? []
       const pageStamps = stamps[page.id] ?? {}
       const pageSlotStates = slotStates[page.id] ?? {}
       const chapterNum = i + 1
-
-      // Section divider
-      nodes.push(
-        <PassportFrame key={`divider-${page.id}`} bindingSide="left">
-          <SectionDivider
-            passport={passport}
-            page={page}
-            chapterNumber={chapterNum}
-          />
-        </PassportFrame>,
-      )
 
       // Stops page
       nodes.push(
@@ -438,24 +435,26 @@ export default function PassportScreen() {
         </PassportFrame>,
       )
 
-      // Exit visa
-      nodes.push(
-        <PassportFrame key={`exit-${page.id}`} bindingSide="left">
-          <ExitVisa
-            passport={passport}
-            page={page}
-            stops={pageStops}
-            stamps={pageStamps}
-            chapterNumber={chapterNum}
-          />
-        </PassportFrame>,
-      )
+      // Exit visa (optional — reader preference; kept for the progress view)
+      if (prefs.showExitVisa) {
+        nodes.push(
+          <PassportFrame key={`exit-${page.id}`} bindingSide="left">
+            <ExitVisa
+              passport={passport}
+              page={page}
+              stops={pageStops}
+              stamps={pageStamps}
+              chapterNumber={chapterNum}
+            />
+          </PassportFrame>,
+        )
+      }
     })
 
     return nodes
   }, [
     passport, collectorPassport, bearerName, pages, stops, stamps,
-    slotStates, pageScreenIndex, pageW, pageH,
+    slotStates, pageScreenIndex, pageW, pageH, prefs.showToc, prefs.showExitVisa,
     handlePressStart, handlePressCancel, handleStampPlaced,
   ])
 
@@ -604,10 +603,9 @@ const styles = StyleSheet.create({
 // CorrectionNoticeBanner in copy + behavior.
 const navStyles = StyleSheet.create({
   bar: {
-    position: 'absolute',
-    bottom: 24,
-    left: 0,
-    right: 0,
+    // In normal flow directly beneath the page (the screen centers the
+    // page + this bar as one group), instead of pinned to the screen bottom.
+    marginTop: 14,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
