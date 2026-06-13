@@ -86,7 +86,15 @@ export function useCollectorPassports() {
   useEffect(() => {
     mountedRef.current = true
     load()
-    return () => { mountedRef.current = false }
+    // Reload when the session settles. Fixes the post-login race where the
+    // first load ran before auth was ready, so the RLS-scoped query returned
+    // empty and the screen stuck on "No passports yet" until a manual refocus.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') {
+        load()
+      }
+    })
+    return () => { mountedRef.current = false; subscription.unsubscribe() }
   }, [load])
 
   return { passports, loading, reload: load }
@@ -119,7 +127,17 @@ export function usePublishedPassports() {
     setLoading(false)
   }, [])
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => {
+    load()
+    // Same post-login race guard as useCollectorPassports: reload once the
+    // session is available so the owned-overlay + browse list aren't empty.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') {
+        load()
+      }
+    })
+    return () => subscription.unsubscribe()
+  }, [load])
 
   return { passports, ownedIds, loading, reload: load }
 }
