@@ -1,8 +1,6 @@
-// Expressive stamp gesture — proxy version (no native contact-geometry reads).
+// Expressive stamp gesture.
 //
-// PATENT POSTURE: This component is the JS proxy implementation explicitly
-// described in the build prompt's framing note. Size and orientation are
-// PROXIES, not measured fingertip contact area or contact-ellipse angle:
+// POSTURE: size / saturation / rotation remain JS PROXIES (no native read):
 //
 //   size       <- press duration (0..2s), eased
 //   saturation <- press duration (0..2s), eased (coupled to size)
@@ -12,8 +10,14 @@
 //                 proxy); rendered as a directional motion-blur trail
 //                 along the net travel direction
 //
-// True contact-area / contact-ellipse reads are deferred (Path A) and out
-// of scope for this PR by design — no native module, no expo prebuild.
+// TILT activates Path A — the previously-deferred native contact-ellipse
+// read — on Android only, via the local okuji-touch module
+// (MotionEvent touch major/minor + orientation). iOS has no finger
+// contact-orientation API, so iOS keeps a drift-direction PROXY for tilt.
+// The native read is feature-detected and non-intrusive (the module reads
+// geometry in dispatchTouchEvent then calls super, so this PanResponder
+// runs unchanged); when the module is absent the proxy is used. See
+// modules/okuji-touch/README.md for the deliberate posture change.
 //
 // CENTER-WITHIN / EDGES-FREE rule (patent-relevant, preserved): the stamp's
 // CENTER is the touch START position. computeStampPlacement() rejects
@@ -26,6 +30,11 @@ import { View, StyleSheet, PanResponder, type LayoutRectangle, type GestureRespo
 import { StampArtwork } from './StampArtwork'
 import { computeStampPlacement } from '../../lib/stamp'
 import type { Stop, StampSlotState, StampPlacement } from '../../types'
+// Feature-detected native contact-geometry view. Null on iOS-proxy
+// builds, dev clients without the module, or any binary where the module
+// wasn't autolinked — the gesture then renders a plain View and tilt uses
+// the drift proxy. Importing never hard-fails (see modules/okuji-touch).
+import { OkujiTouchView, type TouchGeometryPayload } from '../../modules/okuji-touch'
 
 const MAX_DURATION_MS = 2000
 const INITIAL_VECTOR_WINDOW_MS = 200
@@ -334,6 +343,30 @@ export function StampGestureInteraction({
     onPressCancel()
   }, [cleanup, onPressCancel])
 
+  // Native contact-ellipse events (Android). The major axis is undirected
+  // (two ends), so we resolve which end is the PRESSED/darker edge by
+  // aligning it with the finger's net drift; with no drift yet we keep the
+  // axis as-is. Stored in nativeTiltRef so computeCurrentTilt() prefers it
+  // over the proxy. iOS emits nothing → ref stays null → proxy.
+  const handleTouchGeometry = useCallback((e: { nativeEvent: TouchGeometryPayload }) => {
+    if (!activeRef.current) return
+    const { dx, dy, intensity } = e.nativeEvent
+    if (!(intensity > 0) || (dx === 0 && dy === 0)) {
+      nativeTiltRef.current = null
+      return
+    }
+    let ax = dx
+    let ay = dy
+    const driftX = lastPagePosRef.current.x - startPagePosRef.current.x
+    const driftY = lastPagePosRef.current.y - startPagePosRef.current.y
+    if (driftX * ax + driftY * ay < 0) {
+      // Flip the axis to the end the finger is leaning toward.
+      ax = -ax
+      ay = -ay
+    }
+    nativeTiltRef.current = { dx: ax, dy: ay, intensity: Math.max(0, Math.min(intensity, 1)) }
+  }, [])
+
   // PanResponder.create captures its callbacks at construction time, so
   // a useRef-wrapped instance would freeze stale closures. useMemo keyed
   // on the input callbacks gives a fresh PanResponder whenever the
@@ -357,9 +390,17 @@ export function StampGestureInteraction({
   const previewSize = MIN_SIZE_PX + (MAX_SIZE_PX - MIN_SIZE_PX) * preview.progress
   const previewSaturation = MIN_SATURATION + (MAX_SATURATION - MIN_SATURATION) * preview.progress
 
+  // The native observer wraps the gesture container WITHOUT consuming
+  // touches (it reads geometry in dispatchTouchEvent then calls super),
+  // so PanResponder underneath runs unchanged. When the module isn't in
+  // the binary, OkujiTouchView is null and we render a plain wrapper.
+  const Wrapper = OkujiTouchView ?? View
+  const wrapperProps = OkujiTouchView ? { onTouchGeometry: handleTouchGeometry } : {}
+
   return (
-    <View
+    <Wrapper
       style={[styles.container, { width: boxLayout.width, height: boxLayout.height }]}
+      {...wrapperProps}
       {...panResponder.panHandlers}
     >
       {showPreview && (
@@ -389,7 +430,7 @@ export function StampGestureInteraction({
           />
         </View>
       )}
-    </View>
+    </Wrapper>
   )
 }
 
