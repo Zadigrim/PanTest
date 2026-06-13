@@ -56,7 +56,7 @@ export function ComposerElementList({
                     }`}
                   >
                     <span className="mr-1.5 text-[9.5px] uppercase tracking-[1px] text-muted">
-                      {el.type}
+                      {el.type === 'polyshape' ? el.shape : el.type}
                     </span>
                     {el.name ?? ''}
                   </button>

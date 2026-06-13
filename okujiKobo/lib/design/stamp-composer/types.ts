@@ -101,6 +101,22 @@ export interface TextElement extends ElementBase {
   italic?: boolean
   uppercase?: boolean
   letterSpacing?: number
+  /** Justification relative to the element's x anchor. Default 'left'.
+   *  For multi-line text this aligns the lines to each other. */
+  textAlign?: 'left' | 'center' | 'right'
+}
+
+// ── Polygonal shapes (star / diamond / shield / pentagon) ────────────────────
+// One parameterized type rather than four, modeled like RectElement (a
+// top-left + size bounding box) so it reuses rect's move/resize/bbox paths.
+// The actual outline is derived from `shape` by polyshapeGeometry().
+
+export type PolyshapeKind = 'star' | 'diamond' | 'shield' | 'pentagon'
+
+export interface PolyshapeElement extends ElementBase, StrokeStyle {
+  type: 'polyshape'
+  shape: PolyshapeKind
+  x: number; y: number; w: number; h: number
 }
 
 export interface CurvedTextElement extends ElementBase {
@@ -162,6 +178,7 @@ export type ComposerElement =
   | TriangleElement
   | EllipseElement
   | LineElement
+  | PolyshapeElement
   | TextElement
   | CurvedTextElement
   | IconElement

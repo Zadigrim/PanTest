@@ -309,6 +309,7 @@ function docHasDateToken(doc: ComposerMetadata): boolean {
 function nudge(el: ComposerElement, by: number): ComposerElement {
   switch (el.type) {
     case 'rect':       return { ...el, x: el.x + by, y: el.y + by }
+    case 'polyshape':  return { ...el, x: el.x + by, y: el.y + by }
     case 'ellipse':    return { ...el, cx: el.cx + by, cy: el.cy + by }
     case 'line':       return { ...el, x1: el.x1 + by, y1: el.y1 + by, x2: el.x2 + by, y2: el.y2 + by }
     case 'triangle':   return {

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { type ComposerElement, newElementId, STAMP_SURFACE_SIZE } from '@/lib/design/stamp-composer/types'
+import { type ComposerElement, type PolyshapeKind, newElementId, STAMP_SURFACE_SIZE } from '@/lib/design/stamp-composer/types'
 import { DEFAULT_STAMP_FONT_KEY } from '@/lib/design/fonts'
 import { IconPicker } from './IconPicker'
 import { TraceImagePicker } from './TraceImagePicker'
@@ -26,61 +26,7 @@ export function ComposerAddToolbar({
     <div className="flex flex-wrap items-center gap-1.5 border-b-[1.5px] border-surface-faintdiv bg-surface-workspace px-3 py-2.5">
       <p className="mr-1 text-[10px] font-bold uppercase tracking-[2px] text-muted">Add</p>
 
-      <AddButton onClick={() => onAdd({
-        id: newElementId(), type: 'rect',
-        x: cx - 50, y: cy - 30, w: 100, h: 60, rx: 0,
-        strokeWidth: 3,
-      })}>
-        ▭ <span className="ml-1">Rect</span>
-      </AddButton>
-
-      <AddButton onClick={() => onAdd({
-        id: newElementId(), type: 'rect',
-        x: cx - 50, y: cy - 30, w: 100, h: 60, rx: 12,
-        strokeWidth: 3,
-      })}>
-        ▢ <span className="ml-1">Rounded</span>
-      </AddButton>
-
-      <AddButton onClick={() => {
-        // Equilateral triangle pointing up centered on the canvas.
-        // Side length 100; height = 100 * √3 / 2 ≈ 86.6
-        const s = 100
-        const h = s * Math.sqrt(3) / 2
-        onAdd({
-          id: newElementId(), type: 'triangle',
-          x1: cx,           y1: cy - h * 2 / 3,
-          x2: cx - s / 2,   y2: cy + h / 3,
-          x3: cx + s / 2,   y3: cy + h / 3,
-          strokeWidth: 3,
-        })
-      }}>
-        △ <span className="ml-1">Triangle</span>
-      </AddButton>
-
-      <AddButton onClick={() => onAdd({
-        id: newElementId(), type: 'ellipse',
-        cx, cy, rx: 50, ry: 50,
-        strokeWidth: 3,
-      })}>
-        ◯ <span className="ml-1">Circle</span>
-      </AddButton>
-
-      <AddButton onClick={() => onAdd({
-        id: newElementId(), type: 'ellipse',
-        cx, cy, rx: 60, ry: 35,
-        strokeWidth: 3,
-      })}>
-        ◯ <span className="ml-1">Ellipse</span>
-      </AddButton>
-
-      <AddButton onClick={() => onAdd({
-        id: newElementId(), type: 'line',
-        x1: cx - 50, y1: cy, x2: cx + 50, y2: cy,
-        strokeWidth: 3,
-      })}>
-        ─ <span className="ml-1">Line</span>
-      </AddButton>
+      <ShapeMenu cx={cx} cy={cy} onAdd={onAdd} />
 
       <span className="mx-1 h-5 w-px bg-surface-faintdiv" aria-hidden />
 
@@ -161,6 +107,57 @@ export function ComposerAddToolbar({
           })
         }}
       />
+    </div>
+  )
+}
+
+// ── Shape dropdown — condenses the per-shape buttons into one menu ───────────
+
+function polyshape(shape: PolyshapeKind, cx: number, cy: number): ComposerElement {
+  return { id: newElementId(), type: 'polyshape', shape, x: cx - 50, y: cy - 50, w: 100, h: 100, strokeWidth: 3 }
+}
+
+const SHAPE_OPTIONS: Array<{ label: string; glyph: string; make: (cx: number, cy: number) => ComposerElement }> = [
+  { label: 'Rectangle',    glyph: '▭', make: (cx, cy) => ({ id: newElementId(), type: 'rect', x: cx - 50, y: cy - 30, w: 100, h: 60, rx: 0, strokeWidth: 3 }) },
+  { label: 'Rounded rect', glyph: '▢', make: (cx, cy) => ({ id: newElementId(), type: 'rect', x: cx - 50, y: cy - 30, w: 100, h: 60, rx: 12, strokeWidth: 3 }) },
+  { label: 'Circle',       glyph: '◯', make: (cx, cy) => ({ id: newElementId(), type: 'ellipse', cx, cy, rx: 50, ry: 50, strokeWidth: 3 }) },
+  { label: 'Ellipse',      glyph: '◯', make: (cx, cy) => ({ id: newElementId(), type: 'ellipse', cx, cy, rx: 60, ry: 35, strokeWidth: 3 }) },
+  { label: 'Triangle',     glyph: '△', make: (cx, cy) => {
+    const s = 100, h = (s * Math.sqrt(3)) / 2
+    return { id: newElementId(), type: 'triangle', x1: cx, y1: cy - (h * 2) / 3, x2: cx - s / 2, y2: cy + h / 3, x3: cx + s / 2, y3: cy + h / 3, strokeWidth: 3 }
+  } },
+  { label: 'Line',         glyph: '─', make: (cx, cy) => ({ id: newElementId(), type: 'line', x1: cx - 50, y1: cy, x2: cx + 50, y2: cy, strokeWidth: 3 }) },
+  { label: 'Star',         glyph: '★', make: (cx, cy) => polyshape('star', cx, cy) },
+  { label: 'Diamond',      glyph: '◆', make: (cx, cy) => polyshape('diamond', cx, cy) },
+  { label: 'Shield',       glyph: '❖', make: (cx, cy) => polyshape('shield', cx, cy) },
+  { label: 'Pentagon',     glyph: '⬠', make: (cx, cy) => polyshape('pentagon', cx, cy) },
+]
+
+function ShapeMenu({ cx, cy, onAdd }: { cx: number; cy: number; onAdd: (el: ComposerElement) => void }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className="relative">
+      <AddButton onClick={() => setOpen((v) => !v)}>
+        ▭ <span className="ml-1">Shape ▾</span>
+      </AddButton>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} aria-hidden />
+          <div className="absolute left-0 top-full z-20 mt-1 w-40 rounded-[8px] border-[1.5px] border-hairline bg-white py-1 shadow-lg">
+            {SHAPE_OPTIONS.map((opt) => (
+              <button
+                key={opt.label}
+                type="button"
+                onClick={() => { onAdd(opt.make(cx, cy)); setOpen(false) }}
+                className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12.5px] text-ink hover:bg-cream"
+              >
+                <span className="w-4 text-center">{opt.glyph}</span>
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   )
 }

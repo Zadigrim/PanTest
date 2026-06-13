@@ -27,13 +27,14 @@ import type {
   EllipseElement,
   IconElement,
   LineElement,
+  PolyshapeElement,
   RectElement,
   TextElement,
   TracedElement,
   TriangleElement,
 } from './types'
 import { fontByKey } from '../fonts'
-import { arcPathD, renderText } from './geometry'
+import { arcPathD, polyshapeGeometry, renderText, textAnchorFor } from './geometry'
 import { computeContentBBox } from './bbox'
 
 export function serializeStampSvg(doc: ComposerMetadata): string {
@@ -69,6 +70,7 @@ function elementToSvg(el: ComposerElement): string {
     case 'triangle':   return triangleSvg(el)
     case 'ellipse':    return ellipseSvg(el)
     case 'line':       return lineSvg(el)
+    case 'polyshape':  return polyshapeSvg(el)
     case 'text':       return textSvg(el)
     case 'curvedText': return curvedTextSvg(el)
     case 'icon':       return iconSvg(el)
@@ -124,6 +126,17 @@ function lineSvg(el: LineElement): string {
   )
 }
 
+function polyshapeSvg(el: PolyshapeElement): string {
+  const transform = rotationTransform(el.rotation, el.x + el.w / 2, el.y + el.h / 2)
+  const fill = el.filled ? 'currentColor' : 'none'
+  const dash = el.dashed ? ` stroke-dasharray="${el.strokeWidth * 3} ${el.strokeWidth * 2}"` : ''
+  const g = polyshapeGeometry(el.shape, el.x, el.y, el.w, el.h)
+  const tag = 'points' in g
+    ? `<polygon points="${g.points}"`
+    : `<path d="${g.path}"`
+  return `${tag} fill="${fill}" stroke="currentColor" stroke-width="${num(el.strokeWidth)}"${dash}${transform} />`
+}
+
 function textAttrs(el: TextElement | CurvedTextElement): string {
   const f = fontByKey(el.fontFamily)
   const weight = el.bold   ? ' font-weight="700"'   : ''
@@ -151,7 +164,8 @@ function textSvg(el: TextElement): string {
     // single space — SVG drops empty <tspan> bodies otherwise.
     return `<tspan x="${num(el.x)}"${dy}>${escapeText(line || ' ')}</tspan>`
   }).join('')
-  return `<text x="${num(el.x)}" y="${num(baselineY)}"${textAttrs(el)}${transform}>${tspans}</text>`
+  const anchor = ` text-anchor="${textAnchorFor(el.textAlign)}"`
+  return `<text x="${num(el.x)}" y="${num(baselineY)}"${textAttrs(el)}${anchor}${transform}>${tspans}</text>`
 }
 
 function curvedTextSvg(el: CurvedTextElement): string {

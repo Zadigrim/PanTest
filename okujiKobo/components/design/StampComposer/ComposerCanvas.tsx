@@ -2,7 +2,7 @@
 
 import { useCallback, useRef, useState } from 'react'
 import { STAMP_SURFACE_SIZE, type ComposerElement, type ComposerMetadata } from '@/lib/design/stamp-composer/types'
-import { arcPathD, renderText } from '@/lib/design/stamp-composer/geometry'
+import { arcPathD, polyshapeGeometry, renderText, textAnchorFor } from '@/lib/design/stamp-composer/geometry'
 import { applyDateTokenToText, todaysStampDate } from '@/lib/design/stamp-composer/date-token'
 import { fontByKey } from '@/lib/design/fonts'
 
@@ -231,6 +231,19 @@ function ElementShape({ el }: { el: ComposerElement }) {
       />
     )
   }
+  if (el.type === 'polyshape') {
+    const g = polyshapeGeometry(el.shape, el.x, el.y, el.w, el.h)
+    const common = {
+      fill: el.filled ? 'currentColor' : 'none',
+      stroke: 'currentColor',
+      strokeWidth: el.strokeWidth,
+      strokeDasharray: el.dashed ? `${el.strokeWidth * 3} ${el.strokeWidth * 2}` : undefined,
+      transform,
+    }
+    return 'points' in g
+      ? <polygon points={g.points} {...common} />
+      : <path d={g.path} {...common} />
+  }
   if (el.type === 'text') {
     const f = fontByKey(el.fontFamily)
     // Live composer preview = sample mode: substitute {{date}} with
@@ -255,6 +268,7 @@ function ElementShape({ el }: { el: ComposerElement }) {
         letterSpacing={el.letterSpacing ?? undefined}
         fill="currentColor"
         stroke="none"
+        textAnchor={textAnchorFor(el.textAlign)}
         transform={transform}
       >
         {lines.map((line, i) => (
@@ -373,6 +387,7 @@ function ElementHitTarget({ el, onPointerDown }: { el: ComposerElement; onPointe
     transform,
   }
   if (el.type === 'rect')    return <rect    x={el.x}  y={el.y}  width={el.w}  height={el.h}  rx={el.rx ?? 0} {...common} />
+  if (el.type === 'polyshape') return <rect x={el.x} y={el.y} width={el.w} height={el.h} {...common} />
   if (el.type === 'ellipse') return <ellipse cx={el.cx} cy={el.cy} rx={el.rx} ry={el.ry} {...common} />
   if (el.type === 'line')    return <line    x1={el.x1} y1={el.y1} x2={el.x2} y2={el.y2}  {...common} />
   if (el.type === 'text') {
@@ -460,6 +475,7 @@ function SelectionOverlay({
 
 function elementCenter(el: ComposerElement): { x: number; y: number } {
   if (el.type === 'rect')       return { x: el.x + el.w / 2, y: el.y + el.h / 2 }
+  if (el.type === 'polyshape')  return { x: el.x + el.w / 2, y: el.y + el.h / 2 }
   if (el.type === 'ellipse')    return { x: el.cx, y: el.cy }
   if (el.type === 'line')       return { x: (el.x1 + el.x2) / 2, y: (el.y1 + el.y2) / 2 }
   if (el.type === 'text') {
@@ -479,7 +495,8 @@ function elementCenter(el: ComposerElement): { x: number; y: number } {
 }
 
 function elementBoundingBox(el: ComposerElement): { x: number; y: number; w: number; h: number } | null {
-  if (el.type === 'rect')    return { x: el.x, y: el.y, w: el.w, h: el.h }
+  if (el.type === 'rect')      return { x: el.x, y: el.y, w: el.w, h: el.h }
+  if (el.type === 'polyshape') return { x: el.x, y: el.y, w: el.w, h: el.h }
   if (el.type === 'ellipse') return { x: el.cx - el.rx, y: el.cy - el.ry, w: el.rx * 2, h: el.ry * 2 }
   if (el.type === 'line') {
     const x = Math.min(el.x1, el.x2)
@@ -516,6 +533,7 @@ function elementBoundingBox(el: ComposerElement): { x: number; y: number; w: num
 
 function translatePatch(el: ComposerElement, dx: number, dy: number): Patch {
   if (el.type === 'rect')       return { x: el.x + dx, y: el.y + dy } as Patch
+  if (el.type === 'polyshape')  return { x: el.x + dx, y: el.y + dy } as Patch
   if (el.type === 'ellipse')    return { cx: el.cx + dx, cy: el.cy + dy } as Patch
   if (el.type === 'line')       return { x1: el.x1 + dx, y1: el.y1 + dy, x2: el.x2 + dx, y2: el.y2 + dy } as Patch
   if (el.type === 'text')       return { x: el.x + dx, y: el.y + dy } as Patch
@@ -531,7 +549,8 @@ function translatePatch(el: ComposerElement, dx: number, dy: number): Patch {
 }
 
 function resizePatch(el: ComposerElement, dx: number, dy: number): Patch {
-  if (el.type === 'rect')    return { w: Math.max(4, el.w + dx), h: Math.max(4, el.h + dy) } as Patch
+  if (el.type === 'rect')      return { w: Math.max(4, el.w + dx), h: Math.max(4, el.h + dy) } as Patch
+  if (el.type === 'polyshape') return { w: Math.max(4, el.w + dx), h: Math.max(4, el.h + dy) } as Patch
   if (el.type === 'ellipse') return { rx: Math.max(2, el.rx + dx / 2), ry: Math.max(2, el.ry + dy / 2) } as Patch
   if (el.type === 'line')    return { x2: el.x2 + dx, y2: el.y2 + dy } as Patch
   if (el.type === 'text') {

@@ -29,6 +29,7 @@ import type {
   EllipseElement,
   IconElement,
   LineElement,
+  PolyshapeElement,
   RectElement,
   TextElement,
   TracedElement,
@@ -80,6 +81,7 @@ function elementBBox(el: ComposerElement): BBox | null {
     case 'triangle':   return triangleBBox(el)
     case 'ellipse':    return ellipseBBox(el)
     case 'line':       return lineBBox(el)
+    case 'polyshape':  return polyshapeBBox(el)
     case 'text':       return textBBox(el)
     case 'curvedText': return curvedTextBBox(el)
     case 'icon':       return iconBBox(el)
@@ -106,6 +108,14 @@ function triangleBBox(el: TriangleElement): BBox {
   const cx = (el.x1 + el.x2 + el.x3) / 3
   const cy = (el.y1 + el.y2 + el.y3) / 3
   return rotateBBox(local, el.rotation, cx, cy)
+}
+
+function polyshapeBBox(el: PolyshapeElement): BBox {
+  // The outline is inscribed in the (x, y, w, h) box, so the box plus the
+  // stroke half-width bounds it — same treatment as a rect.
+  const sw = el.strokeWidth / 2
+  const local = { x: el.x - sw, y: el.y - sw, w: el.w + el.strokeWidth, h: el.h + el.strokeWidth }
+  return rotateBBox(local, el.rotation, el.x + el.w / 2, el.y + el.h / 2)
 }
 
 function ellipseBBox(el: EllipseElement): BBox {
@@ -153,7 +163,10 @@ function textBBox(el: TextElement): BBox {
   const h = lines.length === 1
     ? el.fontSize
     : el.fontSize + (lines.length - 1) * el.fontSize * LINE_HEIGHT_RATIO
-  const local: BBox = { x: el.x, y: el.y, w, h }
+  // Alignment shifts the glyph extent relative to the x anchor: center
+  // straddles x, right ends at x (matches the serializer's text-anchor).
+  const bx = el.textAlign === 'center' ? el.x - w / 2 : el.textAlign === 'right' ? el.x - w : el.x
+  const local: BBox = { x: bx, y: el.y, w, h }
   // Rotation pivot matches the serializer: (el.x, el.y + fontSize/2).
   return rotateBBox(local, el.rotation, el.x, el.y + el.fontSize / 2)
 }

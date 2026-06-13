@@ -54,7 +54,7 @@ export function ComposerInspector({
         {element.type === 'icon'       && <IconBlock          el={element} onUpdate={onUpdate} />}
         {element.type === 'traced'     && <TracedBlock        el={element} onUpdate={onUpdate} />}
 
-        {(element.type === 'rect' || element.type === 'triangle' || element.type === 'ellipse' || element.type === 'line') && (
+        {(element.type === 'rect' || element.type === 'triangle' || element.type === 'ellipse' || element.type === 'line' || element.type === 'polyshape') && (
           <StrokeStyle el={element} onUpdate={onUpdate} />
         )}
 
@@ -260,6 +260,14 @@ function TextBlock({
         />
       </Section>
 
+      <Section title="Align">
+        <div className="flex gap-1.5">
+          <ToggleChip on={(el.textAlign ?? 'left') === 'left'} onClick={() => onUpdate({ textAlign: 'left' })}   label="Left" />
+          <ToggleChip on={el.textAlign === 'center'}           onClick={() => onUpdate({ textAlign: 'center' })} label="Center" />
+          <ToggleChip on={el.textAlign === 'right'}            onClick={() => onUpdate({ textAlign: 'right' })}  label="Right" />
+        </div>
+      </Section>
+
       <TextTypeBlock el={el} onUpdate={onUpdate} />
 
       <Section title="Position">
@@ -381,7 +389,7 @@ function StrokeStyle({
   el,
   onUpdate,
 }: {
-  el: Extract<ComposerElement, { type: 'rect' | 'triangle' | 'ellipse' | 'line' }>
+  el: Extract<ComposerElement, { type: 'rect' | 'triangle' | 'ellipse' | 'line' | 'polyshape' }>
   onUpdate: (patch: Partial<ComposerElement>) => void
 }) {
   return (

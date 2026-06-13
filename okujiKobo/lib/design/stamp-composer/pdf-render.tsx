@@ -173,11 +173,15 @@ function attrsToProps(attrs: Record<string, string>): Record<string, string | nu
     'stroke-width', 'font-size', 'letter-spacing',
   ])
   for (const [k, v] of Object.entries(attrs)) {
-    if (NUMERIC.has(k)) {
+    // @react-pdf's SvgText reads camelCase `textAnchor`, not the kebab
+    // `text-anchor` the serializer emits — remap so justification carries
+    // into the print PDF too.
+    const key = k === 'text-anchor' ? 'textAnchor' : k
+    if (NUMERIC.has(key)) {
       const n = Number(v)
-      props[k] = Number.isFinite(n) ? n : v
+      props[key] = Number.isFinite(n) ? n : v
     } else {
-      props[k] = v
+      props[key] = v
     }
   }
   return props
