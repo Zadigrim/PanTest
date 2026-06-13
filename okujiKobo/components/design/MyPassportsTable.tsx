@@ -233,9 +233,16 @@ export function MyPassportsTable({ rows: initialRows }: { rows: PassportRow[] })
             <Row
               key={row.passport.id}
               row={row}
-              onArchived={(id) =>
+              onDeleted={(id) =>
+                setRows((prev) => prev.filter((r) => r.passport.id !== id))
+              }
+              onUnpublished={(id) =>
                 setRows((prev) =>
-                  prev.map((r) => (r.passport.id === id ? { ...r, passport: { ...r.passport, status: 'archived' } } : r)),
+                  prev.map((r) =>
+                    r.passport.id === id
+                      ? { ...r, passport: { ...r.passport, status: 'draft', is_published: false } }
+                      : r,
+                  ),
                 )
               }
             />
@@ -287,7 +294,7 @@ function SortHeader({
 
 // ── Row ───────────────────────────────────────────────────────────────────────
 
-function Row({ row, onArchived }: { row: PassportRow; onArchived: (id: string) => void }) {
+function Row({ row, onDeleted, onUnpublished }: { row: PassportRow; onDeleted: (id: string) => void; onUnpublished: (id: string) => void }) {
   const router = useRouter()
   const { passport, soldCount, prizesCount, draftStepsDone } = row
   const status = normalisedStatus(passport.status)
@@ -373,7 +380,7 @@ function Row({ row, onArchived }: { row: PassportRow; onArchived: (id: string) =
         >
           {status === 'draft' ? 'Continue' : 'Open'}
         </Link>
-        <ActionsMenu passport={passport} onArchived={() => onArchived(passport.id)} />
+        <ActionsMenu passport={passport} onDeleted={() => onDeleted(passport.id)} onUnpublished={() => onUnpublished(passport.id)} />
       </div>
     </div>
   )
@@ -419,7 +426,7 @@ function StatusPill({ status }: { status: RowStatus }) {
 
 // ── Actions menu (⋯) ──────────────────────────────────────────────────────────
 
-function ActionsMenu({ passport, onArchived }: { passport: DesignerPassport; onArchived: () => void }) {
+function ActionsMenu({ passport, onDeleted, onUnpublished }: { passport: DesignerPassport; onDeleted: () => void; onUnpublished: () => void }) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState<string | null>(null)
@@ -464,7 +471,7 @@ function ActionsMenu({ passport, onArchived }: { passport: DesignerPassport; onA
         setError(j.error ?? 'Unpublish failed')
         return
       }
-      onArchived()           // reuse the row-refresh callback
+      onUnpublished()        // flip the row to draft in local state
       router.refresh()
     } finally {
       setBusy(null)
@@ -508,7 +515,7 @@ function ActionsMenu({ passport, onArchived }: { passport: DesignerPassport; onA
         }
         return
       }
-      onArchived()
+      onDeleted()            // hard-deleted server-side — remove the row
       router.refresh()
     } finally {
       setBusy(null)
