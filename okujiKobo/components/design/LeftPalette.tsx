@@ -18,6 +18,9 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { createClient } from '@/lib/supabase/client'
+import { cn } from '@/lib/cn'
+import { Resizer } from './Resizer'
+import { usePersistentNumber } from './usePersistent'
 import { usePassportStore } from '@/lib/design/passport-store'
 import { safeUpdate } from '@/lib/design/persist'
 import { Button } from './ui/Button'
@@ -157,7 +160,10 @@ function SortablePage({
 
 // ── LeftPalette ────────────────────────────────────────────────────────────────
 
-export function LeftPalette() {
+export function LeftPalette({ width }: { width?: number } = {}) {
+  // Section list heights (persisted). Elements (flex-1) absorbs the rest.
+  const [pagesH, setPagesH] = usePersistentNumber('okuji.designer.pagesH', 160)
+  const [stopsH, setStopsH] = usePersistentNumber('okuji.designer.stopsH', 140)
   const passport = usePassportStore((s) => s.passport)
   const pages = usePassportStore((s) => s.pages)
   const activePageId = usePassportStore((s) => s.activePageId)
@@ -442,7 +448,10 @@ export function LeftPalette() {
         />
       )}
 
-      <aside className="flex w-60 shrink-0 flex-col overflow-hidden border-r border-hairline bg-surface-rail">
+      <aside
+        className={cn('flex shrink-0 flex-col overflow-hidden border-r border-hairline bg-surface-rail', width == null && 'w-60')}
+        style={width != null ? { width } : undefined}
+      >
         {/* Passport meta */}
         <div className="border-b border-hairline px-4 py-3">
           <p className="truncate text-xs font-semibold text-navy">
@@ -454,7 +463,7 @@ export function LeftPalette() {
         </div>
 
         {/* Pages list — sortable by drag */}
-        <div className="border-b border-hairline px-3 py-2">
+        <div className="px-3 py-2">
           <p className="mb-1.5 text-xs font-medium uppercase tracking-wider text-muted">
             Pages
           </p>
@@ -467,9 +476,8 @@ export function LeftPalette() {
               items={pages.map((p) => p.id)}
               strategy={verticalListSortingStrategy}
             >
-              {/* Scrollable, drag-resizable (resize-y handle bottom-right)
-                  so many pages don't crowd out Stops/Elements. */}
-              <div className="space-y-0.5 max-h-64 min-h-[2.5rem] overflow-y-auto resize-y pr-1">
+              {/* Scrollable; the divider below resizes this section. */}
+              <div className="space-y-0.5 overflow-y-auto pr-1" style={{ height: pagesH }}>
                 {pages.map((page, i) => (
                   <SortablePage
                     key={page.id}
@@ -494,14 +502,22 @@ export function LeftPalette() {
           </Button>
         </div>
 
+        <Resizer
+          orientation="y"
+          ariaLabel="Resize Pages section"
+          onReset={() => setPagesH(160)}
+          onDelta={(d) => setPagesH((h) => Math.min(600, Math.max(60, h + d)))}
+        />
+
         {/* Stops / Punch locations — only on stamp pages */}
         {!isInfoPage && (
-          <div className="border-b border-hairline px-3 py-2">
+          <>
+          <div className="px-3 py-2">
             <p className="mb-1.5 text-xs font-medium uppercase tracking-wider text-muted">
               {stopsLabel}
             </p>
-            {/* Scrollable + drag-resizable when there are many stops. */}
-            <div className="max-h-64 min-h-[2.5rem] overflow-y-auto resize-y pr-1">
+            {/* Scrollable; the divider below resizes this section. */}
+            <div className="overflow-y-auto pr-1" style={{ height: stopsH }}>
               <StopsList />
             </div>
             <Button
@@ -514,6 +530,13 @@ export function LeftPalette() {
               {addingStop ? 'Adding…' : `+ Add ${stopLabel}`}
             </Button>
           </div>
+          <Resizer
+            orientation="y"
+            ariaLabel="Resize Stops section"
+            onReset={() => setStopsH(140)}
+            onDelta={(d) => setStopsH((h) => Math.min(600, Math.max(60, h + d)))}
+          />
+          </>
         )}
 
         {/* Page elements — fills the remaining rail height and scrolls.

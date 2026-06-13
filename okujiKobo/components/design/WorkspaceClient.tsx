@@ -6,6 +6,8 @@ import { usePassportStore } from '@/lib/design/passport-store'
 import { LeftPalette } from './LeftPalette'
 import { Canvas } from './Canvas'
 import { RightInspector } from './RightInspector'
+import { Resizer } from './Resizer'
+import { usePersistentNumber } from './usePersistent'
 import { CoverCanvas } from './CoverCanvas'
 import { CoverInspector } from './CoverInspector'
 import { CoverPalette } from './CoverPalette'
@@ -49,6 +51,9 @@ export function WorkspaceClient({ passport, pages, stops, creatorInstitutionId }
   const [viewMode, setViewMode] = useState<'cover' | 'pages'>('pages')
   const [coverFace, setCoverFace] = useState<CoverFace>('outside')
   const [coverPanel, setCoverPanel] = useState<CoverPanel>('front')
+  // Resizable column widths (persisted). Canvas (flex-1) absorbs the rest.
+  const [leftW, setLeftW] = usePersistentNumber('okuji.designer.leftW', 240)
+  const [rightW, setRightW] = usePersistentNumber('okuji.designer.rightW', 280)
 
   useEffect(() => {
     hydrate(passport, pages, stops)
@@ -227,9 +232,21 @@ export function WorkspaceClient({ passport, pages, stops, creatorInstitutionId }
           </>
         ) : (
           <>
-            <LeftPalette />
+            <LeftPalette width={leftW} />
+            <Resizer
+              orientation="x"
+              ariaLabel="Resize left panel"
+              onReset={() => setLeftW(240)}
+              onDelta={(d) => setLeftW((w) => Math.min(480, Math.max(180, w + d)))}
+            />
             <Canvas />
-            <RightInspector creatorInstitutionId={effectiveInstitutionId} />
+            <Resizer
+              orientation="x"
+              ariaLabel="Resize right panel"
+              onReset={() => setRightW(280)}
+              onDelta={(d) => setRightW((w) => Math.min(560, Math.max(200, w - d)))}
+            />
+            <RightInspector creatorInstitutionId={effectiveInstitutionId} width={rightW} />
           </>
         )}
       </div>

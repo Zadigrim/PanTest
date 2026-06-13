@@ -19,6 +19,8 @@ import { PlaceSearch } from './PlaceSearch'
 import type { ResolvedPlace } from '@/lib/maps/types'
 import { AssetDeleteButton } from './AssetDeleteButton'
 import { safeUpdate, safeInsert } from '@/lib/design/persist'
+import { cn } from '@/lib/cn'
+import { usePersistentBool } from './usePersistent'
 import type {
   DesignerStop,
   DesignerPassportPage,
@@ -39,8 +41,10 @@ import { composeAddressLine, formatCoordinates } from '@/lib/design/location-cap
 
 export function RightInspector({
   creatorInstitutionId,
+  width,
 }: {
   creatorInstitutionId: string | null
+  width?: number
 }) {
   const activePage = usePassportStore(selectActivePage)
   const selectedStop = usePassportStore(selectSelectedStop)
@@ -79,7 +83,10 @@ export function RightInspector({
     : 'No selection'
 
   return (
-    <aside className="flex w-[280px] shrink-0 flex-col border-l border-hairline bg-surface-workspace">
+    <aside
+      className={cn('flex shrink-0 flex-col border-l border-hairline bg-surface-workspace', width == null && 'w-[280px]')}
+      style={width != null ? { width } : undefined}
+    >
       <div className="border-b border-hairline px-4 py-3">
         <p className="text-xs font-semibold uppercase tracking-wider text-muted">
           {label}
@@ -2108,13 +2115,31 @@ function ElementInspector({
 
 // ── Shared helpers ─────────────────────────────────────────────────────────────
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({
+  title,
+  children,
+  defaultOpen = true,
+}: {
+  title: string
+  children: React.ReactNode
+  defaultOpen?: boolean
+}) {
+  // Collapsible accordion section; open/closed persists per title.
+  const [open, setOpen] = usePersistentBool(`okuji.designer.section.${title}`, defaultOpen)
   return (
     <div className="space-y-3">
-      <p className="text-xs font-semibold uppercase tracking-wider text-muted">
-        {title}
-      </p>
-      {children}
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        className="flex w-full items-center justify-between text-xs font-semibold uppercase tracking-wider text-muted transition-colors hover:text-navy"
+      >
+        <span>{title}</span>
+        <span aria-hidden="true" className={cn('text-sm leading-none transition-transform', open ? 'rotate-90' : 'rotate-0')}>
+          ›
+        </span>
+      </button>
+      {open && <div className="space-y-3">{children}</div>}
     </div>
   )
 }
