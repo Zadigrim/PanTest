@@ -31,14 +31,20 @@
 // scaling. It just renders what the gesture component or the legacy stop
 // enum tells it to render.
 import React, { useEffect, useState } from 'react'
-import { View, Image } from 'react-native'
-import Svg, { Circle, Rect, Path, Text as SvgText, Defs, Filter, FeTurbulence, FeDisplacementMap, SvgXml, LinearGradient, Stop as GradientStop } from 'react-native-svg'
+import { View } from 'react-native'
+import Svg, { Circle, Rect, Path, Text as SvgText, Defs, Filter, FeTurbulence, FeDisplacementMap, SvgXml, LinearGradient, Stop as GradientStop, Mask, G, Image as SvgImage } from 'react-native-svg'
 import type { Stop } from '../../types'
 import { substituteDateInSvg, formatStampDate } from '../../lib/stamp-date-token'
 
-// Paper tone the lifted (tilted-up) edge washes toward — okuji cream.
-// The wash thins the ink so the page reads through where contact lifts.
-const CREAM_WASH = '#f4ecd8'
+// Tilt lightening is paper-agnostic: it reduces the stamp's OWN ink alpha
+// along the lift axis (a directional mask), so the page beneath shows
+// through on any background color. No paper-tone color is injected — see
+// the tilt mask in stampBody. (Previously a hardcoded cream wash, which
+// only read correctly on light/cream pages.)
+
+// How far (fraction of full ink) the lifted edge thins at tilt intensity 1.
+// Mirrors the prior wash strength (0.6) so the feel is unchanged.
+const TILT_MAX_REDUCTION = 0.6
 
 // Module-scoped SVG content cache. A passport with many stops
 // sharing the same composed stamp asset fetches each URL once.
@@ -192,6 +198,42 @@ export function StampArtwork({
   const effectiveTiltDx = isGestureMode ? (tiltDx ?? 0) : 0
   const effectiveTiltDy = isGestureMode ? (tiltDy ?? 0) : 0
 
+  // Tilt geometry. The lift unit vector L = -(tiltDx, tiltDy) points from
+  // the pressed (darker, full-ink) edge toward the lifted (lighter) edge.
+  // We reduce ink alpha along L via a directional mask (see stampBody).
+  const tiltMag = Math.sqrt(effectiveTiltDx * effectiveTiltDx + effectiveTiltDy * effectiveTiltDy)
+  const showTilt = isGestureMode && effectiveTiltIntensity > 0.04 && tiltMag > 0.001
+  // Gradient endpoints in objectBoundingBox space (0..1): pressed -> lifted.
+  const lx = showTilt ? -effectiveTiltDx / tiltMag : 0
+  const ly = showTilt ? -effectiveTiltDy / tiltMag : 0
+  const tiltX1 = 0.5 - lx * 0.5
+  const tiltY1 = 0.5 - ly * 0.5
+  const tiltX2 = 0.5 + lx * 0.5
+  const tiltY2 = 0.5 + ly * 0.5
+  // Max alpha removed at the lifted edge, scaled by intensity.
+  const tiltMaxReduction = Math.min(effectiveTiltIntensity, 1) * TILT_MAX_REDUCTION
+  // A stable-per-render mask id (parameterized like the smudge filter id to
+  // avoid cross-stamp <Defs> id collisions on the web SVG renderer).
+  const tiltMaskId = `tilt-${effectiveTiltDx.toFixed(2)}-${effectiveTiltDy.toFixed(2)}-${effectiveTiltIntensity.toFixed(2)}`
+
+  // Directional ink-reduction mask. White (full luminance) at the pressed
+  // edge with a stopOpacity ramp toward the lifted edge — the mask alpha
+  // multiplies the ink's alpha, so the lifted edge thins and reveals the
+  // page. No color is added. Rendered into each artwork mode's <Svg> so the
+  // reduction is identical across shape, composed-SVG, and raster stamps.
+  const tiltMaskDefs = showTilt ? (
+    <Defs>
+      <LinearGradient id={`${tiltMaskId}-grad`} x1={tiltX1} y1={tiltY1} x2={tiltX2} y2={tiltY2}>
+        <GradientStop offset="0" stopColor="#fff" stopOpacity={1} />
+        <GradientStop offset="0.55" stopColor="#fff" stopOpacity={1 - tiltMaxReduction * 0.4} />
+        <GradientStop offset="1" stopColor="#fff" stopOpacity={1 - tiltMaxReduction} />
+      </LinearGradient>
+      <Mask id={tiltMaskId} x="0" y="0" width={size} height={size} maskUnits="userSpaceOnUse">
+        <Rect x="0" y="0" width={size} height={size} fill={`url(#${tiltMaskId}-grad)`} />
+      </Mask>
+    </Defs>
+  ) : null
+
   const displacementScale = isGestureMode
     ? gestureSmudgeScale(effectiveSmudgeIntensity)
     : legacySmudgeScale(stop.stamp_smudge)
@@ -257,50 +299,57 @@ export function StampArtwork({
   }
 
   // Single stamp body — used both for the primary stamp and the trail
-  // ghosts. Renders either the custom asset image or the shape+emoji
-  // based on artwork mode. Gesture-mode FeDisplacementMap noise is
-  // applied to BOTH modes uniformly so smudge behavior matches.
-  const stampBody = (filterRef: string | null, opacityOverride?: number) => {
+  // ghosts. Renders the custom asset (composed SVG or raster) or the
+  // shape+emoji, always inside one <Svg> so the directional tilt mask can
+  // apply uniformly across every artwork mode (paper-agnostic ink
+  // reduction). Gesture-mode FeDisplacementMap noise applies to the
+  // shape mode. applyTilt is true only for the primary impression; the
+  // trail ghosts (applyTilt=false) are not tilt-masked.
+  const stampBody = (
+    filterRef: string | null,
+    opacityOverride?: number,
+    applyTilt = false,
+  ) => {
+    const useTilt = applyTilt && showTilt
+    // Wrap content in the tilt mask group when active; otherwise pass through.
+    const withTilt = (content: React.ReactNode) =>
+      useTilt ? <G mask={`url(#${tiltMaskId})`}>{content}</G> : content
+    const bodyOpacity = (opacityOverride ?? 1) * (ghost ? 0.6 : 1)
+
     if (customAssetUrl) {
-      // SVG branch (composed stamps): render the recolored SVG
-      // via SvgXml. currentColor was replaced in-place at fetch
-      // time so the stamp re-inks with stamp_color the way it
-      // does in the web designer canvas. Filter doesn't apply
-      // to SvgXml (same reason as the raster path below) — the
-      // trail ghosts carry the smudge feel.
+      // Composed-SVG branch: render the recolored SVG via SvgXml. The
+      // displacement filter doesn't apply here — the trail ghosts carry
+      // the smudge feel. The tilt mask DOES apply (the page reads through
+      // the lifted edge regardless of page color).
       if (customIsSvg) {
         if (!svgRecolored) {
-          // Loading — return an empty View so the stamp slot
-          // reserves space without flashing the default shape.
+          // Loading — empty box so the slot reserves space without flashing.
           return <View style={{ width: size, height: size }} />
         }
         return (
-          <View
-            style={{
-              width: size,
-              height: size,
-              opacity: (opacityOverride ?? 1) * (ghost ? 0.6 : 1),
-            }}
-          >
-            <SvgXml xml={svgRecolored} width={size} height={size} />
-          </View>
+          <Svg width={size} height={size} opacity={bodyOpacity}>
+            {tiltMaskDefs}
+            {withTilt(<SvgXml xml={svgRecolored} width={size} height={size} />)}
+          </Svg>
         )
       }
 
-      // Raster branch (uploaded PNG/JPG). The displacement filter
-      // doesn't apply to a raster <Image> in RN, so we approximate
-      // the "noisy edges" by letting the trail-ghost density carry
-      // the smudge feel and skipping the filter on the image itself.
+      // Raster branch (uploaded PNG/JPG). Rendered via react-native-svg's
+      // <Image> (not RN core Image) so the same tilt mask applies. The
+      // displacement filter still doesn't apply to a raster image; ghost
+      // density carries the smudge feel.
       return (
-        <Image
-          source={{ uri: customAssetUrl }}
-          style={{
-            width: size,
-            height: size,
-            opacity: (opacityOverride ?? 1) * (ghost ? 0.6 : 1),
-          }}
-          resizeMode="contain"
-        />
+        <Svg width={size} height={size} opacity={bodyOpacity}>
+          {tiltMaskDefs}
+          {withTilt(
+            <SvgImage
+              href={{ uri: customAssetUrl }}
+              width={size}
+              height={size}
+              preserveAspectRatio="xMidYMid meet"
+            />,
+          )}
+        </Svg>
       )
     }
 
@@ -314,18 +363,21 @@ export function StampArtwork({
             </Filter>
           </Defs>
         )}
-        <Svg width={size} height={size} filter={useFilter && filterRef ? `url(#${filterRef})` : undefined}>
-          {shapeEl()}
-          <SvgText
-            x={size / 2}
-            y={size / 2 + size * 0.12}
-            fontSize={size * 0.38}
-            textAnchor="middle"
-            fill={ghost ? color : stop.stamp_color}
-          >
-            {stop.stamp_icon}
-          </SvgText>
-        </Svg>
+        {tiltMaskDefs}
+        {withTilt(
+          <Svg width={size} height={size} filter={useFilter && filterRef ? `url(#${filterRef})` : undefined}>
+            {shapeEl()}
+            <SvgText
+              x={size / 2}
+              y={size / 2 + size * 0.12}
+              fontSize={size * 0.38}
+              textAnchor="middle"
+              fill={ghost ? color : stop.stamp_color}
+            >
+              {stop.stamp_icon}
+            </SvgText>
+          </Svg>,
+        )}
       </Svg>
     )
   }
@@ -366,49 +418,15 @@ export function StampArtwork({
     )
   }
 
-  // Tilt wash. A linear gradient from transparent on the PRESSED side
-  // (effectiveTilt vector) to a cream paper wash on the LIFTED side
-  // (opposite), scaled by tilt intensity — the lifted edge inks lighter
-  // as paper shows through. Overlaid uniformly so it works across all
-  // artwork modes (shape, composed SVG, raster) without per-mode masks.
-  // Gradient coords are in objectBoundingBox space; the lifted unit
-  // vector L = -(tiltDx, tiltDy) points from pressed → lifted.
-  const tiltMag = Math.sqrt(effectiveTiltDx * effectiveTiltDx + effectiveTiltDy * effectiveTiltDy)
-  const showTilt = isGestureMode && effectiveTiltIntensity > 0.04 && tiltMag > 0.001
-  const tiltWash = (() => {
-    if (!showTilt) return null
-    const lx = -effectiveTiltDx / tiltMag
-    const ly = -effectiveTiltDy / tiltMag
-    // Pressed point (transparent) → lifted point (cream wash).
-    const x1 = 0.5 - lx * 0.5
-    const y1 = 0.5 - ly * 0.5
-    const x2 = 0.5 + lx * 0.5
-    const y2 = 0.5 + ly * 0.5
-    const washOpacity = Math.min(effectiveTiltIntensity, 1) * 0.6
-    return (
-      <Svg
-        width={size}
-        height={size}
-        style={{ position: 'absolute', left: 0, top: 0 }}
-        pointerEvents="none"
-      >
-        <Defs>
-          <LinearGradient id="tiltWash" x1={x1} y1={y1} x2={x2} y2={y2}>
-            <GradientStop offset="0" stopColor={CREAM_WASH} stopOpacity={0} />
-            <GradientStop offset="0.55" stopColor={CREAM_WASH} stopOpacity={washOpacity * 0.4} />
-            <GradientStop offset="1" stopColor={CREAM_WASH} stopOpacity={washOpacity} />
-          </LinearGradient>
-        </Defs>
-        <Rect x={0} y={0} width={size} height={size} fill="url(#tiltWash)" />
-      </Svg>
-    )
-  })()
+  // Tilt is no longer a color overlay — it's a directional reduction of the
+  // ink's own alpha, applied inside stampBody via tiltMaskDefs/tiltMaskId
+  // (see the geometry computed near the top of the component). The lifted
+  // edge thins so the actual page color shows through, on any background.
 
   return (
     <View style={{ width: size, height: size, transform: [{ rotate: `${rotationDeg}deg` }], opacity }}>
       {ghostNodes}
-      {stampBody(filterId)}
-      {tiltWash}
+      {stampBody(filterId, undefined, true)}
     </View>
   )
 }

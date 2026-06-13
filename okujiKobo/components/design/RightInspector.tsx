@@ -162,7 +162,6 @@ const STAMP_ICONS = [
   '📍','📌','🏷️','🎁','🎪','🎡','🎢','🚵','🧗','🌟',
 ]
 
-const SMUDGE_OPTIONS = ['none', 'light', 'medium', 'heavy'] as const
 const CAPTION_MODE_OPTIONS = ['off', 'address', 'coordinates'] as const
 const CAPTION_PLACEMENT_OPTIONS = ['interior', 'exterior'] as const
 
@@ -852,24 +851,12 @@ function StopInspector({
           </div>
         </Field>
 
-        <div>
-          <Label className="text-xs text-muted">Smudge</Label>
-          <div className="mt-1.5 flex gap-1">
-            {SMUDGE_OPTIONS.map((opt) => (
-              <button
-                key={opt}
-                onClick={() => persist({ smudge_intensity: opt })}
-                className={`flex-1 rounded-card border py-1 text-xs capitalize transition-colors ${
-                  stop.smudge_intensity === opt
-                    ? 'border-green bg-cream text-green font-medium'
-                    : 'border-hairline text-muted hover:border-green/40'
-                }`}
-              >
-                {opt}
-              </button>
-            ))}
-          </div>
-        </div>
+        {/* Smudge control removed: the hand-stamped smudge is now imparted
+            entirely by the collector's press gesture in the mobile app
+            (per-instance smudge_dx/dy/intensity on the stamp), not a
+            creator-set per-stop level. The stops.smudge_intensity column is
+            left in place (additive discipline); it is simply no longer
+            edited here. */}
       </Section>}
 
       {!isConsumable && <LocationSection stop={stop} updateStop={updateStop} persist={persist} />}

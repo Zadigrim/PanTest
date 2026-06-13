@@ -194,7 +194,7 @@ export function HelpDrawer({ onClose }: Props) {
             </Note>
 
             <h4 className="font-semibold text-ink">The stamp’s look</h4>
-            <p>In the <UI>Stamp</UI> section, pick the stamp art (built-in emoji designs, your uploads, or your institution’s stamps), set the <UI>Ink color</UI>, and choose a <UI>Smudge level</UI> (<UI>None</UI> / <UI>Light</UI> / <UI>Medium</UI> / <UI>Heavy</UI>) for a hand-stamped feel.</p>
+            <p>In the <UI>Stamp</UI> section, pick the stamp art (built-in emoji designs, your uploads, or your institution’s stamps) and set the <UI>Ink color</UI>. The hand-stamped feel — smudge and tilt — comes from how each collector presses the stamp in the app, so there’s nothing to set here.</p>
 
             <h4 className="font-semibold text-ink">Optional: learning fields</h4>
             <p>Every stop can carry a <UI>Learning objective</UI> and a <UI>Journal prompt</UI> ("What did you observe here? What surprised you?") — these power the educational experience. Classifier chips (<UI>Educational</UI>, <UI>Heritage</UI>, <UI>Nature</UI>, and more) categorize the stop; choosing <UI>Educational</UI> reveals grade-level and subject chips.</p>
