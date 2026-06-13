@@ -18,8 +18,34 @@ export interface Profile {
   // platform admin (guard trigger); the authoritative check is the
   // is_demo_authorized() RPC, not this column.
   demo_mode_enabled?: boolean
+  // 18+ self-attestation for posting public stop reviews (migration 084).
+  // A timestamp that doubles as the boolean — null means not attested.
+  // NOT a birthdate; no DOB is collected for this gate.
+  adult_attested_at?: string | null
   created_at: string
   updated_at: string
+}
+
+// Public, verified-visitor review on a stop (migration 084). Distinct from
+// the private journal (journal_entries) — reviews are outward-facing.
+export interface StopReview {
+  id: string
+  stop_id: string
+  author_id: string
+  rating: number
+  body: string | null
+  // Minimal public attribution snapshot (the author's display_name at post
+  // time). Paired with a fixed "Verified visitor" label in the UI.
+  attribution: string
+  hidden_at: string | null
+  reported_at: string | null
+  created_at: string
+  edited_at: string | null
+}
+
+export interface StopReviewSummary {
+  avg_rating: number | null
+  review_count: number
 }
 
 export interface Passport {

@@ -16,11 +16,14 @@
 // button; we forward that to onClose so saving dismisses the sheet.
 import React from 'react'
 import { Modal, View, Text, TouchableOpacity, StyleSheet, SafeAreaView } from 'react-native'
+import { router } from 'expo-router'
 import { JournalEntry } from '../journal/JournalEntry'
 import { palette } from '../../lib/colors'
 
 interface Props {
   stampId: string | null
+  // The stop just stamped — drives the (separate, public) review surface.
+  stopId: string | null
   userId: string
   // When the stamp completed a section, the redemption token info is
   // surfaced inline above the journal primitives so it isn't dropped by
@@ -29,7 +32,7 @@ interface Props {
   onClose: () => void
 }
 
-export function PostStampCaptureSheet({ stampId, userId, redemptionCode, onClose }: Props) {
+export function PostStampCaptureSheet({ stampId, stopId, userId, redemptionCode, onClose }: Props) {
   const visible = Boolean(stampId)
 
   return (
@@ -66,6 +69,19 @@ export function PostStampCaptureSheet({ stampId, userId, redemptionCode, onClose
                 onSaved={onClose}
               />
             </View>
+          )}
+
+          {/* Public review is a SEPARATE, outward-facing record from the
+              private journal above — offered as a distinct action, not mixed
+              into the journal primitives. */}
+          {stopId && (
+            <TouchableOpacity
+              style={styles.reviewLink}
+              onPress={() => { onClose(); router.push(`/stop/${stopId}`) }}
+              accessibilityRole="button"
+            >
+              <Text style={styles.reviewLinkText}>Leave a public review for this stop</Text>
+            </TouchableOpacity>
           )}
         </SafeAreaView>
       </View>
@@ -132,4 +148,13 @@ const styles = StyleSheet.create({
   },
   tokenHint: { fontSize: 12, color: 'rgba(245,240,232,0.7)' },
   body: { flex: 1 },
+  reviewLink: {
+    marginHorizontal: 16,
+    marginBottom: 16,
+    paddingVertical: 12,
+    alignItems: 'center',
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: palette.hairline,
+  },
+  reviewLinkText: { fontSize: 14, color: palette.blue, fontWeight: '600' },
 })

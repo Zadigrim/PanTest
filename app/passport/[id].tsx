@@ -50,7 +50,7 @@ export default function PassportScreen() {
   const [bearerName, setBearerName] = useState<string>('')
   // Post-stamp capture surface state. stampId is the just-placed stamp;
   // redemptionCode is non-null when the stamp completed a section.
-  const [captureSheet, setCaptureSheet] = useState<{ stampId: string; redemptionCode: string | null } | null>(null)
+  const [captureSheet, setCaptureSheet] = useState<{ stampId: string; stopId: string; redemptionCode: string | null } | null>(null)
 
   const { checkLocation } = useGPS()
   const { verify } = useStampVerification()
@@ -303,7 +303,7 @@ export default function PassportScreen() {
         // missing token doesn't affect stamp state.
       }
     }
-    setCaptureSheet({ stampId: stampData.id, redemptionCode })
+    setCaptureSheet({ stampId: stampData.id, stopId, redemptionCode })
   }, [userId, collectorPassport, demoActive, checkLocation, verify, handlePressCancel])
 
   // Placement entry point. QR-verified stops route through the scanner
@@ -537,6 +537,7 @@ export default function PassportScreen() {
       {userId && (
         <PostStampCaptureSheet
           stampId={captureSheet?.stampId ?? null}
+          stopId={captureSheet?.stopId ?? null}
           redemptionCode={captureSheet?.redemptionCode ?? null}
           userId={userId}
           onClose={() => setCaptureSheet(null)}

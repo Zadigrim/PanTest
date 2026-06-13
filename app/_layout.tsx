@@ -118,6 +118,10 @@ export default function RootLayout() {
             name="journal/[stampId]"
             options={{ title: 'Journal', presentation: 'modal' }}
           />
+          <Stack.Screen
+            name="stop/[stopId]"
+            options={{ title: 'Reviews', headerBackTitle: 'Back' }}
+          />
           {/* Passport design is web-only (okujikobo.okuji.app, desktop).
               The old mobile designer routes were removed — collectors
               design nothing in this app. */}
