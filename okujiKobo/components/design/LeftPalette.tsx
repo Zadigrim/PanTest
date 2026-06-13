@@ -442,7 +442,7 @@ export function LeftPalette() {
         />
       )}
 
-      <aside className="flex w-60 shrink-0 flex-col border-r border-hairline bg-surface-rail">
+      <aside className="flex w-60 shrink-0 flex-col overflow-hidden border-r border-hairline bg-surface-rail">
         {/* Passport meta */}
         <div className="border-b border-hairline px-4 py-3">
           <p className="truncate text-xs font-semibold text-navy">
@@ -467,7 +467,9 @@ export function LeftPalette() {
               items={pages.map((p) => p.id)}
               strategy={verticalListSortingStrategy}
             >
-              <div className="space-y-0.5">
+              {/* Scrollable, drag-resizable (resize-y handle bottom-right)
+                  so many pages don't crowd out Stops/Elements. */}
+              <div className="space-y-0.5 max-h-64 min-h-[2.5rem] overflow-y-auto resize-y pr-1">
                 {pages.map((page, i) => (
                   <SortablePage
                     key={page.id}
@@ -498,7 +500,10 @@ export function LeftPalette() {
             <p className="mb-1.5 text-xs font-medium uppercase tracking-wider text-muted">
               {stopsLabel}
             </p>
-            <StopsList />
+            {/* Scrollable + drag-resizable when there are many stops. */}
+            <div className="max-h-64 min-h-[2.5rem] overflow-y-auto resize-y pr-1">
+              <StopsList />
+            </div>
             <Button
               variant="ghost"
               size="sm"
@@ -511,8 +516,10 @@ export function LeftPalette() {
           </div>
         )}
 
-        {/* Page elements */}
-        <div className="flex-1 overflow-y-auto px-3 py-2">
+        {/* Page elements — fills the remaining rail height and scrolls.
+            min-h-0 lets this flex child shrink below its content so it
+            scrolls instead of pushing the rail when Pages/Stops are tall. */}
+        <div className="flex-1 min-h-0 overflow-y-auto px-3 py-2">
           <p className="mb-1.5 text-xs font-medium uppercase tracking-wider text-muted">
             {isInfoPage ? 'Content elements' : 'Elements'}
           </p>
