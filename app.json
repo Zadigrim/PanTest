@@ -27,7 +27,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#0D1B2A"
+        "backgroundColor": "#f6f1e6"
       },
       "package": "com.okuji.app",
       "versionCode": 1,
