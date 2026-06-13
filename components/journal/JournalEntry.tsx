@@ -125,7 +125,10 @@ export function JournalEntry({
 
   const addFromLibrary = useCallback(async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      // expo-image-picker 17 (SDK 54) removed MediaTypeOptions; the current
+      // API is an array of media-type strings. Using the old enum threw
+      // "Cannot read property 'Images' of undefined", crashing the picker.
+      mediaTypes: ['images'],
       allowsMultipleSelection: true,
       // No quality reduction here — resizing/upload is handled by the queue.
     })
@@ -148,7 +151,7 @@ export function JournalEntry({
       return
     }
     const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ['images'], // see addFromLibrary — MediaTypeOptions removed in v17
       // No quality reduction here — resizing/upload is handled by the queue.
     })
     if (result.canceled) return
