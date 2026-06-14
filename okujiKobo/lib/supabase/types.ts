@@ -425,93 +425,9 @@ export type PassportWithDetails = Passport & {
 // Database shape (for createBrowserClient / createServerClient generics)
 // ---------------------------------------------------------------------------
 
-export interface Database {
-  public: {
-    Tables: {
-      profiles: {
-        Row: Profile
-        Insert: Partial<Profile> & Pick<Profile, 'id'>
-        Update: Partial<Profile>
-      }
-      institutions: {
-        Row: Institution
-        Insert: Omit<Institution, 'id' | 'created_at'> & { id?: string; created_at?: string }
-        Update: Partial<Institution>
-      }
-      passports: {
-        Row: Passport
-        Insert: Omit<Passport, 'id' | 'created_at' | 'updated_at'> & { id?: string; created_at?: string; updated_at?: string }
-        Update: Partial<Passport>
-      }
-      passport_pages: {
-        Row: PassportPage
-        Insert: Omit<PassportPage, 'id' | 'created_at'> & { id?: string; created_at?: string }
-        Update: Partial<PassportPage>
-      }
-      stops: {
-        Row: Stop
-        Insert: Omit<Stop, 'id' | 'created_at'> & { id?: string; created_at?: string }
-        Update: Partial<Stop>
-      }
-      acquisitions: {
-        Row: Acquisition
-        Insert: Omit<Acquisition, 'id' | 'acquired_at'> & { id?: string; acquired_at?: string }
-        Update: Partial<Acquisition>
-      }
-      stamps: {
-        Row: Stamp
-        Insert: Omit<Stamp, 'id'> & { id?: string }
-        Update: Partial<Stamp>
-      }
-      completion_tokens: {
-        Row: CompletionToken
-        Insert: Omit<CompletionToken, 'id' | 'generated_at'> & { id?: string; generated_at?: string }
-        Update: Partial<CompletionToken>
-      }
-      journal_entries: {
-        Row: JournalEntry
-        Insert: Omit<JournalEntry, 'id' | 'recorded_at'> & { id?: string; recorded_at?: string }
-        Update: Partial<JournalEntry>
-      }
-      mood_ratings: {
-        Row: MoodRating
-        Insert: Omit<MoodRating, 'id' | 'rated_at'> & { id?: string; rated_at?: string }
-        Update: Partial<MoodRating>
-      }
-      employee_authorizations: {
-        Row: EmployeeAuthorization
-        Insert: Omit<EmployeeAuthorization, 'id' | 'authorized_at'> & { id?: string; authorized_at?: string }
-        Update: Partial<EmployeeAuthorization>
-      }
-      prize_configurations: {
-        Row: PrizeConfiguration
-        Insert: Omit<PrizeConfiguration, 'id' | 'configured_at'> & { id?: string; configured_at?: string }
-        Update: Partial<PrizeConfiguration>
-      }
-      institution_subscriptions: {
-        Row: InstitutionSubscription
-        Insert: Omit<InstitutionSubscription, 'id' | 'started_at'> & { id?: string; started_at?: string }
-        Update: Partial<InstitutionSubscription>
-      }
-      tips: {
-        Row: Tip
-        Insert: Omit<Tip, 'id' | 'tipped_at'> & { id?: string; tipped_at?: string }
-        Update: Partial<Tip>
-      }
-      creator_quality_scores: {
-        Row: CreatorQualityScore
-        Insert: Omit<CreatorQualityScore, 'id' | 'computed_at'> & { id?: string; computed_at?: string }
-        Update: Partial<CreatorQualityScore>
-      }
-    }
-    Views: Record<string, never>
-    Functions: Record<string, never>
-    Enums: {
-      user_role: UserRole
-      institution_tier: InstitutionTier
-      passport_type: PassportType
-      experience_type: NonNullable<ExperienceType>
-      experience_verification_method: NonNullable<ExperienceVerificationMethod>
-    }
-  }
-}
+// The canonical Database type is GENERATED from the live schema —
+// see database.types.ts (`supabase gen types`). Re-exported here so every
+// existing `import { Database } from '@/lib/supabase/types'` upgrades to the
+// full, accurate schema without touching call sites. The named domain
+// interfaces above are kept for app code that imports them directly.
+export type { Database, Json } from './database.types'
