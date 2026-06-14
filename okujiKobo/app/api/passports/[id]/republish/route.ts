@@ -155,7 +155,7 @@ export async function POST(
     const next = await captureLiveSnapshot(supabase, passportId)
     return await commitPublish({
       supabase, db, passportId, userId: user.id,
-      summary: { counts: { location_data: 0, verification_mechanics: 0, stop_closure: 0, factual_text: 0, other: 0 }, changes: [] },
+      summary: { counts: { location_data: 0, verification_mechanics: 0, stop_closure: 0, page_closure: 0, page_reorder: 0, factual_text: 0, other: 0 }, changes: [] },
       justification: `[no prior snapshot — legacy passport] ${justification}`,
       whatChanged,
       factualTextFlagged: false,

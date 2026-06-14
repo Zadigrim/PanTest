@@ -13,7 +13,7 @@ import { LocationBox } from './LocationBox'
 import { PunchBox } from './PunchBox'
 import { PageElementBox } from './PageElementBox'
 import { LineElementBox } from './LineElementBox'
-import type { LinePageElement } from '@/lib/design/types'
+import type { LinePageElement, DesignerPageElement } from '@/lib/design/types'
 import { isLineEl, isBoxEl } from '@/lib/design/types'
 
 const ARTBOARD_W = 612

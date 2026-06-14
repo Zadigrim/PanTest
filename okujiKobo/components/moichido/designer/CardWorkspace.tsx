@@ -190,7 +190,7 @@ function SaveIndicator({
 }: {
   isDirty: boolean
   isSaving: boolean
-  lastSavedAt: number | null
+  lastSavedAt: Date | null
   saveError: string | null
   onRetry: () => void
 }) {
