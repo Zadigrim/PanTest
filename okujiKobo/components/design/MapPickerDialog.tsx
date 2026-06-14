@@ -123,6 +123,18 @@ export function MapPickerDialog({
         map.addListener('click', (e: any) => placePin(e.latLng))
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         ;(marker as any).addListener('dragend', (e: any) => placePin(e.latLng))
+
+        // The map is created inside an animated Radix dialog, so its
+        // container often has no final size on the first paint — Google Maps
+        // then renders blank with NO console error. Trigger a resize +
+        // recenter once layout settles (next frames + a fallback timeout).
+        const recenter = () => {
+          if (cancelled) return
+          maps.event.trigger(map, 'resize')
+          map.setCenter(startCenter)
+        }
+        requestAnimationFrame(() => requestAnimationFrame(recenter))
+        setTimeout(recenter, 300)
       })
       .catch((err: Error) => {
         if (!cancelled) setLoadError(err.message)
