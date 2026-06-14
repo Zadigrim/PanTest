@@ -162,14 +162,17 @@ export function MapPickerDialog({
             matching.
           </p>
 
-          <div className="mt-3 h-[60vh] w-full overflow-hidden rounded-card border border-hairline bg-cream">
+          <div
+            className="mt-3 w-full overflow-hidden rounded-card border border-hairline bg-cream"
+            style={{ height: '60vh', minHeight: 360 }}
+          >
             {loadError ? (
               <div className="flex h-full items-center justify-center p-4 text-center text-sm text-muted">
                 Couldn&apos;t load Google Maps ({loadError}). Close this dialog and enter coordinates
                 manually.
               </div>
             ) : (
-              <div ref={containerRef} className="h-full w-full" />
+              <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
             )}
           </div>
 
