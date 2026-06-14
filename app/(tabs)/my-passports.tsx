@@ -1,9 +1,10 @@
 // Collector's passport book — all acquired passports.
-import React, { useEffect } from 'react'
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, Image } from 'react-native'
+import React from 'react'
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, Image, ImageBackground } from 'react-native'
 import { router, useFocusEffect } from 'expo-router'
 import { useCollectorPassports } from '../../hooks/usePassport'
 import { palette } from '../../lib/colors'
+import { EmptyShelf } from '../../components/ui/Illustrations'
 
 export default function MyPassportsScreen() {
   const { passports, loading, reload } = useCollectorPassports()
@@ -21,7 +22,12 @@ export default function MyPassportsScreen() {
   }
 
   return (
-    <View style={styles.container}>
+    <ImageBackground
+      source={require('../../assets/brand/okuji-bg-interior.png')}
+      style={styles.container}
+      imageStyle={styles.interior}
+      resizeMode="cover"
+    >
       <FlatList
         data={passports}
         keyExtractor={(cp) => cp.id}
@@ -55,8 +61,8 @@ export default function MyPassportsScreen() {
         }}
         ListEmptyComponent={
           <View style={styles.empty}>
-            <Text style={styles.emptyIcon}>📖</Text>
-            <Text style={styles.emptyText}>No passports yet.</Text>
+            <EmptyShelf width={220} />
+            <Text style={styles.emptyText}>Your shelf is empty.</Text>
             <TouchableOpacity onPress={() => router.push('/(tabs)/')}>
               <Text style={styles.emptyLink}>Browse passports →</Text>
             </TouchableOpacity>
@@ -65,14 +71,18 @@ export default function MyPassportsScreen() {
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
       />
-    </View>
+    </ImageBackground>
   )
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f4f4f4' },
+  container: { flex: 1, backgroundColor: palette.cream },
+  // The interior field sits softly behind the cards so the list reads as
+  // pages in a passport, not a flat gray sheet. Kept low-contrast so the
+  // white rows stay legible.
+  interior: { opacity: 0.5 },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  list: { padding: 12 },
+  list: { padding: 12, flexGrow: 1 },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -98,8 +108,7 @@ const styles = StyleSheet.create({
   desc: { fontSize: 12, color: '#888', fontStyle: 'italic', marginTop: 2 },
   acquired: { fontSize: 11, color: palette.green, marginTop: 4 },
   arrow: { fontSize: 22, color: '#ccc', paddingHorizontal: 14 },
-  empty: { padding: 60, alignItems: 'center', gap: 8 },
-  emptyIcon: { fontSize: 48 },
-  emptyText: { fontSize: 16, color: '#999' },
+  empty: { flex: 1, paddingVertical: 60, paddingHorizontal: 40, alignItems: 'center', justifyContent: 'center', gap: 10 },
+  emptyText: { fontSize: 16, color: palette.muted, marginTop: 4 },
   emptyLink: { fontSize: 14, color: palette.green, fontWeight: '600' },
 })

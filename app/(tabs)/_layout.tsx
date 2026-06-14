@@ -1,7 +1,21 @@
 import { Tabs } from 'expo-router'
+import { Image, StyleSheet } from 'react-native'
 import { Compass, Library, User, Tag } from 'lucide-react-native'
 import { useEmployeeContext } from '../../contexts/EmployeeContext'
 import { palette } from '../../lib/colors'
+
+// Cream wordmark lockup for the dark (navy) header chrome — the "right
+// lockup per surface" pairing: cream on dark, ink on light. Shown as the
+// brand mark on the home (My Passports) header.
+function HeaderLockup() {
+  return (
+    <Image
+      source={require('../../assets/brand/okuji-lockup-cream.png')}
+      style={styles.lockup}
+      resizeMode="contain"
+    />
+  )
+}
 
 // Land on My Passports after login (splash → login → my passports).
 export const unstable_settings = { initialRouteName: 'my-passports' }
@@ -25,6 +39,7 @@ export default function TabsLayout() {
         name="my-passports"
         options={{
           title: 'My Passports',
+          headerTitle: () => <HeaderLockup />,
           tabBarIcon: ({ color, size }) => <Library color={color} size={size} />,
         }}
       />
@@ -53,3 +68,7 @@ export default function TabsLayout() {
     </Tabs>
   )
 }
+
+const styles = StyleSheet.create({
+  lockup: { height: 24, width: 132 },
+})

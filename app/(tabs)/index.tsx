@@ -1,7 +1,7 @@
 // Discover tab — segmented control: Nearby (default) ⇄ Catalogue
 import React, { useState } from 'react'
 import {
-  View, Text, TouchableOpacity, StyleSheet, SafeAreaView, Platform,
+  View, Text, TouchableOpacity, StyleSheet, SafeAreaView, Platform, ImageBackground,
 } from 'react-native'
 import NearbyMode from '../../components/discover/NearbyMode'
 import CatalogueMode from '../../components/discover/CatalogueMode'
@@ -42,10 +42,16 @@ export default function DiscoverScreen() {
         </View>
       </View>
 
-      {/* Content */}
-      <View style={styles.content}>
+      {/* Content — interior field behind the results, matching the
+          passport-shelf treatment on My Passports. */}
+      <ImageBackground
+        source={require('../../assets/brand/okuji-bg-interior.png')}
+        style={styles.content}
+        imageStyle={styles.contentInterior}
+        resizeMode="cover"
+      >
         {activeTab === 'nearby' ? <NearbyMode /> : <CatalogueMode />}
-      </View>
+      </ImageBackground>
     </SafeAreaView>
   )
 }
@@ -87,6 +93,7 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    backgroundColor: '#f4f4f4',
+    backgroundColor: palette.cream,
   },
+  contentInterior: { opacity: 0.5 },
 })

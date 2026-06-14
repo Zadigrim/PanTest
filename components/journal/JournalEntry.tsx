@@ -11,6 +11,7 @@ import { VoiceRecorder } from './VoiceRecorder'
 import type { InputMethod, JournalPhoto } from '../../types'
 import { palette } from '../../lib/colors'
 import { getJournalPhotoUrl, deleteJournalPhoto } from '../../lib/journal-photos'
+import { EmptyJournal } from '../ui/Illustrations'
 import {
   enqueueJournalPhoto, getQueuedUrisForEntry, retryFailedPhoto, addQueueListener,
 } from '../../lib/journal-photo-queue'
@@ -189,8 +190,20 @@ export function JournalEntry({
     else onSaved()
   }, [stampId, userId, body, mood, inputMethod, onSaved])
 
+  // A pristine entry (nothing written, no mood, no photos) shows the
+  // branded journal illustration as a gentle prompt; it falls away the
+  // moment the collector starts filling it in.
+  const isPristine = !body && mood == null && photos.length === 0
+
   return (
     <ScrollView style={styles.container} keyboardShouldPersistTaps="handled">
+      {isPristine && (
+        <View style={styles.emptyHero}>
+          <EmptyJournal width={180} />
+          <Text style={styles.emptyHeroText}>Capture this stop in your own words.</Text>
+        </View>
+      )}
+
       <MoodRating value={mood} onChange={setMood} />
 
       <TouchableOpacity onPress={() => setShowVoice((v) => !v)} style={styles.voiceToggle}>
@@ -266,6 +279,8 @@ export function JournalEntry({
 
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 16, backgroundColor: '#fff' },
+  emptyHero: { alignItems: 'center', paddingTop: 8, paddingBottom: 16, gap: 8 },
+  emptyHeroText: { fontSize: 13, color: palette.muted, textAlign: 'center' },
   voiceToggle: { alignSelf: 'flex-start', marginBottom: 8, padding: 6 },
   voiceToggleText: { fontSize: 13, color: palette.green, fontWeight: '600' },
   textInput: {

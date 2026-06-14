@@ -7,6 +7,7 @@ import React, { useEffect, useRef } from 'react'
 import { View, StyleSheet, Animated } from 'react-native'
 import type { Stop, StampSlotState } from '../../types'
 import { StampArtwork } from '../stamp/StampArtwork'
+import { StampRing } from '../ui/Illustrations'
 
 interface Props {
   stop: Stop
@@ -55,10 +56,12 @@ export function StampSlot({ stop, state, width, height }: Props) {
 
   return (
     <View style={[styles.container, { width, height }]}>
-      {/* Ghost impression for dormant state */}
+      {/* Dormant: the branded stamp ring (assets/ui/btn-stamp-ring.svg),
+          tinted to this stop's stamp_color via currentColor. Replaces the
+          old generic dashed rectangle. */}
       {isDormant && (
         <View style={styles.ghost}>
-          <View style={[styles.ghostBorder, { borderColor: stop.stamp_color + '60' }]} />
+          <StampRing size={Math.min(width, height) * 0.78} color={stop.stamp_color} />
         </View>
       )}
 
@@ -92,13 +95,5 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  ghostBorder: {
-    width: '70%',
-    height: '70%',
-    borderWidth: 1.5,
-    borderStyle: 'dashed',
-    borderRadius: 8,
-    opacity: 0.5,
   },
 })

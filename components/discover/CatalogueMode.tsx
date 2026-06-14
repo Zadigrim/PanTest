@@ -6,6 +6,7 @@ import React from 'react'
 import { View, Text, ScrollView, StyleSheet, ActivityIndicator } from 'react-native'
 import { usePublishedPassports } from '../../hooks/usePassport'
 import { PassportCard, cardState, NAVY } from './PassportCard'
+import { EmptyShelf } from '../ui/Illustrations'
 import { palette } from '../../lib/colors'
 import type { Passport } from '../../types'
 
@@ -54,6 +55,7 @@ export default function CatalogueMode() {
       <Shelf title="My Collection"       items={owned} />
       {passports.length === 0 && (
         <View style={styles.empty}>
+          <EmptyShelf width={200} />
           <Text style={styles.emptyText}>No passports available yet.</Text>
         </View>
       )}
@@ -62,7 +64,8 @@ export default function CatalogueMode() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f4f4f4' },
+  // Transparent so the Discover screen's interior field shows through.
+  container: { flex: 1, backgroundColor: 'transparent' },
   centered:  { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40 },
   shelf:     { paddingTop: 20 },
   shelfTitle: {
@@ -75,6 +78,6 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   shelfRow: { paddingHorizontal: 16, gap: 12, paddingBottom: 8 },
-  empty:    { padding: 40, alignItems: 'center' },
-  emptyText:{ color: '#aaa', fontStyle: 'italic' },
+  empty:    { padding: 40, alignItems: 'center', gap: 10 },
+  emptyText:{ color: palette.muted, fontStyle: 'italic' },
 })

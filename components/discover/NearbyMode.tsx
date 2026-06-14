@@ -23,6 +23,7 @@ import {
 import { FEATURES } from '../../lib/features'
 import { palette } from '../../lib/colors'
 import { PassportCard, cardState } from './PassportCard'
+import { EmptyNearby } from '../ui/Illustrations'
 import type { Passport } from '../../types'
 
 const NAVY  = palette.navy
@@ -159,14 +160,15 @@ function ExplainerCard({ onTap }: { onTap: () => void }) {
 
 function EmptyResultsCard() {
   return (
-    <View style={styles.card}>
-      <Text style={styles.cardTitle}>No passports near you yet</Text>
-      <Text style={styles.cardBody}>
+    <View style={[styles.card, styles.cardCentered]}>
+      <EmptyNearby width={200} />
+      <Text style={[styles.cardTitle, styles.cardTitleCentered]}>No passports near you yet</Text>
+      <Text style={[styles.cardBody, styles.cardBodyCentered]}>
         Okuji is growing — new passports get published every week. In
         the meantime, browse what&rsquo;s already out there.
       </Text>
       <TouchableOpacity
-        style={styles.secondary}
+        style={[styles.secondary, styles.secondaryCentered]}
         onPress={() => router.push('/(tabs)')}
       >
         <Text style={styles.secondaryText}>Explore all passports →</Text>
@@ -318,7 +320,8 @@ function projectToPassport(r: NearbyPassport): Passport {
 // ── Styles ─────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f4f4f4' },
+  // Transparent so the Discover screen's interior field shows through.
+  container: { flex: 1, backgroundColor: 'transparent' },
   scrollPad: { paddingBottom: 32 },
 
   header: { paddingHorizontal: 20, paddingTop: 18, paddingBottom: 12 },
@@ -346,6 +349,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#e4dcc8',
   },
+  cardCentered: { alignItems: 'center' },
   cardTitle: {
     fontFamily: 'serif',
     fontSize: 16,
@@ -353,7 +357,9 @@ const styles = StyleSheet.create({
     color: NAVY,
     marginBottom: 6,
   },
+  cardTitleCentered: { marginTop: 10, textAlign: 'center' },
   cardBody: { fontSize: 13, color: INK, lineHeight: 19 },
+  cardBodyCentered: { textAlign: 'center' },
   bodyEmphasis: { fontWeight: '700', color: NAVY },
 
   primary: {
@@ -375,6 +381,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 16,
   },
+  secondaryCentered: { alignSelf: 'center' },
   secondaryText: { color: NAVY, fontWeight: '700', fontSize: 13 },
 
   resultsHead: {
