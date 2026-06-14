@@ -228,6 +228,26 @@ export interface DesignerPassport {
 
 export type PageType = 'stamp' | 'information'
 
+// ── Punch slot (moichido / consumable cards ONLY) ──────────────────────────────
+// The design-time placeable punch object. Deliberately NOT a DesignerStop: a
+// punch is a boolean increment associated with the merchant + the card, so it
+// carries ONLY a position + order (+ optional label) and none of stops'
+// location / verification / education / qr fields. Persisted to the
+// punch_slots table (mobile migration 028). Authored in the moichido designer
+// and used only when DesignerPassport.credential_type === 'consumable'.
+export interface DesignerPunch {
+  id: string
+  page_id: string
+  slot_order: number
+  box_x: number
+  box_y: number
+  box_width: number
+  box_height: number
+  rotation: number
+  label: string | null
+  created_at: string
+}
+
 export interface DesignerPassportPage {
   id: string
   passport_id: string
