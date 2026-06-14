@@ -14,6 +14,7 @@ import * as Dialog from '@radix-ui/react-dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { loadGoogleMaps, MAPS_API_KEY, MAPS_PICKER_AVAILABLE } from '@/lib/maps/loader'
+import type { ResolvedPlace } from '@/lib/maps/types'
 
 // Back-compat re-exports so existing imports still work.
 export { MAPS_API_KEY, MAPS_PICKER_AVAILABLE }
@@ -23,7 +24,10 @@ interface MapPickerDialogProps {
   onOpenChange: (open: boolean) => void
   initialLat: number | null
   initialLng: number | null
-  onConfirm: (lat: number, lng: number) => void
+  // On confirm: always the picked coordinates, plus the SERVER-resolved
+  // address (null if the server Geocoding key is unset or nothing matched —
+  // the caller then keeps the coordinates and leaves the address manual).
+  onConfirm: (lat: number, lng: number, place: ResolvedPlace | null) => void
 }
 
 // Sensible default when there's no prior pin: continental-US centroid.
@@ -41,9 +45,35 @@ export function MapPickerDialog({
 }: MapPickerDialogProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
+  const [resolving, setResolving] = useState(false)
   const [pin, setPin] = useState<{ lat: number; lng: number } | null>(
     initialLat != null && initialLng != null ? { lat: initialLat, lng: initialLng } : null,
   )
+
+  // Confirm: reverse-geocode the pin SERVER-SIDE (one call, on confirm only —
+  // not per drag) to fetch the address, then hand coords + address to the
+  // parent. Any failure degrades to coords-only; never blocks the confirm.
+  async function handleConfirm() {
+    if (!pin) return
+    setResolving(true)
+    let place: ResolvedPlace | null = null
+    try {
+      const res = await fetch('/api/maps/reverse-geocode', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lat: pin.lat, lng: pin.lng }),
+      })
+      if (res.ok) {
+        const json = (await res.json()) as { place?: ResolvedPlace | null }
+        place = json.place ?? null
+      }
+    } catch {
+      // Network/parse failure — keep coords, drop the address.
+    }
+    setResolving(false)
+    onConfirm(pin.lat, pin.lng, place)
+    onOpenChange(false)
+  }
 
   useEffect(() => {
     if (!open || !containerRef.current) return
@@ -115,8 +145,9 @@ export function MapPickerDialog({
             Pick a location
           </Dialog.Title>
           <p className="mt-1 text-xs text-muted">
-            Click or drag the pin to set this stop&apos;s GPS target. Close enough is fine — the
-            verification radius does the actual matching.
+            Click or drag the pin to set this stop&apos;s GPS target, then confirm — the address
+            fills in automatically. Close enough is fine; the verification radius does the actual
+            matching.
           </p>
 
           <div className="mt-3 h-[60vh] w-full overflow-hidden rounded-card border border-hairline bg-cream">
@@ -167,15 +198,10 @@ export function MapPickerDialog({
             <Button
               variant="default"
               size="sm"
-              disabled={!pin}
-              onClick={() => {
-                if (pin) {
-                  onConfirm(pin.lat, pin.lng)
-                  onOpenChange(false)
-                }
-              }}
+              disabled={!pin || resolving}
+              onClick={() => void handleConfirm()}
             >
-              Use these coordinates
+              {resolving ? 'Resolving address…' : 'Use these coordinates'}
             </Button>
           </div>
         </Dialog.Content>

@@ -16,8 +16,6 @@ import { Label } from './ui/Label'
 import { Button } from './ui/Button'
 import { ColorPickerInput } from './ui/ColorPickerInput'
 import { MapPickerDialog, MAPS_PICKER_AVAILABLE } from './MapPickerDialog'
-import { PlaceSearch } from './PlaceSearch'
-import type { ResolvedPlace } from '@/lib/maps/types'
 import { AssetDeleteButton } from './AssetDeleteButton'
 import { safeUpdate, safeInsert } from '@/lib/design/persist'
 import { cn } from '@/lib/cn'
@@ -565,23 +563,6 @@ function LocationSection({
   const requireAddress = method === 'qr'
   const requireCoords = method === 'gps'
 
-  // Filling the address + coords from a place search.
-  // Saves what the picker returned via the existing persist path so
-  // the per-mutation debounced write picks them up just like a manual
-  // edit. The user can tweak afterwards — autofill is a convenience,
-  // not a lock.
-  const handlePlaceSelect = (place: ResolvedPlace) => {
-    void persist({
-      address_street: place.street,
-      address_city:   place.city,
-      address_state:  place.state,
-      address_zip:    place.zip,
-      country:        place.country,
-      lat:            place.lat,
-      lng:            place.lng,
-    })
-  }
-
   return (
     <Section title="Location & verification">
       <Field label="Stop type">
@@ -603,10 +584,10 @@ function LocationSection({
 
       {expType === 'location' && method && (
         <>
-          {/* Place search — populates address + lat/lng in one shot.
-              Renders nothing when NEXT_PUBLIC_GOOGLE_MAPS_API_KEY is
-              unset; manual fields below + the map picker still work. */}
-          <PlaceSearch onSelect={handlePlaceSelect} />
+          {/* Address + coordinates are set by the map picker below (drop a
+              pin → server-side reverse geocode fills the address) or by hand.
+              The Places Autocomplete search was removed to avoid the billable
+              client Places SKU — geocoding is Geocoding-API-only, server-side. */}
 
           <Field label="Verification method">
             <select
@@ -722,7 +703,23 @@ function LocationSection({
                 onOpenChange={setPickerOpen}
                 initialLat={stop.lat}
                 initialLng={stop.lng}
-                onConfirm={(lat, lng) => void persist({ lat, lng })}
+                onConfirm={(lat, lng, place) =>
+                  void persist({
+                    lat,
+                    lng,
+                    // Address autofills from the server-side reverse geocode
+                    // when available; coords-only when it isn't (manual entry).
+                    ...(place
+                      ? {
+                          address_street: place.street,
+                          address_city: place.city,
+                          address_state: place.state,
+                          address_zip: place.zip,
+                          country: place.country,
+                        }
+                      : {}),
+                  })
+                }
               />
             </>
           ) : (

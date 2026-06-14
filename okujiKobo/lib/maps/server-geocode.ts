@@ -39,21 +39,35 @@ export function geocodeAvailable(): boolean {
  *  exactly which entries couldn't be resolved.
  */
 export async function geocode(query: string): Promise<ResolvedPlace | null> {
+  return runGeocode(`address=${encodeURIComponent(query)}`, query)
+}
+
+/** Reverse-geocode a coordinate to a ResolvedPlace (address parts) — used by
+ *  the kobo map picker after the designer drops a pin. Same Geocoding API +
+ *  GOOGLE_MAPS_SERVER_KEY as geocode(); only the query param differs. Returns
+ *  null on no key / ZERO_RESULTS / error so the picker keeps the coordinates
+ *  and leaves the address for manual entry. */
+export async function reverseGeocode(lat: number, lng: number): Promise<ResolvedPlace | null> {
+  return runGeocode(`latlng=${encodeURIComponent(`${lat},${lng}`)}`, `${lat},${lng}`)
+}
+
+// Shared request/parse path for forward + reverse geocoding. `query` param
+// (already URL-encoded) + a `label` for log lines.
+async function runGeocode(queryParam: string, label: string): Promise<ResolvedPlace | null> {
   const key = getKey()
   if (!key) return null
-  const url =
-    `${GEOCODE_ENDPOINT}?address=${encodeURIComponent(query)}&key=${encodeURIComponent(key)}`
+  const url = `${GEOCODE_ENDPOINT}?${queryParam}&key=${encodeURIComponent(key)}`
 
   let res: Response
   try {
     res = await fetch(url)
   } catch (err) {
-    console.warn(`[geocode] network error for "${query}":`,
+    console.warn(`[geocode] network error for "${label}":`,
       err instanceof Error ? err.message : String(err))
     return null
   }
   if (!res.ok) {
-    console.warn(`[geocode] HTTP ${res.status} for "${query}"`)
+    console.warn(`[geocode] HTTP ${res.status} for "${label}"`)
     return null
   }
 
@@ -65,7 +79,7 @@ export async function geocode(query: string): Promise<ResolvedPlace | null> {
   try {
     payload = await res.json()
   } catch {
-    console.warn(`[geocode] non-JSON response for "${query}"`)
+    console.warn(`[geocode] non-JSON response for "${label}"`)
     return null
   }
 
@@ -73,7 +87,7 @@ export async function geocode(query: string): Promise<ResolvedPlace | null> {
     // ZERO_RESULTS is the most common — surface it clearly so the seed
     // log shows which template entries didn't resolve.
     console.warn(
-      `[geocode] ${payload.status} for "${query}"` +
+      `[geocode] ${payload.status} for "${label}"` +
       (payload.error_message ? `: ${payload.error_message}` : ''),
     )
     return null
@@ -84,7 +98,7 @@ export async function geocode(query: string): Promise<ResolvedPlace | null> {
   const results = payload.results ?? []
   if (results.length > 1) {
     console.warn(
-      `[geocode] "${query}" was ambiguous (${results.length} candidates); ` +
+      `[geocode] "${label}" was ambiguous (${results.length} candidates); ` +
       `taking the top match. Refine the query if it picked the wrong one.`,
     )
   }
