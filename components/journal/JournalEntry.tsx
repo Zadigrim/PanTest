@@ -1,7 +1,7 @@
-import React, { useState, useCallback, useEffect } from 'react'
+import React, { useState, useCallback, useEffect, useRef } from 'react'
 import {
   View, Text, TextInput, ScrollView, TouchableOpacity,
-  StyleSheet, Alert, ActivityIndicator,
+  StyleSheet, Alert, ActivityIndicator, AppState,
 } from 'react-native'
 import { Image } from 'expo-image'
 import * as ImagePicker from 'expo-image-picker'
@@ -42,10 +42,21 @@ export function JournalEntry({
   const [body, setBody] = useState(existingBody)
   const [mood, setMood] = useState<number | null>(existingMood)
   const [inputMethod, setInputMethod] = useState<InputMethod>('keyboard')
-  const [saving, setSaving] = useState(false)
+  // Save state machine drives the persistent indicator (no more silent
+  // loss): idle → saving → saved, or → error (recoverable via Retry).
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [showVoice, setShowVoice] = useState(false)
   const [entryId, setEntryId] = useState<string | null>(existingEntryId)
   const [photos, setPhotos] = useState<PhotoVM[]>([])
+
+  // Latest content in refs so the unmount / background flush persists what's
+  // on screen RIGHT NOW without stale-closure capture, and so autosave can
+  // compare against the last-saved snapshot to avoid redundant writes.
+  const contentRef = useRef({ body, mood, inputMethod })
+  contentRef.current = { body, mood, inputMethod }
+  const lastSavedRef = useRef<string>(JSON.stringify({ body: existingBody, mood: existingMood }))
+  const dirtyRef = useRef(false)
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Build the photo list from journal_photos rows + the local upload queue,
   // resolving signed URLs for uploaded photos.
@@ -84,24 +95,71 @@ export function JournalEntry({
   // Re-render whenever the upload queue changes (e.g. an upload completes).
   useEffect(() => addQueueListener(() => { void refreshPhotos(entryId) }), [entryId, refreshPhotos])
 
-  // Persist the entry so we have an id to attach photos to. Safe to call repeatedly.
-  const ensureEntry = useCallback(async (): Promise<string | null> => {
-    if (entryId) return entryId
+  // Single write path for the entry's text/mood. Upserts on stamp_id (one
+  // row per stamp — migration 027's UNIQUE(stamp_id)), so it's safe to call
+  // repeatedly: autosave, manual save, the photo pipeline, and flush-on-exit
+  // all funnel through here. Reads the latest content from the ref so a
+  // flush during unmount persists exactly what's on screen. Returns the row
+  // id (needed to attach photos) or null on failure.
+  const persist = useCallback(async (): Promise<string | null> => {
+    const { body: b, mood: m, inputMethod: im } = contentRef.current
+    setSaveState('saving')
     const { data, error } = await supabase
       .from('journal_entries')
       .upsert(
-        { stamp_id: stampId, user_id: userId, body: body || null, mood_rating: mood, input_method: inputMethod },
+        { stamp_id: stampId, user_id: userId, body: b || null, mood_rating: m, input_method: im, updated_at: new Date().toISOString() },
         { onConflict: 'stamp_id' },
       )
       .select('id')
       .single()
     if (error || !data) {
-      Alert.alert('Error', 'Could not start the journal entry. Please try saving first.')
+      setSaveState('error')
       return null
     }
     setEntryId(data.id)
+    lastSavedRef.current = JSON.stringify({ body: b, mood: m })
+    dirtyRef.current = false
+    setSaveState('saved')
     return data.id
-  }, [entryId, stampId, userId, body, mood, inputMethod])
+  }, [stampId, userId])
+
+  // Photo pipeline needs a row id; reuse the existing row or persist to make
+  // one.
+  const ensureEntry = useCallback(async (): Promise<string | null> => {
+    if (entryId) return entryId
+    const id = await persist()
+    if (!id) Alert.alert('Error', 'Could not start the journal entry. Please try again.')
+    return id
+  }, [entryId, persist])
+
+  // Mark unsaved on any user edit (also flips the indicator off "Saved").
+  const markDirty = useCallback(() => {
+    dirtyRef.current = true
+    setSaveState((s) => (s === 'saving' ? s : 'idle'))
+  }, [])
+
+  // Debounced autosave — persist ~1s after the last edit, only when content
+  // actually changed. This removes the "typed, then tapped Done without
+  // Save" silent-loss path.
+  useEffect(() => {
+    if (!dirtyRef.current) return
+    if (JSON.stringify({ body, mood }) === lastSavedRef.current) return
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(() => { void persist() }, 1000)
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
+  }, [body, mood, inputMethod, persist])
+
+  // Flush on background and on unmount (sheet dismissed via Done / back /
+  // swipe / the review link) so nothing on screen is ever lost without an
+  // explicit Save tap.
+  useEffect(() => {
+    const flush = () => {
+      const snap = JSON.stringify({ body: contentRef.current.body, mood: contentRef.current.mood })
+      if (snap !== lastSavedRef.current) void persist()
+    }
+    const sub = AppState.addEventListener('change', (s) => { if (s !== 'active') flush() })
+    return () => { sub.remove(); flush() }
+  }, [persist])
 
   // Both addFromLibrary and addFromCamera route through the SAME
   // enqueueJournalPhoto pipeline so persistence / retry / delete behavior
@@ -168,27 +226,27 @@ export function JournalEntry({
   const handleVoiceTranscript = useCallback((text: string) => {
     setBody((prev) => (prev ? `${prev} ${text}`.trim() : text))
     setInputMethod((m) => (m === 'keyboard' ? 'voice' : 'both'))
-  }, [])
+    markDirty()
+  }, [markDirty])
 
   const handleTextChange = useCallback((text: string) => {
     setBody(text)
     setInputMethod((m) => (m === 'voice' ? 'both' : 'keyboard'))
-  }, [])
+    markDirty()
+  }, [markDirty])
 
+  const handleMoodChange = useCallback((m: number | null) => {
+    setMood(m)
+    markDirty()
+  }, [markDirty])
+
+  // Manual "Save & close": flush now, dismiss on success, keep the sheet
+  // open with the error indicator if it failed (so the user can retry).
   const save = useCallback(async () => {
-    setSaving(true)
-    // Photos are managed via journal_photos; photo_urls is left untouched
-    // (preserved for legacy entries until backfilled).
-    const { error } = await supabase
-      .from('journal_entries')
-      .upsert(
-        { stamp_id: stampId, user_id: userId, body: body || null, mood_rating: mood, input_method: inputMethod, updated_at: new Date().toISOString() },
-        { onConflict: 'stamp_id' },
-      )
-    setSaving(false)
-    if (error) Alert.alert('Error', 'Could not save journal entry.')
-    else onSaved()
-  }, [stampId, userId, body, mood, inputMethod, onSaved])
+    const id = await persist()
+    if (id) onSaved()
+    else Alert.alert('Couldn’t save', 'Your entry isn’t saved yet — check your connection and tap Retry.')
+  }, [persist, onSaved])
 
   // A pristine entry (nothing written, no mood, no photos) shows the
   // branded journal illustration as a gentle prompt; it falls away the
@@ -204,7 +262,7 @@ export function JournalEntry({
         </View>
       )}
 
-      <MoodRating value={mood} onChange={setMood} />
+      <MoodRating value={mood} onChange={handleMoodChange} />
 
       <TouchableOpacity onPress={() => setShowVoice((v) => !v)} style={styles.voiceToggle}>
         <Text style={styles.voiceToggleText}>{showVoice ? '⌨ Type instead' : '🎤 Use voice'}</Text>
@@ -270,8 +328,26 @@ export function JournalEntry({
         </TouchableOpacity>
       </View>
 
-      <TouchableOpacity onPress={save} style={styles.saveBtn} disabled={saving}>
-        <Text style={styles.saveBtnText}>{saving ? 'Saving…' : 'Save entry'}</Text>
+      {/* Persistent save-state line — the entry autosaves, so this is the
+          honest confirmation that it's stored (or a recoverable error). */}
+      <View style={styles.saveStatusRow}>
+        {saveState === 'saving' && <ActivityIndicator size="small" color={palette.muted} />}
+        <Text style={[styles.saveStatusText, saveState === 'error' && styles.saveStatusError]}>
+          {saveState === 'saving' ? 'Saving…'
+            : saveState === 'saved' ? 'Saved'
+            : saveState === 'error' ? 'Not saved — tap Retry'
+            : 'Autosaves as you write'}
+        </Text>
+      </View>
+
+      <TouchableOpacity
+        onPress={saveState === 'error' ? () => void persist() : save}
+        style={styles.saveBtn}
+        disabled={saveState === 'saving'}
+      >
+        <Text style={styles.saveBtnText}>
+          {saveState === 'saving' ? 'Saving…' : saveState === 'error' ? 'Retry save' : 'Save & close'}
+        </Text>
       </TouchableOpacity>
     </ScrollView>
   )
@@ -302,6 +378,9 @@ const styles = StyleSheet.create({
   photoBtnRow: { flexDirection: 'row', gap: 8, marginBottom: 16 },
   photoBtn: { flex: 1, padding: 10, borderWidth: 1, borderColor: '#ddd', borderRadius: 8, alignItems: 'center' },
   photoBtnText: { color: '#666', fontSize: 13 },
+  saveStatusRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginBottom: 8 },
+  saveStatusText: { fontSize: 12, color: palette.muted },
+  saveStatusError: { color: palette.red },
   saveBtn: { backgroundColor: palette.green, borderRadius: 10, padding: 14, alignItems: 'center', marginBottom: 32 },
   saveBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
 })
