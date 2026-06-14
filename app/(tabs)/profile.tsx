@@ -11,7 +11,13 @@ import { supabase, getCurrentUser } from '../../lib/supabase'
 import { useEmployeeContext } from '../../contexts/EmployeeContext'
 import { useDemoContext } from '../../contexts/DemoContext'
 import { backfillJournalPhotos } from '../../lib/journal-photo-backfill'
-import { useViewerPrefs } from '../../lib/viewer-prefs'
+import { useViewerPrefs, type StampGuideMode } from '../../lib/viewer-prefs'
+
+const STAMP_GUIDE_OPTIONS: { value: StampGuideMode; label: string }[] = [
+  { value: 'off',  label: 'Off' },
+  { value: 'ring', label: 'Ring' },
+  { value: 'box',  label: 'Box' },
+]
 import { formatCoordinates } from '../../lib/location-caption'
 import type { Profile } from '../../types'
 import { palette } from '../../lib/colors'
@@ -270,6 +276,26 @@ export default function ProfileScreen() {
             thumbColor={viewerPrefs.showExitVisa ? NAVY : '#f4f3f4'}
           />
         </View>
+        {/* Stamp guides — how un-earned slots are marked. Off = the clean
+            designed look; Ring / Box show where to stamp. */}
+        <View style={[s.menuRow, s.menuRowStacked]}>
+          <Text style={s.menuRowText}>Stamp guides</Text>
+          <View style={s.segment}>
+            {STAMP_GUIDE_OPTIONS.map((opt) => {
+              const active = viewerPrefs.stampGuide === opt.value
+              return (
+                <TouchableOpacity
+                  key={opt.value}
+                  style={[s.segBtn, active && s.segBtnActive]}
+                  onPress={() => void updateViewerPref('stampGuide', opt.value)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[s.segText, active && s.segTextActive]}>{opt.label}</Text>
+                </TouchableOpacity>
+              )
+            })}
+          </View>
+        </View>
       </View>
 
       {/* Journal photo backup (on-demand) */}
@@ -377,6 +403,17 @@ const s = StyleSheet.create({
     paddingVertical: 8,
   },
   menuRowText: { fontSize: 15, color: INK },
+  menuRowStacked: { flexDirection: 'column', alignItems: 'stretch', gap: 8 },
+  segment: {
+    flexDirection: 'row',
+    backgroundColor: '#f0ece3',
+    borderRadius: 8,
+    padding: 3,
+  },
+  segBtn: { flex: 1, paddingVertical: 7, alignItems: 'center', borderRadius: 6 },
+  segBtnActive: { backgroundColor: ACCENT },
+  segText: { fontSize: 13, fontWeight: '600', color: MUTED },
+  segTextActive: { color: NAVY },
   ownerRowLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
 
   signOutRow: { paddingVertical: 10 },

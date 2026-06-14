@@ -18,7 +18,7 @@ import { PageFlipper, type PageFlipperHandle } from '../../components/passport/P
 import { BookCover } from '../../components/passport/BookCover'
 import { InsideCoverPage } from '../../components/passport/InsideCoverPage'
 import { TableOfContents } from '../../components/passport/TableOfContents'
-import { getViewerPrefs, DEFAULT_VIEWER_PREFS, type ViewerPrefs } from '../../lib/viewer-prefs'
+import { getViewerPrefs, DEFAULT_VIEWER_PREFS, ViewerPrefsContext, type ViewerPrefs } from '../../lib/viewer-prefs'
 import { PassportPage } from '../../components/passport/PassportPage'
 import { ExitVisa } from '../../components/passport/ExitVisa'
 import { PostStampCaptureSheet } from '../../components/passport/PostStampCaptureSheet'
@@ -477,6 +477,7 @@ export default function PassportScreen() {
   }
 
   return (
+    <ViewerPrefsContext.Provider value={prefs}>
     <View style={styles.container}>
       {notice && (
         <View style={correctionStyles.banner}>
@@ -562,6 +563,7 @@ export default function PassportScreen() {
         </View>
       )}
     </View>
+    </ViewerPrefsContext.Provider>
   )
 }
 
