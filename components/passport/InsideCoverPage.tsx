@@ -14,8 +14,9 @@
 // path the creator's artwork takes precedence and bearer info is shown
 // at the bottom in a smaller treatment).
 import React from 'react'
-import { View, Text, StyleSheet, useWindowDimensions } from 'react-native'
+import { View, Text, StyleSheet } from 'react-native'
 import { GuillocheBackground } from '../ui/GuillocheBackground'
+import { usePageDimensions } from './PassportFrame'
 import { CoverPanel } from './CoverPanel'
 import type { Passport, CollectorPassport } from '../../types'
 import { palette } from '../../lib/colors'
@@ -31,9 +32,11 @@ const INK = palette.ink
 const GOLD = palette.accent
 
 export function InsideCoverPage({ passport, collectorPassport, bearerName }: Props) {
-  const { width: sw, height: sh } = useWindowDimensions()
-  const pageW = sw * 0.82
-  const pageH = sh * 0.96
+  // Canonical 612:792 page space — same hook the regular pages, outer
+  // cover, ToC, and exit-visa use. The earlier sw*0.82 / sh*0.96 sizing
+  // gave the inside cover a device-dependent aspect (white bars + distorted
+  // CoverPanel art); this makes it conform like every other surface.
+  const { pageW, pageH } = usePageDimensions()
 
   const issueDate = new Date(collectorPassport.acquired_at).toLocaleDateString('en-US', {
     year: 'numeric',
