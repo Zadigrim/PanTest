@@ -9,7 +9,7 @@
 // trigger — this dialog is never opened. No script tag is appended, no
 // console errors, no broken map container.
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -43,7 +43,11 @@ export function MapPickerDialog({
   initialLng,
   onConfirm,
 }: MapPickerDialogProps) {
-  const containerRef = useRef<HTMLDivElement | null>(null)
+  // State-backed callback ref (not useRef): guarantees the effect below runs
+  // only once the map container is actually in the DOM. A plain ref + an
+  // [open]-gated effect races Radix's portaled/animated content — the effect
+  // could fire before the node mounts and then never retry (the blank-map bug).
+  const [mapEl, setMapEl] = useState<HTMLDivElement | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [resolving, setResolving] = useState(false)
   const [pin, setPin] = useState<{ lat: number; lng: number } | null>(
@@ -76,7 +80,7 @@ export function MapPickerDialog({
   }
 
   useEffect(() => {
-    if (!open || !containerRef.current) return
+    if (!open || !mapEl) return
 
     let cancelled = false
     let marker: { setPosition: (p: { lat: number; lng: number }) => void } | null = null
@@ -84,7 +88,7 @@ export function MapPickerDialog({
     loadGoogleMaps()
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .then((maps: any) => {
-        if (cancelled || !containerRef.current) return
+        if (cancelled || !mapEl) return
 
         const startCenter =
           initialLat != null && initialLng != null
@@ -93,7 +97,7 @@ export function MapPickerDialog({
         const startZoom =
           initialLat != null && initialLng != null ? DEFAULT_ZOOM_WITH_PIN : DEFAULT_ZOOM_NO_PIN
 
-        const map = new maps.Map(containerRef.current, {
+        const map = new maps.Map(mapEl, {
           center: startCenter,
           zoom: startZoom,
           mapTypeControl: false,
@@ -143,7 +147,7 @@ export function MapPickerDialog({
     return () => {
       cancelled = true
     }
-  }, [open, initialLat, initialLng])
+  }, [open, mapEl, initialLat, initialLng])
 
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
@@ -172,7 +176,7 @@ export function MapPickerDialog({
                 manually.
               </div>
             ) : (
-              <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
+              <div ref={setMapEl} style={{ width: '100%', height: '100%' }} />
             )}
           </div>
 
