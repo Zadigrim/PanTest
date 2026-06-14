@@ -296,6 +296,29 @@ export default function ProfileScreen() {
             })}
           </View>
         </View>
+        {/* Back-pages — a private per-stop travel record at the end of each
+            book. */}
+        <View style={s.menuRow}>
+          <Text style={s.menuRowText}>Journal back-pages</Text>
+          <Switch
+            value={viewerPrefs.showBackPages}
+            onValueChange={(v) => void updateViewerPref('showBackPages', v)}
+            trackColor={{ false: HAIRLINE, true: ACCENT }}
+            thumbColor={viewerPrefs.showBackPages ? NAVY : '#f4f3f4'}
+          />
+        </View>
+        {/* Review echo — include the user's OWN reviews in their back-pages.
+            Does not affect the review's public visibility on the stop. */}
+        <View style={[s.menuRow, !viewerPrefs.showBackPages && s.menuRowDisabled]}>
+          <Text style={s.menuRowText}>Include my reviews in my journal</Text>
+          <Switch
+            value={viewerPrefs.echoReviews}
+            disabled={!viewerPrefs.showBackPages}
+            onValueChange={(v) => void updateViewerPref('echoReviews', v)}
+            trackColor={{ false: HAIRLINE, true: ACCENT }}
+            thumbColor={viewerPrefs.echoReviews ? NAVY : '#f4f3f4'}
+          />
+        </View>
       </View>
 
       {/* Journal photo backup (on-demand) */}
@@ -402,8 +425,9 @@ const s = StyleSheet.create({
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     paddingVertical: 8,
   },
-  menuRowText: { fontSize: 15, color: INK },
+  menuRowText: { fontSize: 15, color: INK, flexShrink: 1, paddingRight: 12 },
   menuRowStacked: { flexDirection: 'column', alignItems: 'stretch', gap: 8 },
+  menuRowDisabled: { opacity: 0.5 },
   segment: {
     flexDirection: 'row',
     backgroundColor: '#f0ece3',

@@ -22,7 +22,9 @@ import { getViewerPrefs, DEFAULT_VIEWER_PREFS, ViewerPrefsContext, type ViewerPr
 import { PassportPage } from '../../components/passport/PassportPage'
 import { ExitVisa } from '../../components/passport/ExitVisa'
 import { PostStampCaptureSheet } from '../../components/passport/PostStampCaptureSheet'
+import { BackJournalCover, BackJournalPage } from '../../components/passport/BackJournalPage'
 import { QRScanSheet } from '../../components/stamp/QRScanSheet'
+import { useBackPages } from '../../hooks/useBackPages'
 
 import type { StampPlacement, StampSlotState, CollectorPassport, Stamp, Stop } from '../../types'
 import { palette } from '../../lib/colors'
@@ -62,6 +64,17 @@ export default function PassportScreen() {
   // a book afresh reflects the latest choice. Defaults match prior behavior.
   const [prefs, setPrefs] = useState<ViewerPrefs>(DEFAULT_VIEWER_PREFS)
   useEffect(() => { getViewerPrefs().then(setPrefs) }, [])
+
+  // Private back-pages: per-stop travel record for the current user. All
+  // queries are auth.uid()-scoped (RLS), so this is never another viewer's
+  // content. Re-runs when a new stamp lands (the hook keys on stamp ids).
+  const { records: backPages } = useBackPages({
+    stopsByPage: stops,
+    stampsByPage: stamps,
+    userId,
+    echoReviews: prefs.echoReviews,
+    enabled: prefs.showBackPages,
+  })
 
   // Contained demo mode: demoActive = server-authorized (is_demo_authorized)
   // AND the profile toggle is on. Every bypass below is re-checked
@@ -451,10 +464,29 @@ export default function PassportScreen() {
       }
     })
 
+    // Back-pages: private per-stop travel record, appended after the
+    // designed pages. Opens with a divider, then one page per stamped stop
+    // (chronological). Gated on the reader preference + having ≥1 record.
+    if (prefs.showBackPages && backPages.length > 0) {
+      nodes.push(
+        <PassportFrame key="back-cover" bindingSide="left">
+          <BackJournalCover count={backPages.length} />
+        </PassportFrame>,
+      )
+      backPages.forEach((record) => {
+        nodes.push(
+          <PassportFrame key={`back-${record.stopId}`} bindingSide="left">
+            <BackJournalPage record={record} />
+          </PassportFrame>,
+        )
+      })
+    }
+
     return nodes
   }, [
     passport, collectorPassport, bearerName, pages, stops, stamps,
     slotStates, pageScreenIndex, pageW, pageH, prefs.showToc, prefs.showExitVisa,
+    prefs.showBackPages, backPages,
     handlePressStart, handlePressCancel, handleStampPlaced,
   ])
 

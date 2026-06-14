@@ -18,12 +18,20 @@ export interface ViewerPrefs {
   showToc: boolean
   showExitVisa: boolean
   stampGuide: StampGuideMode
+  // Append a private per-stop "journal" record to the back of the book.
+  showBackPages: boolean
+  // Echo the collector's OWN reviews into those back-pages. Governs only the
+  // personal-journal echo — the review's public life on the stop is
+  // unaffected (that stays M-Review-governed).
+  echoReviews: boolean
 }
 
 const KEYS: Record<keyof ViewerPrefs, string> = {
   showToc: 'okuji.viewer.showToc',
   showExitVisa: 'okuji.viewer.showExitVisa',
   stampGuide: 'okuji.viewer.stampGuide',
+  showBackPages: 'okuji.viewer.showBackPages',
+  echoReviews: 'okuji.viewer.echoReviews',
 }
 
 export const DEFAULT_VIEWER_PREFS: ViewerPrefs = {
@@ -32,6 +40,12 @@ export const DEFAULT_VIEWER_PREFS: ViewerPrefs = {
   // Default ON (ring) — preserves the prior always-show-where-to-stamp
   // behavior; collectors who want the clean designed look switch to 'off'.
   stampGuide: 'ring',
+  // Default ON — every verified stop produces a record, so the back-journal
+  // is a complete travel log out of the box.
+  showBackPages: true,
+  // Default ON (Nathan's call) — your own rating/review is part of how you
+  // remember the visit, and it's shown only to you here.
+  echoReviews: true,
 }
 
 function parseStampGuide(raw: string | null): StampGuideMode {
@@ -42,12 +56,17 @@ function parseStampGuide(raw: string | null): StampGuideMode {
 
 export async function getViewerPrefs(): Promise<ViewerPrefs> {
   try {
-    const entries = await AsyncStorage.multiGet([KEYS.showToc, KEYS.showExitVisa, KEYS.stampGuide])
+    const entries = await AsyncStorage.multiGet([
+      KEYS.showToc, KEYS.showExitVisa, KEYS.stampGuide, KEYS.showBackPages, KEYS.echoReviews,
+    ])
     const map = Object.fromEntries(entries)
+    const bool = (k: string, d: boolean) => (map[k] == null ? d : map[k] === 'true')
     return {
-      showToc: map[KEYS.showToc] == null ? DEFAULT_VIEWER_PREFS.showToc : map[KEYS.showToc] === 'true',
-      showExitVisa: map[KEYS.showExitVisa] == null ? DEFAULT_VIEWER_PREFS.showExitVisa : map[KEYS.showExitVisa] === 'true',
+      showToc: bool(KEYS.showToc, DEFAULT_VIEWER_PREFS.showToc),
+      showExitVisa: bool(KEYS.showExitVisa, DEFAULT_VIEWER_PREFS.showExitVisa),
       stampGuide: parseStampGuide(map[KEYS.stampGuide] ?? null),
+      showBackPages: bool(KEYS.showBackPages, DEFAULT_VIEWER_PREFS.showBackPages),
+      echoReviews: bool(KEYS.echoReviews, DEFAULT_VIEWER_PREFS.echoReviews),
     }
   } catch {
     return DEFAULT_VIEWER_PREFS
