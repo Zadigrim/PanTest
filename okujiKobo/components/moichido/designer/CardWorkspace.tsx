@@ -12,12 +12,13 @@ import { useWorkspaceKeyboard } from '@/hooks/useWorkspaceKeyboard'
 import { Wordmark } from '@/components/moichido/Wordmark'
 import { RingMark } from '@/components/moichido/marks/RingMark'
 import { CardPunchShape } from './CardPunchShape'
-import type { DesignerPassport, DesignerPassportPage, DesignerStop } from '@/lib/design/types'
+import type { DesignerPassport, DesignerPassportPage, DesignerStop, DesignerPunch } from '@/lib/design/types'
 
 interface Props {
   passport: DesignerPassport
   pages: DesignerPassportPage[]
   stops: DesignerStop[]
+  punchSlots: DesignerPunch[]
 }
 
 /**
@@ -43,7 +44,7 @@ interface Props {
  *   - Multi-page support — the spec permits info pages alongside
  *     the punch page; LeftPalette's Pages section renders unchanged
  */
-export function CardWorkspace({ passport, pages, stops }: Props) {
+export function CardWorkspace({ passport, pages, stops, punchSlots }: Props) {
   const router = useRouter()
   const hydrate = usePassportStore((s) => s.hydrate)
   const isDirty = usePassportStore((s) => s.isDirty)
@@ -56,7 +57,7 @@ export function CardWorkspace({ passport, pages, stops }: Props) {
   const [navigating, setNavigating] = useState(false)
 
   useEffect(() => {
-    hydrate(passport, pages, stops)
+    hydrate(passport, pages, stops, punchSlots)
   }, [passport.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSave = useCallback(async () => {

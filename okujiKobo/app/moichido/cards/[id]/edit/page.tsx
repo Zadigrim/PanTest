@@ -1,7 +1,7 @@
 import { redirect, notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { CardWorkspace } from '@/components/moichido/designer/CardWorkspace'
-import type { DesignerPassport, DesignerPassportPage, DesignerStop } from '@/lib/design/types'
+import type { DesignerPassport, DesignerPassportPage, DesignerStop, DesignerPunch } from '@/lib/design/types'
 
 interface Props {
   params: Promise<{ id: string }>
@@ -73,11 +73,23 @@ export default async function CardEditPage({ params }: Props) {
           .order('stop_order', { ascending: true })
       : { data: [] }
 
+  // Punch slots — the moichido design-time placeable punch objects
+  // (migration 028). Location-free; ordered by slot_order.
+  const { data: punchSlots } =
+    pageIds.length > 0
+      ? await db
+          .from('punch_slots')
+          .select('*')
+          .in('page_id', pageIds)
+          .order('slot_order', { ascending: true })
+      : { data: [] }
+
   return (
     <CardWorkspace
       passport={passport as unknown as DesignerPassport}
       pages={(pages ?? []) as unknown as DesignerPassportPage[]}
       stops={(stops ?? []) as unknown as DesignerStop[]}
+      punchSlots={(punchSlots ?? []) as unknown as DesignerPunch[]}
     />
   )
 }

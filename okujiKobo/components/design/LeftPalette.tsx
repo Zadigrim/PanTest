@@ -26,6 +26,7 @@ import { safeUpdate } from '@/lib/design/persist'
 import { Button } from './ui/Button'
 import type {
   DesignerStop,
+  DesignerPunch,
   DesignerPassportPage,
   DesignerPageElement,
   PageElementType,
@@ -172,6 +173,8 @@ export function LeftPalette({ width }: { width?: number } = {}) {
   const removePage = usePassportStore((s) => s.removePage)
   const addStop = usePassportStore((s) => s.addStop)
   const setSelectedStop = usePassportStore((s) => s.setSelectedStop)
+  const addPunch = usePassportStore((s) => s.addPunch)
+  const setSelectedPunch = usePassportStore((s) => s.setSelectedPunch)
   const addElement = usePassportStore((s) => s.addElement)
   const setSelectedElement = usePassportStore((s) => s.setSelectedElement)
 
@@ -341,6 +344,35 @@ export function LeftPalette({ width }: { width?: number } = {}) {
     if (!error && data) {
       addStop(data as DesignerStop)
       setSelectedStop(data.id)
+    }
+  }
+
+  // moichido: add a placeable punch slot (location-free). Auto-laid-out in a
+  // 5-per-row grid by slot order; the merchant drags to taste afterward.
+  const handleAddPunch = async () => {
+    if (!activePageId || !passport || isInfoPage) return
+    setAddingStop(true)
+    const db = createClient() as any
+    const existingCount = usePassportStore
+      .getState()
+      .punchSlots.filter((p) => p.page_id === activePageId).length
+    const { data, error } = await db
+      .from('punch_slots')
+      .insert({
+        page_id: activePageId,
+        slot_order: existingCount,
+        box_x: 40 + (existingCount % 5) * 96,
+        box_y: 40 + Math.floor(existingCount / 5) * 96,
+        box_width: 80,
+        box_height: 80,
+      })
+      .select()
+      .single()
+
+    setAddingStop(false)
+    if (!error && data) {
+      addPunch(data as DesignerPunch)
+      setSelectedPunch(data.id)
     }
   }
 
@@ -518,13 +550,13 @@ export function LeftPalette({ width }: { width?: number } = {}) {
             </p>
             {/* Scrollable; the divider below resizes this section. */}
             <div className="overflow-y-auto pr-1" style={{ height: stopsH }}>
-              <StopsList />
+              {isConsumable ? <PunchesList /> : <StopsList />}
             </div>
             <Button
               variant="ghost"
               size="sm"
               className="mt-1.5 w-full text-xs"
-              onClick={handleAddStop}
+              onClick={isConsumable ? handleAddPunch : handleAddStop}
               disabled={addingStop || !activePageId}
             >
               {addingStop ? 'Adding…' : `+ Add ${stopLabel}`}
@@ -629,6 +661,39 @@ function StopsList() {
         >
           <span className="text-base leading-none">{stop.stamp_icon ?? '📍'}</span>
           <span className="truncate">{stop.name}</span>
+        </button>
+      ))}
+    </div>
+  )
+}
+
+function PunchesList() {
+  const punches = usePassportStore(
+    useShallow((s) => s.punchSlots.filter((p) => p.page_id === s.activePageId)),
+  )
+  const selectedPunchId = usePassportStore((s) => s.selectedPunchId)
+  const setSelectedPunch = usePassportStore((s) => s.setSelectedPunch)
+
+  if (punches.length === 0) {
+    return <p className="py-3 text-center text-xs text-muted">No punches yet</p>
+  }
+
+  return (
+    <div className="space-y-0.5">
+      {punches.map((punch, i) => (
+        <button
+          key={punch.id}
+          onClick={() => setSelectedPunch(punch.id)}
+          className={`flex w-full items-center gap-2 rounded-card px-3 py-1.5 text-left text-sm transition-colors ${
+            punch.id === selectedPunchId
+              ? 'bg-cream font-medium text-green'
+              : 'text-muted hover:bg-paper hover:text-navy'
+          }`}
+        >
+          <span className="flex h-4 w-4 flex-none items-center justify-center rounded-full border border-current text-[9px] leading-none">
+            {i + 1}
+          </span>
+          <span className="truncate">{punch.label || `Punch ${i + 1}`}</span>
         </button>
       ))}
     </div>

@@ -6,9 +6,11 @@ import {
   usePassportStore,
   selectActivePage,
   selectActivePageStops,
+  selectActivePagePunches,
 } from '@/lib/design/passport-store'
 import { PageBackground } from './PageBackground'
 import { LocationBox } from './LocationBox'
+import { PunchBox } from './PunchBox'
 import { PageElementBox } from './PageElementBox'
 import { LineElementBox } from './LineElementBox'
 import type { LinePageElement } from '@/lib/design/types'
@@ -20,11 +22,19 @@ const ARTBOARD_H = 792
 export function Canvas() {
   const activePage = usePassportStore(selectActivePage)
   const stops = usePassportStore(useShallow(selectActivePageStops))
+  const punches = usePassportStore(useShallow(selectActivePagePunches))
+  // Consumable (moichido) cards author placeable punch slots instead of
+  // GPS stops; persistent passports never have punchSlots, so this branch
+  // is inert for the okuji designer.
+  const isConsumable = usePassportStore((s) => s.passport?.credential_type === 'consumable')
   const selectedStopId = usePassportStore((s) => s.selectedStopId)
+  const selectedPunchId = usePassportStore((s) => s.selectedPunchId)
   const selectedElementId = usePassportStore((s) => s.selectedElementId)
   const setSelectedStop = usePassportStore((s) => s.setSelectedStop)
+  const setSelectedPunch = usePassportStore((s) => s.setSelectedPunch)
   const setSelectedElement = usePassportStore((s) => s.setSelectedElement)
   const updateStop = usePassportStore((s) => s.updateStop)
+  const updatePunch = usePassportStore((s) => s.updatePunch)
   const updateElement = usePassportStore((s) => s.updateElement)
 
   const [zoom, setZoom] = useState(1)
@@ -53,8 +63,9 @@ export function Canvas() {
 
   const handleDeselect = useCallback(() => {
     setSelectedStop(null)
+    setSelectedPunch(null)
     setSelectedElement(null)
-  }, [setSelectedStop, setSelectedElement])
+  }, [setSelectedStop, setSelectedPunch, setSelectedElement])
 
   if (!activePage) {
     return (
@@ -101,8 +112,9 @@ export function Canvas() {
               ) : null
             )}
 
-            {/* Stops layer */}
-            {stops.map((stop) => (
+            {/* Stops layer — persistent passports only. Consumable cards
+                render punch slots instead (below). */}
+            {!isConsumable && stops.map((stop) => (
               <LocationBox
                 key={stop.id}
                 stop={stop}
@@ -114,10 +126,23 @@ export function Canvas() {
               />
             ))}
 
-            {stops.length === 0 && elements.length === 0 && (
+            {/* Punch slots layer — moichido (consumable) cards only. */}
+            {isConsumable && punches.map((punch, i) => (
+              <PunchBox
+                key={punch.id}
+                punch={punch}
+                index={i}
+                isSelected={punch.id === selectedPunchId}
+                scale={zoom}
+                onSelect={() => setSelectedPunch(punch.id)}
+                onChange={(patch) => updatePunch(punch.id, patch)}
+              />
+            ))}
+
+            {(isConsumable ? punches.length === 0 : stops.length === 0) && elements.length === 0 && (
               <div className="flex h-full items-center justify-center pointer-events-none">
                 <p className="rounded-panel border border-dashed border-hairline px-4 py-2 text-xs text-muted/50">
-                  Add a stop or label from the left panel
+                  {isConsumable ? 'Add a punch or label from the left panel' : 'Add a stop or label from the left panel'}
                 </p>
               </div>
             )}

@@ -7,6 +7,7 @@ import {
   selectActivePage,
   selectSelectedStop,
   selectSelectedStopPage,
+  selectSelectedPunch,
   selectSelectedElement,
 } from '@/lib/design/passport-store'
 import { CLASSIFIERS } from '@/lib/design/classifiers'
@@ -23,6 +24,7 @@ import { cn } from '@/lib/cn'
 import { usePersistentBool } from './usePersistent'
 import type {
   DesignerStop,
+  DesignerPunch,
   DesignerPassportPage,
   BackgroundType,
   DesignerPageElement,
@@ -54,9 +56,12 @@ export function RightInspector({
   // 046) whenever the user happened to be on an information tab, even
   // for a stop that lives on a stamp page.
   const selectedStopPage = usePassportStore(selectSelectedStopPage)
+  const selectedPunch = usePassportStore(selectSelectedPunch)
   const selectedElement = usePassportStore(selectSelectedElement)
 
-  const label = selectedStop
+  const label = selectedPunch
+    ? 'Punch'
+    : selectedStop
     ? 'Stop'
     : selectedElement
     ? selectedElement.type === 'text'  ? 'Label'
@@ -69,7 +74,9 @@ export function RightInspector({
     ? 'Page'
     : 'Passport'
 
-  const title = selectedStop
+  const title = selectedPunch
+    ? (selectedPunch.label || 'Punch slot')
+    : selectedStop
     ? selectedStop.name
     : selectedElement
     ? selectedElement.type === 'text'  ? (selectedElement.content ?? '—')
@@ -95,7 +102,9 @@ export function RightInspector({
       </div>
 
       <div className="flex-1 overflow-y-auto">
-        {selectedStop && selectedStopPage?.page_type !== 'information' ? (
+        {selectedPunch ? (
+          <PunchInspector punch={selectedPunch} />
+        ) : selectedStop && selectedStopPage?.page_type !== 'information' ? (
           <StopInspector stop={selectedStop} creatorInstitutionId={creatorInstitutionId} />
         ) : selectedElement && activePage ? (
           <ElementInspector element={selectedElement} pageId={activePage.id} />
@@ -106,6 +115,68 @@ export function RightInspector({
         )}
       </div>
     </aside>
+  )
+}
+
+// ── Punch inspector (moichido) ────────────────────────────────────────────────
+// Deliberately tiny: a punch is a boolean increment, so the only authorable
+// fields are its optional label and its position/size on the card. No
+// location, verification, stamp, or education controls.
+function PunchInspector({ punch }: { punch: DesignerPunch }) {
+  const updatePunch = usePassportStore((s) => s.updatePunch)
+  const removePunch = usePassportStore((s) => s.removePunch)
+
+  const handleDelete = async () => {
+    if (!window.confirm('Delete this punch slot?')) return
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = createClient() as any
+    const { error } = await db.from('punch_slots').delete().eq('id', punch.id)
+    if (error) { window.alert(error.message ?? 'Delete failed'); return }
+    removePunch(punch.id)
+  }
+
+  const num = (v: string, fallback: number) => {
+    const n = Number(v)
+    return Number.isFinite(n) ? n : fallback
+  }
+
+  return (
+    <div className="space-y-4 p-4">
+      <div>
+        <Label>Label (optional)</Label>
+        <Input
+          value={punch.label ?? ''}
+          placeholder="e.g. Free coffee"
+          onChange={(e) => updatePunch(punch.id, { label: e.target.value || null })}
+        />
+        <p className="mt-1 text-xs text-muted">
+          Shown beneath the punch — handy for the reward slot.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <Label>X</Label>
+          <Input type="number" value={Math.round(punch.box_x)} onChange={(e) => updatePunch(punch.id, { box_x: num(e.target.value, punch.box_x) })} />
+        </div>
+        <div>
+          <Label>Y</Label>
+          <Input type="number" value={Math.round(punch.box_y)} onChange={(e) => updatePunch(punch.id, { box_y: num(e.target.value, punch.box_y) })} />
+        </div>
+        <div>
+          <Label>Width</Label>
+          <Input type="number" value={Math.round(punch.box_width)} onChange={(e) => updatePunch(punch.id, { box_width: num(e.target.value, punch.box_width) })} />
+        </div>
+        <div>
+          <Label>Height</Label>
+          <Input type="number" value={Math.round(punch.box_height)} onChange={(e) => updatePunch(punch.id, { box_height: num(e.target.value, punch.box_height) })} />
+        </div>
+      </div>
+
+      <Button variant="ghost" size="sm" className="w-full text-xs text-red hover:bg-red/5" onClick={handleDelete}>
+        Delete punch slot
+      </Button>
+    </div>
   )
 }
 

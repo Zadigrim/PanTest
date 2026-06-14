@@ -353,7 +353,7 @@ export async function saveAll(): Promise<BatchError[]> {
   // Drain pending debounced writes before snapshotting the store so we
   // don't race with their results landing after our own UPDATEs.
   await flushDebounced()
-  const { passport, pages, stops, isDirty, dirtyPassport, dirtyPageIds, dirtyStopIds } =
+  const { passport, pages, stops, punchSlots, isDirty, dirtyPassport, dirtyPageIds, dirtyStopIds, dirtyPunchIds } =
     usePassportStore.getState()
   if (!passport) return []
 
@@ -361,10 +361,13 @@ export async function saveAll(): Promise<BatchError[]> {
   // edits made mid-save re-mark their rows and keep their own debounced
   // writes, so nothing is lost if the user keeps working.
   const fullSweep =
-    isDirty && !dirtyPassport && dirtyPageIds.size === 0 && dirtyStopIds.size === 0
+    isDirty && !dirtyPassport && dirtyPageIds.size === 0 && dirtyStopIds.size === 0 && dirtyPunchIds.size === 0
   const writePassport = fullSweep || dirtyPassport
   const pagesToWrite = fullSweep ? pages : pages.filter((p) => dirtyPageIds.has(p.id))
   const stopsToWrite = fullSweep ? stops : stops.filter((st) => dirtyStopIds.has(st.id))
+  // Punch slots — moichido only; empty for persistent passports, so this
+  // loop is a no-op for the okuji designer.
+  const punchesToWrite = fullSweep ? punchSlots : punchSlots.filter((p) => dirtyPunchIds.has(p.id))
 
   inc()
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -486,6 +489,24 @@ export async function saveAll(): Promise<BatchError[]> {
       if (stopErr) {
         console.error('[persist] saveAll stop failed', { id: stop.id, error: stopErr })
         errors.push({ table: 'stops', id: stop.id, message: stopErr.message ?? 'unknown' })
+      }
+    }
+
+    // Punch slots (moichido). Only the editable design-time fields —
+    // position + order + label. No location/verification fields exist.
+    for (const punch of punchesToWrite) {
+      const { error: punchErr } = await updateWithRetry(db, 'punch_slots', {
+        slot_order: punch.slot_order,
+        box_x:      punch.box_x,
+        box_y:      punch.box_y,
+        box_width:  punch.box_width,
+        box_height: punch.box_height,
+        rotation:   punch.rotation,
+        label:      punch.label,
+      }, 'id', punch.id)
+      if (punchErr) {
+        console.error('[persist] saveAll punch_slot failed', { id: punch.id, error: punchErr })
+        errors.push({ table: 'punch_slots', id: punch.id, message: punchErr.message ?? 'unknown' })
       }
     }
 

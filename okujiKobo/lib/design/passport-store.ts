@@ -6,6 +6,7 @@ import type {
   DesignerPassport,
   DesignerPassportPage,
   DesignerStop,
+  DesignerPunch,
   DesignerPageElement,
 } from './types'
 
@@ -20,9 +21,14 @@ interface PassportStore {
   passport: DesignerPassport | null
   pages: DesignerPassportPage[]
   stops: DesignerStop[]
+  // Punch slots — moichido (consumable) design-time objects. Parallel to
+  // stops, but location-free (position + order + label only). Empty for
+  // persistent passports, so the okuji designer is unaffected.
+  punchSlots: DesignerPunch[]
 
   activePageId: string | null
   selectedStopId: string | null
+  selectedPunchId: string | null
   selectedElementId: string | null
 
   isDirty: boolean
@@ -40,15 +46,18 @@ interface PassportStore {
   dirtyPassport: boolean
   dirtyPageIds: Set<string>
   dirtyStopIds: Set<string>
+  dirtyPunchIds: Set<string>
 
   hydrate: (
     passport: DesignerPassport,
     pages: DesignerPassportPage[],
     stops: DesignerStop[],
+    punchSlots?: DesignerPunch[],
   ) => void
 
   setActivePage: (id: string) => void
   setSelectedStop: (id: string | null) => void
+  setSelectedPunch: (id: string | null) => void
   setSelectedElement: (id: string | null) => void
 
   updatePassport: (patch: Partial<DesignerPassport>) => void
@@ -59,6 +68,10 @@ interface PassportStore {
   updateStop: (id: string, patch: Partial<DesignerStop>) => void
   addStop: (stop: DesignerStop) => void
   removeStop: (id: string) => void
+
+  updatePunch: (id: string, patch: Partial<DesignerPunch>) => void
+  addPunch: (punch: DesignerPunch) => void
+  removePunch: (id: string) => void
 
   // Page elements (stored as JSON on the page row)
   addElement: (pageId: string, element: DesignerPageElement) => DesignerPageElement[]
@@ -79,8 +92,10 @@ export const usePassportStore = create<PassportStore>((set, get) => ({
   passport: null,
   pages: [],
   stops: [],
+  punchSlots: [],
   activePageId: null,
   selectedStopId: null,
+  selectedPunchId: null,
   selectedElementId: null,
   isDirty: false,
   isSaving: false,
@@ -89,8 +104,9 @@ export const usePassportStore = create<PassportStore>((set, get) => ({
   dirtyPassport: false,
   dirtyPageIds: new Set<string>(),
   dirtyStopIds: new Set<string>(),
+  dirtyPunchIds: new Set<string>(),
 
-  hydrate: (passport, pages, stops) => {
+  hydrate: (passport, pages, stops, punchSlots = []) => {
     const sorted = [...pages]
       .sort((a, b) => a.page_order - b.page_order)
       .map((p) => ({ ...p, elements: p.elements ?? [] }))
@@ -98,20 +114,24 @@ export const usePassportStore = create<PassportStore>((set, get) => ({
       passport,
       pages: sorted,
       stops,
+      punchSlots,
       activePageId: sorted[0]?.id ?? null,
       selectedStopId: null,
+      selectedPunchId: null,
       selectedElementId: null,
       isDirty: false,
       dirtyPassport: false,
       dirtyPageIds: new Set<string>(),
       dirtyStopIds: new Set<string>(),
+      dirtyPunchIds: new Set<string>(),
     })
   },
 
   setActivePage: (id) =>
-    set({ activePageId: id, selectedStopId: null, selectedElementId: null }),
-  setSelectedStop: (id) => set({ selectedStopId: id, selectedElementId: null }),
-  setSelectedElement: (id) => set({ selectedElementId: id, selectedStopId: null }),
+    set({ activePageId: id, selectedStopId: null, selectedPunchId: null, selectedElementId: null }),
+  setSelectedStop: (id) => set({ selectedStopId: id, selectedPunchId: null, selectedElementId: null }),
+  setSelectedPunch: (id) => set({ selectedPunchId: id, selectedStopId: null, selectedElementId: null }),
+  setSelectedElement: (id) => set({ selectedElementId: id, selectedStopId: null, selectedPunchId: null }),
 
   updatePassport: (patch) => {
     set((s) => ({
@@ -150,6 +170,7 @@ export const usePassportStore = create<PassportStore>((set, get) => ({
         activePageId:
           s.activePageId === id ? (remaining[0]?.id ?? null) : s.activePageId,
         stops: s.stops.filter((st) => st.page_id !== id),
+        punchSlots: s.punchSlots.filter((p) => p.page_id !== id),
         selectedElementId: null,
         isDirty: true,
       }
@@ -196,6 +217,29 @@ export const usePassportStore = create<PassportStore>((set, get) => ({
     set((s) => ({
       stops: s.stops.filter((st) => st.id !== id),
       selectedStopId: s.selectedStopId === id ? null : s.selectedStopId,
+      isDirty: true,
+    })),
+
+  updatePunch: (id, patch) => {
+    set((s) => ({
+      punchSlots: s.punchSlots.map((p) => (p.id === id ? { ...p, ...patch } : p)),
+      isDirty: true,
+      dirtyPunchIds: new Set(s.dirtyPunchIds).add(id),
+    }))
+    debouncedUpdate('punch_slots', patch, 'id', id)
+  },
+
+  addPunch: (punch) =>
+    set((s) => ({
+      punchSlots: [...s.punchSlots, punch],
+      isDirty: true,
+      dirtyPunchIds: new Set(s.dirtyPunchIds).add(punch.id),
+    })),
+
+  removePunch: (id) =>
+    set((s) => ({
+      punchSlots: s.punchSlots.filter((p) => p.id !== id),
+      selectedPunchId: s.selectedPunchId === id ? null : s.selectedPunchId,
       isDirty: true,
     })),
 
@@ -250,6 +294,7 @@ export const usePassportStore = create<PassportStore>((set, get) => ({
       dirtyPassport: false,
       dirtyPageIds: new Set<string>(),
       dirtyStopIds: new Set<string>(),
+      dirtyPunchIds: new Set<string>(),
     }),
   setSaving: (v) => set({ isSaving: v }),
   setSaveError: (msg) => set({ saveError: msg, isSaving: false }),
@@ -265,6 +310,12 @@ export const selectActivePage = (s: PassportStore) =>
 
 export const selectSelectedStop = (s: PassportStore) =>
   s.stops.find((st) => st.id === s.selectedStopId) ?? null
+
+export const selectActivePagePunches = (s: PassportStore) =>
+  s.punchSlots.filter((p) => p.page_id === s.activePageId)
+
+export const selectSelectedPunch = (s: PassportStore) =>
+  s.punchSlots.find((p) => p.id === s.selectedPunchId) ?? null
 
 // Returns the page the currently-selected stop belongs to (not the page
 // currently shown in the workspace). Used by RightInspector so the stop
