@@ -25,6 +25,7 @@ import { PostStampCaptureSheet } from '../../components/passport/PostStampCaptur
 import { BackJournalCover, BackJournalPage } from '../../components/passport/BackJournalPage'
 import { QRScanSheet } from '../../components/stamp/QRScanSheet'
 import { useBackPages } from '../../hooks/useBackPages'
+import { packBackPages, BACK_PAGE_PAD_X, BACK_PAGE_PAD_TOP, BACK_PAGE_PAD_BOTTOM } from '../../lib/back-pages-layout'
 
 import type { StampPlacement, StampSlotState, CollectorPassport, Stamp, Stop } from '../../types'
 import { palette } from '../../lib/colors'
@@ -464,19 +465,24 @@ export default function PassportScreen() {
       }
     })
 
-    // Back-pages: private per-stop travel record, appended after the
-    // designed pages. Opens with a divider, then one page per stamped stop
-    // (chronological). Gated on the reader preference + having ≥1 record.
+    // Back-pages: private per-stop travel record, appended after the designed
+    // pages. Opens with a divider, then ROW-FLOW pages — each stamped stop is
+    // one row (chronological by verified_at), rows packed onto the minimum
+    // number of pages by estimated height (lib/back-pages-layout). A row is
+    // never split across a page. Gated on the reader preference + ≥1 record.
     if (prefs.showBackPages && backPages.length > 0) {
       nodes.push(
         <PassportFrame key="back-cover" bindingSide="left">
           <BackJournalCover count={backPages.length} />
         </PassportFrame>,
       )
-      backPages.forEach((record) => {
+      const contentWidth = pageW - BACK_PAGE_PAD_X * 2
+      const usableHeight = pageH - BACK_PAGE_PAD_TOP - BACK_PAGE_PAD_BOTTOM
+      const packed = packBackPages(backPages, usableHeight, contentWidth)
+      packed.forEach((rows, i) => {
         nodes.push(
-          <PassportFrame key={`back-${record.stopId}`} bindingSide="left">
-            <BackJournalPage record={record} />
+          <PassportFrame key={`back-${i}`} bindingSide="left">
+            <BackJournalPage records={rows} />
           </PassportFrame>,
         )
       })
