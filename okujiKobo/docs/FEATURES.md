@@ -54,9 +54,13 @@ physical-feeling passport collectors will stamp.
 
 ### Printing & QR (operator handoff)
 - **Print to PDF** (`/api/passports/[id]/print-pdf`): server-rendered
-  (`@react-pdf/renderer`) printable passport. Footer carries the absolute
-  `https://okujikobo.okuji.app` URL. (Formerly mislabeled "Print posters" in
-  the menu.)
+  (`@react-pdf/renderer`) home-printer booklet (cut / stack / fold / staple
+  onto US-Letter). Footer carries the absolute `https://okujikobo.okuji.app`
+  URL. (Formerly mislabeled "Print posters" in the menu.)
+- **Print-ready PDF** (same route, `?format=trim`): a partner-ready export —
+  one leaf per page at the true passport trim size (88×125 mm page,
+  180×125 mm cover wrap) + 3 mm bleed, with crop marks at the trim box.
+  Physical sizes come from the single-source spec `lib/print/passport-spec.ts`.
 - **Print QR codes** (`/api/passports/[id]/qr-sheet`): generates a printable
   PDF sticker sheet (2×4 per Letter page, dashed cut borders) of stable QR
   codes for every QR-verified stop. Each code encodes the *exact* mobile

@@ -8,6 +8,11 @@ import {
 import { createClient } from '@/lib/supabase/server'
 import { normalizeAll, normalizeKey, rasterizeSvg, type NormalizeItem } from '@/lib/print/normalize-images'
 import { locationCaptionText } from '@/lib/design/location-caption'
+import {
+  PAGE_TRIM_W_PT, PAGE_TRIM_H_PT, PAGE_FULL_W_PT, PAGE_FULL_H_PT,
+  COVER_TRIM_W_PT, COVER_TRIM_H_PT, COVER_FULL_W_PT, COVER_FULL_H_PT,
+  BLEED_PT, PAGE_UNIT_TO_PT, COVER_UNIT_TO_PT,
+} from '@/lib/print/passport-spec'
 
 // ── Marketing mark loader ────────────────────────────────────────────────────
 // The okuji-ground-03 woven-waves PNG used on the free-passport
@@ -294,7 +299,7 @@ function PageElementsLayer({ elements, scale }: { elements: PageElement[]; scale
 }
 
 // ── Background overlays ──────────────────────────────────────────────────────
-function GuillocheOverlay({ color, opacity }: { color: string; opacity: number }) {
+function GuillocheOverlay({ color, opacity, w = CANVAS_W, h = CANVAS_H }: { color: string; opacity: number; w?: number; h?: number }) {
   const tileSize = 32
   const cols = Math.ceil(ARTBOARD_W / tileSize) + 1
   const rows = Math.ceil(ARTBOARD_H / tileSize) + 1
@@ -312,10 +317,10 @@ function GuillocheOverlay({ color, opacity }: { color: string; opacity: number }
       )
     }
   }
-  return <Svg viewBox={`0 0 ${ARTBOARD_W} ${ARTBOARD_H}`} style={{ position: 'absolute', top: 0, left: 0, width: CANVAS_W, height: CANVAS_H }}>{tiles}</Svg>
+  return <Svg viewBox={`0 0 ${ARTBOARD_W} ${ARTBOARD_H}`} style={{ position: 'absolute', top: 0, left: 0, width: w, height: h }}>{tiles}</Svg>
 }
 
-function GridOverlay({ color, opacity }: { color: string; opacity: number }) {
+function GridOverlay({ color, opacity, w = CANVAS_W, h = CANVAS_H }: { color: string; opacity: number; w?: number; h?: number }) {
   const minor = 12, major = 60
   const minorOpacity = Math.max(10, Math.min(100, opacity)) / 100
   const majorOpacity = Math.min(1, minorOpacity * 2.5)
@@ -328,7 +333,7 @@ function GridOverlay({ color, opacity }: { color: string; opacity: number }) {
     const isMajor = y % major === 0
     lines.push(<Line key={`h${y}`} x1={0} y1={y} x2={ARTBOARD_W} y2={y} stroke={color} strokeWidth={isMajor ? 0.8 : 0.35} strokeOpacity={isMajor ? majorOpacity : minorOpacity} />)
   }
-  return <Svg viewBox={`0 0 ${ARTBOARD_W} ${ARTBOARD_H}`} style={{ position: 'absolute', top: 0, left: 0, width: CANVAS_W, height: CANVAS_H }}>{lines}</Svg>
+  return <Svg viewBox={`0 0 ${ARTBOARD_W} ${ARTBOARD_H}`} style={{ position: 'absolute', top: 0, left: 0, width: w, height: h }}>{lines}</Svg>
 }
 
 // ── Stamp page slot ───────────────────────────────────────────────────────────
@@ -939,6 +944,147 @@ function decideIncludeCert(passportType: PassportType, institutionType: string |
   return false
 }
 
+// ── Print-ready (trim + bleed) export ─────────────────────────────────────────
+// An ADDITIVE output mode (?format=trim) that produces a partner-ready PDF:
+// one leaf per PDF page at the true passport TRIM size (88×125 mm page,
+// 180×125 mm cover wrap) plus 3 mm bleed on every edge, with crop marks at the
+// trim box. Background art fills the full bleed; text / stops stay inside the
+// trim. Physical sizes are the single-source spec in lib/print/passport-spec.ts.
+// The home-printer booklet above is untouched by this path.
+
+// Crop (trim) marks: short L-marks at each trim corner, drawn entirely within
+// the bleed margin (the area cut away), so they never intrude on the kept art.
+function CropMarks({ docW, docH, bleed }: { docW: number; docH: number; bleed: number }) {
+  const x0 = bleed, y0 = bleed, x1 = docW - bleed, y1 = docH - bleed
+  const gap = 2
+  const segs: Array<[number, number, number, number]> = [
+    [0, y0, x0 - gap, y0], [x0, 0, x0, y0 - gap],          // top-left
+    [x1 + gap, y0, docW, y0], [x1, 0, x1, y0 - gap],       // top-right
+    [0, y1, x0 - gap, y1], [x0, y1 + gap, x0, docH],       // bottom-left
+    [x1 + gap, y1, docW, y1], [x1, y1 + gap, x1, docH],    // bottom-right
+  ]
+  return (
+    <Svg width={docW} height={docH} viewBox={`0 0 ${docW} ${docH}`} style={{ position: 'absolute', top: 0, left: 0 }}>
+      {segs.map(([a, b, c, d], i) => <Line key={i} x1={a} y1={b} x2={c} y2={d} stroke="#000000" strokeWidth={0.5} />)}
+    </Svg>
+  )
+}
+
+// One stamp page at trim + bleed. Mirrors PassportPageSlotContent's stop loop
+// but at trim scale; background art bleeds, content sits in the trim box.
+function TrimStampPage({ page }: { page: PassportPageForPrint }) {
+  const paperColor = `#${page.paper_color ?? 'F5F2EC'}`
+  const bgColor = `#${page.background_color ?? '0D1B2A'}`
+  const bgOpacity = clampOpacityPct(page.background_opacity)
+  const customBgOpacity = clampOpacityPct(page.custom_background_opacity)
+  const scale = PAGE_UNIT_TO_PT
+  return (
+    <Page size={[PAGE_FULL_W_PT, PAGE_FULL_H_PT]} style={{ backgroundColor: paperColor }}>
+      {(page.background_type === 'custom' || page.background_type === 'okuji') && page.background_image_url && (
+        <Image src={page.background_image_url} style={{ position: 'absolute', top: 0, left: 0, width: PAGE_FULL_W_PT, height: PAGE_FULL_H_PT, objectFit: 'cover', opacity: customBgOpacity / 100 }} />
+      )}
+      <View style={{ position: 'absolute', left: BLEED_PT, top: BLEED_PT, width: PAGE_TRIM_W_PT, height: PAGE_TRIM_H_PT }}>
+        {page.background_type === 'guilloche' && <GuillocheOverlay color={bgColor} opacity={bgOpacity} w={PAGE_TRIM_W_PT} h={PAGE_TRIM_H_PT} />}
+        {page.background_type === 'grid' && <GridOverlay color={bgColor} opacity={bgOpacity} w={PAGE_TRIM_W_PT} h={PAGE_TRIM_H_PT} />}
+        <PageElementsLayer elements={page.elements} scale={scale} />
+        {page.stops.map((stop) => {
+          const x = stop.box_x * scale, y = stop.box_y * scale
+          const w = stop.box_width * scale, h = stop.box_height * scale
+          const stampImageNode = stop.stampImageUrl
+            ? <Image src={stop.stampImageUrl} style={{ width: w * 0.7, height: h * 0.7, objectFit: 'contain' }} />
+            : null
+          return (
+            <React.Fragment key={stop.id}>
+              <View style={[S.locationBox, { left: x, top: y, width: w, height: h, transform: stop.rotation ? `rotate(${stop.rotation}deg)` : undefined }]}>
+                <Text style={S.locationBoxName}>{stop.name}</Text>
+                {stop.caption && stop.captionPlacement === 'interior' && (
+                  <Text style={[S.captionText, { position: 'absolute', bottom: 1, left: 0, right: 0 }]}>{stop.caption}</Text>
+                )}
+                {stampImageNode}
+              </View>
+              {stop.caption && stop.captionPlacement === 'exterior' && (
+                <Text style={[S.captionText, { position: 'absolute', left: x, top: y + h + 1, width: w }]}>{stop.caption}</Text>
+              )}
+            </React.Fragment>
+          )
+        })}
+      </View>
+      <CropMarks docW={PAGE_FULL_W_PT} docH={PAGE_FULL_H_PT} bleed={BLEED_PT} />
+    </Page>
+  )
+}
+
+// Name / certificate leaf at trim + bleed (white paper, content in trim box).
+function TrimSimplePage({ children }: { children: React.ReactNode }) {
+  return (
+    <Page size={[PAGE_FULL_W_PT, PAGE_FULL_H_PT]} style={{ backgroundColor: '#FFFFFF' }}>
+      <View style={{ position: 'absolute', left: BLEED_PT, top: BLEED_PT, width: PAGE_TRIM_W_PT, height: PAGE_TRIM_H_PT }}>
+        {children}
+      </View>
+      <CropMarks docW={PAGE_FULL_W_PT} docH={PAGE_FULL_H_PT} bleed={BLEED_PT} />
+    </Page>
+  )
+}
+
+// The full cover WRAP (back | spine | front) at trim + bleed. Panel colors and
+// any full-bleed image fill the whole document so the art bleeds; the spine
+// sits on the document center; designer elements stay in the trim box.
+function TrimCoverPage({ side, fallbackTitle, paperColor }: { side: CoverSideData | null; fallbackTitle: string; paperColor: string }) {
+  const docW = COVER_FULL_W_PT, docH = COVER_FULL_H_PT, halfDoc = docW / 2
+  if (!side) {
+    return (
+      <Page size={[docW, docH]} style={{ backgroundColor: paperColor }}>
+        <View style={{ position: 'absolute', left: docW / 2, top: BLEED_PT, width: COVER_TRIM_W_PT / 2, height: COVER_TRIM_H_PT, alignItems: 'center', justifyContent: 'center' }}>
+          {fallbackTitle ? <Text style={{ fontSize: 18, fontFamily: 'Helvetica-Bold', color: '#1A1A1A', textAlign: 'center', paddingHorizontal: 24 }}>{fallbackTitle}</Text> : null}
+        </View>
+        <CropMarks docW={docW} docH={docH} bleed={BLEED_PT} />
+      </Page>
+    )
+  }
+  const imgScale = typeof side.image_scale === 'number' && side.image_scale > 0 ? side.image_scale : 1
+  const imgOpacity = typeof side.image_opacity === 'number' ? Math.max(0, Math.min(100, side.image_opacity)) / 100 : 0.8
+  const px = Math.max(0, Math.min(1, side.image_position_x ?? 0.5))
+  const py = Math.max(0, Math.min(1, side.image_position_y ?? 0.5))
+  const imgW = docW * imgScale, imgH = docH * imgScale
+  const imgLeft = (docW - imgW) * px, imgTop = (docH - imgH) * py
+  return (
+    <Page size={[docW, docH]} style={{ backgroundColor: paperColor }}>
+      <View style={{ position: 'absolute', left: 0, top: 0, width: halfDoc, height: docH, backgroundColor: `#${side.back_bg ?? '0D1B2A'}` }} />
+      <View style={{ position: 'absolute', left: halfDoc, top: 0, width: halfDoc, height: docH, backgroundColor: `#${side.front_bg ?? '0D1B2A'}` }} />
+      {side.image_url && (
+        <View style={{ position: 'absolute', left: 0, top: 0, width: docW, height: docH, overflow: 'hidden', opacity: imgOpacity }}>
+          <Image src={side.image_url} style={{ position: 'absolute', left: imgLeft, top: imgTop, width: imgW, height: imgH, objectFit: 'cover' }} />
+        </View>
+      )}
+      <View style={{ position: 'absolute', left: BLEED_PT, top: BLEED_PT, width: COVER_TRIM_W_PT, height: COVER_TRIM_H_PT }}>
+        <PageElementsLayer elements={side.elements ?? []} scale={COVER_UNIT_TO_PT} />
+      </View>
+      <CropMarks docW={docW} docH={docH} bleed={BLEED_PT} />
+    </Page>
+  )
+}
+
+function PrintPassportTrimDoc({
+  passportTitle, institutionName, passportType, includeCert,
+  outsideCover, insideCover, paperColorHex, stampPages,
+}: Omit<PrintPassportDocProps, 'marketingImageDataUri'>) {
+  return (
+    <Document>
+      <TrimCoverPage side={outsideCover} fallbackTitle={passportTitle} paperColor={paperColorHex} />
+      {insideCover && <TrimCoverPage side={insideCover} fallbackTitle="" paperColor={paperColorHex} />}
+      <TrimSimplePage>
+        <NamePageContent passportTitle={passportTitle} institutionName={institutionName} passportType={passportType} />
+      </TrimSimplePage>
+      {stampPages.map((page) => <TrimStampPage key={page.id} page={page} />)}
+      {includeCert && (
+        <TrimSimplePage>
+          <CertSlotContent title={passportTitle} institutionName={institutionName} />
+        </TrimSimplePage>
+      )}
+    </Document>
+  )
+}
+
 // ── Route ─────────────────────────────────────────────────────────────────────
 export const dynamic = 'force-dynamic'
 // sharp (used by lib/print/normalize-images) requires the Node.js runtime;
@@ -1334,21 +1480,38 @@ async function handlePrintRequest(request: Request, passportId: string) {
     ? await loadMarketingMark()
     : null
 
+  // Output mode: default home-printer booklet, or ?format=trim for a
+  // partner-ready single-leaf PDF at true trim size + 3 mm bleed.
+  const isTrim = new URL(request.url).searchParams.get('format') === 'trim'
+
   // Render PDF
   let pdfBuffer: Buffer
   try {
     pdfBuffer = await renderToBuffer(
-      <PrintPassportDoc
-        passportTitle={passport.title}
-        institutionName={institutionName}
-        passportType={passportType}
-        includeCert={includeCert}
-        outsideCover={outsideCover}
-        insideCover={insideCover}
-        paperColorHex={paperColorHex}
-        stampPages={remappedPages}
-        marketingImageDataUri={marketingImageDataUri}
-      />
+      isTrim ? (
+        <PrintPassportTrimDoc
+          passportTitle={passport.title}
+          institutionName={institutionName}
+          passportType={passportType}
+          includeCert={includeCert}
+          outsideCover={outsideCover}
+          insideCover={insideCover}
+          paperColorHex={paperColorHex}
+          stampPages={remappedPages}
+        />
+      ) : (
+        <PrintPassportDoc
+          passportTitle={passport.title}
+          institutionName={institutionName}
+          passportType={passportType}
+          includeCert={includeCert}
+          outsideCover={outsideCover}
+          insideCover={insideCover}
+          paperColorHex={paperColorHex}
+          stampPages={remappedPages}
+          marketingImageDataUri={marketingImageDataUri}
+        />
+      )
     )
   } catch (err) {
     console.error('[print-pdf] renderToBuffer error:', err)
@@ -1375,7 +1538,9 @@ async function handlePrintRequest(request: Request, passportId: string) {
   // Return PDF
   const dateStr = new Date().toISOString().slice(0, 10)
   const safeTitle = passport.title.replace(/[^\w\s-]/g, '').trim()
-  const filename = `${safeTitle} - Print Passport - ${dateStr}.pdf`
+  const filename = isTrim
+    ? `${safeTitle} - Print-Ready (trim+bleed) - ${dateStr}.pdf`
+    : `${safeTitle} - Print Passport - ${dateStr}.pdf`
   return new Response(new Uint8Array(pdfBuffer), {
     status: 200,
     headers: {

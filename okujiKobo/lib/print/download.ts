@@ -19,8 +19,12 @@ export async function downloadPrintPdf(
   passportId: string,
   passportTitle: string,
   showStamps = false,
+  // 'booklet' = the home-printer cut/fold/staple PDF (default).
+  // 'trim' = a partner-ready single-leaf PDF at true trim size + 3 mm bleed.
+  format: 'booklet' | 'trim' = 'booklet',
 ): Promise<DownloadResult> {
-  const res = await fetch(`/api/passports/${passportId}/print-pdf`, {
+  const qs = format === 'trim' ? '?format=trim' : ''
+  const res = await fetch(`/api/passports/${passportId}/print-pdf${qs}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     // show_stamps drives whether stop stamp images render in the boxes.
@@ -39,7 +43,8 @@ export async function downloadPrintPdf(
   const today = new Date().toISOString().slice(0, 10)
   const a = document.createElement('a')
   a.href = url
-  a.download = `${passportTitle} — Print Passport — ${today}.pdf`
+  const label = format === 'trim' ? 'Print-Ready' : 'Print Passport'
+  a.download = `${passportTitle} — ${label} — ${today}.pdf`
   a.click()
   setTimeout(() => URL.revokeObjectURL(url), 30_000)
   return { ok: true }
