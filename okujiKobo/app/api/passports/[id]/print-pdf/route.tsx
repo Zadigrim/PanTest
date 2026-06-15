@@ -549,7 +549,7 @@ function MarketingStrip({
           color: '#1F1D1A',
         }}
       >
-        okujikobo.okuji.app
+        https://okujikobo.okuji.app
       </Text>
       <Text
         style={{
