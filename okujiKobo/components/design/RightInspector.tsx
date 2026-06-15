@@ -542,8 +542,11 @@ function LocationSection({
     if (next === 'experience') {
       // Event/Activity: forced honor. Trigger sets verification_tier=5
       // and experience_verification_method='honor'; we send both for
-      // immediate local consistency before the server roundtrip.
-      void persist({ experience_type: 'experience', experience_verification_method: 'honor' })
+      // immediate local consistency before the server roundtrip. Also clear
+      // qr_code_id — an event is honor-based and never QR-verified, so any
+      // previously-provisioned token is stale (and must not linger in the
+      // QR-sheet generator).
+      void persist({ experience_type: 'experience', experience_verification_method: 'honor', qr_code_id: null })
     } else {
       // Location: if no valid method is already set, default to GPS.
       // Preserve any prior method choice when swapping back.
