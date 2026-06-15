@@ -1,44 +1,40 @@
 'use client'
 
+import { useState } from 'react'
 import { usePassportStore } from '@/lib/design/passport-store'
-import { safeUpdate } from '@/lib/design/persist'
+import { StampComposer } from '@/components/design/StampComposer'
+import { StampPreview } from '@/components/design/StampPreview'
 import { RingMark } from '@/components/moichido/marks/RingMark'
 
 const RING_DEFAULT = '⭕'
+const PUNCH_INK = '0F4C5C' // moichido teal, hex without # (StampPreview adds it)
 
 /**
- * Card-level punch shape picker. Cards have ONE punch shape across
- * every punch location, not per-stop — when the merchant changes
- * the shape here, every stop on every page propagates.
+ * Card-level punch mark. A card has ONE mark across every punch slot (not
+ * per-slot), so it lives on the passport (punch_type / punch_icon /
+ * punch_asset_id, migration 086) and the canvas renders it in every PunchBox.
  *
- * M4.3 minimum: the default Ring is the heavy-circle emoji which
- * renders identically across kobo / mobile / print PDF. A future
- * pass can add the brand Ring-with-gap SVG to design_assets and
- * wire it through the existing custom_asset path; the data model
- * (stops.stamp_type / stamp_asset_id) already supports it.
- *
- * StampComposer integration for custom shapes is a follow-on. The
- * spec permits ring-only for M4.3 and the existing storage path is
- * forward-compatible.
+ * Two ways to set it:
+ *   - the emoji palette (punch_type='emoji'), or
+ *   - "Design a custom punch", which reuses the StampComposer to compose an
+ *     SVG mark saved to design_assets, then sets punch_type='custom_asset' +
+ *     punch_asset_id.
  */
 export function CardPunchShape() {
-  const stops = usePassportStore((s) => s.stops)
-  const updateStop = usePassportStore((s) => s.updateStop)
+  const passport = usePassportStore((s) => s.passport)
+  const updatePassport = usePassportStore((s) => s.updatePassport)
+  const [composerOpen, setComposerOpen] = useState(false)
 
-  // Use the most-recent stop's icon as the displayed value;
-  // propagation guarantees all stops share one shape.
-  const current = stops[stops.length - 1]?.stamp_icon ?? RING_DEFAULT
+  const punchType = passport?.punch_type ?? 'emoji'
+  const punchIcon = passport?.punch_icon ?? RING_DEFAULT
+  const punchAssetId = passport?.punch_asset_id ?? null
+  const isCustom = punchType === 'custom_asset' && !!punchAssetId
 
-  function setShape(icon: string) {
-    // Propagate to every stop in the store + persist each.
-    for (const s of stops) {
-      updateStop(s.id, { stamp_icon: icon, stamp_type: 'emoji', stamp_asset_id: null })
-      void safeUpdate('stops', { stamp_icon: icon, stamp_type: 'emoji', stamp_asset_id: null }, 'id', s.id)
-    }
+  function setEmoji(icon: string) {
+    updatePassport({ punch_type: 'emoji', punch_icon: icon, punch_asset_id: null })
   }
 
-  // Minimal palette for M4.3 — the ring default plus a few obvious
-  // alternatives. Custom-via-composer is M4.x follow-on.
+  // Minimal emoji palette — the ring default plus a few obvious alternatives.
   const options: Array<{ value: string; label: string }> = [
     { value: '⭕', label: 'Ring' },
     { value: '●',  label: 'Dot' },
@@ -51,16 +47,17 @@ export function CardPunchShape() {
   return (
     <div className="space-y-2">
       <p className="text-xs font-medium uppercase tracking-wider text-moichido-muted">
-        Punch shape
+        Punch mark
       </p>
+
       <div className="grid grid-cols-6 gap-1.5">
         {options.map((opt) => {
-          const isActive = current === opt.value
+          const isActive = !isCustom && punchIcon === opt.value
           return (
             <button
               key={opt.value}
               type="button"
-              onClick={() => setShape(opt.value)}
+              onClick={() => setEmoji(opt.value)}
               aria-label={`Use ${opt.label}`}
               title={opt.label}
               className={`flex aspect-square items-center justify-center rounded-card border text-lg transition-colors ${
@@ -74,10 +71,47 @@ export function CardPunchShape() {
           )
         })}
       </div>
+
+      {/* Custom mark — design via the reused StampComposer. */}
+      <button
+        type="button"
+        onClick={() => setComposerOpen(true)}
+        disabled={!passport}
+        className={`flex w-full items-center gap-2 rounded-card border px-2.5 py-2 text-left text-xs transition-colors ${
+          isCustom
+            ? 'border-moichido-teal bg-moichido-teal/10'
+            : 'border-moichido-hairline bg-white hover:bg-moichido-paper'
+        }`}
+      >
+        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded border border-moichido-hairline bg-white">
+          {isCustom ? (
+            <StampPreview assetId={punchAssetId} color={PUNCH_INK} size={22} />
+          ) : (
+            <span className="text-moichido-teal"><RingMark size={14} strokeWidth={2.4} /></span>
+          )}
+        </span>
+        <span className="text-moichido-ink">
+          {isCustom ? 'Custom punch — edit / replace' : 'Design a custom punch…'}
+        </span>
+      </button>
+
       <p className="flex items-center gap-1.5 text-[11px] text-moichido-muted">
         <span className="text-moichido-teal"><RingMark size={12} strokeWidth={2.4} /></span>
-        One shape per card. New punch locations inherit this.
+        One mark per card. Every punch slot uses it.
       </p>
+
+      {passport && (
+        <StampComposer
+          mode="designer"
+          open={composerOpen}
+          onClose={() => setComposerOpen(false)}
+          currentPassportId={passport.id}
+          onSaved={({ id }) => {
+            updatePassport({ punch_type: 'custom_asset', punch_asset_id: id })
+            setComposerOpen(false)
+          }}
+        />
+      )}
     </div>
   )
 }

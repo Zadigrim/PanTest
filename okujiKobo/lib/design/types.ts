@@ -224,6 +224,12 @@ export interface DesignerPassport {
   // punch. Per-page hybrid is a deferred decision.
   credential_type?: 'persistent' | 'consumable'
   consumable_target_count?: number | null
+  // moichido card-level punch mark (migration 086). One mark per card,
+  // mirroring the stops stamp_* fields but card-scoped. 'custom_asset' uses
+  // punch_asset_id (a composed StampComposer SVG); 'emoji' uses punch_icon.
+  punch_type?: 'emoji' | 'custom_asset'
+  punch_icon?: string
+  punch_asset_id?: string | null
 }
 
 export type PageType = 'stamp' | 'information'

@@ -28,6 +28,14 @@ export function Canvas() {
   // GPS stops; persistent passports never have punchSlots, so this branch
   // is inert for the okuji designer.
   const isConsumable = usePassportStore((s) => s.passport?.credential_type === 'consumable')
+  // Card-level punch mark (one per card) rendered in every punch slot.
+  const punchMark = usePassportStore(
+    useShallow((s) => ({
+      type: s.passport?.punch_type ?? 'emoji',
+      icon: s.passport?.punch_icon ?? '⭕',
+      assetId: s.passport?.punch_asset_id ?? null,
+    })),
+  )
   const selectedStopId = usePassportStore((s) => s.selectedStopId)
   const selectedPunchId = usePassportStore((s) => s.selectedPunchId)
   const selectedElementId = usePassportStore((s) => s.selectedElementId)
@@ -167,6 +175,7 @@ export function Canvas() {
                 punch={punch}
                 index={i}
                 isSelected={punch.id === selectedPunchId}
+                mark={punchMark}
                 scale={zoom}
                 onSelect={() => setSelectedPunch(punch.id)}
                 onChange={(patch) => updatePunch(punch.id, snapPunchPatch(patch))}

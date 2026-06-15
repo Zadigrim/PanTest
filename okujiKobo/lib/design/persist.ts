@@ -405,6 +405,10 @@ export async function saveAll(): Promise<BatchError[]> {
       // when seeding a holder's first card_instance at acquisition.
       credential_type:         passport.credential_type,
       consumable_target_count: passport.consumable_target_count,
+      // moichido card-level punch mark (migration 086).
+      punch_type:              passport.punch_type,
+      punch_icon:              passport.punch_icon,
+      punch_asset_id:          passport.punch_asset_id,
       updated_at:             new Date().toISOString(),
     }, 'id', passport.id)
     if (passportErr) {

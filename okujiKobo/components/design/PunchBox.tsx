@@ -2,19 +2,31 @@
 
 import { useRef, useCallback } from 'react'
 import type { DesignerPunch } from '@/lib/design/types'
+import { StampPreview } from './StampPreview'
 
 // The moichido analogue of LocationBox: a placeable design-time punch slot.
 // Position + size + rotation + optional label only — NO location, GPS, or
 // verification machinery (a punch is a boolean increment). Drag / resize /
 // rotate mechanics mirror LocationBox so the two canvases feel identical.
+// The MARK rendered inside each slot is the card-level punch mark (passport
+// punch_type/punch_icon/punch_asset_id) — one mark per card.
 
 const ROT_HANDLE_OFFSET = 28
 const MIN_SIZE = 32
+const PUNCH_INK = '0F4C5C' // moichido teal, hex without # (StampPreview adds it)
+
+// The card-level punch mark, passed down from the canvas.
+export interface PunchMark {
+  type: 'emoji' | 'custom_asset'
+  icon: string
+  assetId: string | null
+}
 
 interface Props {
   punch: DesignerPunch
   index: number
   isSelected: boolean
+  mark: PunchMark
   /** Canvas scale factor (zoom). Converts screen px → artboard px. */
   scale?: number
   onSelect: () => void
@@ -27,7 +39,7 @@ interface Props {
   }) => void
 }
 
-export function PunchBox({ punch, index, isSelected, scale = 1, onSelect, onChange }: Props) {
+export function PunchBox({ punch, index, isSelected, mark, scale = 1, onSelect, onChange }: Props) {
   const x = punch.box_x ?? 40
   const y = punch.box_y ?? 40
   const w = punch.box_width ?? 80
@@ -116,21 +128,17 @@ export function PunchBox({ punch, index, isSelected, scale = 1, onSelect, onChan
         onPointerUp={handleDragEnd}
         onPointerCancel={handleDragEnd}
       >
-        {/* Punch mark — a dashed ring (the empty slot the holder fills),
-            with its 1-based order centered. Mirrors the moichido teal. */}
+        {/* The card-level punch mark fills the slot: a composed SVG
+            (custom_asset) re-inked to the moichido teal, or the emoji glyph.
+            A small ordinal sits in the corner as a designer aid. */}
         <div className="flex h-full flex-col items-center justify-center gap-1 pointer-events-none">
-          <div
-            className="flex items-center justify-center rounded-full"
-            style={{
-              width: ring * 0.7,
-              height: ring * 0.7,
-              border: `2px ${isSelected ? 'solid' : 'dashed'} #0F4C5C`,
-              color: '#0F4C5C',
-              fontSize: ring * 0.26,
-            }}
-          >
-            {index + 1}
-          </div>
+          {mark.type === 'custom_asset' && mark.assetId ? (
+            <StampPreview assetId={mark.assetId} color={PUNCH_INK} size={ring * 0.72} />
+          ) : (
+            <span style={{ fontSize: ring * 0.6, lineHeight: 1, color: `#${PUNCH_INK}` }}>
+              {mark.icon || '⭕'}
+            </span>
+          )}
           {punch.label && w >= 60 && (
             <span className="max-w-full truncate px-1 text-center text-[9px] font-medium" style={{ color: '#0F4C5C' }}>
               {punch.label}
