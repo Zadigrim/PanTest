@@ -1,10 +1,10 @@
 import { resolveCoverImage, type CoverResolverInput } from '@/lib/cover/resolve'
 
-// Front-cover panel ratio = 612:792 = ~0.7727:1 (portrait). The cover
-// SPREAD is 1248×792 (back panel 612 + spine 24 + front panel 612);
+// Front-cover panel ratio = 612:869 = ~0.7043:1 (portrait). The cover
+// SPREAD is 1252×869 (back panel 612 + spine 28 + front panel 612);
 // passport cards show only the FRONT PANEL — the rightmost 612 of the
-// spread, full 792 height. paddingBottom = 100% * 792/612 = 129.41%.
-const FRONT_PANEL_PADDING_BOTTOM = `${(792 / 612) * 100}%`
+// spread, full 869 height. paddingBottom = 100% * 869/612 = 141.99%.
+const FRONT_PANEL_PADDING_BOTTOM = `${(869 / 612) * 100}%`
 
 interface Props {
   title: string
@@ -41,19 +41,19 @@ function defaultThumbnailSvg(title: string): string {
   }
   if (current) lines.push(current.trim())
   const tl = lines.slice(0, 2)
-  // SVG sized to match the front-panel aspect (612:792). Render box
-  // 280×362 keeps the design proportions when scaled by the card.
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="280" height="362" viewBox="0 0 280 362">
-  <rect width="280" height="362" fill="#0D1B2A"/>
-  <circle cx="140" cy="160" r="180" fill="none" stroke="#1D9E75" stroke-width="0.6" opacity="0.12"/>
-  <circle cx="140" cy="160" r="140" fill="none" stroke="#1D9E75" stroke-width="0.6" opacity="0.12"/>
-  <circle cx="140" cy="160" r="100" fill="none" stroke="#1D9E75" stroke-width="0.6" opacity="0.12"/>
-  <circle cx="140" cy="160" r="60"  fill="none" stroke="#1D9E75" stroke-width="0.6" opacity="0.12"/>
-  <text x="140" y="70" text-anchor="middle" font-family="Arial" font-size="11" font-weight="bold" letter-spacing="6" fill="#1D9E75">OKUJI</text>
-  <text x="140" y="190" text-anchor="middle" font-family="Arial" font-size="20" font-weight="bold" letter-spacing="8" fill="white">PASSPORT</text>
-  ${tl[0] ? `<text x="140" y="218" text-anchor="middle" font-family="Arial" font-size="10" fill="rgba(255,255,255,0.75)">${tl[0]}</text>` : ''}
-  ${tl[1] ? `<text x="140" y="232" text-anchor="middle" font-family="Arial" font-size="10" fill="rgba(255,255,255,0.75)">${tl[1]}</text>` : ''}
-  <line x1="40" y1="320" x2="240" y2="320" stroke="#1D9E75" stroke-width="1" opacity="0.3"/>
+  // SVG sized to match the front-panel aspect (612:869). Render box
+  // 280×398 keeps the design proportions when scaled by the card.
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="280" height="398" viewBox="0 0 280 398">
+  <rect width="280" height="398" fill="#0D1B2A"/>
+  <circle cx="140" cy="176" r="180" fill="none" stroke="#1D9E75" stroke-width="0.6" opacity="0.12"/>
+  <circle cx="140" cy="176" r="140" fill="none" stroke="#1D9E75" stroke-width="0.6" opacity="0.12"/>
+  <circle cx="140" cy="176" r="100" fill="none" stroke="#1D9E75" stroke-width="0.6" opacity="0.12"/>
+  <circle cx="140" cy="176" r="60"  fill="none" stroke="#1D9E75" stroke-width="0.6" opacity="0.12"/>
+  <text x="140" y="77" text-anchor="middle" font-family="Arial" font-size="11" font-weight="bold" letter-spacing="6" fill="#1D9E75">OKUJI</text>
+  <text x="140" y="209" text-anchor="middle" font-family="Arial" font-size="20" font-weight="bold" letter-spacing="8" fill="white">PASSPORT</text>
+  ${tl[0] ? `<text x="140" y="240" text-anchor="middle" font-family="Arial" font-size="10" fill="rgba(255,255,255,0.75)">${tl[0]}</text>` : ''}
+  ${tl[1] ? `<text x="140" y="255" text-anchor="middle" font-family="Arial" font-size="10" fill="rgba(255,255,255,0.75)">${tl[1]}</text>` : ''}
+  <line x1="40" y1="352" x2="240" y2="352" stroke="#1D9E75" stroke-width="1" opacity="0.3"/>
 </svg>`
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
 }

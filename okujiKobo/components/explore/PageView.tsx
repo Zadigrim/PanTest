@@ -27,10 +27,10 @@ export interface ViewerPage {
   stops: ViewerStop[]
 }
 
-// 612×792 design-unit page. Render at intrinsic size; the viewer
-// applies CSS transform: scale to fit available width.
+// 612×869 design-unit page (US passport 88×125 mm). Render at intrinsic
+// size; the viewer applies CSS transform: scale to fit available width.
 const PAGE_W = 612
-const PAGE_H = 792
+const PAGE_H = 869
 
 interface Props {
   page:     ViewerPage | null

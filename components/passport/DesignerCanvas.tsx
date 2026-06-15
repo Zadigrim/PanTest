@@ -1,5 +1,5 @@
 // Renders all designer-placed elements and stop boxes at scaled absolute positions.
-// The artboard coordinate space is 612×792px; multiply by `scale` for screen pixels.
+// The artboard coordinate space is 612×869px; multiply by `scale` for screen pixels.
 //
 // Element rendering (text/image/line/hline/vline) is delegated to
 // PageElementRenderer so the same logic powers cover-spread rendering

@@ -69,7 +69,7 @@ export interface Passport {
   price_cents: number
   is_demo: boolean
   // Designer-built cover spreads (jsonb on passports). Each is a full
-  // 1248×792 spread = back-panel(612) + spine(24) + front-panel(612).
+  // 1252×869 spread = back-panel(612) + spine(28) + front-panel(612).
   // Mobile renders ONE 612-wide half per cover page; see
   // components/passport/CoverPanel.tsx.
   cover_outside_data: CoverSideData | null
@@ -80,7 +80,7 @@ export interface Passport {
 
 // Mirrors the designer's CoverSideData (okujiKobo/lib/design/types.ts).
 // One CoverSideData per spread side (outside / inside). Elements coords
-// are in the 1248×792 spread space.
+// are in the 1252×869 spread space.
 export interface CoverSideData {
   front_bg: string
   back_bg: string

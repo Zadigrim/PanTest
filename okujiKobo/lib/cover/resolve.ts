@@ -8,7 +8,7 @@
 //
 //   1. passport.cover_outside_data.image_url
 //      Image uploaded through the cover designer. The newest path.
-//      Usually a 1248×792 spread; sometimes a panel-only 612×792 image.
+//      Usually a 1252×869 spread; sometimes a panel-only 612×869 image.
 //
 //   2. passport.cover_image_url
 //      Legacy top-level field on the passports row. Set by older upload
@@ -20,8 +20,8 @@
 //      cover is saved in the designer. Useful as a fallback for
 //      text-only designs (no image_url), but is HORIZONTALLY SQUISHED
 //      for spread-aspect uploads due to a bug in compositeToDataUrl
-//      (the routine draws the source image at 612×792 on a panel-sized
-//      canvas, which compresses a 1248-wide spread by 50%). Treat this
+//      (the routine draws the source image at 612×869 on a panel-sized
+//      canvas, which compresses a 1252-wide spread by ~51%). Treat this
 //      source as opaque — no further cropping can recover the front
 //      panel cleanly. Used only when no other source is available.
 //
@@ -29,9 +29,9 @@
 //      this resolver).
 //
 // 'crop' indicates how the consumer should display the image:
-//   - 'right-panel': image is (or might be) a 1248×792 spread. Render
+//   - 'right-panel': image is (or might be) a 1252×869 spread. Render
 //     with object-cover + object-position:right to show the rightmost
-//     612×792 (front panel). For panel-aspect sources this is a no-op.
+//     612×869 (front panel). For panel-aspect sources this is a no-op.
 //   - 'fit': image is already pre-composited for the card; render with
 //     object-cover + object-position:center (no spread crop to apply).
 

@@ -263,8 +263,8 @@ export default async function ExplorePassportDetailPage({
   })
 
   // ── Cover composition for the viewer's front-cover page ──────────────────
-  // cover_outside_data carries the saved 1248×792 wrap (back | spine | front).
-  // The viewer extracts the front (rightmost 612×792) via overflow clipping.
+  // cover_outside_data carries the saved 1252×869 wrap (back | spine | front).
+  // The viewer extracts the front (rightmost 612×869) via overflow clipping.
   const coverDataRaw = passport.cover_outside_data as Record<string, unknown> | null
   const viewerCover: ViewerCover | null = coverDataRaw
     ? {

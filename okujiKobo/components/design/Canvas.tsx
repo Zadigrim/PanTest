@@ -18,7 +18,7 @@ import type { LinePageElement, DesignerPageElement } from '@/lib/design/types'
 import { isLineEl, isBoxEl } from '@/lib/design/types'
 
 const ARTBOARD_W = 612
-const ARTBOARD_H = 792
+const ARTBOARD_H = 869
 
 export function Canvas() {
   const activePage = usePassportStore(selectActivePage)

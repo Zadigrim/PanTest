@@ -17,11 +17,12 @@ const RULE_SPACING = 22
 
 export function usePageDimensions() {
   const { width: sw } = useWindowDimensions()
-  // Span the screen width; height follows the canonical 612:792 artboard
-  // ratio so the page is the exact shape kobo designs against. The frame
-  // centers this vertically, leaving bands above/below for nav controls.
+  // Span the screen width; height follows the canonical 612:869 artboard
+  // ratio (US passport 88×125 mm) so the page is the exact shape kobo
+  // designs against. The frame centers this vertically, leaving bands
+  // above/below for nav controls.
   const pageW = sw
-  const pageH = Math.round((sw * 792) / 612)
+  const pageH = Math.round((sw * 869) / 612)
   return { pageW, pageH }
 }
 
