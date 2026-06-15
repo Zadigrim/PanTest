@@ -478,6 +478,17 @@ function ActionsMenu({ passport, onDeleted, onUnpublished }: { passport: Designe
     }
   }
 
+  // Partner-ready PDF: one leaf per page at true trim size + 3 mm bleed.
+  async function handlePrintTrim() {
+    setBusy('print-trim')
+    try {
+      await downloadPrintPdf(passport.id, passport.title, false, 'trim')
+    } finally {
+      setBusy(null)
+      setOpen(false)
+    }
+  }
+
   // Download the printable QR-code sheet (the server route gates + provisions).
   async function handleQrSheet() {
     setBusy('qr')
@@ -592,6 +603,12 @@ function ActionsMenu({ passport, onDeleted, onUnpublished }: { passport: Designe
           className="absolute right-0 top-10 z-20 w-52 overflow-hidden rounded-[8px] border-[1.5px] border-ink bg-white py-1 shadow-md"
         >
           <MenuItem label={busy === 'print' ? 'Generating…' : 'Print to PDF'} onClick={handlePrint} disabled={busy !== null} />
+          <MenuItem
+            label={busy === 'print-trim' ? 'Generating…' : 'Print-ready PDF'}
+            hint="trim + bleed"
+            onClick={handlePrintTrim}
+            disabled={busy !== null}
+          />
           <MenuItem
             label={busy === 'qr' ? 'Generating…' : 'Print QR codes'}
             hint={qrCount === 0 ? 'no QR stops' : qrCount === null ? 'checking…' : undefined}
