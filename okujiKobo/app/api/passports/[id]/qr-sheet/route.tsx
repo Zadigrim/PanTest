@@ -24,14 +24,14 @@ import {
 import QRCode from 'qrcode'
 import { createClient } from '@/lib/supabase/server'
 import { generateQrPayload } from '@/lib/qr-payload'
+import { stopRequiresQr } from '@/lib/design/stop-qr'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-// Mirror of the mobile stopRequiresQr predicate (app/passport/[id].tsx):
-// canonical experience_verification_method === 'qr', with verification_tier /
-// legacy evidence_tier IN (1,2) as the pre-046 fallback. GPS-only (tier 3) and
-// honor (tier 5) are excluded.
+// Qualifying stops use the shared stopRequiresQr predicate (lib/design/stop-qr),
+// which mirrors the mobile app's rule. StopRow carries the fields it reads plus
+// the id/name/token we render.
 interface StopRow {
   id: string
   name: string | null
@@ -39,13 +39,6 @@ interface StopRow {
   experience_verification_method: string | null
   verification_tier: number | null
   evidence_tier: number | null
-}
-function stopRequiresQr(s: StopRow): boolean {
-  if (s.experience_verification_method != null) {
-    return s.experience_verification_method === 'qr'
-  }
-  const tier = s.verification_tier ?? s.evidence_tier ?? 5
-  return tier === 1 || tier === 2
 }
 
 const styles = StyleSheet.create({

@@ -17,6 +17,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { downloadPrintPdf } from '@/lib/print/download'
+import { stopRequiresQr } from '@/lib/design/stop-qr'
 import { PassportCoverThumbnail } from './PassportCoverThumbnail'
 import { passportTypeIconFromClassifiers } from '@/lib/design/passport-type-icon'
 import { spendTierLabel } from '@/lib/design/spend-tiers'
@@ -431,6 +432,10 @@ function ActionsMenu({ passport, onDeleted, onUnpublished }: { passport: Designe
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  // QR-verified stop count for this passport — lazily fetched when the menu
+  // opens, so "Print QR codes" can disable itself when there's nothing to
+  // print. null = not yet checked.
+  const [qrCount, setQrCount] = useState<number | null>(null)
   const ref = useRef<HTMLDivElement>(null)
   const isPublished = passport.is_published === true || passport.status === 'published'
 
@@ -443,6 +448,26 @@ function ActionsMenu({ passport, onDeleted, onUnpublished }: { passport: Designe
     return () => document.removeEventListener('mousedown', onDoc)
   }, [open])
 
+  // Count QR-verified stops once per menu-open (shared predicate with the route).
+  useEffect(() => {
+    if (!open || qrCount !== null) return
+    let cancelled = false
+    void (async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const db = createClient() as any
+      const { data: pages } = await db.from('passport_pages').select('id').eq('passport_id', passport.id)
+      const pageIds = (pages ?? []).map((p: { id: string }) => p.id)
+      if (pageIds.length === 0) { if (!cancelled) setQrCount(0); return }
+      const { data: stops } = await db
+        .from('stops')
+        .select('experience_verification_method, verification_tier, evidence_tier')
+        .in('page_id', pageIds)
+      const n = (stops ?? []).filter(stopRequiresQr).length
+      if (!cancelled) setQrCount(n)
+    })()
+    return () => { cancelled = true }
+  }, [open, qrCount, passport.id])
+
   async function handlePrint() {
     setBusy('print')
     try {
@@ -450,6 +475,32 @@ function ActionsMenu({ passport, onDeleted, onUnpublished }: { passport: Designe
     } finally {
       setBusy(null)
       setOpen(false)
+    }
+  }
+
+  // Download the printable QR-code sheet (the server route gates + provisions).
+  async function handleQrSheet() {
+    setBusy('qr')
+    setError(null)
+    try {
+      const res = await fetch(`/api/passports/${passport.id}/qr-sheet`)
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}))
+        setError(j.error ?? 'Could not generate QR codes')
+        return
+      }
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${passport.title.replace(/[^a-z0-9]+/gi, '-').toLowerCase() || 'passport'}-qr-codes.pdf`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(url)
+      setOpen(false)
+    } finally {
+      setBusy(null)
     }
   }
 
@@ -540,7 +591,13 @@ function ActionsMenu({ passport, onDeleted, onUnpublished }: { passport: Designe
           role="menu"
           className="absolute right-0 top-10 z-20 w-52 overflow-hidden rounded-[8px] border-[1.5px] border-ink bg-white py-1 shadow-md"
         >
-          <MenuItem label={busy === 'print' ? 'Generating…' : 'Print posters'} onClick={handlePrint} disabled={busy !== null} />
+          <MenuItem label={busy === 'print' ? 'Generating…' : 'Print to PDF'} onClick={handlePrint} disabled={busy !== null} />
+          <MenuItem
+            label={busy === 'qr' ? 'Generating…' : 'Print QR codes'}
+            hint={qrCount === 0 ? 'no QR stops' : qrCount === null ? 'checking…' : undefined}
+            onClick={handleQrSheet}
+            disabled={busy !== null || qrCount === null || qrCount === 0}
+          />
           <Link
             href={`/explore/${passport.id}`}
             onClick={(e) => { e.stopPropagation(); setOpen(false) }}
