@@ -3,7 +3,7 @@
 // stamp-page artboard) and CoverPanel (for the cover-spread artboard).
 //
 // Element coordinates are in the artboard's logical pixel space (612 wide
-// for stamp pages, 1248 wide for cover spreads); the caller multiplies by
+// for stamp pages, 1252 wide for cover spreads); the caller multiplies by
 // `scale` for screen pixels.
 import React from 'react'
 import { View, Text, Image } from 'react-native'

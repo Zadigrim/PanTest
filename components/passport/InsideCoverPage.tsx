@@ -32,7 +32,7 @@ const INK = palette.ink
 const GOLD = palette.accent
 
 export function InsideCoverPage({ passport, collectorPassport, bearerName }: Props) {
-  // Canonical 612:792 page space — same hook the regular pages, outer
+  // Canonical 612:869 page space — same hook the regular pages, outer
   // cover, ToC, and exit-visa use. The earlier sw*0.82 / sh*0.96 sizing
   // gave the inside cover a device-dependent aspect (white bars + distorted
   // CoverPanel art); this makes it conform like every other surface.

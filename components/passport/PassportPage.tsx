@@ -36,16 +36,16 @@ export function PassportPage({
   onPressStart,
   onPressCancel,
 }: Props) {
-  // Single canonical transform: the 612×792 artboard maps to the screen by
+  // Single canonical transform: the 612×869 artboard maps to the screen by
   // ONE scale from a top-left origin. The content box is exactly
-  // width × (792·scale) — every layer (paper, patterns, background image,
+  // width × (869·scale) — every layer (paper, patterns, background image,
   // elements, LocationBoxes, stamps) lives inside it, so they scale and
   // align together at any size. Previously the box used the frame's height
   // (wrong aspect), so the `contain` background letterboxed vertically while
   // elements anchored top — that gap was the stops-vs-background drift.
   // The `height` prop (frame's pageH) is intentionally not used for the box.
   const scale = width / ARTBOARD_W
-  const artboardH = 792 * scale
+  const artboardH = 869 * scale
   void height
 
   // Background resolution — aligned with okujiKobo's PageBackground.tsx so

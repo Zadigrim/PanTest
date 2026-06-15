@@ -4,13 +4,13 @@
 // panels.
 //
 // Cover spread coordinate space (matching okujiKobo's designer):
-//   total width = 1248
+//   total width = 1252
 //   back panel: x = 0..612
-//   spine:      x = 612..636 (24 wide)
-//   front panel: x = 636..1248
-//   height = 792
+//   spine:      x = 612..640 (28 wide, ≈4 mm)
+//   front panel: x = 640..1252
+//   height = 869
 //
-// A mobile page is the artboard's 612×792, so each cover page shows ONE
+// A mobile page is the artboard's 612×869, so each cover page shows ONE
 // of the two 612-wide panels at the page's full size. The spread is
 // translated inside an overflow-hidden viewport so the chosen panel sits
 // where the page begins — no scaling distortion. Elements outside the
@@ -20,15 +20,15 @@ import { View, Image, StyleSheet } from 'react-native'
 import { renderPageElement } from './PageElementRenderer'
 import type { CoverSideData } from '../../types'
 
-const COVER_SPREAD_W = 1248
-const COVER_SPREAD_H = 792
+const COVER_SPREAD_W = 1252
+const COVER_SPREAD_H = 869
 const PANEL_W = 612
 
 type Half = 'front' | 'back'
 
 interface Props {
   data: CoverSideData
-  // Which half of the spread to show. 'front' = right panel (x=636..1248);
+  // Which half of the spread to show. 'front' = right panel (x=640..1252);
   // 'back' = left panel (x=0..612). The book's CLOSED state shows the
   // outside-front; the FIRST inside page shows the inside-front (which is
   // the LEFT panel of the inside spread, because the inside-front-cover is
@@ -49,11 +49,11 @@ export function CoverPanel({ data, half, pageWidth, pageHeight }: Props) {
 
   // The panel that's shown determines BOTH the background color AND the
   // x-translation applied to the spread inside the clipping viewport.
-  // front panel (x=636..1248): bg=front_bg, translate by -636
+  // front panel (x=640..1252): bg=front_bg, translate by -640
   // back  panel (x=0..612):    bg=back_bg,  translate by 0
   const isFront = half === 'front'
   const panelBg = `#${(isFront ? data.front_bg : data.back_bg) || 'F5F2EC'}`
-  const panelOffsetXSpread = isFront ? PANEL_W + 24 : 0 // = 636 for front, 0 for back
+  const panelOffsetXSpread = isFront ? PANEL_W + 28 : 0 // = 640 for front, 0 for back
 
   return (
     <View
@@ -97,7 +97,7 @@ export function CoverPanel({ data, half, pageWidth, pageHeight }: Props) {
         )}
 
         {/* Designer-placed elements (text/image/lines). Coords are in
-            the 1248×792 spread space; renderPageElement scales them. */}
+            the 1252×869 spread space; renderPageElement scales them. */}
         {(data.elements ?? []).map((el) => renderPageElement(el, scale))}
       </View>
     </View>

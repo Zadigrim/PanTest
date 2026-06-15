@@ -47,7 +47,7 @@ export function TableOfContents({
   pageScreenIndex,
   onNavigate,
 }: Props) {
-  // Canonical 612:792 page dimensions — conform to the frame like PassportPage.
+  // Canonical 612:869 page dimensions — conform to the frame like PassportPage.
   const { pageW, pageH } = usePageDimensions()
 
   const allComplete = pages.every(

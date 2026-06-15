@@ -12,7 +12,7 @@ import { assetDisplayTitle, prettifyFilename } from '@/lib/assets/friendly-name'
  *
  * Layout (right-side, ~400px, white panel, 2px ink left border):
  *   - Preview centered on a rail-bg mat at the asset's TRUE ratio
- *     (cover assets show the full 1248×792 spread, never a cropped
+ *     (cover assets show the full 1252×869 spread, never a cropped
  *     front)
  *   - Title (renamable inline) + mono meta line (filename ·
  *     dimensions · format · size), degraded gracefully for legacy

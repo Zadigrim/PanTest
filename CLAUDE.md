@@ -106,10 +106,15 @@ They are not preferences; they are the substrate.
     The `stock-*` family is **cover-paper-only**, never UI.
   - Mobile: `constants/Colors.ts` — separate by convention,
     deliberately not extracted; see the transition doc.
-- **Artboard dimensions are fixed** (see
-  `okujiKobo/lib/assets/kinds.ts:5-9`): covers 1248×792 full
-  wraparound, page backgrounds 612×792 portrait, stamps 1:1,
-  page images native ratio with object-contain.
+- **Artboard dimensions follow the US/ISO passport spec**
+  (ISO/IEC 7810 ID-3; see `okujiKobo/lib/print/passport-spec.ts`
+  for the physical trim + bleed and `okujiKobo/lib/explore/svg/
+  PageSvg.tsx` for the design-unit source): page 612×869 (88×125 mm
+  portrait), covers 1252×869 full wraparound (back 612 · spine 28
+  ≈4 mm · front 612 ≈180 mm), stamps 1:1, page images native ratio
+  with object-contain. Changing the canonical proportions touches
+  all three renderers (kobo canvas, mobile, print) plus a cover-
+  element migration — don't do it casually.
 - **No emoji in chrome.** Use Lucide / okuji icons. Emoji is fine
   inside collector-supplied data (stamp icons, journal entries).
 - **No gradients.** Flat color, hairline borders, the subtle

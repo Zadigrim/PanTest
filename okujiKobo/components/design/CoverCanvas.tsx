@@ -6,14 +6,15 @@ import { PageElementBox } from './PageElementBox'
 import type { CoverSideData, DesignerPageElement } from '@/lib/design/types'
 
 // ── Dimensions ────────────────────────────────────────────────────────────────
-// Cover canvas dimensions — matched to the inside-page artboard (612 × 792).
+// Cover canvas dimensions — matched to the inside-page artboard (612 × 869).
 // Each cover panel is exactly the same size as an inside page. The two
-// panels are separated by a 24px spine gutter that represents the physical
-// fold; the gutter is a real gap in the canvas, not just a visual line.
+// panels are separated by a 28px spine gutter (≈4 mm) that represents the
+// physical fold; the gutter is a real gap in the canvas, not just a visual
+// line. 612 + 28 + 612 = 1252 ≈ 180 mm wrap, the real US-passport cover.
 export const COVER_W  = 612                          // px per panel — matches inside-page
-export const COVER_H  = 792                          // px per panel — matches inside-page
-export const SPINE_W  = 24                           // px gutter between back and front panels
-export const CANVAS_W = COVER_W * 2 + SPINE_W        // 1248 px — full unfolded spread
+export const COVER_H  = 869                          // px per panel — matches inside-page
+export const SPINE_W  = 28                           // px gutter (≈4 mm) between back and front panels
+export const CANVAS_W = COVER_W * 2 + SPINE_W        // 1252 px — full unfolded spread (≈180 mm)
 
 export type CoverFace  = 'outside' | 'inside'
 export type CoverPanel = 'front' | 'back'

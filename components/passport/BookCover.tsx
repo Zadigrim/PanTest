@@ -1,6 +1,6 @@
 // Passport book cover. Two render paths:
 //
-//   - Designed cover (preferred): renders the FRONT panel (x=636..1248) of
+//   - Designed cover (preferred): renders the FRONT panel (x=640..1252) of
 //     passport.cover_outside_data via CoverPanel. This is the designer's
 //     actual cover artwork as built in okujiKobo. Mobile shows one
 //     612-wide page; CoverPanel does the spread→panel clipping.
@@ -32,13 +32,13 @@ const CREAM = palette.paper
 const GOLD = palette.accent
 
 export function BookCover({ passport, onOpen }: Props) {
-  // Canonical 612:792 page dimensions (full-width), same as PassportPage —
+  // Canonical 612:869 page dimensions (full-width), same as PassportPage —
   // not sw*0.82/sh*0.96, which produced the white bar + wrong aspect + the
   // navy cover_bg showing through.
   const { pageW, pageH } = usePageDimensions()
 
   // Designed cover path: CoverPanel renders the front face (right half
-  // of the 1248-wide outside spread) at page size.
+  // of the 1252-wide outside spread) at page size.
   if (passport.cover_outside_data) {
     return (
       <TouchableOpacity

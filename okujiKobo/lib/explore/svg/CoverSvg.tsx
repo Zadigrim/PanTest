@@ -1,8 +1,8 @@
 // Front-cover SVG for the publish-time page-image render.
-// The saved cover is a 1248×792 wrap (back | spine | front). The viewer
-// shows the rightmost 612×792, so we render the full wrap into a 1248-
+// The saved cover is a 1252×869 wrap (back | spine | front). The viewer
+// shows the rightmost 612×869, so we render the full wrap into a 1252-
 // wide viewBox and clip the left back-panel half via a 612-wide viewport
-// translated -636. Image position / scale / opacity are applied exactly
+// translated -640. Image position / scale / opacity are applied exactly
 // the way the designer's CoverCanvas does so the front-panel result
 // matches what the creator placed.
 //
@@ -12,9 +12,9 @@
 import type { DesignerPageElement } from '@/lib/design/types'
 import { PAGE_W as PANEL_W, PAGE_H as COVER_H } from './PageSvg'
 
-const SPINE_W  = 24
-const CANVAS_W = PANEL_W * 2 + SPINE_W // 1248
-const FRONT_X  = PANEL_W + SPINE_W      // 636
+const SPINE_W  = 28
+const CANVAS_W = PANEL_W * 2 + SPINE_W // 1252
+const FRONT_X  = PANEL_W + SPINE_W      // 640
 
 export interface CoverSvgInput {
   front_bg: string | null
@@ -71,7 +71,7 @@ export function CoverSvg({ cover }: { cover: CoverSvgInput }) {
     )
   }
 
-  // Image positioning math, in the full 1248×792 wrap coordinate space,
+  // Image positioning math, in the full 1252×869 wrap coordinate space,
   // mirrors CoverCanvas's <img> with objectPosition + transform: scale.
   // We render the image larger than the panel and offset it so the
   // creator's chosen anchor point lands in the right spot.

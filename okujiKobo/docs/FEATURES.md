@@ -23,10 +23,11 @@ physical-feeling passport collectors will stamp.
 - **Drag-and-place canvas** (`components/design/Canvas.tsx`) for positioning
   stamp slots and (moichido) punch slots, with absolute coordinates persisted
   per element.
-- **Fixed artboards** (`lib/assets/kinds.ts`): covers 1248×792 full
-  wraparound, page backgrounds 612×792 portrait, stamps 1:1, page images
-  native ratio with object-contain. Dimensions are not user-adjustable by
-  design.
+- **Passport-spec artboards** (`lib/print/passport-spec.ts`,
+  `lib/assets/kinds.ts`): the US/ISO passport size (ISO/IEC 7810 ID-3) —
+  page 612×869 (88×125 mm portrait), covers 1252×869 full wraparound
+  (back · spine ≈4 mm · front ≈180 mm), stamps 1:1, page images native
+  ratio with object-contain. Dimensions are not user-adjustable by design.
 - **Right inspector** (`components/design/RightInspector.tsx`) for editing the
   selected element / stop — name, type, verification, location.
 

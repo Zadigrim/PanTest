@@ -12,7 +12,7 @@ import { createContext } from 'react'
 
 export interface PunchGrid {
   enabled: boolean
-  /** Grid cell size in artboard units (the 612×792 space). */
+  /** Grid cell size in artboard units (the 612×869 space). */
   size: number
 }
 

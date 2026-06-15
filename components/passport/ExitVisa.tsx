@@ -23,7 +23,7 @@ const GREEN = '#2E7D4D'
 const RED = palette.red
 
 export function ExitVisa({ passport, page, stops, stamps, chapterNumber }: Props) {
-  // Canonical 612:792 page dimensions — conform to the frame like PassportPage.
+  // Canonical 612:869 page dimensions — conform to the frame like PassportPage.
   const { pageW, pageH } = usePageDimensions()
 
   const stampedCount = stops.filter((s) => stamps[s.id]).length

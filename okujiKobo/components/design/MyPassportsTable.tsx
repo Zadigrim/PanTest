@@ -5,7 +5,7 @@
 // Built for managing many passports at a glance: one row per passport,
 // row click opens the editor, ⋯ menu exposes secondary actions
 // (Duplicate / Print / Preview / Archive). The cover still renders as
-// a small 612×792 thumbnail on the left edge so a creator can scan by
+// a small 612×869 thumbnail on the left edge so a creator can scan by
 // art instead of reading every title.
 //
 // All filtering / sorting / searching happens client-side over the

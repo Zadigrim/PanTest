@@ -21,7 +21,10 @@ import type {
 // Same design-unit dimensions the designer Canvas uses, so coordinates
 // from box_x / x / font sizes / etc. map 1:1.
 export const PAGE_W = 612
-export const PAGE_H = 792
+// US/ISO passport page (ISO/IEC 7810 ID-3): 88×125 mm portrait. We anchor
+// width at 612 design units (= 88 mm) and derive height = round(612×125/88)
+// = 869, so the artboard ratio (0.7043) matches the real spec to 0.04%.
+export const PAGE_H = 869
 
 export interface PageSvgInput {
   id: string

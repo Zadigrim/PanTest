@@ -86,11 +86,11 @@ async function compositeToDataUrl(side: CoverSideData): Promise<string> {
 
   // Layer 2: cover image (if any).
   //
-  // When the uploaded image is a full cover SPREAD (1248×792 aspect, or
+  // When the uploaded image is a full cover SPREAD (1252×869 aspect, or
   // any landscape ratio meaningfully wider than 1:1), we draw only its
   // FRONT-PANEL half (the right half of the source). The thumbnail
-  // canvas is panel-sized (612×792 logical); drawing a 1248-wide source
-  // at size (612, 792) without cropping would horizontally compress it
+  // canvas is panel-sized (612×869 logical); drawing a 1252-wide source
+  // at size (612, 869) without cropping would horizontally compress it
   // by 50% and the resulting thumbnail would show the WHOLE spread
   // squished into the panel area.
   //

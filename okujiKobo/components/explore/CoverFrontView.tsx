@@ -6,10 +6,10 @@ import { ReadOnlyElement } from './ReadOnlyElements'
 // Cover canvas geometry — must match CoverCanvas.tsx so the
 // coordinates the designer wrote land in the right places here.
 const COVER_W  = 612
-const COVER_H  = 792
-const SPINE_W  = 24
-const CANVAS_W = COVER_W * 2 + SPINE_W   // 1248
-const FRONT_X  = COVER_W + SPINE_W       // 636 — left edge of the front panel within the canvas
+const COVER_H  = 869
+const SPINE_W  = 28
+const CANVAS_W = COVER_W * 2 + SPINE_W   // 1252
+const FRONT_X  = COVER_W + SPINE_W       // 640 — left edge of the front panel within the canvas
 
 export interface ViewerCover {
   front_bg: string | null
@@ -35,7 +35,7 @@ interface Props {
 
 /** Renders the FRONT panel of the saved cover. Prefers the
  *  pre-rendered image stored at publish; falls back to the same
- *  composition CoverCanvas uses in the designer (full 1248×792 inner
+ *  composition CoverCanvas uses in the designer (full 1252×869 inner
  *  canvas inside a 612-wide clipping viewport pinned to the right). */
 export function CoverFrontView({ cover, fallbackBg, emblem, title, imageUrl }: Props) {
   if (imageUrl) {
@@ -73,10 +73,10 @@ export function CoverFrontView({ cover, fallbackBg, emblem, title, imageUrl }: P
       className="relative overflow-hidden shadow-lg"
       style={{ width: COVER_W, height: COVER_H, backgroundColor: `#${front_bg}` }}
     >
-      {/* Full-canvas (1248×792) inner stage, pinned to the right of the
+      {/* Full-canvas (1252×869) inner stage, pinned to the right of the
           612-wide viewport so the front panel aligns with x=0..612 of
           what's visible. Back-panel content (x in [0, 612]) gets
-          clipped; spine + front panel (x in [612, 1248]) is shown. */}
+          clipped; spine + front panel (x in [612, 1252]) is shown. */}
       <div
         className="absolute top-0 right-0"
         style={{ width: CANVAS_W, height: COVER_H }}
@@ -94,7 +94,7 @@ export function CoverFrontView({ cover, fallbackBg, emblem, title, imageUrl }: P
           style={{ left: FRONT_X, width: COVER_W, backgroundColor: `#${front_bg}` }}
         />
 
-        {/* Full-bleed image positioned across the whole 1248×792, same
+        {/* Full-bleed image positioned across the whole 1252×869, same
             as the designer's preview. The objectPosition + transform
             put the image where the creator placed it. */}
         {cover.image_url && (
@@ -114,7 +114,7 @@ export function CoverFrontView({ cover, fallbackBg, emblem, title, imageUrl }: P
         )}
 
         {/* Freely-placed elements — text blocks, lines. Coordinates
-            are in the full 1248×792 space so back-panel ones fall off
+            are in the full 1252×869 space so back-panel ones fall off
             the visible viewport, which is correct. */}
         {(cover.elements ?? []).map((el) => (
           <ReadOnlyElement key={el.id} element={el} />

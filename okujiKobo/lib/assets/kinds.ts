@@ -2,8 +2,8 @@
  * Per-asset-kind rendering rules — ratio, label, friendly kind.
  *
  * Every asset thumbnail / drawer preview renders at the asset's
- * TRUE pixel ratio — covers are 1248×792 (full wraparound spread,
- * never a cropped front), page backgrounds 612×792 portrait,
+ * TRUE pixel ratio — covers are 1252×869 (full wraparound spread,
+ * never a cropped front), page backgrounds 612×869 portrait,
  * stamps 1:1, page images at native ratio (object-contain — never
  * crop to a fixed box).
  */
@@ -32,7 +32,7 @@ export const DB_TO_SLUG: Record<AssetTypeDb, AssetTypeSlug> = {
 export interface AssetKindRules {
   /** CSS aspect-ratio value, or null = native (object-contain). */
   aspectRatio: string | null
-  /** Short label shown in the drawer meta line ("1248×792 · spread"). */
+  /** Short label shown in the drawer meta line ("1252×869 · spread"). */
   ratioLabel: string
   /** Human label for the kind chip ("Cover · full spread", etc.). */
   kindLabel: string
@@ -45,16 +45,16 @@ export interface AssetKindRules {
 
 export const KIND_RULES: Record<AssetTypeDb, AssetKindRules> = {
   cover: {
-    aspectRatio: '1248 / 792',
-    ratioLabel:  '1248×792 · spread',
+    aspectRatio: '1252 / 869',
+    ratioLabel:  '1252×869 · spread',
     kindLabel:   'Cover · full spread',
     sectionLabel: 'Covers',
     emptyHeading: 'No custom covers yet.',
     emptyBody:    'Covers wrap the booklet — back · spine · front, all one image.',
   },
   background: {
-    aspectRatio: '612 / 792',
-    ratioLabel:  '612×792 · 3:4',
+    aspectRatio: '612 / 869',
+    ratioLabel:  '612×869 · passport',
     kindLabel:   'Page background',
     sectionLabel: 'Backgrounds',
     emptyHeading: 'No custom backgrounds yet.',

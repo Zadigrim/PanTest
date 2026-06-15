@@ -31,12 +31,20 @@ async function loadMarketingMark(): Promise<string | null> {
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
+// This route emits the HOME-PRINTER booklet (cut / stack / fold / staple
+// onto US-Letter sheets). The artboard/cover design units below are the
+// canonical passport proportions (page 612×869, cover wrap 1252×869, spine
+// 28 ≈ 4 mm — US/ISO passport spec). The PHYSICAL trim + bleed target for a
+// print-partner export lives in lib/print/passport-spec.ts (88×125 mm page,
+// 180×125 mm cover, 3 mm bleed); the partner single-leaf export consumes
+// that and is a separate output mode from this booklet.
+//
 // Resample cap for stamp preview images. Stamps render under an inch in
 // the box; a PNG is fully decoded (+ SMask) by pdfkit at render, so this
 // bound keeps a passport full of stamps from exhausting function memory.
 const STAMP_MAX_DIMENSION = 384
-const ARTBOARD_W = 612, ARTBOARD_H = 792
-const COVER_DESIGN_W = 1248, COVER_DESIGN_H = 792, COVER_PANEL_W = 612, COVER_SPINE_W = 24
+const ARTBOARD_W = 612, ARTBOARD_H = 869
+const COVER_DESIGN_W = 1252, COVER_DESIGN_H = 869, COVER_PANEL_W = 612, COVER_SPINE_W = 28
 const SHEET_W = 612, SHEET_H = 792
 // Strips: horizontal cut at CUT_Y splits sheet into upper/lower strips.
 // Each strip has a vertical fold at VERT_FOLD_X giving LEFT/RIGHT reader pages.
@@ -52,13 +60,17 @@ const CANVAS_H = CANVAS_AREA_H, CANVAS_W = FIT_BY_HEIGHT_W
 const CANVAS_SCALE = CANVAS_H / ARTBOARD_H
 const CANVAS_OFFSET_X = (PAGE_SLOT_W - 2 * PAD - CANVAS_W) / 2
 
-// Cover composition area: full sheet width, centered vertically in strip
-const COVER_RENDER_W = SHEET_W
-const COVER_RENDER_H = (SHEET_W * COVER_DESIGN_H) / COVER_DESIGN_W   // ≈ 388.4
-const COVER_Y_OFFSET = (STRIP_H - COVER_RENDER_H) / 2
-const COVER_SCALE = COVER_RENDER_W / COVER_DESIGN_W                  // = 612/1248
-const COVER_PANEL_W_PT = COVER_PANEL_W * COVER_SCALE                 // ≈ 300.2
-const COVER_SPINE_W_PT = COVER_SPINE_W * COVER_SCALE                 // ≈ 11.77
+// Cover composition area. The passport wrap (1252×869, ratio ≈1.44) is
+// taller than the strip allows at full sheet width, so we fit it by
+// HEIGHT within the strip and center it horizontally — which keeps the
+// spine on the sheet's vertical fold (SHEET_W/2) for the booklet fold.
+const COVER_RENDER_H = STRIP_H - 2 * PAD                                  // ≈ 368
+const COVER_RENDER_W = (COVER_RENDER_H * COVER_DESIGN_W) / COVER_DESIGN_H // ≈ 530
+const COVER_X_OFFSET = (SHEET_W - COVER_RENDER_W) / 2                     // centers spine on the fold
+const COVER_Y_OFFSET = (STRIP_H - COVER_RENDER_H) / 2                     // = PAD
+const COVER_SCALE = COVER_RENDER_W / COVER_DESIGN_W
+const COVER_PANEL_W_PT = COVER_PANEL_W * COVER_SCALE
+const COVER_SPINE_W_PT = COVER_SPINE_W * COVER_SCALE
 
 const S = StyleSheet.create({
   sheet: { width: SHEET_W, height: SHEET_H, backgroundColor: '#FFFFFF', position: 'relative' },
@@ -410,7 +422,7 @@ function CertSlotContent({ title, institutionName }: { title: string; institutio
 function CoverCompositionContent({ side, fallbackTitle, paperColor }: { side: CoverSideData | null; fallbackTitle: string; paperColor: string }) {
   if (!side) {
     return (
-      <View style={{ position: 'absolute', left: 0, top: COVER_Y_OFFSET, width: COVER_RENDER_W, height: COVER_RENDER_H, backgroundColor: paperColor, alignItems: 'center', justifyContent: 'center' }}>
+      <View style={{ position: 'absolute', left: COVER_X_OFFSET, top: COVER_Y_OFFSET, width: COVER_RENDER_W, height: COVER_RENDER_H, backgroundColor: paperColor, alignItems: 'center', justifyContent: 'center' }}>
         {fallbackTitle ? <Text style={{ fontSize: 18, fontFamily: 'Helvetica-Bold', color: '#1A1A1A', textAlign: 'center', paddingHorizontal: 24 }}>{fallbackTitle}</Text> : null}
       </View>
     )
@@ -423,7 +435,7 @@ function CoverCompositionContent({ side, fallbackTitle, paperColor }: { side: Co
   const imgLeft = (COVER_RENDER_W - imgW) * px
   const imgTop = (COVER_RENDER_H - imgH) * py
   return (
-    <View style={{ position: 'absolute', left: 0, top: COVER_Y_OFFSET, width: COVER_RENDER_W, height: COVER_RENDER_H, overflow: 'hidden' }}>
+    <View style={{ position: 'absolute', left: COVER_X_OFFSET, top: COVER_Y_OFFSET, width: COVER_RENDER_W, height: COVER_RENDER_H, overflow: 'hidden' }}>
       {/* Back panel (left in print space) */}
       <View style={{ position: 'absolute', left: 0, top: 0, width: COVER_PANEL_W_PT, height: COVER_RENDER_H, backgroundColor: `#${side.back_bg ?? '0D1B2A'}` }} />
       {/* Front panel (right) */}

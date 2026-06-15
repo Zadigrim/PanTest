@@ -59,11 +59,11 @@ export function PassportViewer({
     return () => window.removeEventListener('keydown', onKey)
   }, [goPrev, goNext])
 
-  // Scale the intrinsic 1236×792 stage to fit the container width so the
+  // Scale the intrinsic 1236×869 stage to fit the container width so the
   // viewer reads as a book spread on any screen. We measure the parent's
   // width and apply CSS transform: scale rather than re-laying-out the
   // pages, so the page coordinates (box_x, font sizes, etc.) stay in the
-  // design's 612×792 unit system.
+  // design's 612×869 unit system.
   const wrapRef = useRef<HTMLDivElement | null>(null)
   const [scale, setScale] = useState(1)
   useEffect(() => {
