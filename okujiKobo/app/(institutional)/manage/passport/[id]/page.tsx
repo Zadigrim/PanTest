@@ -333,6 +333,34 @@ export default function PassportAnalyticsPage() {
   const [isPublished, setIsPublished] = useState<boolean | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [qrBusy, setQrBusy] = useState(false)
+
+  // Download a printable PDF of QR codes for this passport's QR-verified stops.
+  // The route gates to the creator and provisions any missing tokens.
+  const downloadQrSheet = useCallback(async () => {
+    setQrBusy(true)
+    try {
+      const res = await fetch(`/api/passports/${passportId}/qr-sheet`)
+      if (!res.ok) {
+        const json = (await res.json().catch(() => ({}))) as { error?: string }
+        window.alert(json.error ?? 'Could not generate the QR code sheet.')
+        return
+      }
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${(passportTitle || 'passport').replace(/[^a-z0-9]+/gi, '-').toLowerCase()}-qr-codes.pdf`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(url)
+    } catch {
+      window.alert('Could not generate the QR code sheet.')
+    } finally {
+      setQrBusy(false)
+    }
+  }, [passportId, passportTitle])
 
   // Fetch analytics + token log
   const loadData = useCallback(async () => {
@@ -466,13 +494,24 @@ export default function PassportAnalyticsPage() {
           <h1 className="text-2xl font-bold text-navy">{passportTitle}</h1>
           <p className="text-sm text-muted mt-1">Analytics · Last 30 days</p>
         </div>
-        {isPublished !== null && (
-          <PublishToggle
-            passportId={passportId}
-            isPublished={isPublished}
-            onChanged={setIsPublished}
-          />
-        )}
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => void downloadQrSheet()}
+            disabled={qrBusy}
+            title="Download a printable PDF of QR codes for this passport's QR-verified stops"
+            className="h-9 rounded-card border border-hairline bg-white px-3 text-sm font-medium text-navy hover:bg-paper disabled:opacity-50"
+          >
+            {qrBusy ? 'Generating…' : 'Generate QR code sheet'}
+          </button>
+          {isPublished !== null && (
+            <PublishToggle
+              passportId={passportId}
+              isPublished={isPublished}
+              onChanged={setIsPublished}
+            />
+          )}
+        </div>
       </div>
 
       {/* ── 1. Stop engagement table ─────────────────────────────────────── */}
