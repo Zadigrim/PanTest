@@ -11,6 +11,8 @@ import { retryFailed, saveAll } from '@/lib/design/persist'
 import { useWorkspaceKeyboard } from '@/hooks/useWorkspaceKeyboard'
 import { Wordmark } from '@/components/moichido/Wordmark'
 import { RingMark } from '@/components/moichido/marks/RingMark'
+import { usePersistentBool, usePersistentNumber } from '@/components/design/usePersistent'
+import { PunchGridContext, PUNCH_GRID_SIZES } from '@/lib/design/punch-grid'
 import { CardPunchShape } from './CardPunchShape'
 import type { DesignerPassport, DesignerPassportPage, DesignerStop, DesignerPunch } from '@/lib/design/types'
 
@@ -55,6 +57,10 @@ export function CardWorkspace({ passport, pages, stops, punchSlots }: Props) {
   const updatePassport = usePassportStore((s) => s.updatePassport)
 
   const [navigating, setNavigating] = useState(false)
+  // Snap-to-grid editing aid (designer preference, persisted locally — not
+  // stored on the card). Provided to the canvas via PunchGridContext.
+  const [gridEnabled, setGridEnabled] = usePersistentBool('moichido.punchGrid.enabled', false)
+  const [gridSize, setGridSize] = usePersistentNumber('moichido.punchGrid.size', 24)
 
   useEffect(() => {
     hydrate(passport, pages, stops, punchSlots)
@@ -148,6 +154,29 @@ export function CardWorkspace({ passport, pages, stops, punchSlots }: Props) {
             />
             punches
           </label>
+          {/* Snap-to-grid: optional aid for evenly spacing punches. The size
+              select only matters when snapping is on. */}
+          <label className="flex items-center gap-1.5 text-xs text-moichido-muted">
+            <input
+              type="checkbox"
+              checked={gridEnabled}
+              onChange={(e) => setGridEnabled(e.target.checked)}
+              className="accent-moichido-teal"
+            />
+            Snap to grid
+          </label>
+          {gridEnabled && (
+            <select
+              value={gridSize}
+              onChange={(e) => setGridSize(Number(e.target.value))}
+              aria-label="Grid size"
+              className="h-7 rounded-card border border-moichido-hairline bg-white px-1.5 text-xs text-moichido-ink"
+            >
+              {PUNCH_GRID_SIZES.map((s) => (
+                <option key={s} value={s}>{s}px</option>
+              ))}
+            </select>
+          )}
           <button
             type="button"
             onClick={handleSave}
@@ -159,24 +188,28 @@ export function CardWorkspace({ passport, pages, stops, punchSlots }: Props) {
         </div>
       </header>
 
-      {/* Workspace — three columns, shared inner components */}
-      <div className="flex min-h-0 flex-1">
-        <div className="flex w-60 shrink-0 flex-col overflow-hidden">
-          {/* Card-level punch-shape picker above the shared LeftPalette */}
-          <div className="border-r border-b border-moichido-hairline bg-white p-3">
-            <CardPunchShape />
+      {/* Workspace — three columns, shared inner components. The grid
+          preference is provided here so the canvas (and only the moichido
+          canvas) can snap punches; the okuji designer never wraps this. */}
+      <PunchGridContext.Provider value={{ enabled: gridEnabled, size: gridSize }}>
+        <div className="flex min-h-0 flex-1">
+          <div className="flex w-60 shrink-0 flex-col overflow-hidden">
+            {/* Card-level punch-shape picker above the shared LeftPalette */}
+            <div className="border-r border-b border-moichido-hairline bg-white p-3">
+              <CardPunchShape />
+            </div>
+            {/* Shared LeftPalette — Pages + Stops + Elements. The
+                isConsumable check in LeftPalette already relabels
+                Stops → Punch locations. Pages section stays so
+                merchants can add info pages (terms, about). */}
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              <LeftPalette />
+            </div>
           </div>
-          {/* Shared LeftPalette — Pages + Stops + Elements. The
-              isConsumable check in LeftPalette already relabels
-              Stops → Punch locations. Pages section stays so
-              merchants can add info pages (terms, about). */}
-          <div className="min-h-0 flex-1 overflow-y-auto">
-            <LeftPalette />
-          </div>
+          <Canvas />
+          <RightInspector creatorInstitutionId={null} />
         </div>
-        <Canvas />
-        <RightInspector creatorInstitutionId={null} />
-      </div>
+      </PunchGridContext.Provider>
     </div>
   )
 }
