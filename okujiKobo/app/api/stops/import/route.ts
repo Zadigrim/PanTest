@@ -10,7 +10,7 @@ import { createClient } from '@/lib/supabase/server'
  * Steps:
  * 1. Verify auth
  * 2. Fetch source stop (must be is_shared = true)
- * 3. Fetch creator name + institution name for attribution
+ * 3. Build institution-based attribution (stops carry no creator_id)
  * 4. Ensure target passport belongs to the current user
  * 5. Resolve or create a passport page on the target passport
  * 6. Insert the new stop copy
@@ -58,16 +58,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       address_city,
       address_state,
       address_zip,
-      address_country,
-      latitude,
-      longitude,
+      country,
+      lat,
+      lng,
       classifiers,
       learning_objective,
       journal_prompt,
       grade_levels,
       subject_areas,
-      creator_id,
-      profiles:creator_id ( display_name ),
       page_id,
       passport_pages!page_id (
         passports (
@@ -105,18 +103,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   // ── Build attribution note ─────────────────────────────────────────────────
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const src = sourceStop as any
-  const creatorName: string | null = src.profiles?.display_name ?? null
+  // Stops carry no creator_id, so attribution is institution-based, with a
+  // generic community fallback when the source has no owning institution.
   const institutionName: string | null =
     src.passport_pages?.passports?.institutions?.name ?? null
 
-  const attributionParts: string[] = []
-  if (creatorName) attributionParts.push(creatorName)
-  if (institutionName) attributionParts.push(institutionName)
-
-  const attributionNote =
-    attributionParts.length > 0
-      ? `Based on a stop by ${attributionParts.join(' at ')}`
-      : 'Based on a community stop from the Okuji library'
+  const attributionNote = institutionName
+    ? `Based on a stop from ${institutionName}`
+    : 'Based on a community stop from the Okuji library'
 
   // ── Resolve target page (first page, or create one) ───────────────────────
   const { data: existingPages } = await supabase
@@ -137,7 +131,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       .insert({
         passport_id: passportId,
         page_order: 0,
-        title: targetPassport.title,
+        section_name: targetPassport.title,
       })
       .select('id')
       .single()
@@ -165,16 +159,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     .from('stops')
     .insert({
       page_id: targetPageId,
-      creator_id: user.id,
       name: src.name,
       stamp_icon: src.stamp_icon ?? null,
       address_street: src.address_street ?? null,
       address_city: src.address_city ?? null,
       address_state: src.address_state ?? null,
       address_zip: src.address_zip ?? null,
-      address_country: src.address_country ?? null,
-      latitude: src.latitude ?? null,
-      longitude: src.longitude ?? null,
+      country: src.country ?? null,
+      lat: src.lat ?? null,
+      lng: src.lng ?? null,
       classifiers: src.classifiers ?? [],
       learning_objective: src.learning_objective ?? null,
       journal_prompt: src.journal_prompt ?? null,
