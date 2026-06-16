@@ -2943,6 +2943,10 @@ export type Database = {
           is_new: boolean
         }[]
       }
+      ensure_moichido_punch_stop: {
+        Args: { p_passport_id: string }
+        Returns: string
+      }
       find_passports_nearby: {
         Args: {
           p_lat: number
