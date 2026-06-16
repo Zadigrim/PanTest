@@ -590,10 +590,9 @@ export function EmployeesPanel() {
           .order('authorized_at', { ascending: true })
         if (authzFetchErr) throw new Error(authzFetchErr.message)
 
-        const rows = authzRows ?? []
-        const userIds = rows.map(
-          (r: Pick<EmployeeAuthorization, 'user_id'>) => r.user_id,
-        )
+        // Concatenated select string types as GenericStringError; cast.
+        const rows = (authzRows ?? []) as unknown as EmployeeAuthorization[]
+        const userIds = rows.map((r) => r.user_id)
 
         // Bulk fetch profiles (display_name only — emails live in auth.users)
         const profileMap = new Map<string, Pick<Profile, 'id' | 'display_name'>>()
@@ -664,7 +663,10 @@ export function EmployeesPanel() {
       return next
     })
 
-    const supabase = createClient()
+    // Dynamic { [field]: value } can't be statically typed against the
+    // Update shape; cast the client (the field is a known flag column).
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const supabase = createClient() as any
     const { error } = await supabase
       .from('employee_authorizations')
       .update({ [field]: value })

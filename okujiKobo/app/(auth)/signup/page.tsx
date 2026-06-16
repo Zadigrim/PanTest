@@ -54,7 +54,7 @@ export default function SignupPage() {
       .upsert(
         {
           id:           signUpData.user.id,
-          display_name: displayName.trim() || null,
+          display_name: displayName.trim(),
         },
         { onConflict: 'id' }
       )

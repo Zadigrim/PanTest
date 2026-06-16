@@ -150,8 +150,10 @@ export default async function PassportDetailPage({
     ? (creatorRaw[0] ?? null) as Pick<Profile, 'id' | 'display_name' | 'avatar_url' | 'bio'> | null
     : creatorRaw as Pick<Profile, 'id' | 'display_name' | 'avatar_url' | 'bio'> | null
 
-  const institution = null
-  const quality_score = null
+  // Cast the initializer (not annotate) so control-flow analysis keeps
+  // the nullable object type instead of narrowing the const to `null`.
+  const institution = null as PassportFull['institution']
+  const quality_score = null as PassportFull['quality_score']
 
   const pagesRaw = (raw['pages'] ?? []) as Array<Record<string, unknown>>
   // Filter out closed pages (migration 020). PostgREST nested

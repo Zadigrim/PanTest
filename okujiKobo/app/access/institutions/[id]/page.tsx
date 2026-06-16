@@ -853,7 +853,10 @@ function MembersSection({
     value: boolean
   ) {
     setPermErrors((e) => ({ ...e, [authzId]: '' }))
-    const supabase = createClient()
+    // Dynamic { [field]: value } can't be statically typed against the
+    // Update shape; cast the client (the field is a known flag column).
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const supabase = createClient() as any
     const { error: updateErr } = await supabase
       .from('employee_authorizations')
       .update({ [field]: value })

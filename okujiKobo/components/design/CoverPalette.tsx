@@ -41,7 +41,7 @@ export function CoverPalette({ face }: Props) {
           }
         : type === 'hline'
         ? { id, type, x: 40, y: 200, width: 200, height: 8, thickness: 2, lineColor: 'FFFFFF' }
-        : { id, type, x: 140, y: 40, width: 8, height: 300, thickness: 2, lineColor: 'FFFFFF' }
+        : ({ id, type, x: 140, y: 40, width: 8, height: 300, thickness: 2, lineColor: 'FFFFFF' } as DesignerPageElement)
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const raw = (passport as any)[sideKey]

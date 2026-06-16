@@ -52,7 +52,7 @@ export function CoverInspector({ face, panel }: Props) {
 
   const persistElement = async (elementId: string, patch: Partial<import('@/lib/design/types').DesignerPageElement>) => {
     const next = (sideData.elements ?? []).map((el) =>
-      el.id === elementId ? { ...el, ...patch } : el
+      el.id === elementId ? ({ ...el, ...patch } as import('@/lib/design/types').DesignerPageElement) : el
     )
     await persist({ elements: next })
   }

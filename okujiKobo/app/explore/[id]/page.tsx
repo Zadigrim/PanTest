@@ -169,7 +169,9 @@ export default async function ExplorePassportDetailPage({
     .is('closed_at', null)
     .order('page_order', { ascending: true })
 
-  const pageIds = (pagesRaw ?? []).map((p: { id: string }) => p.id)
+  // pagesRaw/stopsRaw type as GenericStringError because the select
+  // strings are concatenated (not string literals) — cast to the shape.
+  const pageIds = ((pagesRaw ?? []) as unknown as { id: string }[]).map((p) => p.id)
 
   const { data: stopsRaw } =
     pageIds.length > 0
@@ -199,13 +201,13 @@ export default async function ExplorePassportDetailPage({
   }
 
   // ── Assemble pages with stops (metadata view) ─────────────────────────────
-  const pages: PageRow[] = (pagesRaw ?? []).map((p: Record<string, unknown>) => ({
+  const pages: PageRow[] = ((pagesRaw ?? []) as unknown as Record<string, unknown>[]).map((p) => ({
     id: p['id'] as string,
     page_order: p['page_order'] as number,
     section_title: p['section_title'] as string | null,
     section_name: p['section_name'] as string,
     prize_description: p['prize_description'] as string | null,
-    stops: ((stopsRaw ?? []) as Array<Record<string, unknown>>)
+    stops: ((stopsRaw ?? []) as unknown as Array<Record<string, unknown>>)
       .filter((s) => s['page_id'] === p['id'])
       .sort((a, b) => (a['stop_order'] as number) - (b['stop_order'] as number))
       .map((s) => ({
@@ -225,10 +227,10 @@ export default async function ExplorePassportDetailPage({
   // ── Assemble viewer-shaped pages (with full layout + visual fields) ──────
   // Stamp pages drive the spread renderer; information pages also flow
   // through (page.page_type carries through to PageBackground / stop layer).
-  const viewerPages: ViewerPage[] = (pagesRaw ?? []).map((p) => {
+  const viewerPages: ViewerPage[] = ((pagesRaw ?? []) as unknown as Record<string, unknown>[]).map((p) => {
     const r = p as Record<string, unknown>
     const pageId = r['id'] as string
-    const stops = ((stopsRaw ?? []) as Array<Record<string, unknown>>)
+    const stops = ((stopsRaw ?? []) as unknown as Array<Record<string, unknown>>)
       .filter((s) => s['page_id'] === pageId)
       .sort((a, b) => (a['stop_order'] as number) - (b['stop_order'] as number))
       .map((s) => ({

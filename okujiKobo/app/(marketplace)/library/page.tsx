@@ -56,7 +56,7 @@ export default async function LibraryPage() {
   // mobile+web option. The mobile RN component below does the
   // same fetch; both will start working once that RLS lands.
   const noticeByPassportId = new Map<string, { what_changed: string; republished_at: string }>()
-  const acqList = (acquisitions ?? []) as AcquisitionWithPassport[]
+  const acqList = (acquisitions ?? []) as unknown as AcquisitionWithPassport[]
   const passportIdsForNotice = acqList.map((a) => a.passport_id)
   if (passportIdsForNotice.length > 0) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -92,7 +92,7 @@ export default async function LibraryPage() {
   }
 
   // Fetch stamps for all acquired passports
-  const passportIds = (acquisitions ?? []).map((a: AcquisitionWithPassport) => a.passport_id)
+  const passportIds = acqList.map((a) => a.passport_id)
   const { data: stamps } = passportIds.length > 0
     ? await supabase.from('stamps').select('*').eq('user_id', user.id).in('passport_id', passportIds)
     : { data: [] }
@@ -134,7 +134,7 @@ export default async function LibraryPage() {
   const completed: AcquisitionWithPassport[] = []
   const notStarted: AcquisitionWithPassport[] = []
 
-  for (const acq of (acquisitions as AcquisitionWithPassport[] ?? [])) {
+  for (const acq of acqList) {
     const myStamps = stampsByPassport[acq.passport_id] ?? []
     const total = stopCountMap[acq.passport_id] ?? 0
     const state = getState(myStamps, total)

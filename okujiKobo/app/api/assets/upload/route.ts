@@ -192,7 +192,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   // original buffer unchanged (upload is never blocked on this).
   if (assetType === 'stamp' && file.type === 'image/svg+xml') {
     const { normalizeStampSvgBuffer } = await import('@/lib/design/stamp-composer/normalize-svg-buffer')
-    buffer = await normalizeStampSvgBuffer(buffer)
+    buffer = (await normalizeStampSvgBuffer(buffer)) as Buffer<ArrayBuffer>
   }
 
   const { error: uploadErr } = await supabase.storage

@@ -133,7 +133,7 @@ export function CoverCanvas({ face, onFaceChange, selectedPanel, onPanelChange }
   const elements = side.elements ?? []
 
   function handleElementChange(elementId: string, patch: Partial<DesignerPageElement>) {
-    const nextElements = elements.map((el) => el.id === elementId ? { ...el, ...patch } : el)
+    const nextElements = elements.map((el) => el.id === elementId ? ({ ...el, ...patch } as DesignerPageElement) : el)
     const nextSide: CoverSideData = { ...side, elements: nextElements }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     updatePassport({ [sideKey]: nextSide } as any)
@@ -219,7 +219,7 @@ export function CoverCanvas({ face, onFaceChange, selectedPanel, onPanelChange }
             {elements.map((el) => (
               <PageElementBox
                 key={el.id}
-                element={el}
+                element={el as import('react').ComponentProps<typeof PageElementBox>['element']}
                 isSelected={el.id === selectedElementId}
                 scale={zoom}
                 onSelect={() => setSelectedElement(el.id)}

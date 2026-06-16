@@ -104,7 +104,7 @@ function PagePrizeForm({
           {
             page_id: page.id,
             institution_id: institutionId,
-            prize_description: form.prize_description.trim() || null,
+            prize_description: form.prize_description.trim(),
             prize_value_cents: prizeValueCents,
             location_whitelist: locationWhitelist,
             configured_by: user.id,

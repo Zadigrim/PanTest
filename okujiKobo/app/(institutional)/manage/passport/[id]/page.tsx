@@ -397,7 +397,7 @@ export default function PassportAnalyticsPage() {
         token_code: t.token_code,
         user_id: t.user_id,
         page_id: t.page_id,
-        generated_at: t.generated_at,
+        generated_at: t.generated_at ?? '',
         redeemed_at: t.redeemed_at,
         prize_distributed: t.prize_distributed,
         distribution_pending: t.distribution_pending,

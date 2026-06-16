@@ -187,7 +187,10 @@ export async function POST(_request: NextRequest): Promise<NextResponse> {
     .returns<StampRow[]>()
 
   if (under13Ids.size > 0) {
-    stampsQuery = stampsQuery.not('user_id', 'in', `(${[...under13Ids].join(',')})`)
+    // .not() lives on the filter builder; after .returns() the transform
+    // builder type drops it though it exists at runtime — cast the call.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    stampsQuery = (stampsQuery as any).not('user_id', 'in', `(${[...under13Ids].join(',')})`)
   }
 
   const { data: allStamps } = await stampsQuery
