@@ -361,7 +361,7 @@ const styles = StyleSheet.create({
   voiceToggleText: { fontSize: 13, color: palette.green, fontWeight: '600' },
   textInput: {
     borderWidth: 1, borderColor: '#e0e0e0', borderRadius: 8, padding: 12, fontSize: 15,
-    minHeight: 140, color: '#222', backgroundColor: '#fafafa', marginBottom: 12,
+    minHeight: 140, color: palette.ink, backgroundColor: '#fafafa', marginBottom: 12,
   },
   photoStrip: { flexDirection: 'row', marginBottom: 8 },
   photoWrap: { marginRight: 8 },

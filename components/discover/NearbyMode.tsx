@@ -29,7 +29,7 @@ import type { Passport } from '../../types'
 const NAVY  = palette.navy
 const GOLD  = palette.accent
 const INK   = palette.ink
-const MUTED = '#6b6356'
+const MUTED = palette.muted
 
 type LoadState =
   | { kind: 'idle' }                                    // pre-permission
@@ -304,7 +304,7 @@ function projectToPassport(r: NearbyPassport): Passport {
     illus_type:         '',
     illus_color:        '',
     illus_opacity:      0,
-    paper_color:        '#f5f0e8',
+    paper_color:        palette.cream,
     is_published:       true,
     is_free:            r.is_free,
     price_cents:        r.price_cents,

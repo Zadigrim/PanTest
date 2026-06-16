@@ -210,7 +210,7 @@ export function VoiceRecorder({ onTranscriptUpdate }: Props) {
         style={[styles.micBtn, !recording && exhausted && { opacity: 0.5 }]}
         activeOpacity={0.8}
       >
-        <View style={[styles.micCircle, { backgroundColor: recording ? '#C0392B' : palette.green }]}>
+        <View style={[styles.micCircle, { backgroundColor: recording ? palette.red : palette.green }]}>
           <Text style={styles.micIcon}>🎤</Text>
         </View>
       </TouchableOpacity>
