@@ -30,6 +30,10 @@ export default async function CreatorPage({ params }: { params: { id: string } }
     // M2 leak guard (migration 069): consumable distribution-only
     // passports never appear in per-creator marketplace listings.
     .eq('distribution_only', false)
+    // Publish-visibility + decency-review guard (migration 091); RLS also
+    // enforces. The public creator page lists only public, approved work.
+    .eq('visibility', 'public')
+    .eq('review_status', 'approved')
     .order('created_at', { ascending: false })
 
   const { data: { user } } = await supabase.auth.getUser()
