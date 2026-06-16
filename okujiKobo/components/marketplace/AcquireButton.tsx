@@ -93,7 +93,7 @@ export function AcquireButton({
     await supabase
       .from('collector_passports')
       .upsert(
-        { user_id: user.id, passport_id: passportId, status: 'in_progress' },
+        { user_id: user.id, passport_id: passportId },
         { onConflict: 'user_id,passport_id' }
       )
 

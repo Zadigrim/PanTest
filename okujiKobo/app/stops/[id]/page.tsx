@@ -69,9 +69,7 @@ export default async function StopDetailPage({ params }: Props) {
       grade_levels,
       subject_areas,
       created_at,
-      creator_id,
       page_id,
-      profiles:creator_id ( display_name ),
       passport_pages!page_id (
         passports (
           institutions:proprietor_id ( name )
@@ -85,27 +83,18 @@ export default async function StopDetailPage({ params }: Props) {
 
   if (!stop) notFound()
 
-  // Count acknowledgments
+  // Count acknowledgments (presence sessions at this stop).
   const { count: ackCount } = await supabase
     .from('presence_sessions')
     .select('id', { count: 'exact', head: true })
     .eq('stop_id', params.id)
 
-  // Count completions (presence_sessions with completion flag or separate query)
-  const { count: completionCount } = await supabase
-    .from('presence_sessions')
-    .select('id', { count: 'exact', head: true })
-    .eq('stop_id', params.id)
-    .eq('completed', true)
-
   const acknowledgments = ackCount ?? 0
-  const completions = completionCount ?? 0
-  const completionRate =
-    acknowledgments > 0 ? Math.round((completions / acknowledgments) * 100) : null
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const stopData = stop as any
-  const creatorName = stopData.profiles?.display_name ?? null
+  // Stops carry no creator_id; attribution is institution-based.
+  const creatorName: string | null = null
   const institutionName =
     stopData.passport_pages?.passports?.institutions?.name ?? null
 
@@ -220,19 +209,6 @@ export default async function StopDetailPage({ params }: Props) {
             <p className="text-3xl font-bold tabular-nums text-navy">
               {acknowledgments}
             </p>
-          </div>
-          <div className="bg-white rounded-panel border border-hairline p-5">
-            <p className="text-xs font-semibold text-muted uppercase tracking-wide mb-1">
-              Completion rate
-            </p>
-            <p className="text-3xl font-bold tabular-nums text-navy">
-              {completionRate !== null ? `${completionRate}%` : '—'}
-            </p>
-            {acknowledgments > 0 && (
-              <p className="text-xs text-muted mt-1">
-                {completions} of {acknowledgments} completed
-              </p>
-            )}
           </div>
         </div>
 
