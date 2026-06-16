@@ -21,7 +21,23 @@
         "NSCameraUsageDescription": "Okuji uses your camera to scan QR codes at locations.",
         "NSLocationWhenInUseUsageDescription": "Okuji uses your location only at the moment you stamp a location — never in the background.",
         "NSMicrophoneUsageDescription": "Okuji uses your microphone for voice journal entries.",
-        "NSPhotoLibraryUsageDescription": "Okuji accesses your photos for journal entries."
+        "NSPhotoLibraryUsageDescription": "Okuji accesses your photos for journal entries.",
+        "ITSAppUsesNonExemptEncryption": false
+      },
+      "privacyManifests": {
+        "NSPrivacyTracking": false,
+        "NSPrivacyTrackingDomains": [],
+        "NSPrivacyCollectedDataTypes": [
+          {
+            "NSPrivacyCollectedDataType": "NSPrivacyCollectedDataTypeCoarseLocation",
+            "NSPrivacyCollectedDataTypeLinked": false,
+            "NSPrivacyCollectedDataTypeTracking": false,
+            "NSPrivacyCollectedDataTypePurposes": [
+              "NSPrivacyCollectedDataTypePurposeAppFunctionality"
+            ]
+          }
+        ],
+        "NSPrivacyAccessedAPITypes": []
       }
     },
     "android": {
