@@ -76,7 +76,7 @@ const styles = StyleSheet.create({
   },
   amountBtnSelected: {
     borderColor: palette.accent,
-    backgroundColor: '#C9A84C20',
+    backgroundColor: palette.accent + '20',
   },
   amountText: {
     fontSize: 14,

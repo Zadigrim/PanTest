@@ -25,7 +25,7 @@ interface Props {
   onOpen: () => void
 }
 
-const COVER_GREEN = '#2E7D4D'
+const COVER_GREEN = palette.green
 const SPINE_ACCENT = '#1a5c33'
 const RIBBON_RED = palette.red
 const CREAM = palette.paper

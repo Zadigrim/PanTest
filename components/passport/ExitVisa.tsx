@@ -19,7 +19,7 @@ interface Props {
 const PAPER = palette.paper
 const INK = palette.ink
 const GOLD = palette.accent
-const GREEN = '#2E7D4D'
+const GREEN = palette.green
 const RED = palette.red
 
 export function ExitVisa({ passport, page, stops, stamps, chapterNumber }: Props) {

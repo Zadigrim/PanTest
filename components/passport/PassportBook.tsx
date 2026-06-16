@@ -145,7 +145,7 @@ export function PassportBook({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#1a1a1a',
+    backgroundColor: palette.ink,
   },
   bookContainer: {
     flex: 1,

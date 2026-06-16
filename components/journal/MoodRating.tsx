@@ -61,7 +61,7 @@ const styles = StyleSheet.create({
   },
   moodBtnSelected: {
     borderColor: palette.accent,
-    backgroundColor: '#C9A84C15',
+    backgroundColor: palette.accent + '15',
   },
   emoji: {
     fontSize: 24,
