@@ -261,6 +261,11 @@ export default function ExplorePage() {
       // M2 leak guard (migration 069): consumable distribution-only
       // passports never appear in public Explore browse.
       .eq('distribution_only', false)
+      // Publish-visibility + decency-review guard (migration 091). RLS
+      // already enforces this; these are explicit defense-in-depth on the
+      // public browse list.
+      .eq('visibility', 'public')
+      .eq('review_status', 'approved')
       .order('created_at', { ascending: false })
 
     if (passportsError) {

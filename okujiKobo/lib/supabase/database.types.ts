@@ -1486,6 +1486,12 @@ export type Database = {
           print_journal_setting: string | null
           proprietor_id: string | null
           published_at: string | null
+          visibility: string
+          review_status: string
+          reviewed_by: string | null
+          reviewed_at: string | null
+          review_note: string | null
+          review_requested_at: string | null
           retention_deleted_at: string | null
           retention_flagged_at: string | null
           retention_grace_until: string | null
@@ -1544,6 +1550,12 @@ export type Database = {
           print_journal_setting?: string | null
           proprietor_id?: string | null
           published_at?: string | null
+          visibility?: string
+          review_status?: string
+          reviewed_by?: string | null
+          reviewed_at?: string | null
+          review_note?: string | null
+          review_requested_at?: string | null
           retention_deleted_at?: string | null
           retention_flagged_at?: string | null
           retention_grace_until?: string | null
@@ -1602,6 +1614,12 @@ export type Database = {
           print_journal_setting?: string | null
           proprietor_id?: string | null
           published_at?: string | null
+          visibility?: string
+          review_status?: string
+          reviewed_by?: string | null
+          reviewed_at?: string | null
+          review_note?: string | null
+          review_requested_at?: string | null
           retention_deleted_at?: string | null
           retention_flagged_at?: string | null
           retention_grace_until?: string | null
@@ -2573,6 +2591,7 @@ export type Database = {
           address_street: string | null
           address_zip: string | null
           attribution_note: string | null
+          age_restriction: string
           box_height: number | null
           box_width: number | null
           box_x: number | null
@@ -2632,6 +2651,7 @@ export type Database = {
           address_street?: string | null
           address_zip?: string | null
           attribution_note?: string | null
+          age_restriction?: string
           box_height?: number | null
           box_width?: number | null
           box_x?: number | null
@@ -2691,6 +2711,7 @@ export type Database = {
           address_street?: string | null
           address_zip?: string | null
           attribution_note?: string | null
+          age_restriction?: string
           box_height?: number | null
           box_width?: number | null
           box_x?: number | null
