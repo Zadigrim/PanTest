@@ -260,7 +260,8 @@ export const usePassportStore = create<PassportStore>((set, get) => ({
       return {
         ...p,
         elements: (p.elements ?? []).map((el) =>
-          el.id === elementId ? { ...el, ...patch } : el,
+          // Spreading el+patch widens the discriminated `type`; cast back.
+          el.id === elementId ? ({ ...el, ...patch } as DesignerPageElement) : el,
         ),
       }
     })

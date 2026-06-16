@@ -127,8 +127,9 @@ export async function POST(request: NextRequest): Promise<NextResponse<ValidateR
 
   return NextResponse.json({
     valid: true,
-    token,
-    prizeConfig: prizeConfig ?? null,
+    // generated_at is nullable on the row but non-null in the hand type.
+    token: token as CompletionToken,
+    prizeConfig: (prizeConfig ?? null) as PrizeConfiguration | null,
     collectorFirstName,
   })
 }

@@ -39,7 +39,7 @@ export default async function CreatorPage({ params }: { params: { id: string } }
   const ownedIds = new Set((acquisitions ?? []).map((a: { passport_id: string }) => a.passport_id))
 
   // Aggregate quality across all passports
-  const scores = (passports ?? []).map((p: PassportWithDetails) => p.quality_score)
+  const scores = ((passports ?? []) as unknown as PassportWithDetails[]).map((p) => p.quality_score)
   const avgMood = scores.length
     ? scores.reduce((s: number, q: PassportWithDetails['quality_score']) => s + (q?.avg_mood_rating ?? 0), 0) / scores.length
     : null
@@ -84,7 +84,7 @@ export default async function CreatorPage({ params }: { params: { id: string } }
         <p className="py-8 text-center text-muted">No published passports yet.</p>
       ) : (
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {(passports as PassportWithDetails[]).map((passport) => (
+          {(passports as unknown as PassportWithDetails[]).map((passport) => (
             <PassportCard
               key={passport.id}
               // Creator is the page subject — every passport here is by the
