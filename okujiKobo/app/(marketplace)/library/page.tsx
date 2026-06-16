@@ -97,14 +97,30 @@ export default async function LibraryPage() {
     ? await supabase.from('stamps').select('*').eq('user_id', user.id).in('passport_id', passportIds)
     : { data: [] }
 
-  // Fetch stop counts per passport
-  const { data: stopCounts } = passportIds.length > 0
-    ? await supabase.rpc('get_stop_counts_for_passports', { passport_ids: passportIds }).select()
-    : { data: [] }
-
+  // Stop counts per passport. Counted inline (pages → stops) rather
+  // than via an RPC: the former get_stop_counts_for_passports function
+  // does not exist in the live schema, so the call errored and every
+  // total came back 0, miscategorizing progress state.
   const stopCountMap: Record<string, number> = {}
-  for (const row of (stopCounts as { passport_id: string; stop_count: number }[] ?? [])) {
-    stopCountMap[row.passport_id] = row.stop_count
+  if (passportIds.length > 0) {
+    const { data: pageRows } = await supabase
+      .from('passport_pages')
+      .select('id, passport_id')
+      .in('passport_id', passportIds)
+      .is('closed_at', null)
+    const pages = (pageRows ?? []) as { id: string; passport_id: string }[]
+    const pageToPassport = new Map(pages.map((p) => [p.id, p.passport_id]))
+    const pageIds = pages.map((p) => p.id)
+    if (pageIds.length > 0) {
+      const { data: stopRows } = await supabase
+        .from('stops')
+        .select('page_id')
+        .in('page_id', pageIds)
+      for (const s of (stopRows ?? []) as { page_id: string }[]) {
+        const pid = pageToPassport.get(s.page_id)
+        if (pid) stopCountMap[pid] = (stopCountMap[pid] ?? 0) + 1
+      }
+    }
   }
 
   const stampsByPassport: Record<string, Stamp[]> = {}

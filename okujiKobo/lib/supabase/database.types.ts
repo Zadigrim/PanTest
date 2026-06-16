@@ -1459,6 +1459,10 @@ export type Database = {
           design_state: Json | null
           design_state_updated_at: string | null
           distribution_only: boolean
+          estimated_hours: number | null
+          traveler_types: string[] | null
+          award_year: number | null
+          shortlisted: boolean
           expected_spend_note: string | null
           expected_spend_tier: string | null
           expiry_duration_days: number | null
@@ -1513,6 +1517,10 @@ export type Database = {
           design_state?: Json | null
           design_state_updated_at?: string | null
           distribution_only?: boolean
+          estimated_hours?: number | null
+          traveler_types?: string[] | null
+          award_year?: number | null
+          shortlisted?: boolean
           expected_spend_note?: string | null
           expected_spend_tier?: string | null
           expiry_duration_days?: number | null
@@ -1567,6 +1575,10 @@ export type Database = {
           design_state?: Json | null
           design_state_updated_at?: string | null
           distribution_only?: boolean
+          estimated_hours?: number | null
+          traveler_types?: string[] | null
+          award_year?: number | null
+          shortlisted?: boolean
           expected_spend_note?: string | null
           expected_spend_tier?: string | null
           expiry_duration_days?: number | null
