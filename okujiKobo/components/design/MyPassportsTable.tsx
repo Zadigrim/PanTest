@@ -615,11 +615,17 @@ function ActionsMenu({ passport, isAdmin, soldCount, onDeleted, onUnpublished }:
       })
       if (!res.ok) {
         const j = await res.json().catch(() => ({}))
+        // Surface loudly: the menu closes in `finally`, so an inline-only
+        // error would be invisible. alert() shows the server's actual message
+        // (admin gate, fail-closed FK block, etc.) regardless of menu state.
+        alert(`Force delete failed (${res.status}): ${j.error ?? res.statusText}`)
         setError(j.error ?? 'Force delete failed')
         return
       }
       onDeleted()            // gone server-side — remove the row
       router.refresh()
+    } catch (e) {
+      alert(`Force delete failed: ${e instanceof Error ? e.message : String(e)}`)
     } finally {
       setBusy(null)
       setOpen(false)
