@@ -29,6 +29,10 @@ function LoginForm() {
   // unverified email is captured so Resend posts to the right address.
   const [unverifiedEmail, setUnverifiedEmail] = useState<string | null>(null)
   const [resendStatus, setResendStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
+  // Password-reset (forgot password) inline flow.
+  const [mode, setMode] = useState<'signin' | 'reset'>('signin')
+  const [resetSending, setResetSending] = useState(false)
+  const [resetSent, setResetSent] = useState(false)
 
   const next = searchParams.get('next') ?? '/'
 
@@ -79,6 +83,22 @@ function LoginForm() {
     window.location.href = next
   }
 
+  async function handleSendReset(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    setResetSending(true)
+    const supabase = createClient()
+    // Anti-enumeration: resetPasswordForEmail succeeds whether or not the
+    // address is registered, and we ignore the result entirely — the
+    // confirmation copy is identical either way. The link routes through
+    // /auth/callback (which mints the recovery session) to this host's
+    // /auth/update-password, keeping the user on the kobo surface.
+    await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent('/auth/update-password')}`,
+    })
+    setResetSending(false)
+    setResetSent(true)
+  }
+
   async function handleResendVerification() {
     if (!unverifiedEmail) return
     setResendStatus('sending')
@@ -89,6 +109,71 @@ function LoginForm() {
       options: { emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}` },
     })
     setResendStatus(resendErr ? 'error' : 'sent')
+  }
+
+  if (mode === 'reset') {
+    return (
+      <div className="w-full max-w-sm">
+        <div className="mb-8 text-center">
+          <h1 className="font-serif text-2xl font-bold text-white tracking-tight">Reset your password</h1>
+        </div>
+        <div className="rounded-modal bg-white p-8 shadow-lg">
+          {resetSent ? (
+            <div className="space-y-4 text-sm text-navy">
+              <p>If an account exists for that email, we’ve sent a reset link. Check your inbox.</p>
+              <button
+                type="button"
+                onClick={() => { setMode('signin'); setResetSent(false) }}
+                className="block w-full text-center text-sm text-muted hover:text-navy"
+              >
+                ← Back to sign in
+              </button>
+            </div>
+          ) : (
+            <form onSubmit={handleSendReset} noValidate className="flex flex-col gap-5">
+              <p className="text-sm text-muted">
+                Enter your account email and we’ll send a link to set a new password.
+              </p>
+              <div className="flex flex-col gap-1.5">
+                <label htmlFor="reset-email" className="text-sm font-medium text-navy">Email</label>
+                <input
+                  id="reset-email"
+                  type="email"
+                  autoComplete="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className={cn(
+                    'h-9 rounded-panel border border-hairline bg-paper px-3 text-sm',
+                    'text-navy placeholder:text-muted',
+                    'focus:outline-none focus:ring-2 focus:ring-green focus:border-green transition-colors',
+                  )}
+                  placeholder="you@example.com"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={resetSending}
+                className={cn(
+                  'mt-1 h-10 rounded-panel bg-green px-4 text-sm font-medium text-white',
+                  'hover:bg-[#0F6E56] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green',
+                  'disabled:opacity-50 disabled:pointer-events-none transition-colors',
+                )}
+              >
+                {resetSending ? 'Sending…' : 'Send reset link'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setMode('signin')}
+                className="block w-full text-center text-sm text-muted hover:text-navy"
+              >
+                ← Back to sign in
+              </button>
+            </form>
+          )}
+        </div>
+      </div>
+    )
   }
 
   if (unverifiedEmail) {
@@ -257,6 +342,15 @@ function LoginForm() {
 
         {/* Footer links */}
         <div className="mt-5 space-y-2 text-center text-sm text-muted">
+          <p>
+            <button
+              type="button"
+              onClick={() => { setMode('reset'); setError(null) }}
+              className="font-medium text-green hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green rounded-sm"
+            >
+              Forgot your password?
+            </button>
+          </p>
           <p>
             No account?{' '}
             <Link

@@ -29,6 +29,10 @@ export function MoichidoLoginForm() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [googleLoading, setGoogleLoading] = useState(false)
+  // Password-reset (forgot password) inline flow.
+  const [mode, setMode] = useState<'signin' | 'reset'>('signin')
+  const [resetSending, setResetSending] = useState(false)
+  const [resetSent, setResetSent] = useState(false)
 
   async function handleGoogle() {
     setError(null)
@@ -47,6 +51,21 @@ export function MoichidoLoginForm() {
     // On success the browser navigates away — no cleanup needed.
   }
 
+  async function handleSendReset(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    setResetSending(true)
+    const supabase = createClient()
+    // Anti-enumeration: ignore the result — same copy whether or not the
+    // address is registered. window.location.origin keeps the link on the
+    // moichido host; /auth/callback mints the recovery session, then routes
+    // to this host's /auth/update-password (which renders moichido chrome).
+    await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent('/auth/update-password')}`,
+    })
+    setResetSending(false)
+    setResetSent(true)
+  }
+
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
     setError(null)
@@ -62,6 +81,67 @@ export function MoichidoLoginForm() {
     // router.replace() does a soft RSC navigation that can race with cookie
     // propagation — same pattern okuji's login uses.
     window.location.href = next
+  }
+
+  if (mode === 'reset') {
+    return (
+      <div className="w-full max-w-sm">
+        <div className="mb-8 flex flex-col items-center text-center">
+          <span className="text-moichido-apricot">
+            <RingMark size={56} strokeWidth={2.4} />
+          </span>
+          <Wordmark className="mt-4 text-3xl text-moichido-paper" />
+          <p className="mt-1 text-sm text-moichido-paper/60">Reset your password</p>
+        </div>
+        <div className="rounded-[12px] bg-moichido-paper p-8 shadow-lg">
+          {resetSent ? (
+            <div className="space-y-4 text-sm text-moichido-ink">
+              <p>If an account exists for that email, we’ve sent a reset link. Check your inbox.</p>
+              <button
+                type="button"
+                onClick={() => { setMode('signin'); setResetSent(false) }}
+                className="block w-full text-center text-sm text-moichido-muted hover:text-moichido-ink"
+              >
+                ← Back to sign in
+              </button>
+            </div>
+          ) : (
+            <form onSubmit={handleSendReset} noValidate className="flex flex-col gap-5">
+              <p className="text-sm text-moichido-muted">
+                Enter your account email and we’ll send a link to set a new password.
+              </p>
+              <div className="flex flex-col gap-1.5">
+                <label htmlFor="reset-email" className="text-sm font-medium text-moichido-ink">Email</label>
+                <input
+                  id="reset-email"
+                  type="email"
+                  autoComplete="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="h-9 rounded-[8px] border border-moichido-hairline bg-white px-3 text-sm text-moichido-ink placeholder:text-moichido-muted focus:outline-none focus:ring-2 focus:ring-moichido-teal focus:border-moichido-teal transition-colors"
+                  placeholder="you@example.com"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={resetSending}
+                className="mt-1 h-10 rounded-[8px] bg-moichido-teal px-4 text-sm font-semibold text-moichido-paper hover:opacity-90 disabled:opacity-50 disabled:pointer-events-none transition-opacity"
+              >
+                {resetSending ? 'Sending…' : 'Send reset link'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setMode('signin')}
+                className="block w-full text-center text-sm text-moichido-muted hover:text-moichido-ink"
+              >
+                ← Back to sign in
+              </button>
+            </form>
+          )}
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -147,7 +227,17 @@ export function MoichidoLoginForm() {
           </button>
         </form>
 
-        <div className="mt-5 text-center text-xs text-moichido-muted">
+        <div className="mt-5 text-center text-sm">
+          <button
+            type="button"
+            onClick={() => { setMode('reset'); setError(null) }}
+            className="font-medium text-moichido-teal hover:underline"
+          >
+            Forgot your password?
+          </button>
+        </div>
+
+        <div className="mt-3 text-center text-xs text-moichido-muted">
           Don&apos;t have an account? Pilot merchants are provisioned manually —
           contact your moichido representative.
         </div>
