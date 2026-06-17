@@ -12,13 +12,18 @@ import { createClient } from '@/lib/supabase/server'
  *   data to verify the detection logic before any state is touched.
  *
  * POST /api/admin/retention   body: { action, passportId, recoveryDays? }
- *   action ∈ 'flag' | 'keep' | 'soft_delete' | 'purge'
+ *   action ∈ 'flag' | 'keep' | 'soft_delete' | 'purge' | 'force_purge'
  *   - flag        active/→ grace (30-day creator warning)   [admin]
  *   - keep        any → active (creator one-click reclaim)   [creator or admin]
  *   - soft_delete grace → soft_deleted (recoverable)         [admin]
  *   - purge       soft_deleted → hard delete                 [admin, gated]
- * Each transition re-checks eligibility and is logged. Purge is the only
- * destructive action and never runs unattended — it's one explicit call per
+ *   - force_purge ANY passport → cascade hard delete         [admin, gated]
+ *       Overrides the preservation invariant: deletes the passport AND its
+ *       full acquisition/engagement tree regardless of holders. No recovery
+ *       window, no soft-delete prerequisite. For owner test-data cleanup and
+ *       genuine remediation. Atomic + fail-closed (migration 094).
+ * Each transition re-checks eligibility and is logged. Purge / force_purge are
+ * the destructive actions and never run unattended — one explicit call per
  * passport. No bulk/sweep endpoint by design.
  */
 
@@ -60,6 +65,7 @@ const RPC: Record<string, string> = {
   keep:        'retention_keep',
   soft_delete: 'retention_soft_delete',
   purge:       'retention_purge',
+  force_purge: 'force_purge_passport',
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
@@ -73,7 +79,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const passportId = body?.passportId as string | undefined
   if (!action || !RPC[action] || !passportId) {
     return NextResponse.json(
-      { error: "action ('flag'|'keep'|'soft_delete'|'purge') and passportId are required" },
+      { error: "action ('flag'|'keep'|'soft_delete'|'purge'|'force_purge') and passportId are required" },
       { status: 400 },
     )
   }
