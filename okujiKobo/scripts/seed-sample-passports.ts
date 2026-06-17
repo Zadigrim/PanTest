@@ -32,6 +32,7 @@ import type {
 import { bainbridge } from './templates/bainbridge'
 import { pugetSoundIslands } from './templates/puget-sound-islands'
 import { portland } from './templates/portland'
+import { portOrchard } from './templates/port-orchard'
 import { geocode, geocodeAvailable } from '@/lib/maps/server-geocode'
 import type { ResolvedPlace } from '@/lib/maps/types'
 
@@ -39,6 +40,7 @@ const TEMPLATES: Record<string, PassportTemplate> = {
   bainbridge,
   'puget-sound-islands': pugetSoundIslands,
   portland,
+  'port-orchard': portOrchard,
 }
 
 function fail(msg: string): never {
