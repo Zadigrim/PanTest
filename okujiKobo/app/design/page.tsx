@@ -58,6 +58,14 @@ export default async function DesignIndexPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
+  // Platform-admin gate for the destructive "Force delete" action in the
+  // row ⋯ menu (force_purge_passport, migration 094/095). Same canonical
+  // check the server routes use (invariant #4); regular creators get false
+  // and never see the option.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: isAdminRpc } = await (supabase as any).rpc('is_platform_admin')
+  const isAdmin = isAdminRpc === true
+
   const { data: passports } = await supabase
     .from('passports')
     .select('*')
@@ -133,7 +141,7 @@ export default async function DesignIndexPage() {
       </header>
 
       <main className="mx-auto max-w-6xl px-8 py-10">
-        <MyPassportsTable rows={rows} />
+        <MyPassportsTable rows={rows} isAdmin={isAdmin} />
       </main>
     </div>
   )

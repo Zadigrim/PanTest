@@ -84,7 +84,7 @@ const FILTER_OPTIONS: { value: 'all' | 'published' | 'draft'; label: string }[] 
   { value: 'draft',     label: 'Drafts' },
 ]
 
-export function MyPassportsTable({ rows: initialRows }: { rows: PassportRow[] }) {
+export function MyPassportsTable({ rows: initialRows, isAdmin = false }: { rows: PassportRow[]; isAdmin?: boolean }) {
   const [rows, setRows] = useState<PassportRow[]>(initialRows)
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<'all' | 'published' | 'draft'>('all')
@@ -234,6 +234,7 @@ export function MyPassportsTable({ rows: initialRows }: { rows: PassportRow[] })
             <Row
               key={row.passport.id}
               row={row}
+              isAdmin={isAdmin}
               onDeleted={(id) =>
                 setRows((prev) => prev.filter((r) => r.passport.id !== id))
               }
@@ -295,7 +296,7 @@ function SortHeader({
 
 // ── Row ───────────────────────────────────────────────────────────────────────
 
-function Row({ row, onDeleted, onUnpublished }: { row: PassportRow; onDeleted: (id: string) => void; onUnpublished: (id: string) => void }) {
+function Row({ row, isAdmin, onDeleted, onUnpublished }: { row: PassportRow; isAdmin: boolean; onDeleted: (id: string) => void; onUnpublished: (id: string) => void }) {
   const router = useRouter()
   const { passport, soldCount, prizesCount, draftStepsDone } = row
   const status = normalisedStatus(passport.status)
@@ -381,7 +382,7 @@ function Row({ row, onDeleted, onUnpublished }: { row: PassportRow; onDeleted: (
         >
           {status === 'draft' ? 'Continue' : 'Open'}
         </Link>
-        <ActionsMenu passport={passport} onDeleted={() => onDeleted(passport.id)} onUnpublished={() => onUnpublished(passport.id)} />
+        <ActionsMenu passport={passport} isAdmin={isAdmin} soldCount={soldCount} onDeleted={() => onDeleted(passport.id)} onUnpublished={() => onUnpublished(passport.id)} />
       </div>
     </div>
   )
@@ -427,7 +428,7 @@ function StatusPill({ status }: { status: RowStatus }) {
 
 // ── Actions menu (⋯) ──────────────────────────────────────────────────────────
 
-function ActionsMenu({ passport, onDeleted, onUnpublished }: { passport: DesignerPassport; onDeleted: () => void; onUnpublished: () => void }) {
+function ActionsMenu({ passport, isAdmin, soldCount, onDeleted, onUnpublished }: { passport: DesignerPassport; isAdmin: boolean; soldCount: number; onDeleted: () => void; onUnpublished: () => void }) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState<string | null>(null)
@@ -585,6 +586,46 @@ function ActionsMenu({ passport, onDeleted, onUnpublished }: { passport: Designe
     }
   }
 
+  // Admin force-purge (force_purge_passport, migrations 094/095). Unlike
+  // Delete, this works regardless of status/holders: it cascade-deletes the
+  // passport AND removes it from every collector's inventory, erasing the
+  // ownership trace ("as if never owned"). Irreversible — always title-typed.
+  // The server self-gates on is_platform_admin; this item is hidden for
+  // non-admins as a UX matter.
+  async function handleForcePurge() {
+    const typed = prompt(
+      `FORCE DELETE "${passport.title}".\n\n` +
+      `This permanently deletes the passport and removes it from ` +
+      `${soldCount} collector inventor${soldCount === 1 ? 'y' : 'ies'}, erasing every ` +
+      `trace as if it was never owned. It cannot be undone.\n\n` +
+      `Type the passport title to confirm:`,
+    )
+    if (typed === null) return
+    if (typed.trim() !== passport.title.trim()) {
+      alert('Title did not match — force delete cancelled.')
+      return
+    }
+    setBusy('force')
+    setError(null)
+    try {
+      const res = await fetch('/api/admin/retention', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'force_purge', passportId: passport.id }),
+      })
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}))
+        setError(j.error ?? 'Force delete failed')
+        return
+      }
+      onDeleted()            // gone server-side — remove the row
+      router.refresh()
+    } finally {
+      setBusy(null)
+      setOpen(false)
+    }
+  }
+
   return (
     <div className="relative" ref={ref} onClick={(e) => e.stopPropagation()}>
       <button
@@ -639,6 +680,18 @@ function ActionsMenu({ passport, onDeleted, onUnpublished }: { passport: Designe
               disabled={busy !== null}
               danger
             />
+          )}
+          {isAdmin && (
+            <>
+              <div className="my-1 border-t border-surface-faintdiv" />
+              <MenuItem
+                label={busy === 'force' ? 'Force deleting…' : 'Force delete'}
+                hint="admin · erases owners"
+                onClick={handleForcePurge}
+                disabled={busy !== null}
+                danger
+              />
+            </>
           )}
           {error && <p className="px-3 py-1 text-[10.5px] text-red">{error}</p>}
         </div>
