@@ -88,6 +88,22 @@ export default function LoginScreen() {
     router.replace('/(tabs)/my-passports')
   }
 
+  // Password recovery. Reuses the FROZEN okuji:// deep link with a
+  // `flow=recovery` marker (Supabase appends &code=…); app/_layout.tsx's
+  // handler routes that to the update-password screen. Anti-enumeration:
+  // the result is ignored and the confirmation is identical whether or not
+  // the address is registered.
+  const handleForgotPassword = async () => {
+    if (!email) {
+      Alert.alert('Enter your email', 'Type your account email above, then tap “Forgot password?” again.')
+      return
+    }
+    setLoading(true)
+    await supabase.auth.resetPasswordForEmail(email, { redirectTo: `${redirectTo}?flow=recovery` })
+    setLoading(false)
+    Alert.alert('Check your email', 'If an account exists for that email, we’ve sent a reset link.')
+  }
+
   // Requires the Google provider enabled in Supabase Auth, the okuji:// redirect
   // allow-listed, and a Google OAuth client configured for this build's signing
   // cert (deferred external setup). Until then this surfaces the error gracefully
@@ -184,7 +200,11 @@ export default function LoginScreen() {
           <Text style={styles.googleBtnText}>Continue with Google</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity onPress={() => router.push('/(auth)/register')} style={styles.link}>
+        <TouchableOpacity onPress={handleForgotPassword} disabled={loading} style={styles.link}>
+          <Text style={styles.linkText}>Forgot password?</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity onPress={() => router.push('/(auth)/register')} style={styles.linkTight}>
           <Text style={styles.linkText}>Don't have an account? Register</Text>
         </TouchableOpacity>
         </View>
@@ -239,5 +259,6 @@ const styles = StyleSheet.create({
   },
   googleBtnText: { color: palette.navy, fontWeight: '700', fontSize: 15 },
   link: { marginTop: 20, alignItems: 'center' },
+  linkTight: { marginTop: 10, alignItems: 'center' },
   linkText: { color: palette.accent, fontSize: 13 },
 })

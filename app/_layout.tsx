@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Stack, useRouter, useSegments } from 'expo-router'
 import * as SplashScreen from 'expo-splash-screen'
 import * as Linking from 'expo-linking'
@@ -7,33 +7,10 @@ import { StyleSheet } from 'react-native'
 import * as Sentry from '@sentry/react-native'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
+import { recoveryFlag } from '../lib/recovery-flag'
 import { EmployeeProvider } from '../contexts/EmployeeContext'
 import { DemoProvider } from '../contexts/DemoContext'
 import { initJournalPhotoSync } from '../lib/journal-photo-queue'
-
-// Global deep-link consumer for Supabase auth redirects. Handles:
-//   - email-confirmation taps (`okuji://auth?code=…&type=signup`)
-//   - magic-link / password-recovery taps in the future
-//   - any OAuth redirect that arrives outside the in-app browser flow
-// The login screen's WebBrowser.openAuthSessionAsync path still parses
-// `result.url` itself for the Google flow; this handler is for cold-
-// open deep links where there's no in-app browser session to consume
-// the URL.
-async function handleAuthRedirect(url: string | null) {
-  if (!url) return
-  const parsed = Linking.parse(url)
-  const params = parsed.queryParams ?? {}
-  const code = params.code
-  const errDesc = params.error_description
-  if (typeof errDesc === 'string' && errDesc) {
-    console.warn('[auth redirect] error', errDesc)
-    return
-  }
-  if (typeof code === 'string' && code) {
-    const { error } = await supabase.auth.exchangeCodeForSession(code)
-    if (error) console.warn('[auth redirect] exchangeCodeForSession failed', error.message)
-  }
-}
 
 Sentry.init({
   dsn: process.env.EXPO_PUBLIC_SENTRY_DSN,
@@ -52,6 +29,41 @@ export default function RootLayout() {
   const segments = useSegments()
   const router = useRouter()
 
+  // Global deep-link consumer for Supabase auth redirects:
+  //   - email-confirmation taps (`okuji://auth?code=…`)
+  //   - password recovery (`okuji://auth?flow=recovery&code=…`)
+  //   - any OAuth redirect that arrives outside the in-app browser flow
+  // (The login screen's WebBrowser flow parses its own result.url for Google;
+  // this is for cold-open / foreground deep links.)
+  //
+  // Recovery vs confirmation can't be told apart from the event alone here
+  // (the mobile client has detectSessionInUrl:false and we exchange the code
+  // manually), so we distinguish by the `flow=recovery` marker we put on the
+  // frozen okuji:// redirect at initiation. On recovery we raise the
+  // recoveryFlag BEFORE exchanging so the auth gate doesn't bounce the user to
+  // the tabs, then route to the set-new-password screen.
+  const onDeepLink = useCallback(async (url: string | null) => {
+    if (!url) return
+    const parsed = Linking.parse(url)
+    const params = parsed.queryParams ?? {}
+    const errDesc = params.error_description
+    if (typeof errDesc === 'string' && errDesc) {
+      console.warn('[auth redirect] error', errDesc)
+      return
+    }
+    const code = typeof params.code === 'string' ? params.code : null
+    if (!code) return
+    const isRecovery = params.flow === 'recovery'
+    if (isRecovery) recoveryFlag.set(true)
+    const { error } = await supabase.auth.exchangeCodeForSession(code)
+    if (error) {
+      if (isRecovery) recoveryFlag.set(false)
+      console.warn('[auth redirect] exchangeCodeForSession failed', error.message)
+      return
+    }
+    if (isRecovery) router.replace('/update-password')
+  }, [router])
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session)
@@ -62,24 +74,27 @@ export default function RootLayout() {
       setSession(nextSession)
     })
 
-    // Cold-start deep-link consumption: the user may have arrived from
-    // tapping an email-confirmation link, which opens the app with the
-    // URL but no in-app browser session to parse it.
-    void Linking.getInitialURL().then(handleAuthRedirect)
+    // Cold-start deep-link consumption: the user may have arrived by tapping
+    // an email link, which opens the app with the URL but no in-app browser
+    // session to parse it.
+    void Linking.getInitialURL().then(onDeepLink)
 
-    // Foreground deep-link consumption: same handler, fires when the
-    // app is already running and a deep-link arrives.
-    const sub = Linking.addEventListener('url', (e) => void handleAuthRedirect(e.url))
+    // Foreground deep-link consumption: same handler, fires when the app is
+    // already running and a deep-link arrives.
+    const sub = Linking.addEventListener('url', (e) => void onDeepLink(e.url))
 
     return () => {
       subscription.unsubscribe()
       sub.remove()
     }
-  }, [])
+  }, [onDeepLink])
 
   // Centralized auth gate: route into the right group on auth changes.
   useEffect(() => {
     if (loading) return
+    // During password recovery the user holds a (recovery) session but must
+    // stay on the update-password screen — don't auto-route them to the tabs.
+    if (recoveryFlag.get()) return
     const inAuthGroup = segments[0] === '(auth)'
     if (!session && !inAuthGroup) {
       router.replace('/(auth)/login')
@@ -106,6 +121,9 @@ export default function RootLayout() {
         <Stack>
           <Stack.Screen name="(auth)" options={{ headerShown: false }} />
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          {/* Password-recovery landing — top-level (NOT in (auth)) so the
+              recovery session doesn't trip the auth gate's group routing. */}
+          <Stack.Screen name="update-password" options={{ headerShown: false }} />
           <Stack.Screen
             name="passport/[id]"
             options={{ title: 'Passport', headerBackTitle: 'Back' }}
