@@ -45,6 +45,7 @@ export function WorkspaceClient({ passport, pages, stops, creatorInstitutionId }
 
   const [showSettings, setShowSettings] = useState(false)
   const [showPublish, setShowPublish] = useState(false)
+  const [expanding, setExpanding] = useState(false)
   const [showHelp, setShowHelp] = useState(false)
   const [printOpen, setPrintOpen] = useState(false)
   const [navigating, setNavigating] = useState(false)
@@ -67,6 +68,39 @@ export function WorkspaceClient({ passport, pages, stops, creatorInstitutionId }
   const handleSave = useCallback(async () => {
     await saveAll()
   }, [])
+
+  // Publish an EXPANSION on an already-published passport. Saves first so any
+  // newly-added pages are persisted, then the route tags those new base pages
+  // as an opt-in expansion (one atomic-ish action minimises the window where
+  // untagged new pages are live). Distinct from the correction republish.
+  const handlePublishExpansion = useCallback(async () => {
+    if (expanding) return
+    setExpanding(true)
+    try {
+      await saveAll()
+      if (usePassportStore.getState().saveError) {
+        window.alert('Save your changes first — the new pages must persist before publishing the expansion.')
+        return
+      }
+      const res = await fetch(`/api/passports/${passport.id}/publish-expansion`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      })
+      const j = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        window.alert(j.error ?? 'Could not publish the expansion.')
+        return
+      }
+      window.alert(
+        `Published expansion ${j.sequence}: ${j.pageCount} page${j.pageCount === 1 ? '' : 's'}. ` +
+        `Existing holders will see "new pages available" and can add them.`,
+      )
+      router.refresh()
+    } finally {
+      setExpanding(false)
+    }
+  }, [expanding, passport.id, router])
   useAutosave()
   useCoverThumbnail()
   useWorkspaceKeyboard({
@@ -171,9 +205,13 @@ export function WorkspaceClient({ passport, pages, stops, creatorInstitutionId }
           <Button variant="ghost" size="sm" onClick={() => setShowHelp(true)} aria-label="Open help">
             Help
           </Button>
-          {!isPublished && (
+          {!isPublished ? (
             <Button size="sm" onClick={() => setShowPublish(true)}>
               Publish
+            </Button>
+          ) : (
+            <Button size="sm" onClick={handlePublishExpansion} disabled={expanding} aria-label="Publish added pages as an opt-in expansion">
+              {expanding ? 'Publishing…' : 'Publish expansion'}
             </Button>
           )}
         </div>
