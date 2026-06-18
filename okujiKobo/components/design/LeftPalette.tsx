@@ -392,29 +392,32 @@ export function LeftPalette({ width }: { width?: number } = {}) {
         fontSize: 16, fontWeight: 'bold', color: '0D1B2A', align: 'left', rotation: 0,
       }
     } else if (type === 'richtext') {
-      // Pre-fill from the first stop on this page that has any address
-      // fields. If none, the block opens empty — the inspector still
-      // offers a "Pull stop address" affordance once the designer picks
-      // a stop. Pre-fill is the common path: per Nathan, "include the
-      // address by default, then let them style + add to it".
-      const stopsOnPage = usePassportStore
-        .getState()
-        .stops.filter((s) => s.page_id === activePageId)
-      const firstWithAddress = stopsOnPage.find((s) => {
+      // Address/paragraph block. Default the address to the SELECTED stop
+      // when one is selected (Nathan: "default to the address of the selected
+      // stop"); otherwise fall back to the first stop on this page that has
+      // any address. Either way the block opens pre-filled + linked so the
+      // inspector's stop-address affordance targets the right stop.
+      const state = usePassportStore.getState()
+      const hasAddress = (s: unknown) => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const x = s as any
-        return x.address_street || x.address_city || x.address_state || x.address_zip
-      }) ?? null
+        return !!(x?.address_street || x?.address_city || x?.address_state || x?.address_zip)
+      }
+      const selectedStop = state.selectedStopId
+        ? state.stops.find((s) => s.id === state.selectedStopId) ?? null
+        : null
+      const stopsOnPage = state.stops.filter((s) => s.page_id === activePageId)
+      const sourceStop = selectedStop ?? stopsOnPage.find(hasAddress) ?? null
       const { stopAddressToRuns } = await import('@/lib/design/rich-text')
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const seed = stopAddressToRuns(firstWithAddress as any)
+      const seed = stopAddressToRuns(sourceStop as any)
       defaults = {
         id, type,
         x: 40, y: 40, width: 240, height: 80,
         runs: seed.length > 0 ? seed : [{ text: 'Address line 1\nCity, ST 00000' }],
         fontSize: 13, fontFamily: 'Arial, sans-serif',
         color: '0D1B2A', align: 'left', rotation: 0,
-        linkedStopId: firstWithAddress?.id ?? null,
+        linkedStopId: sourceStop?.id ?? null,
       }
     } else if (type === 'line') {
       defaults = { id, type, x1: 40, y1: 100, x2: 572, y2: 100, thickness: 2, lineColor: '0D1B2A' }
