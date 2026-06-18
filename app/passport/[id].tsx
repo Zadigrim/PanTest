@@ -53,6 +53,13 @@ export default function PassportScreen() {
   const [stamps, setStamps] = useState<Record<string, Record<string, Stamp>>>({})
   const [slotStates, setSlotStates] = useState<Record<string, Record<string, StampSlotState>>>({})
   const [collectorPassport, setCollectorPassport] = useState<CollectorPassport | null>(null)
+  // Passport expansions (migration 100): supplemental pages this holder can
+  // opt into. acceptedExpansions = expansion ids this holder has added;
+  // availableExpansions = published expansions not yet accepted.
+  const [acceptedExpansions, setAcceptedExpansions] = useState<Set<string>>(new Set())
+  const [availableExpansions, setAvailableExpansions] = useState<
+    Array<{ id: string; sequence: number; title: string | null; pageCount: number }>
+  >([])
   const [userId, setUserId] = useState<string | null>(null)
   const [bearerName, setBearerName] = useState<string>('')
   // Post-stamp capture surface state. stampId is the just-placed stamp;
@@ -408,6 +415,72 @@ export default function PassportScreen() {
   // The gesture component now delivers placement directly to
   // handleStampPlaced; there is no separate confirmation step.)
 
+  // Holder-visible pages: base pages (no expansion_id) always; expansion pages
+  // ONLY once this holder has accepted that expansion. usePassport already
+  // fetched ALL pages, so accepting is a pure visibility flip (no refetch).
+  // Expansion pages carry a higher page_order, so they sort after base content
+  // and before the computed journal back-pages.
+  const visiblePages = useMemo(
+    () =>
+      pages.filter((p) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const eid = (p as any).expansion_id as string | null | undefined
+        return !eid || acceptedExpansions.has(eid)
+      }),
+    [pages, acceptedExpansions],
+  )
+
+  // Load this holder's expansions + acceptances to drive the opt-in indicator.
+  useEffect(() => {
+    if (!collectorPassport || !id) return
+    let cancelled = false
+    void (async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const db = supabase as any
+      const [{ data: exps }, { data: accepted }] = await Promise.all([
+        db.from('passport_expansions').select('id, sequence, title').eq('passport_id', id).order('sequence'),
+        db.from('collector_passport_expansions').select('expansion_id').eq('collector_passport_id', collectorPassport.id),
+      ])
+      if (cancelled) return
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const acceptedSet = new Set<string>(((accepted ?? []) as any[]).map((r) => r.expansion_id))
+      setAcceptedExpansions(acceptedSet)
+      const counts: Record<string, number> = {}
+      for (const p of pages) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const e = (p as any).expansion_id as string | null | undefined
+        if (e) counts[e] = (counts[e] ?? 0) + 1
+      }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const avail = ((exps ?? []) as any[])
+        .filter((e) => !acceptedSet.has(e.id))
+        .map((e) => ({ id: e.id, sequence: e.sequence, title: e.title, pageCount: counts[e.id] ?? 0 }))
+      setAvailableExpansions(avail)
+    })()
+    return () => { cancelled = true }
+  }, [collectorPassport, id, pages])
+
+  // Opt in: append the available expansions to THIS holder's copy. Records the
+  // acceptance (one-way) and flips the pages visible. Never touches stamps,
+  // journal, progress, or the original completion/prize.
+  const handleAddExpansions = useCallback(async () => {
+    if (!collectorPassport || availableExpansions.length === 0) return
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = supabase as any
+    const rows = availableExpansions.map((e) => ({
+      collector_passport_id: collectorPassport.id,
+      expansion_id: e.id,
+    }))
+    const { error } = await db.from('collector_passport_expansions').insert(rows)
+    if (error) { Alert.alert('Could not add pages', error.message); return }
+    setAcceptedExpansions((prev) => {
+      const next = new Set(prev)
+      for (const e of availableExpansions) next.add(e.id)
+      return next
+    })
+    setAvailableExpansions([])
+  }, [collectorPassport, availableExpansions])
+
   // ── build page sequence ────────────────────────────────────────────────────
   // pageScreenIndex: maps page.id → index in the pages array (of the StopsPage screen index)
   const pageScreenIndex = useMemo(() => {
@@ -416,9 +489,9 @@ export default function PassportScreen() {
     // StopsPage [+ ExitVisa if enabled]. Section dividers were removed.
     const blockSize = prefs.showExitVisa ? 2 : 1
     const firstPage = 2 + (prefs.showToc ? 1 : 0)
-    pages.forEach((p, i) => { idx[p.id] = firstPage + i * blockSize })
+    visiblePages.forEach((p, i) => { idx[p.id] = firstPage + i * blockSize })
     return idx
-  }, [pages, prefs.showToc, prefs.showExitVisa])
+  }, [visiblePages, prefs.showToc, prefs.showExitVisa])
 
   const pageNodes = useMemo(() => {
     if (!passport || !collectorPassport) return []
@@ -452,7 +525,7 @@ export default function PassportScreen() {
         <PassportFrame key="toc" bindingSide="left">
           <TableOfContents
             passport={passport}
-            pages={pages}
+            pages={visiblePages}
             stops={stops}
             stamps={stamps}
             pageScreenIndex={pageScreenIndex}
@@ -463,8 +536,9 @@ export default function PassportScreen() {
     }
 
     // Per DB page: StopsPage [+ ExitVisa]. Section dividers were removed
-    // (they rendered as empty intro pages with no content).
-    pages.forEach((page, i) => {
+    // (they rendered as empty intro pages with no content). visiblePages =
+    // base + accepted-expansion pages for this holder.
+    visiblePages.forEach((page, i) => {
       const pageStops = stops[page.id] ?? []
       const pageStamps = stamps[page.id] ?? {}
       const pageSlotStates = slotStates[page.id] ?? {}
@@ -534,7 +608,7 @@ export default function PassportScreen() {
 
     return nodes
   }, [
-    passport, collectorPassport, bearerName, pages, stops, stamps,
+    passport, collectorPassport, bearerName, visiblePages, stops, stamps,
     slotStates, pageScreenIndex, pageW, pageH, prefs.showToc, prefs.showExitVisa,
     prefs.showBackPages, backPages,
     handlePressStart, handlePressCancel, handleStampPlaced,
@@ -577,6 +651,17 @@ export default function PassportScreen() {
             <Text style={correctionStyles.dismiss}>Got it</Text>
           </TouchableOpacity>
         </View>
+      )}
+      {/* Expansion opt-in — appears only when a real published expansion this
+          holder hasn't accepted exists. Tapping appends the new pages to their
+          copy (after content, before journal). Honest: hidden when none. */}
+      {availableExpansions.length > 0 && (
+        <TouchableOpacity onPress={handleAddExpansions} style={expStyles.banner} accessibilityRole="button">
+          <Text style={expStyles.bannerText}>
+            {availableExpansions.reduce((n, e) => n + e.pageCount, 0)} new page
+            {availableExpansions.reduce((n, e) => n + e.pageCount, 0) === 1 ? '' : 's'} available — tap to add
+          </Text>
+        </TouchableOpacity>
       )}
       <PageFlipper
         ref={flipperRef}
@@ -699,6 +784,23 @@ const styles = StyleSheet.create({
 // Co-located with the screen because it consumes the screen's
 // existing supabase client + state. Mirrors the web
 // CorrectionNoticeBanner in copy + behavior.
+const expStyles = StyleSheet.create({
+  banner: {
+    marginHorizontal: 12,
+    marginTop: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    backgroundColor: palette.accent,
+    alignItems: 'center',
+  },
+  bannerText: {
+    color: palette.ink,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+})
+
 const navStyles = StyleSheet.create({
   bar: {
     // In normal flow directly beneath the page (the screen centers the
