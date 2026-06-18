@@ -9,7 +9,7 @@
 // trigger — this dialog is never opened. No script tag is appended, no
 // console errors, no broken map container.
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -53,6 +53,41 @@ export function MapPickerDialog({
   const [pin, setPin] = useState<{ lat: number; lng: number } | null>(
     initialLat != null && initialLng != null ? { lat: initialLat, lng: initialLng } : null,
   )
+  // Recenter + drop-pin hook for the search box. The map + marker are created
+  // inside the effect below; this ref lets the search handler drive them.
+  const setPinAtRef = useRef<((lat: number, lng: number) => void) | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searching, setSearching] = useState(false)
+  const [searchError, setSearchError] = useState<string | null>(null)
+
+  // Search: forward-geocode the query SERVER-SIDE (one call per submit, same
+  // server key as reverse-geocode — no client Places SKU), then recenter the
+  // map and drop the pin on the result. Failure degrades to a hint; it never
+  // moves the map or blocks anything else.
+  async function handleSearch() {
+    const q = searchQuery.trim()
+    if (!q) return
+    setSearching(true)
+    setSearchError(null)
+    try {
+      const res = await fetch('/api/maps/geocode', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: q }),
+      })
+      const json = res.ok ? ((await res.json()) as { place?: ResolvedPlace | null }) : null
+      const place = json?.place ?? null
+      if (place) {
+        setPinAtRef.current?.(place.lat, place.lng)
+      } else {
+        setSearchError('No match — try a more specific place or address.')
+      }
+    } catch {
+      setSearchError('Search failed — try again.')
+    } finally {
+      setSearching(false)
+    }
+  }
 
   // Confirm: reverse-geocode the pin SERVER-SIDE (one call, on confirm only —
   // not per drag) to fetch the address, then hand coords + address to the
@@ -112,15 +147,21 @@ export function MapPickerDialog({
           visible: initialLat != null && initialLng != null,
         }) as { setPosition: (p: { lat: number; lng: number }) => void }
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const placePin = (latLng: any) => {
-          const lat = latLng.lat()
-          const lng = latLng.lng()
+        const setPinAt = (lat: number, lng: number) => {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           ;(marker as any).setPosition({ lat, lng })
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           ;(marker as any).setVisible(true)
           setPin({ lat, lng })
+        }
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const placePin = (latLng: any) => setPinAt(latLng.lat(), latLng.lng())
+
+        // Search recenters the map and drops the pin on the match.
+        setPinAtRef.current = (lat: number, lng: number) => {
+          map.setCenter({ lat, lng })
+          map.setZoom(DEFAULT_ZOOM_WITH_PIN)
+          setPinAt(lat, lng)
         }
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -146,6 +187,7 @@ export function MapPickerDialog({
 
     return () => {
       cancelled = true
+      setPinAtRef.current = null
     }
   }, [open, mapEl, initialLat, initialLng])
 
@@ -166,8 +208,29 @@ export function MapPickerDialog({
             matching.
           </p>
 
+          {/* Search — forward-geocode to jump the map to a place/address. */}
+          <div className="mt-3 flex items-center gap-2">
+            <Input
+              type="text"
+              placeholder="Search a place or address…"
+              value={searchQuery}
+              onChange={(e) => { setSearchQuery(e.target.value); setSearchError(null) }}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void handleSearch() } }}
+              className="h-8 flex-1 text-xs"
+            />
+            <Button
+              variant="default"
+              size="sm"
+              disabled={searching || !searchQuery.trim()}
+              onClick={() => void handleSearch()}
+            >
+              {searching ? 'Searching…' : 'Search'}
+            </Button>
+          </div>
+          {searchError && <p className="mt-1 text-xs text-red-600">{searchError}</p>}
+
           <div
-            className="mt-3 w-full overflow-hidden rounded-card border border-hairline bg-cream"
+            className="mt-2 w-full overflow-hidden rounded-card border border-hairline bg-cream"
             style={{ height: '60vh', minHeight: 360 }}
           >
             {loadError ? (
