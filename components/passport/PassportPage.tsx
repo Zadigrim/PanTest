@@ -6,6 +6,7 @@ import { LinearGradient } from 'expo-linear-gradient'
 import Svg, { Defs, Pattern, Path, Rect, Filter, FeTurbulence, FeColorMatrix } from 'react-native-svg'
 import { GuillocheBackground } from '../ui/GuillocheBackground'
 import { DesignerCanvas } from './DesignerCanvas'
+import type { SharedValue } from 'react-native-reanimated'
 import type { Passport, PassportPage as PassportPageType, Stop, Stamp, StampSlotState, StampPlacement } from '../../types'
 
 // Designer artboard width in logical units
@@ -19,6 +20,9 @@ interface Props {
   slotStates: Record<string, StampSlotState>
   width: number
   height: number
+  zoomScale: SharedValue<number>
+  armedStopId: string | null
+  onTapStop: (stopId: string) => void
   onStampPlaced: (stopId: string, placement: StampPlacement) => void
   onPressStart: (stopId: string) => void
   onPressCancel: (stopId: string) => void
@@ -32,6 +36,9 @@ export function PassportPage({
   slotStates,
   width,
   height,
+  zoomScale,
+  armedStopId,
+  onTapStop,
   onStampPlaced,
   onPressStart,
   onPressCancel,
@@ -132,6 +139,9 @@ export function PassportPage({
         slotStates={slotStates}
         scale={scale}
         artboardH={artboardH}
+        zoomScale={zoomScale}
+        armedStopId={armedStopId}
+        onTapStop={onTapStop}
         onStampPlaced={onStampPlaced}
         onPressStart={onPressStart}
         onPressCancel={onPressCancel}

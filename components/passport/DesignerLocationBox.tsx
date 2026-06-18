@@ -1,7 +1,9 @@
 // Absolutely-positioned stamp box that mirrors the designer's location box placement.
 // Uses measure() for absolute screen coords so StampGestureInteraction works correctly.
-import React, { useRef, useCallback } from 'react'
+import React, { useRef, useCallback, useMemo } from 'react'
 import { View, Text, StyleSheet, LayoutRectangle } from 'react-native'
+import { GestureDetector, Gesture } from 'react-native-gesture-handler'
+import { runOnJS, type SharedValue } from 'react-native-reanimated'
 import { StampSlot } from './StampSlot'
 import { StampArtwork } from '../stamp/StampArtwork'
 import { StampGestureInteraction } from '../stamp/StampGestureInteraction'
@@ -13,6 +15,14 @@ interface Props {
   scale: number
   slotState: StampSlotState
   stamp?: Stamp | null
+  /** Lifted zoom scale — a tap only opens the action sheet at ≈1× (touches
+   *  while zoomed are pan intent). */
+  zoomScale: SharedValue<number>
+  /** True once "Stamp this stop" was chosen in the sheet: mounts the
+   *  expressive press-hold gesture (StampGestureInteraction, unchanged). */
+  armed: boolean
+  /** Tap on the stop region at ≈1× → open the stamp-action sheet. */
+  onTap: () => void
   onStampPlaced: (placement: StampPlacement) => void
   onPressStart: () => void
   onPressCancel: () => void
@@ -23,10 +33,28 @@ export function DesignerLocationBox({
   scale,
   slotState,
   stamp,
+  zoomScale,
+  armed,
+  onTap,
   onStampPlaced,
   onPressStart,
   onPressCancel,
 }: Props) {
+  // Discoverable tap → sheet. Gated on zoom: a tap while zoomed is pan intent,
+  // so it must not open the sheet (governing rule). minDistance(8) on the
+  // ancestor Pan lets a real tap reach this without triggering a page pan.
+  const tapGesture = useMemo(
+    () =>
+      Gesture.Tap()
+        .maxDuration(300)
+        .onEnd((_e, success) => {
+          'worklet'
+          if (!success) return
+          if (zoomScale.value > 1.05) return
+          runOnJS(onTap)()
+        }),
+    [zoomScale, onTap],
+  )
   const [boxLayout, setBoxLayout] = React.useState<LayoutRectangle>({ x: 0, y: 0, width: 0, height: 0 })
   const boxRef = useRef<View>(null)
 
@@ -149,7 +177,10 @@ export function DesignerLocationBox({
         {/* TOP layer: the earned stamp — ink over the printed page. */}
         {placedStamp}
 
-        {(slotState === 'ready' || slotState === 'pressing') && boxLayout.width > 0 && (
+        {/* Armed (chosen "Stamp this stop") → the expressive press-hold
+            gesture, unchanged (migration 040). Verification/placement logic
+            untouched — the sheet only changed how the gesture is entered. */}
+        {armed && (slotState === 'ready' || slotState === 'pressing') && boxLayout.width > 0 && (
           <StampGestureInteraction
             stop={stop}
             slotState={slotState}
@@ -158,6 +189,14 @@ export function DesignerLocationBox({
             onPressCancel={onPressCancel}
             onStampPlaced={onStampPlaced}
           />
+        )}
+
+        {/* Not yet armed → a zoom-gated tap target that opens the action
+            sheet. Sits above the base layers; the earned stamp replaces it. */}
+        {!armed && slotState === 'ready' && (
+          <GestureDetector gesture={tapGesture}>
+            <View style={StyleSheet.absoluteFill} />
+          </GestureDetector>
         )}
       </View>
 

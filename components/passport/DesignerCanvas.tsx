@@ -6,6 +6,7 @@
 // in CoverPanel without duplication.
 import React from 'react'
 import { View } from 'react-native'
+import type { SharedValue } from 'react-native-reanimated'
 import { DesignerLocationBox } from './DesignerLocationBox'
 import { renderPageElement } from './PageElementRenderer'
 import type {
@@ -23,6 +24,12 @@ interface Props {
   slotStates: Record<string, StampSlotState>
   scale: number
   artboardH: number
+  /** Lifted zoom scale (tap-to-stamp gates on it). */
+  zoomScale: SharedValue<number>
+  /** Stop on THIS page whose expressive gesture is armed, or null. */
+  armedStopId: string | null
+  /** Tap on a stop region → open the action sheet. */
+  onTapStop: (stopId: string) => void
   onStampPlaced: (stopId: string, placement: StampPlacement) => void
   onPressStart: (stopId: string) => void
   onPressCancel: (stopId: string) => void
@@ -35,6 +42,9 @@ export function DesignerCanvas({
   slotStates,
   scale,
   artboardH,
+  zoomScale,
+  armedStopId,
+  onTapStop,
   onStampPlaced,
   onPressStart,
   onPressCancel,
@@ -53,6 +63,9 @@ export function DesignerCanvas({
             scale={scale}
             slotState={slotStates[stop.id] ?? 'dormant'}
             stamp={stamps[stop.id]}
+            zoomScale={zoomScale}
+            armed={armedStopId === stop.id}
+            onTap={() => onTapStop(stop.id)}
             onStampPlaced={(p) => onStampPlaced(stop.id, p)}
             onPressStart={() => onPressStart(stop.id)}
             onPressCancel={() => onPressCancel(stop.id)}

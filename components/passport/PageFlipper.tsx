@@ -1,16 +1,20 @@
-// Page-flip + pinch-to-zoom.
+// Page-flip + pinch-to-zoom + pan-while-zoomed.
 //
 // Flip direction (BLD fix): the current page is always on top and animates
 // away to reveal the destination beneath. The HINGE depends on direction so
 // the motion matches the swipe:
 //   • forward  (swipe left):  left-edge hinge, 0 → +180  → page turns LEFT.
 //   • backward (swipe right): right-edge hinge, 0 → −180 → page turns RIGHT.
-// (Previously both used the left-edge hinge, so swiping right animated as if
-// turning left.)
 //
-// Zoom: a Pinch gesture (1–3×) runs simultaneously with the swipe Pan;
-// paging is suppressed while zoomed (scale > ~1) so the two don't fight —
-// pinch back to 1× to page again.
+// Governing gesture rule — zoom scale is the single switch, no overlap state:
+//   • scale ≈ 1×: one-finger horizontal drag = swipe-to-turn-page.
+//   • scale > 1×: one-finger drag = PAN, clamped to content bounds; page-turn
+//     is disabled and dragging to/past the edge stops at the clamp (no
+//     edge-spill into a page turn). Page-turn re-arms at ≈1×.
+//
+// `scale` is LIFTED to PassportScreen and passed in (also threaded to the
+// stamp boxes so tap-to-stamp can gate on zoom). PageFlipper writes it from
+// the pinch; pan/page-turn read it. savedScale + pan translates stay local.
 import React, {
   useState, useCallback, useRef, forwardRef, useImperativeHandle,
 } from 'react'
@@ -20,6 +24,7 @@ import Animated, {
   useAnimatedStyle,
   withTiming,
   runOnJS,
+  type SharedValue,
 } from 'react-native-reanimated'
 import { GestureDetector, Gesture } from 'react-native-gesture-handler'
 import { usePageDimensions } from './PassportFrame'
@@ -34,13 +39,16 @@ interface Props {
   pages: React.ReactNode[]
   initialIndex?: number
   onPageChange?: (index: number) => void
+  /** Lifted zoom scale (shared with PassportScreen + the stamp boxes). When
+   *  omitted, a local one is used so the component stays standalone-safe. */
+  scale?: SharedValue<number>
 }
 
 const FLIP_DURATION = 370
 const MAX_ZOOM = 3
 
 export const PageFlipper = forwardRef<PageFlipperHandle, Props>(function PageFlipper(
-  { pages, initialIndex = 0, onPageChange },
+  { pages, initialIndex = 0, onPageChange, scale: scaleProp },
   ref,
 ) {
   const { pageW, pageH } = usePageDimensions()
@@ -52,9 +60,25 @@ export const PageFlipper = forwardRef<PageFlipperHandle, Props>(function PageFli
   const flipping = useRef(false)
   const flipAngle = useSharedValue(0)
 
-  // Pinch zoom.
-  const scale = useSharedValue(1)
+  // Pinch zoom — `scale` may be lifted in from the screen.
+  const localScale = useSharedValue(1)
+  const scale = scaleProp ?? localScale
   const savedScale = useSharedValue(1)
+
+  // Pan-while-zoomed translation (screen space). saved* hold the committed
+  // offset so a new drag accumulates from where the last one ended.
+  const translateX = useSharedValue(0)
+  const translateY = useSharedValue(0)
+  const savedTranslateX = useSharedValue(0)
+  const savedTranslateY = useSharedValue(0)
+
+  const resetPan = useCallback(() => {
+    'worklet'
+    translateX.value = withTiming(0)
+    translateY.value = withTiming(0)
+    savedTranslateX.value = 0
+    savedTranslateY.value = 0
+  }, [translateX, translateY, savedTranslateX, savedTranslateY])
 
   const completeFlip = useCallback((toIdx: number) => {
     setCurrentIdx(toIdx)
@@ -97,12 +121,29 @@ export const PageFlipper = forwardRef<PageFlipperHandle, Props>(function PageFli
     prev() { triggerFlip('backward') },
   }), [flipAngle, pages.length, onPageChange, triggerFlip])
 
+  // One Pan gesture serves both modes, switched purely on scale:
+  //   zoomed → translate (clamped); 1× → page-turn on release.
+  // minDistance lets a tap (< 8px) fall through to the stamp box's Tap.
   const panGesture = Gesture.Pan()
-    .activeOffsetX([-15, 15])
-    .failOffsetY([-12, 12])
+    .minDistance(8)
+    .onUpdate((e) => {
+      'worklet'
+      if (scale.value <= 1.01) return // 1× → no pan (page-turn decided on end)
+      const maxX = (pageW * (scale.value - 1)) / 2
+      const maxY = (pageH * (scale.value - 1)) / 2
+      const nx = savedTranslateX.value + e.translationX
+      const ny = savedTranslateY.value + e.translationY
+      translateX.value = nx < -maxX ? -maxX : nx > maxX ? maxX : nx
+      translateY.value = ny < -maxY ? -maxY : ny > maxY ? maxY : ny
+    })
     .onEnd((e) => {
       'worklet'
-      if (scale.value > 1.05) return // zoomed in — don't turn pages
+      if (scale.value > 1.05) {
+        // Zoomed: commit the pan. Page-turn is disabled — no edge-spill.
+        savedTranslateX.value = translateX.value
+        savedTranslateY.value = translateY.value
+        return
+      }
       if (e.translationX < -40) runOnJS(triggerFlip)('forward')
       else if (e.translationX > 40) runOnJS(triggerFlip)('backward')
     })
@@ -116,12 +157,16 @@ export const PageFlipper = forwardRef<PageFlipperHandle, Props>(function PageFli
     .onEnd(() => {
       'worklet'
       savedScale.value = scale.value
+      // Pinched back to ~1× → snap clean and recenter (re-arms page-turn/tap).
+      if (scale.value <= 1.01) {
+        scale.value = withTiming(1)
+        savedScale.value = 1
+        resetPan()
+      }
     })
 
   const composed = Gesture.Simultaneous(panGesture, pinchGesture)
 
-  // Hinge depends on direction (see header). Idle/forward use the left-edge
-  // hinge; backward uses the right-edge hinge so the page sweeps rightward.
   const frontStyle = useAnimatedStyle(() => {
     const deg = flipAngle.value
     if (flipDir === 'backward') {
@@ -144,7 +189,14 @@ export const PageFlipper = forwardRef<PageFlipperHandle, Props>(function PageFli
     }
   })
 
-  const zoomStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }))
+  // Translate in screen space (applied after scale), then scale.
+  const zoomStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: translateX.value },
+      { translateY: translateY.value },
+      { scale: scale.value },
+    ],
+  }))
 
   return (
     <GestureDetector gesture={composed}>

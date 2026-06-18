@@ -22,6 +22,7 @@ import { getViewerPrefs, DEFAULT_VIEWER_PREFS, ViewerPrefsContext, type ViewerPr
 import { PassportPage } from '../../components/passport/PassportPage'
 import { ExitVisa } from '../../components/passport/ExitVisa'
 import { PostStampCaptureSheet } from '../../components/passport/PostStampCaptureSheet'
+import { StampActionSheet } from '../../components/passport/StampActionSheet'
 import { BackJournalCover, BackJournalPage } from '../../components/passport/BackJournalPage'
 import { QRScanSheet } from '../../components/stamp/QRScanSheet'
 import { useBackPages } from '../../hooks/useBackPages'
@@ -29,6 +30,8 @@ import { packBackPages, BACK_PAGE_PAD_X, BACK_PAGE_PAD_TOP, BACK_PAGE_PAD_BOTTOM
 
 import type { StampPlacement, StampSlotState, CollectorPassport, Stamp, Stop } from '../../types'
 import { palette } from '../../lib/colors'
+import { useSharedValue } from 'react-native-reanimated'
+import { openDirections } from '../../lib/directions'
 
 // Whether stamping this stop requires a real QR scan. Reads the canonical
 // experience_verification_method (CLAUDE.md invariant 5) with the derived
@@ -55,6 +58,14 @@ export default function PassportScreen() {
   // Post-stamp capture surface state. stampId is the just-placed stamp;
   // redemptionCode is non-null when the stamp completed a section.
   const [captureSheet, setCaptureSheet] = useState<{ stampId: string; stopId: string; redemptionCode: string | null } | null>(null)
+  // Tap-to-confirm: the action sheet for a tapped stop, and which stop's
+  // expressive press-hold gesture is currently armed (after "Stamp this stop").
+  const [actionSheet, setActionSheet] = useState<{ pageId: string; stopId: string; stopName: string; lat: number | null; lng: number | null } | null>(null)
+  const [armedStop, setArmedStop] = useState<{ pageId: string; stopId: string } | null>(null)
+  // Lifted zoom scale: PageFlipper writes it (pinch), pan/page-turn read it,
+  // and the stamp boxes read it to gate tap-to-confirm (a tap opens the sheet
+  // only at ≈1×; touches while zoomed are pan intent).
+  const zoomScale = useSharedValue(1)
 
   const { checkLocation } = useGPS()
   const { verify } = useStampVerification()
@@ -232,6 +243,35 @@ export default function PassportScreen() {
       ...prev,
       [pageId]: { ...prev[pageId], [stopId]: 'ready' },
     }))
+    setArmedStop(null) // abandoning the gesture disarms; re-arm via the sheet
+  }, [])
+
+  // Tap a stop region (gated to ≈1× in the box) → open the action sheet.
+  const handleTapStop = useCallback((pageId: string, stopId: string) => {
+    const stop = (stops[pageId] ?? []).find((s) => s.id === stopId)
+    if (!stop) return
+    setActionSheet({ pageId, stopId, stopName: stop.name, lat: stop.lat, lng: stop.lng })
+  }, [stops])
+
+  // "Stamp this stop" → arm the expressive press-hold gesture, close the sheet.
+  // The gesture + verification are unchanged; only the entry point moved.
+  const handleChooseStamp = useCallback(() => {
+    setActionSheet((sheet) => {
+      if (sheet) setArmedStop({ pageId: sheet.pageId, stopId: sheet.stopId })
+      return null
+    })
+  }, [])
+
+  // "Get directions" → one-shot OS-maps handoff. okuji reads no location;
+  // the maps app supplies the user's position. Hidden when the stop is
+  // coord-null (the sheet doesn't show the action), so lat/lng are set here.
+  const handleGetDirections = useCallback(() => {
+    setActionSheet((sheet) => {
+      if (sheet && sheet.lat != null && sheet.lng != null) {
+        void openDirections(sheet.lat, sheet.lng, sheet.stopName)
+      }
+      return null
+    })
   }, [])
 
   // Verification + write both happen in the verify-stamp function (the
@@ -305,6 +345,7 @@ export default function PassportScreen() {
       ...prev,
       [pageId]: { ...prev[pageId], [stopId]: 'stamped' },
     }))
+    setArmedStop(null) // stamped — disarm
 
     // Per Part 4: replace the post-stamp Alert with a unified capture
     // surface. The sheet renders inline over the passport page and
@@ -440,6 +481,9 @@ export default function PassportScreen() {
             slotStates={pageSlotStates}
             width={pageW}
             height={pageH}
+            zoomScale={zoomScale}
+            armedStopId={armedStop?.pageId === page.id ? armedStop.stopId : null}
+            onTapStop={(stopId) => handleTapStop(page.id, stopId)}
             onStampPlaced={(stopId, placement) =>
               handleStampPlaced(page.id, stopId, placement)
             }
@@ -494,6 +538,7 @@ export default function PassportScreen() {
     slotStates, pageScreenIndex, pageW, pageH, prefs.showToc, prefs.showExitVisa,
     prefs.showBackPages, backPages,
     handlePressStart, handlePressCancel, handleStampPlaced,
+    zoomScale, armedStop, handleTapStop,
   ])
 
   // ── render ─────────────────────────────────────────────────────────────────
@@ -538,6 +583,7 @@ export default function PassportScreen() {
         pages={pageNodes}
         initialIndex={0}
         onPageChange={setNavIdx}
+        scale={zoomScale}
       />
 
       {/* Page navigation — lives in the bands above/below the page,
@@ -569,6 +615,18 @@ export default function PassportScreen() {
       {/* (The pre-stamp modal overlay was removed in the expressive-
           gesture PR — gesture + live preview live in the LocationBox
           itself, see components/stamp/StampGestureInteraction.tsx.) */}
+
+      {/* Stamp-action sheet — discoverable entry that replaces the hidden
+          press-and-hold trigger. "Stamp this stop" arms the (unchanged)
+          expressive gesture; "Get directions" is a one-shot OS-maps handoff. */}
+      <StampActionSheet
+        visible={actionSheet !== null}
+        stopName={actionSheet?.stopName ?? null}
+        hasCoords={actionSheet?.lat != null && actionSheet?.lng != null}
+        onStamp={handleChooseStamp}
+        onDirections={handleGetDirections}
+        onClose={() => setActionSheet(null)}
+      />
 
       {/* Post-stamp capture surface — replaces the previous Alert.
           Voice + photo are independently optional. */}

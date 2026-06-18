@@ -47,6 +47,9 @@ export function PassportBook({
 
   const translateX = useSharedValue(0)
   const curlProgress = useSharedValue(0)
+  // Legacy view (not used by the live passport screen, which uses PageFlipper).
+  // Inert zoom scale so PassportPage's tap/pan props type-check; no pinch here.
+  const zoomScale = useSharedValue(1)
 
   const goTo = useCallback((index: number) => {
     const clamped = Math.max(0, Math.min(index, totalPages - 1))
@@ -101,6 +104,9 @@ export function PassportBook({
         slotStates={pageSlotStates}
         width={PAGE_W}
         height={PAGE_H}
+        zoomScale={zoomScale}
+        armedStopId={null}
+        onTapStop={() => {}}
         onStampPlaced={(stopId, placement) => onStampPlaced(page.id, stopId, placement)}
         onPressStart={(stopId) => onPressStart(page.id, stopId)}
         onPressCancel={(stopId) => onPressCancel(page.id, stopId)}
