@@ -49,12 +49,12 @@ export async function POST(_request: NextRequest): Promise<NextResponse> {
   // moichido_merchant institution the user is attached to.
   const { data: authzRows } = await db
     .from('employee_authorizations')
-    .select('institution_id, institutions!inner(id, institution_type)')
+    .select('institution_id, institutions!inner(id, institution_type, moichido_card_limit, status)')
     .eq('user_id', user.id)
     .eq('institutions.institution_type', 'moichido_merchant')
 
   const firstMerchant = ((authzRows ?? []) as Array<{
-    institutions: { id: string; institution_type: string }
+    institutions: { id: string; institution_type: string; moichido_card_limit: number | null; status: string | null }
   }>)[0]?.institutions
 
   if (!firstMerchant) {
@@ -62,6 +62,30 @@ export async function POST(_request: NextRequest): Promise<NextResponse> {
       { error: 'No moichido merchant account associated with this user.' },
       { status: 403 },
     )
+  }
+
+  // Suspended merchants can't mint new cards.
+  if (firstMerchant.status === 'suspended') {
+    return NextResponse.json(
+      { error: 'This merchant account is suspended.' },
+      { status: 403 },
+    )
+  }
+
+  // Per-merchant card limit (migration 099). Null = unlimited. Count this
+  // merchant's existing consumable cards; block at the limit.
+  if (firstMerchant.moichido_card_limit != null) {
+    const { count } = await db
+      .from('passports')
+      .select('id', { count: 'exact', head: true })
+      .eq('proprietor_id', firstMerchant.id)
+      .eq('credential_type', 'consumable')
+    if ((count ?? 0) >= firstMerchant.moichido_card_limit) {
+      return NextResponse.json(
+        { error: `Card limit reached (${firstMerchant.moichido_card_limit}). Contact your moichido admin to raise it.` },
+        { status: 409 },
+      )
+    }
   }
 
   // Insert the passport (the card). All discriminators set here so
