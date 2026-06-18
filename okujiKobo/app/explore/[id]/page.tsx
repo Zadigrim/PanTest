@@ -167,6 +167,9 @@ export default async function ExplorePassportDetailPage({
     // Filter out closed pages (migration 020). They live in the
     // DB for snapshot diffing but never render in Explore.
     .is('closed_at', null)
+    // Base pages only — expansion pages (migration 100) are opt-in holder
+    // content, never shown in the public Explore preview.
+    .is('expansion_id', null)
     .order('page_order', { ascending: true })
 
   // pagesRaw/stopsRaw type as GenericStringError because the select

@@ -1155,6 +1155,7 @@ export type Database = {
           created_at: string
           custom_background_opacity: number
           elements: Json
+          expansion_id: string | null
           id: string
           page_number: number | null
           page_order: number
@@ -1178,6 +1179,7 @@ export type Database = {
           created_at?: string
           custom_background_opacity?: number
           elements?: Json
+          expansion_id?: string | null
           id?: string
           page_number?: number | null
           page_order?: number
@@ -1201,6 +1203,7 @@ export type Database = {
           created_at?: string
           custom_background_opacity?: number
           elements?: Json
+          expansion_id?: string | null
           id?: string
           page_number?: number | null
           page_order?: number
