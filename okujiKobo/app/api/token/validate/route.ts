@@ -70,7 +70,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<ValidateR
   // Look up which institution owns the passport for this token
   const { data: passport, error: passportError } = await supabase
     .from('passports')
-    .select('id, proprietor_id')
+    .select('id, proprietor_id, completion_prize_description, completion_prize_value_cents')
     .eq('id', token.passport_id)
     .single()
 
@@ -97,13 +97,25 @@ export async function POST(request: NextRequest): Promise<NextResponse<ValidateR
     )
   }
 
-  // Fetch prize_configuration for the page
-  const { data: prizeConfig } = await supabase
-    .from('prize_configurations')
-    .select('*')
-    .eq('page_id', token.page_id)
-    .eq('institution_id', passport.proprietor_id)
-    .single()
+  // Prize source depends on token scope. A page token (page_id set) reads
+  // prize_configurations by page_id; a passport-completion token (page_id NULL)
+  // reads the prize off the passport. Either way the terminal sees a
+  // PrizeConfiguration-shaped object and the redeem flow is identical.
+  let prizeConfig: PrizeConfiguration | null = null
+  if (token.page_id) {
+    const { data } = await supabase
+      .from('prize_configurations')
+      .select('*')
+      .eq('page_id', token.page_id)
+      .eq('institution_id', passport.proprietor_id)
+      .single()
+    prizeConfig = (data ?? null) as PrizeConfiguration | null
+  } else if (passport.completion_prize_description) {
+    prizeConfig = {
+      prize_description: passport.completion_prize_description,
+      prize_value_cents: passport.completion_prize_value_cents ?? null,
+    } as unknown as PrizeConfiguration
+  }
 
   // Check location_whitelist if configured (simplified: verify institution match)
   // Full geo-fencing would compare the employee's current stop to prizeConfig.location_whitelist

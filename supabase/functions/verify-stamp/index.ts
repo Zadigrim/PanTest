@@ -267,6 +267,20 @@ serve(async (req) => {
       return json({ error: 'Internal server error' }, 500)
     }
 
+    // Passport-completion prize: if this stamp completed the WHOLE passport
+    // (all stops across all pages) AND the passport defines a completion prize,
+    // mint the passport-scoped completion token. Idempotent + prize-gated in the
+    // RPC. Server-side here (no mobile/AAB change) and the SAME redemption flow
+    // as page tokens. Non-blocking — never fail the stamp over this.
+    try {
+      await supabase.rpc('generate_passport_completion_token', {
+        p_user_id: userId,
+        p_passport_id: page.passport_id,
+      })
+    } catch (completionErr) {
+      console.error('verify-stamp: passport completion token generation failed', completionErr)
+    }
+
     return json({ verified: true, geohash, verificationMethod, stopOpenedAt, stamp }, 200)
   } catch (err) {
     console.error('verify-stamp: internal error', err)

@@ -1455,6 +1455,8 @@ export type Database = {
           created_at: string
           creator_id: string
           credential_type: string
+          completion_prize_description: string | null
+          completion_prize_value_cents: number | null
           description: string | null
           design_state: Json | null
           design_state_updated_at: string | null
@@ -1519,6 +1521,8 @@ export type Database = {
           created_at?: string
           creator_id: string
           credential_type?: string
+          completion_prize_description?: string | null
+          completion_prize_value_cents?: number | null
           description?: string | null
           design_state?: Json | null
           design_state_updated_at?: string | null
@@ -1583,6 +1587,8 @@ export type Database = {
           created_at?: string
           creator_id?: string
           credential_type?: string
+          completion_prize_description?: string | null
+          completion_prize_value_cents?: number | null
           description?: string | null
           design_state?: Json | null
           design_state_updated_at?: string | null

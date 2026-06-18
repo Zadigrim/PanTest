@@ -141,80 +141,62 @@ export function PassportSettingsPanel({ onClose }: Props) {
             </div>
           </section>
 
-          {/* Credential type — passports.credential_type (M2 web-tree 069).
-              Whole-passport discriminator. Switching from persistent to
-              consumable on a passport that has acquisitions is allowed
-              structurally but won't reseed existing card_instances; the
-              warning text below names the constraint. Per-page hybrid is
-              a deferred decision. */}
+          {/* Passport-completion prize (migration 098). A passport-level reward
+              redeemed through the SAME terminal flow as page prizes — the code
+              is issued automatically (server-side) once a holder has stamped
+              every stop across all pages. Leave blank for no completion prize.
+              (The credential-type choice was removed: the okuji passport
+              designer always operates as a stamp passport; the consumable/
+              loyalty path lives in the moichido card designer.) */}
           <section className="space-y-3">
             <h3 className="text-xs font-semibold uppercase tracking-wider text-muted">
-              Credential type
+              Completion prize
             </h3>
             <div className="space-y-2">
-              <label className="flex items-start gap-2 rounded-panel border border-hairline p-3 cursor-pointer hover:bg-paper">
-                <input
-                  type="radio"
-                  name="credential_type"
-                  value="persistent"
-                  checked={(passport.credential_type ?? 'persistent') === 'persistent'}
-                  onChange={() => persist({ credential_type: 'persistent', consumable_target_count: null })}
-                  className="mt-0.5"
-                />
-                <div className="flex-1">
-                  <span className="block text-sm font-medium text-ink">Passport (stamp collection)</span>
-                  <span className="block text-xs text-muted">
-                    Collectors earn one stamp per stop. Default model.
-                  </span>
-                </div>
-              </label>
-              <label className="flex items-start gap-2 rounded-panel border border-hairline p-3 cursor-pointer hover:bg-paper">
-                <input
-                  type="radio"
-                  name="credential_type"
-                  value="consumable"
-                  checked={passport.credential_type === 'consumable'}
-                  onChange={() => persist({
-                    credential_type: 'consumable',
-                    // Default to 10 punches when first switching — a
-                    // sensible loyalty-card default; the creator can
-                    // override below.
-                    consumable_target_count: passport.consumable_target_count ?? 10,
-                  })}
-                  className="mt-0.5"
-                />
-                <div className="flex-1">
-                  <span className="block text-sm font-medium text-ink">Loyalty card (punch)</span>
-                  <span className="block text-xs text-muted">
-                    Collectors punch the same card repeatedly. Card consumes + reissues at the target count.
-                  </span>
-                </div>
-              </label>
-
-              {passport.credential_type === 'consumable' && (
+              <Label className="text-xs text-muted">Reward for stamping every stop (optional)</Label>
+              <textarea
+                value={passport.completion_prize_description ?? ''}
+                onChange={(e) => updatePassport({ completion_prize_description: e.target.value })}
+                onBlur={(e) => persist({ completion_prize_description: e.target.value.trim() || null })}
+                rows={2}
+                className="w-full resize-none rounded-panel border border-hairline px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green"
+                placeholder="e.g. A free coffee at any participating shop"
+              />
+              <p className="text-xs text-muted">
+                Redeems through the same terminal as page prizes. The code is issued automatically
+                when a collector has stamped every stop across all pages. Leave blank for none.
+              </p>
+              {(passport.completion_prize_description ?? '').trim() !== '' && (
                 <div className="space-y-1 pt-1">
-                  <Label className="text-xs text-muted">Target punches per card</Label>
+                  <Label className="text-xs text-muted">Prize value (optional, USD)</Label>
                   <Input
                     type="number"
-                    min={1}
-                    max={100}
-                    value={passport.consumable_target_count ?? 10}
+                    min={0}
+                    step="0.01"
+                    value={
+                      passport.completion_prize_value_cents != null
+                        ? (passport.completion_prize_value_cents / 100).toString()
+                        : ''
+                    }
                     onChange={(e) => {
-                      const n = Number(e.target.value)
-                      updatePassport({ consumable_target_count: Number.isFinite(n) ? n : null })
+                      const d = e.target.value
+                      const n = Number(d)
+                      updatePassport({
+                        completion_prize_value_cents:
+                          d === '' || !Number.isFinite(n) ? null : Math.round(n * 100),
+                      })
                     }}
                     onBlur={(e) => {
-                      const n = Number(e.target.value)
-                      const v = Number.isFinite(n) && n > 0 ? n : 10
-                      persist({ consumable_target_count: v })
+                      const d = e.target.value
+                      const n = Number(d)
+                      persist({
+                        completion_prize_value_cents:
+                          d === '' || !Number.isFinite(n) ? null : Math.round(n * 100),
+                      })
                     }}
-                    className="h-8 w-24 text-sm"
+                    className="h-8 w-28 text-sm"
+                    placeholder="0.00"
                   />
-                  <p className="text-xs text-muted">
-                    New holders receive a fresh card configured for this many punches. Changing this
-                    affects FUTURE acquisitions only — existing holders keep their card&apos;s original
-                    target.
-                  </p>
                 </div>
               )}
             </div>

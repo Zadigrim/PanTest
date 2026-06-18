@@ -230,6 +230,10 @@ export interface DesignerPassport {
   punch_type?: 'emoji' | 'custom_asset'
   punch_icon?: string
   punch_asset_id?: string | null
+  // Passport-completion prize (migration 098). Redeemed via the SAME flow as
+  // page prizes; the token is minted server-side when all stops are stamped.
+  completion_prize_description?: string | null
+  completion_prize_value_cents?: number | null
 }
 
 export type PageType = 'stamp' | 'information'

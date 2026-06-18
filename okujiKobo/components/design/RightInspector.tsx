@@ -17,6 +17,7 @@ import { Button } from './ui/Button'
 import { ColorPickerInput } from './ui/ColorPickerInput'
 import { MapPickerDialog, MAPS_PICKER_AVAILABLE } from './MapPickerDialog'
 import { AssetDeleteButton } from './AssetDeleteButton'
+import { Collapsible } from './Collapsible'
 import { safeUpdate, safeInsert } from '@/lib/design/persist'
 import { cn } from '@/lib/cn'
 import { usePersistentBool } from './usePersistent'
@@ -402,9 +403,9 @@ function StampPicker({
         />
       )}
 
-      {/* My uploads */}
+      {/* My uploads — collapsible (default closed). */}
       {(myAssets.length > 0 || instAssets.length > 0) && (
-        <>
+        <Collapsible title="Uploaded stamps">
           {myAssets.length > 0 && (
             <div>
               <Label className="text-xs text-muted">My uploads</Label>
@@ -453,12 +454,11 @@ function StampPicker({
               </div>
             </div>
           )}
-        </>
+        </Collapsible>
       )}
 
-      {/* Built-in emoji */}
-      <div>
-        <Label className="text-xs text-muted">Built-in stamps</Label>
+      {/* Built-in stamps — collapsible (default closed). */}
+      <Collapsible title="Built-in stamps">
         <div className="mt-1.5 flex flex-wrap gap-1">
           {STAMP_ICONS.map((icon) => (
             <button
@@ -475,7 +475,7 @@ function StampPicker({
             </button>
           ))}
         </div>
-      </div>
+      </Collapsible>
     </div>
   )
 }
@@ -607,6 +607,8 @@ function LocationSection({
             </p>
           </Field>
 
+          {/* Address & coordinates — collapsible (default closed). */}
+          <Collapsible title="Address & coordinates">
           {/* Address — available for every Location method; required for QR */}
           <Field label={`Street address${requireAddress ? ' *' : ''}`}>
             <Input
@@ -730,6 +732,7 @@ function LocationSection({
               Map picker unavailable — enter coordinates manually.
             </p>
           )}
+          </Collapsible>
 
           {(method === 'gps' || method === 'qr') && (
             <Field label="GPS radius (meters)">
@@ -1178,7 +1181,8 @@ function CustomBgPicker({
   // only.
   return (
     <div className="space-y-2">
-      <Label className="text-xs text-muted">Your uploads</Label>
+      {/* Page background uploads — collapsible (default closed). */}
+      <Collapsible title="Your uploads">
       {loading ? (
         <p className="text-xs text-muted">Loading…</p>
       ) : assets.length === 0 ? (
@@ -1208,6 +1212,7 @@ function CustomBgPicker({
           ))}
         </div>
       )}
+      </Collapsible>
       <label
         className={`flex cursor-pointer items-center justify-center gap-2 rounded-card border border-hairline px-3 py-2 text-xs transition-colors ${
           uploading ? 'pointer-events-none opacity-50' : 'text-muted hover:border-green/40'

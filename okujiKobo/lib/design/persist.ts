@@ -409,6 +409,9 @@ export async function saveAll(): Promise<BatchError[]> {
       punch_type:              passport.punch_type,
       punch_icon:              passport.punch_icon,
       punch_asset_id:          passport.punch_asset_id,
+      // Passport-completion prize (migration 098).
+      completion_prize_description: passport.completion_prize_description,
+      completion_prize_value_cents: passport.completion_prize_value_cents,
       updated_at:             new Date().toISOString(),
     }, 'id', passport.id)
     if (passportErr) {
