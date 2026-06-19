@@ -132,7 +132,12 @@ export default async function ExplorePassportDetailPage({
   const { data: { user: viewer } } = await supabase.auth.getUser()
 
   // ── Fetch passport (simple select, no profile join to avoid RLS issues) ────
-  const { data: passportRaw, error: passportError } = await supabase
+  // Public Explore requires published + listable. But a signed-in CREATOR
+  // previewing their OWN passport from My Passports must see it pre-publish, so
+  // fall back to an owner fetch when the public one misses. RLS already limits
+  // the read to authorized rows; we ALSO confirm creator_id so another user's
+  // draft is never rendered even if a policy were loose.
+  let { data: passportRaw } = await supabase
     .from('passports')
     .select('*')
     .eq('id', id)
@@ -143,9 +148,21 @@ export default async function ExplorePassportDetailPage({
     // library, where the holder-acquired branch (migration 062)
     // permits the read.
     .eq('distribution_only', false)
-    .single()
+    .maybeSingle()
 
-  if (passportError || !passportRaw) {
+  if (!passportRaw && viewer) {
+    const { data: ownRaw } = await supabase
+      .from('passports')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    if (ownRaw && (ownRaw as any).creator_id === viewer.id) {
+      passportRaw = ownRaw
+    }
+  }
+
+  if (!passportRaw) {
     notFound()
   }
 
