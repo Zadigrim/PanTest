@@ -3,6 +3,7 @@ import Link from 'next/link'
 import type { Metadata } from 'next'
 import type { ReactNode } from 'react'
 import { createClient } from '@/lib/supabase/server'
+import { authorizePassportMutation } from '@/lib/roles/require-flag'
 import { cn } from '@/lib/cn'
 import { passportTypeIcon } from '@/lib/design/passport-type-icon'
 import { PassportViewer } from '@/components/explore/PassportViewer'
@@ -156,9 +157,17 @@ export default async function ExplorePassportDetailPage({
       .select('*')
       .eq('id', id)
       .maybeSingle()
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    if (ownRaw && (ownRaw as any).creator_id === viewer.id) {
-      passportRaw = ownRaw
+    if (ownRaw) {
+      // Same authorization the designer's other actions use (unpublish /
+      // republish): creator, platform admin, OR can_design at the proprietor
+      // institution. Anyone who can manage this passport gets a consistent
+      // pre-publish preview; everyone else stays gated to the public view.
+      const auth = await authorizePassportMutation(
+        supabase,
+        ownRaw as unknown as { creator_id: string; proprietor_id: string | null },
+        viewer.id,
+      )
+      if (auth !== 'denied') passportRaw = ownRaw
     }
   }
 
