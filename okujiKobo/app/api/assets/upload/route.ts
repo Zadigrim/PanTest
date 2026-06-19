@@ -185,14 +185,25 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     isMonochrome = await detectMonochrome(buffer, file.type)
   }
 
-  // Stamp + SVG → normalize the alpha-channel content bounds so the
-  // stored file fills its container centered. Renders via sharp,
-  // trims transparent edges, maps the resulting bbox back to SVG
-  // coordinates, rewrites the root <svg>. Failure returns the
-  // original buffer unchanged (upload is never blocked on this).
+  // Stamp + SVG → normalize the alpha-channel content bounds so the stored
+  // file fills its container centered. Renders via sharp, trims transparent
+  // edges, maps the bbox back to SVG coordinates, rewrites the root <svg> with
+  // a content-tight viewBox. FAIL LOUD: if it can't produce a tight frame the
+  // upload is REJECTED, never stored raw (raw stamps mis-place at placement).
   if (assetType === 'stamp' && file.type === 'image/svg+xml') {
     const { normalizeStampSvgBuffer } = await import('@/lib/design/stamp-composer/normalize-svg-buffer')
-    buffer = (await normalizeStampSvgBuffer(buffer)) as Buffer<ArrayBuffer>
+    try {
+      buffer = (await normalizeStampSvgBuffer(buffer)) as Buffer<ArrayBuffer>
+    } catch (e) {
+      return NextResponse.json(
+        {
+          error:
+            `This stamp couldn't be prepared for placement (${(e as Error).message}). ` +
+            `Re-export it as a clean SVG with a single artboard and the artwork inside the frame, then try again.`,
+        },
+        { status: 422 },
+      )
+    }
   }
 
   const { error: uploadErr } = await supabase.storage

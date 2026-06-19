@@ -14,10 +14,11 @@
 //      mobile SvgXml, react-pdf Svg) scale-to-fit + center via the
 //      default preserveAspectRatio="xMidYMid meet".
 //
-// Failure handling: any error returns the original buffer unchanged.
-// Uploads should never block on normalization — a non-normalized SVG
-// still renders, just possibly imperfectly. The user gets the file
-// they uploaded back, no data loss.
+// Failure handling: THROWS StampNormalizeError on any failure (render error,
+// empty/contentless raster, invalid frame). It never returns the input
+// un-normalized — a raw stamp would mis-place at render time. The upload route
+// catches the throw and REJECTS the upload with a clear message, so no
+// un-normalized stamp is ever stored. Fail loud, never silent.
 
 import sharp from 'sharp'
 
@@ -29,63 +30,97 @@ const TRIM_THRESHOLD = 1
 
 interface BBox { x: number; y: number; w: number; h: number }
 
+export class StampNormalizeError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'StampNormalizeError'
+  }
+}
+
 export async function normalizeStampSvgBuffer(input: Buffer): Promise<Buffer> {
+  const svgText = input.toString('utf-8')
+
+  // Render to raster first so both sides of the bbox math share pixel units.
+  // A render failure means the content can't be measured — the stamp must NOT
+  // be stored raw (it would mis-place at render time). Throw → upload rejects.
+  let rendered: { data: Buffer; info: { width: number; height: number } }
   try {
-    const svgText = input.toString('utf-8')
-
-    // Source coordinate space — viewBox if declared, else width/height.
-    const src = readSvgDimensions(svgText)
-    if (!src || src.w <= 0 || src.h <= 0) return input
-
-    // CRITICAL: sharp metadata() on an SVG returns the SOURCE
-    // dimensions in SVG user units, NOT the rasterized pixel count.
-    // trim().info dimensions and offsets are in raster PIXELS.
-    // We render to a raster buffer first so both sides of the bbox
-    // math use the same units (pixels), then trim that raster.
-    const rendered = await sharp(input, { density: RENDER_DENSITY })
+    rendered = await sharp(input, { density: RENDER_DENSITY })
       .png()
       .toBuffer({ resolveWithObject: true })
-    const renderedWpx = rendered.info.width
-    const renderedHpx = rendered.info.height
-    if (!renderedWpx || !renderedHpx) return input
-
-    const trimmed = await sharp(rendered.data)
-      .trim({
-        background: { r: 0, g: 0, b: 0, alpha: 0 },
-        threshold: TRIM_THRESHOLD,
-      })
-      .toBuffer({ resolveWithObject: true })
-
-    const { width: tw, height: th, trimOffsetTop = 0, trimOffsetLeft = 0 } = trimmed.info
-    if (!tw || !th) return input
-
-    // Pixel-to-SVG-units scale: pixels per SVG unit on each axis.
-    const pxPerUnitX = renderedWpx / src.w
-    const pxPerUnitY = renderedHpx / src.h
-    // trimOffset is from the top-left of the rendered raster, which
-    // corresponds to the source viewBox's (src.x, src.y) corner.
-    const newBox: BBox = {
-      x: src.x + trimOffsetLeft / pxPerUnitX,
-      y: src.y + trimOffsetTop  / pxPerUnitY,
-      w: tw / pxPerUnitX,
-      h: th / pxPerUnitY,
-    }
-
-    if (newBox.w <= 0 || newBox.h <= 0) return input
-
-    // No-trim case: the raster came out unchanged. Still rewrite
-    // the root to add width/height=100% (needed for the kobo span
-    // inline-SVG path) but keep the source viewBox.
-    const trimmedAll = (
-      Math.abs(tw - renderedWpx) <= 1 && Math.abs(th - renderedHpx) <= 1
-    )
-
-    const targetBox = trimmedAll ? src : newBox
-    const out = rewriteRootSvg(svgText, targetBox)
-    return Buffer.from(out, 'utf-8')
-  } catch {
-    return input
+  } catch (e) {
+    throw new StampNormalizeError(`Could not render the stamp SVG (${(e as Error).message}).`)
   }
+  const renderedWpx = rendered.info.width
+  const renderedHpx = rendered.info.height
+  if (!renderedWpx || !renderedHpx) {
+    throw new StampNormalizeError('The stamp SVG rendered to an empty image.')
+  }
+
+  // Reject fully-transparent SVGs: trim leaves an all-transparent raster
+  // un-cropped, which would otherwise slip through as "fills the frame". A
+  // stamp with no visible content is not a usable stamp.
+  try {
+    const alpha = (await sharp(rendered.data).stats()).channels[3]
+    if (alpha && alpha.max === 0) {
+      throw new StampNormalizeError('The stamp SVG has no visible content.')
+    }
+  } catch (e) {
+    if (e instanceof StampNormalizeError) throw e
+    // A stats failure on otherwise-valid pixels shouldn't reject — fall through.
+  }
+
+  // Source coordinate space — a usable viewBox or ABSOLUTE px width/height is
+  // required to map the raster content bbox back to the SVG's own user units.
+  // A frameless (or %-sized) SVG can't be reframed reliably from the raster
+  // alone (libvips' render scale for it isn't recoverable to user units), so we
+  // REJECT it rather than store a guessed frame — the previous null-passthrough
+  // is what let raw stamps slip through.
+  const src = readSvgDimensions(svgText)
+  if (!src || src.w <= 0 || src.h <= 0) {
+    throw new StampNormalizeError(
+      'The stamp SVG has no usable viewBox or pixel size. Re-export it with a viewBox (a single fixed artboard).',
+    )
+  }
+
+  let trimmed: {
+    info: { width: number; height: number; trimOffsetTop?: number; trimOffsetLeft?: number }
+  }
+  try {
+    trimmed = await sharp(rendered.data)
+      .trim({ background: { r: 0, g: 0, b: 0, alpha: 0 }, threshold: TRIM_THRESHOLD })
+      .toBuffer({ resolveWithObject: true })
+  } catch (e) {
+    throw new StampNormalizeError(`Could not measure the stamp content (${(e as Error).message}).`)
+  }
+
+  const { width: tw, height: th, trimOffsetTop = 0, trimOffsetLeft = 0 } = trimmed.info
+  if (!tw || !th) {
+    throw new StampNormalizeError('The stamp SVG has no visible content to frame.')
+  }
+
+  const pxPerUnitX = renderedWpx / src.w
+  const pxPerUnitY = renderedHpx / src.h
+  // THE BUG FIX: sharp's trim offsets are the cropped margins and can be
+  // NEGATIVE (observed: trimOffsetLeft=-250 for content 250px in). The old
+  // code did `src.x + trimOffsetLeft/px`, adding the negative → wrong origin →
+  // every uploaded SVG stamp framed off-center/clipped. Take the magnitude so
+  // the content origin is correct regardless of sharp's sign convention.
+  const newBox: BBox = {
+    x: src.x + Math.abs(trimOffsetLeft) / pxPerUnitX,
+    y: src.y + Math.abs(trimOffsetTop)  / pxPerUnitY,
+    w: tw / pxPerUnitX,
+    h: th / pxPerUnitY,
+  }
+  if (!(newBox.w > 0) || !(newBox.h > 0)) {
+    throw new StampNormalizeError('Stamp normalization produced an invalid frame.')
+  }
+
+  // No-trim case: content already fills the frame — keep the source viewBox,
+  // just add width/height=100% for the inline-SVG render paths.
+  const trimmedAll = Math.abs(tw - renderedWpx) <= 1 && Math.abs(th - renderedHpx) <= 1
+  const targetBox = trimmedAll ? src : newBox
+  return Buffer.from(rewriteRootSvg(svgText, targetBox), 'utf-8')
 }
 
 // ── Helpers ────────────────────────────────────────────────────────
@@ -110,6 +145,9 @@ function readSvgDimensions(svg: string): BBox | null {
 function numAttr(s: string, name: string): number | null {
   const m = s.match(new RegExp(`\\b${name}\\s*=\\s*"([^"]+)"`, 'i'))
   if (!m) return null
+  // Percentage sizes (e.g. width="100%") are NOT an absolute frame — they
+  // don't pin the user-unit space, so treat them as "no usable size".
+  if (m[1].includes('%')) return null
   // Strip unit suffixes like px / pt — bare number is what we want.
   const n = parseFloat(m[1])
   return Number.isFinite(n) && n > 0 ? n : null
