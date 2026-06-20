@@ -5,6 +5,7 @@ import {
 } from 'react-native'
 import { Image } from 'expo-image'
 import * as ImagePicker from 'expo-image-picker'
+import AsyncStorage from '@react-native-async-storage/async-storage'
 import { supabase } from '../../lib/supabase'
 import { MoodRating } from './MoodRating'
 import { VoiceRecorder } from './VoiceRecorder'
@@ -45,9 +46,19 @@ export function JournalEntry({
   // Save state machine drives the persistent indicator (no more silent
   // loss): idle → saving → saved, or → error (recoverable via Retry).
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  // The real underlying save error (Supabase message), surfaced beneath the
+  // status line instead of swallowed — so a deterministic failure (e.g. a
+  // missing ON CONFLICT constraint) is diagnosable on-device, not a guess.
+  const [saveError, setSaveError] = useState<string | null>(null)
   const [showVoice, setShowVoice] = useState(false)
   const [entryId, setEntryId] = useState<string | null>(existingEntryId)
   const [photos, setPhotos] = useState<PhotoVM[]>([])
+
+  // Local draft key — what's on screen is mirrored to device storage on every
+  // edit so a failed save (or a force-close before a save lands) never costs
+  // the collector their written words. One draft per stamp; cleared once the
+  // content is durably persisted server-side.
+  const draftKey = `journal-draft:${stampId}`
 
   // Latest content in refs so the unmount / background flush persists what's
   // on screen RIGHT NOW without stale-closure capture, and so autosave can
@@ -113,15 +124,22 @@ export function JournalEntry({
       .select('id')
       .single()
     if (error || !data) {
+      // Do NOT swallow the cause. Log it (visible in EAS/device logs) and
+      // surface the message so the real failure is diagnosable.
+      console.error('[journal] entry save failed:', error)
+      setSaveError(error?.message ?? 'Unknown error')
       setSaveState('error')
       return null
     }
     setEntryId(data.id)
     lastSavedRef.current = JSON.stringify({ body: b, mood: m })
     dirtyRef.current = false
+    setSaveError(null)
     setSaveState('saved')
+    // Content is durable server-side now — the local safety-net draft can go.
+    AsyncStorage.removeItem(draftKey).catch(() => {})
     return data.id
-  }, [stampId, userId])
+  }, [stampId, userId, draftKey])
 
   // Photo pipeline needs a row id; reuse the existing row or persist to make
   // one.
@@ -148,6 +166,37 @@ export function JournalEntry({
     debounceRef.current = setTimeout(() => { void persist() }, 1000)
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
   }, [body, mood, inputMethod, persist])
+
+  // Local-draft safety net: mirror what's on screen to device storage on every
+  // edit. This is independent of the server write — even if persist() fails
+  // (or the app is killed before it lands), the text survives on the device and
+  // is restored on next open. Only writes after a real user edit (dirty).
+  useEffect(() => {
+    if (!dirtyRef.current) return
+    AsyncStorage.setItem(draftKey, JSON.stringify({ body, mood, inputMethod })).catch(() => {})
+  }, [body, mood, inputMethod, draftKey])
+
+  // Rehydrate an unsaved draft once on open. If a stored draft differs from
+  // what's been persisted (i.e. it holds words that never reached the server),
+  // restore it and mark dirty so it saves. A draft that matches the saved
+  // content is stale and cleared.
+  const rehydratedRef = useRef(false)
+  useEffect(() => {
+    if (rehydratedRef.current) return
+    rehydratedRef.current = true
+    AsyncStorage.getItem(draftKey).then((raw) => {
+      if (!raw) return
+      try {
+        const d = JSON.parse(raw) as { body?: string; mood?: number | null; inputMethod?: InputMethod }
+        const draftSnap = JSON.stringify({ body: d.body ?? '', mood: d.mood ?? null })
+        if (draftSnap === lastSavedRef.current) { AsyncStorage.removeItem(draftKey).catch(() => {}); return }
+        if (typeof d.body === 'string') setBody(d.body)
+        if (typeof d.mood === 'number' || d.mood === null) setMood(d.mood ?? null)
+        if (d.inputMethod) setInputMethod(d.inputMethod)
+        markDirty()
+      } catch { /* malformed draft — ignore */ }
+    }).catch(() => {})
+  }, [draftKey, markDirty])
 
   // Flush on background and on unmount (sheet dismissed via Done / back /
   // swipe / the review link) so nothing on screen is ever lost without an
@@ -339,6 +388,12 @@ export function JournalEntry({
             : 'Autosaves as you write'}
         </Text>
       </View>
+      {saveState === 'error' && saveError && (
+        <Text style={styles.saveErrorDetail}>{saveError}</Text>
+      )}
+      {saveState === 'error' && (
+        <Text style={styles.saveReassure}>Your words are kept on this device — they won’t be lost.</Text>
+      )}
 
       <TouchableOpacity
         onPress={saveState === 'error' ? () => void persist() : save}
@@ -381,6 +436,8 @@ const styles = StyleSheet.create({
   saveStatusRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginBottom: 8 },
   saveStatusText: { fontSize: 12, color: palette.muted },
   saveStatusError: { color: palette.red },
+  saveErrorDetail: { fontSize: 10, color: palette.red, textAlign: 'center', marginBottom: 4, paddingHorizontal: 16 },
+  saveReassure: { fontSize: 11, color: palette.muted, textAlign: 'center', fontStyle: 'italic', marginBottom: 8 },
   saveBtn: { backgroundColor: palette.green, borderRadius: 10, padding: 14, alignItems: 'center', marginBottom: 32 },
   saveBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
 })

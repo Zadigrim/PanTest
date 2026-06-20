@@ -35,6 +35,7 @@
 // old) with no Expo SDK 54 / RN 0.81 / New Architecture support.
 import React, { useState, useCallback, useEffect, useRef } from 'react'
 import { View, Text, TouchableOpacity, StyleSheet, Alert, Platform } from 'react-native'
+import AsyncStorage from '@react-native-async-storage/async-storage'
 import {
   ExpoSpeechRecognitionModule,
   useSpeechRecognitionEvent,
@@ -48,6 +49,29 @@ interface Props {
 const LOCALE = 'en-US'
 const MAX_RECORDING_MS = 30_000
 const TICK_MS = 250 // remaining-seconds display refresh
+// On-device recognition (com.google.android.as) is what keeps audio on the
+// phone; getSupportedLocales reports which language packs are installed there.
+const ON_DEVICE_PACKAGE = 'com.google.android.as'
+const EXPLAINED_KEY = 'stt-offline-explained-v1'
+
+// Explain the one-time offline-model download — ONCE — framed around why it
+// happens (privacy: audio stays on the device). Persisted so a normal user
+// sees it a single time. (A reinstall clears both this flag and the model, so
+// the explanation correctly reappears alongside the genuine re-download.)
+async function explainOfflineDownloadOnce(): Promise<void> {
+  try {
+    if (await AsyncStorage.getItem(EXPLAINED_KEY)) return
+  } catch { /* storage read failed — still explain once this session */ }
+  await new Promise<void>((resolve) => {
+    Alert.alert(
+      'One-time voice setup',
+      'okuji transcribes your voice entirely on your phone, so your audio is never sent to Google or Apple. The first time you use voice, Android downloads a small offline English language pack to make that possible — this happens once.',
+      [{ text: 'Got it', onPress: () => resolve() }],
+      { cancelable: false },
+    )
+  })
+  try { await AsyncStorage.setItem(EXPLAINED_KEY, '1') } catch { /* best effort */ }
+}
 
 export function VoiceRecorder({ onTranscriptUpdate }: Props) {
   const [recording, setRecording] = useState(false)
@@ -142,16 +166,32 @@ export function VoiceRecorder({ onTranscriptUpdate }: Props) {
       }
 
       // Android needs the offline language model present for on-device use.
-      // No-op / not applicable on iOS. Non-fatal if it fails — start() will
-      // raise a clear error below if the model truly is not usable.
+      // If it's ALREADY installed, do nothing — no prompt, no re-download (this
+      // is what stops the download dialog firing on every use). Only when the
+      // pack is genuinely missing do we explain (once) and trigger the fetch.
+      // Whole block is a no-op on iOS (built-in recognition, no download).
       if (Platform.OS === 'android') {
-        setPreparing(true)
+        let alreadyInstalled = false
         try {
-          await ExpoSpeechRecognitionModule.androidTriggerOfflineModelDownload({ locale: LOCALE })
+          const { installedLocales } = await ExpoSpeechRecognitionModule.getSupportedLocales({
+            androidRecognitionServicePackage: ON_DEVICE_PACKAGE,
+          })
+          alreadyInstalled = (installedLocales ?? []).some(
+            (l) => l.toLowerCase().replace('_', '-').startsWith('en'),
+          )
         } catch {
-          // ignore — handled by the start() error path
+          // Can't determine — fall through and let the trigger/start path handle it.
         }
-        setPreparing(false)
+        if (!alreadyInstalled) {
+          await explainOfflineDownloadOnce()
+          setPreparing(true)
+          try {
+            await ExpoSpeechRecognitionModule.androidTriggerOfflineModelDownload({ locale: LOCALE })
+          } catch {
+            // ignore — handled by the start() error path
+          }
+          setPreparing(false)
+        }
       }
 
       ExpoSpeechRecognitionModule.start({
