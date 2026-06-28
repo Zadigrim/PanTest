@@ -234,6 +234,9 @@ export interface DesignerPassport {
   // page prizes; the token is minted server-side when all stops are stamped.
   completion_prize_description?: string | null
   completion_prize_value_cents?: number | null
+  // Completion threshold (migration 106): stops required before a holder is
+  // offered completion. NULL = all base stops (100%).
+  completion_required_stops?: number | null
 }
 
 export type PageType = 'stamp' | 'information'

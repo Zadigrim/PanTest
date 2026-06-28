@@ -199,6 +199,35 @@ export function PassportSettingsPanel({ onClose }: Props) {
                   />
                 </div>
               )}
+
+              {/* Completion threshold (migration 106). How many stops a collector
+                  must stamp to be OFFERED completion. Below it they keep
+                  collecting; at it they may choose to complete (firing the prize);
+                  at 100% it completes automatically. Blank = require every stop. */}
+              <div className="space-y-1 border-t border-hairline pt-3">
+                <Label className="text-xs text-muted">Completion threshold (optional)</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  step={1}
+                  value={passport.completion_required_stops != null ? String(passport.completion_required_stops) : ''}
+                  onChange={(e) => {
+                    const n = parseInt(e.target.value, 10)
+                    updatePassport({ completion_required_stops: e.target.value === '' || !Number.isFinite(n) || n < 1 ? null : n })
+                  }}
+                  onBlur={(e) => {
+                    const n = parseInt(e.target.value, 10)
+                    persist({ completion_required_stops: e.target.value === '' || !Number.isFinite(n) || n < 1 ? null : n })
+                  }}
+                  className="h-8 w-28 text-sm"
+                  placeholder="all stops"
+                />
+                <p className="text-xs text-muted">
+                  Stops required before a collector is offered completion (e.g. 9 of 10). At the
+                  threshold they can choose to complete; at 100% it completes automatically. Leave
+                  blank to require every stop.
+                </p>
+              </div>
             </div>
           </section>
 

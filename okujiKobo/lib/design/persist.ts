@@ -412,6 +412,8 @@ export async function saveAll(): Promise<BatchError[]> {
       // Passport-completion prize (migration 098).
       completion_prize_description: passport.completion_prize_description,
       completion_prize_value_cents: passport.completion_prize_value_cents,
+      // Completion threshold (migration 106).
+      completion_required_stops: passport.completion_required_stops,
       updated_at:             new Date().toISOString(),
     }, 'id', passport.id)
     if (passportErr) {
