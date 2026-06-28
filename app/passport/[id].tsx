@@ -101,6 +101,17 @@ export default function PassportScreen() {
   // chooses which requests the client makes.
   const { demoActive } = useDemoContext()
 
+  // Demo-PUBLISHED passport: any holder may stamp it regardless of location —
+  // the GPS bypass is a property of the PASSPORT (verify-stamp reads is_demo
+  // server-side and allows-but-records), not of the user. effectiveDemo folds
+  // that together with the user-level demo (admin/reviewer) so both skip the
+  // client-side QR requirement and show the demo banner. NOTE: submitStamp
+  // still sends the real GPS reading for a demo-passport holder (only the
+  // user-level demoActive path omits location) so the server records the
+  // genuine gps_verified result.
+  const passportIsDemo = (passport as { is_demo?: boolean } | null)?.is_demo === true
+  const effectiveDemo = demoActive || passportIsDemo
+
   // QR-scan-on-press state: when a placement lands on a QR-verified stop,
   // the scanner sheet opens and the placement waits here until the code
   // is scanned (or the scan is cancelled). Scanned codes are cached per
@@ -385,7 +396,7 @@ export default function PassportScreen() {
     placement: StampPlacement,
   ) => {
     const stop = (stops[pageId] ?? []).find((s) => s.id === stopId)
-    if (stop && !demoActive && stopRequiresQr(stop)) {
+    if (stop && !effectiveDemo && stopRequiresQr(stop)) {
       const cached = scannedCodes.current[stopId]
       if (cached) {
         await submitStamp(pageId, stopId, placement, cached)
@@ -395,7 +406,7 @@ export default function PassportScreen() {
       return
     }
     await submitStamp(pageId, stopId, placement)
-  }, [stops, demoActive, submitStamp])
+  }, [stops, effectiveDemo, submitStamp])
 
   const handleQrScanned = useCallback(async (qrCodeId: string) => {
     const pending = pendingScan
@@ -736,9 +747,9 @@ export default function PassportScreen() {
       />
 
       {/* Demo banner — intentionally obtrusive; demo stamps must never be
-          mistaken for real ones. Shown whenever the (server-authorized)
-          demo toggle is active; the toggle itself lives in Profile. */}
-      {demoActive && (
+          mistaken for real ones. Shown for the user-level demo (admin/reviewer)
+          OR when this passport is demo-published (any holder stamps anywhere). */}
+      {effectiveDemo && (
         <View pointerEvents="none" style={styles.demoBanner}>
           <Text style={styles.demoBannerText}>DEMO MODE — verification bypassed, stamps marked demo</Text>
         </View>
