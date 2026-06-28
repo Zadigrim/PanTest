@@ -53,6 +53,11 @@ export default function PassportScreen() {
   const [stamps, setStamps] = useState<Record<string, Record<string, Stamp>>>({})
   const [slotStates, setSlotStates] = useState<Record<string, Record<string, StampSlotState>>>({})
   const [collectorPassport, setCollectorPassport] = useState<CollectorPassport | null>(null)
+  // Whole-passport completion (migration 106). completedAt mirrors
+  // collector_passports.completed_at; set locally the moment the holder chooses
+  // to complete (the server is authoritative).
+  const [completedAt, setCompletedAt] = useState<string | null>(null)
+  const [completing, setCompleting] = useState(false)
   // Passport expansions (migration 100): supplemental pages this holder can
   // opt into. acceptedExpansions = expansion ids this holder has added;
   // availableExpansions = published expansions not yet accepted.
@@ -111,6 +116,58 @@ export default function PassportScreen() {
   // genuine gps_verified result.
   const passportIsDemo = (passport as { is_demo?: boolean } | null)?.is_demo === true
   const effectiveDemo = demoActive || passportIsDemo
+
+  // ── Whole-passport completion: the three states ──────────────────────────────
+  // Eligibility is displayed from the client's stamp count vs the passport's
+  // threshold; the actual completion is server-validated (complete_passport
+  // re-checks), so a wrong client count can only mis-OFFER, never mis-complete.
+  // Counted over this passport's loaded stops/stamps.
+  let totalStops = 0
+  let stampedCount = 0
+  for (const [pageId, stopList] of Object.entries(stops)) {
+    totalStops += stopList.length
+    const pageStamps = stamps[pageId] ?? {}
+    stampedCount += stopList.filter((s) => pageStamps[s.id]).length
+  }
+  const completionThreshold = (passport as { completion_required_stops?: number | null } | null)?.completion_required_stops ?? null
+  const effectiveThreshold = Math.min(completionThreshold ?? totalStops, totalStops)
+  const isCompleted = completedAt != null
+  // Eligible = met the threshold, not yet completed. At 100% the server
+  // auto-completes on the final stamp, so the manual offer is the
+  // threshold-reached-but-not-yet-completed middle state.
+  const completionEligible = totalStops > 0 && !isCompleted && stampedCount >= effectiveThreshold
+
+  // Keep completedAt in sync once the holder's row loads.
+  useEffect(() => {
+    const at = (collectorPassport as { completed_at?: string | null } | null)?.completed_at ?? null
+    if (at) setCompletedAt(at)
+  }, [collectorPassport])
+
+  const handleMarkComplete = useCallback(async () => {
+    if (!userId || completing) return
+    setCompleting(true)
+    try {
+      const { data, error } = await supabase.rpc('complete_passport', {
+        p_user_id: userId,
+        p_passport_id: id,
+      })
+      if (error) {
+        Alert.alert('Could not complete', error.message ?? 'Please try again.')
+        return
+      }
+      setCompletedAt(new Date().toISOString())
+      const row = Array.isArray(data) ? data[0] : data
+      const code = (row as { token_code?: string | null } | null)?.token_code ?? null
+      Alert.alert(
+        'Passport complete',
+        code
+          ? `Your completion prize is ready. Show this code to redeem:\n\n${code}`
+          : 'Nicely done. You can still stamp any remaining stops.',
+      )
+    } finally {
+      setCompleting(false)
+    }
+  }, [userId, id, completing])
 
   // QR-scan-on-press state: when a placement lands on a QR-verified stop,
   // the scanner sheet opens and the placement waits here until the code
@@ -754,6 +811,31 @@ export default function PassportScreen() {
           <Text style={styles.demoBannerText}>DEMO MODE — verification bypassed, stamps marked demo</Text>
         </View>
       )}
+
+      {/* Completion — three states. The OFFER is a persistent bar (not a
+          popup) shown once the holder reaches the threshold; choosing it fires
+          completion + the prize once and does NOT lock the passport. Once
+          completed, the bar becomes a quiet confirmation; remaining stops stay
+          stampable. */}
+      {completionEligible && (
+        <View style={styles.completeBar}>
+          <Text style={styles.completeBarText} numberOfLines={1}>
+            You’ve reached this passport’s completion goal.
+          </Text>
+          <TouchableOpacity
+            onPress={handleMarkComplete}
+            disabled={completing}
+            style={[styles.completeBtn, completing && { opacity: 0.6 }]}
+          >
+            <Text style={styles.completeBtnText}>{completing ? 'Completing…' : 'Mark complete'}</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+      {isCompleted && (
+        <View pointerEvents="none" style={styles.completedBar}>
+          <Text style={styles.completedBarText}>✓ Passport completed — remaining stops still stampable</Text>
+        </View>
+      )}
     </View>
     </ViewerPrefsContext.Provider>
   )
@@ -788,6 +870,53 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     letterSpacing: 1.5,
+  },
+  // ── Completion offer / completed bars (bottom) ───────────────────────────
+  completeBar: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 28,
+    backgroundColor: '#1D4D2E',
+  },
+  completeBarText: {
+    flex: 1,
+    color: '#F4ECD8',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  completeBtn: {
+    backgroundColor: '#C9A84C',
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+  },
+  completeBtnText: {
+    color: '#1F1D1A',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  completedBar: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    paddingTop: 10,
+    paddingBottom: 28,
+    backgroundColor: '#143620',
+  },
+  completedBarText: {
+    color: '#CFE3CF',
+    fontSize: 12,
+    fontWeight: '600',
   },
 })
 
