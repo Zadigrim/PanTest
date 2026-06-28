@@ -120,10 +120,13 @@ export async function loadDashboard(
     ? `creator_id.eq.${userId},proprietor_id.in.(${institutionIds.join(',')})`
     : `creator_id.eq.${userId}`
 
+  // Surface isolation: okuji surfaces list ONLY persistent passports; moichido
+  // cards (credential_type='consumable') never appear here (leak-guard, mig 069).
   const ownedP = db
     .from('passports')
     .select('id, title, status, is_published, published_at, price_cents, expected_spend_tier, proprietor_id, creator_id, updated_at, created_at')
     .or(ownedFilter)
+    .eq('credential_type', 'persistent')
 
   const [profileRes, ownedRes] = await Promise.all([profileP, ownedP])
 

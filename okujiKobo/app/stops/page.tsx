@@ -255,6 +255,9 @@ export default async function StopLibraryPage() {
     .from('passports')
     .select('id, title')
     .eq('creator_id', user.id)
+    // Surface isolation: only persistent passports are stop-import targets;
+    // moichido cards (consumable) use punch_slots, not stops (mig 069).
+    .eq('credential_type', 'persistent')
     .order('updated_at', { ascending: false })
   const drafts: DraftPassport[] = ((passportRows ?? []) as { id: string; title: string | null }[])
     .map((p) => ({ id: p.id, title: p.title ?? 'Untitled passport' }))

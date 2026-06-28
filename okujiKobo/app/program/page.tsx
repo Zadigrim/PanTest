@@ -142,10 +142,13 @@ async function loadPassportsTabRows(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabase as any
 
+  // Surface isolation: only persistent passports; moichido cards
+  // (credential_type='consumable') never appear on okuji surfaces (mig 069).
   const { data: ownedRaw } = await db
     .from('passports')
     .select('id, title, status, is_published, expiry_duration_days, next_copy_number')
     .or(ownedFilter)
+    .eq('credential_type', 'persistent')
     .order('updated_at', { ascending: false })
 
   const owned = (ownedRaw ?? []) as {

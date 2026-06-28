@@ -66,10 +66,16 @@ export default async function DesignIndexPage() {
   const { data: isAdminRpc } = await (supabase as any).rpc('is_platform_admin')
   const isAdmin = isAdminRpc === true
 
+  // Surface isolation: the okuji designer lists ONLY persistent passports.
+  // moichido cards (credential_type='consumable') live on the moichido surface
+  // and must never appear here — credential_type is the leak-guard the listing
+  // queries gate on (migration 069). NOT NULL DEFAULT 'persistent', so this
+  // keeps every okuji passport and excludes every card.
   const { data: passports } = await supabase
     .from('passports')
     .select('*')
     .eq('creator_id', user.id)
+    .eq('credential_type', 'persistent')
     .order('updated_at', { ascending: false })
 
   const list = (passports ?? []) as DesignerPassport[]
