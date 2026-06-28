@@ -145,6 +145,14 @@ interface StopForPrint {
 }
 interface BaseElement { id: string; x: number; y: number; width: number; height: number }
 interface TextPageElement extends BaseElement { type: 'text'; content?: string; fontSize?: number; fontWeight?: 'normal' | 'bold'; color?: string; align?: 'left' | 'center' | 'right'; rotation?: number }
+// Rich-text (address / paragraph) block. The text lives in `runs` (per
+// lib/design/types.ts RichTextPageElement) — styled spans, the same shape the
+// designer (PageElementBox) and holder render (ReadOnlyElements) walk via
+// runsToReact. The address auto-pull only SEEDS runs at creation; the content
+// is self-contained on the element thereafter, so it's present in page.elements
+// at print time.
+interface RichTextRun { text: string; bold?: boolean; italic?: boolean; underline?: boolean }
+interface RichTextPageElement extends BaseElement { type: 'richtext'; runs?: RichTextRun[]; fontSize?: number; fontFamily?: string; color?: string; align?: 'left' | 'center' | 'right'; rotation?: number }
 interface ImagePageElement extends BaseElement { type: 'image'; imageUrl?: string; opacity?: number; rotation?: number }
 // Layout (table/grid) element — same box/url shape as image, but its
 // normalization PRESERVES ALPHA (thin-line art sits over the page
@@ -154,7 +162,7 @@ interface LayoutPageElement extends BaseElement { type: 'layout'; imageUrl?: str
 interface LinePageElement { id: string; type: 'line'; x1: number; y1: number; x2: number; y2: number; thickness?: number; lineColor?: string }
 interface HLinePageElement extends BaseElement { type: 'hline'; thickness?: number; lineColor?: string }
 interface VLinePageElement extends BaseElement { type: 'vline'; thickness?: number; lineColor?: string }
-type PageElement = TextPageElement | ImagePageElement | LayoutPageElement | LinePageElement | HLinePageElement | VLinePageElement
+type PageElement = TextPageElement | RichTextPageElement | ImagePageElement | LayoutPageElement | LinePageElement | HLinePageElement | VLinePageElement
 
 interface PassportPageForPrint {
   id: string; page_order: number; page_type: 'stamp' | 'information'
@@ -242,6 +250,38 @@ function TextEl({ el, scale }: { el: TextPageElement; scale: number }) {
   )
 }
 
+// Rich-text (address / paragraph) block. Mirrors the designer's runsToReact
+// (PageElementBox / ReadOnlyElements): each run becomes a styled <Text> span —
+// bold/italic mapped onto the Helvetica family (the same Arial→Helvetica
+// substitution TextEl uses), underline via textDecoration — inside an outer
+// <Text> that carries fontSize (default 13, matching the designer), color,
+// alignment, and lineHeight 1.3. Embedded "\n" in a run is honoured by
+// react-pdf as a line break, matching the designer's <br> handling.
+function RichTextEl({ el, scale }: { el: RichTextPageElement; scale: number }) {
+  const color = `#${el.color ?? '0D1B2A'}`
+  const fontSize = (el.fontSize ?? 13) * scale
+  const textAlign = el.align ?? 'left'
+  const rotation = el.rotation ?? 0
+  const runs = Array.isArray(el.runs) ? el.runs : []
+  return (
+    <View style={{ position: 'absolute', left: el.x * scale, top: el.y * scale, width: el.width * scale, height: el.height * scale, overflow: 'hidden', transform: rotation ? `rotate(${rotation}deg)` : undefined }}>
+      <Text style={{ fontSize, color, textAlign, lineHeight: 1.3 }}>
+        {runs.map((run, i) => {
+          const fontFamily = run.bold && run.italic ? 'Helvetica-BoldOblique'
+            : run.bold ? 'Helvetica-Bold'
+            : run.italic ? 'Helvetica-Oblique'
+            : 'Helvetica'
+          return (
+            <Text key={i} style={{ fontFamily, textDecoration: run.underline ? 'underline' : 'none' }}>
+              {run.text ?? ''}
+            </Text>
+          )
+        })}
+      </Text>
+    </View>
+  )
+}
+
 function ImageEl({ el, scale }: { el: ImagePageElement; scale: number }) {
   if (!el.imageUrl) return null
   const rotation = el.rotation ?? 0
@@ -284,6 +324,7 @@ function PageElementsLayer({ elements, scale }: { elements: PageElement[]; scale
       {(elements ?? []).map((el) => {
         try {
           if (el.type === 'text') return <TextEl key={el.id} el={el} scale={scale} />
+          if (el.type === 'richtext') return <RichTextEl key={el.id} el={el} scale={scale} />
           if (el.type === 'image') return <ImageEl key={el.id} el={el} scale={scale} />
           // Same slot render as image; the type difference matters in the
           // normalize queue (alpha preserved, high-density rasterization).
