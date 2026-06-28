@@ -433,6 +433,10 @@ function ActionsMenu({ passport, isAdmin, soldCount, onDeleted, onUnpublished }:
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  // Demo-publish state (admin only). Seeded from the passport row; toggled via
+  // the admin-gated /demo route (server + DB trigger both enforce admin-only).
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [demoOn, setDemoOn] = useState<boolean>((passport as any).is_demo === true)
   // QR-verified stop count for this passport — lazily fetched when the menu
   // opens, so "Print QR codes" can disable itself when there's nothing to
   // print. null = not yet checked.
@@ -632,6 +636,31 @@ function ActionsMenu({ passport, isAdmin, soldCount, onDeleted, onUnpublished }:
     }
   }
 
+  // Demo-publish toggle (admin only). A demo passport lets ANY holder stamp it
+  // regardless of GPS (verify-stamp reads passports.is_demo server-side). Used
+  // to let scattered beta testers complete the loop from anywhere.
+  async function handleToggleDemo() {
+    setBusy('demo')
+    setError(null)
+    try {
+      const res = await fetch(`/api/passports/${passport.id}/demo`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_demo: !demoOn }),
+      })
+      const j = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setError(j.error ?? 'Demo toggle failed')
+        return
+      }
+      setDemoOn(j.is_demo === true)
+      router.refresh()
+    } finally {
+      setBusy(null)
+      setOpen(false)
+    }
+  }
+
   return (
     <div className="relative" ref={ref} onClick={(e) => e.stopPropagation()}>
       <button
@@ -690,6 +719,12 @@ function ActionsMenu({ passport, isAdmin, soldCount, onDeleted, onUnpublished }:
           {isAdmin && (
             <>
               <div className="my-1 border-t border-surface-faintdiv" />
+              <MenuItem
+                label={busy === 'demo' ? 'Updating…' : demoOn ? 'Demo: ON' : 'Demo: OFF'}
+                hint="admin · stamp anywhere"
+                onClick={handleToggleDemo}
+                disabled={busy !== null}
+              />
               <MenuItem
                 label={busy === 'force' ? 'Force deleting…' : 'Force delete'}
                 hint="admin · erases owners"

@@ -153,12 +153,25 @@ serve(async (req) => {
       return json({ error: 'Not authorized' }, 403)
     }
 
-    // ── Demo bypass — server-authorized, never client-trusted ────────────────
+    // Is the passport DEMO-published? Read server-side — the client can neither
+    // fake this nor trigger it on a non-demo passport. is_demo is admin-only
+    // (migration 105 guard), so its presence is trustworthy.
+    const { data: passportRow } = await supabase
+      .from('passports')
+      .select('is_demo')
+      .eq('id', page.passport_id)
+      .maybeSingle()
+    const passportIsDemo = passportRow?.is_demo === true
+
+    // ── Demo determination — server-decided, never client-trusted ────────────
+    // A stamp is a demo stamp if EITHER:
+    //   • the passport is demo-published (any holder — keyed to the PASSPORT), or
+    //   • the caller is an authorized demo user (legacy admin/reviewer path,
+    //     body.demo, re-checked under the caller's JWT).
     let isDemo = false
-    if (demo === true) {
-      // Evaluate is_demo_authorized() UNDER THE CALLER'S JWT so auth.uid()
-      // resolves to the verified user. A demo request from anyone else is
-      // rejected here — the bypass does not exist for them.
+    if (passportIsDemo) {
+      isDemo = true
+    } else if (demo === true) {
       const userClient = createClient(supabaseUrl, Deno.env.get('SUPABASE_ANON_KEY')!, {
         global: { headers: { Authorization: req.headers.get('Authorization')! } },
       })
@@ -170,65 +183,72 @@ serve(async (req) => {
       isDemo = true
     }
 
-    // ── Tier-based verification (skipped only for authorized demo) ───────────
+    // ── Tier-based verification ──────────────────────────────────────────────
+    // ALWAYS run the check (even for demo) so the real GPS/QR result is RECORDED
+    // in gps_verified. For a demo stamp the result never blocks — we allow and
+    // record. For a non-demo stamp the result is enforced exactly as before.
     let geohash: string | null = null
+    let gpsVerified: boolean | null = null
     let verificationMethod = 'gps_only'
+    let verified = false
 
-    if (isDemo) {
-      verificationMethod = 'demo'
+    const tier = stop.verification_tier ?? stop.evidence_tier ?? 5
+
+    if (tier === 5) {
+      // Honor system — no GPS or QR needed; nothing to verify against.
+      verified = true
+      verificationMethod = 'self_reported'
+      if (latitude != null && longitude != null) {
+        geohash = encodeGeohash(latitude, longitude, 6)
+      }
     } else {
-      let gpsVerified = false
       let qrVerified = false
 
-      const tier = stop.verification_tier ?? stop.evidence_tier ?? 5
-
-      if (tier === 5) {
-        // Honor system — no GPS or QR needed.
-        verificationMethod = 'self_reported'
-        if (latitude != null && longitude != null) {
-          geohash = encodeGeohash(latitude, longitude, 6)
-        }
-      } else {
-        // GPS verification via PostGIS
-        if (latitude != null && longitude != null && stop.target_location) {
-          const { data: gpsResult } = await supabase.rpc('check_gps_within_radius', {
-            user_lat: latitude,
-            user_lng: longitude,
-            stop_id: stopId,
-            radius_m: stop.verification_radius_meters ?? stop.radius_meters ?? 150,
-          })
-          gpsVerified = gpsResult === true
-        }
-
-        // QR verification
-        if (qrCodeId && (stop.qr_code_token || stop.qr_code_id)) {
-          qrVerified = qrCodeId === (stop.qr_code_token ?? stop.qr_code_id)
-        }
-
-        let verified = false
-        switch (tier) {
-          case 1:
-          case 2:
-            verified = gpsVerified && qrVerified
-            verificationMethod = 'qr_gps'
-            break
-          case 3:
-            verified = gpsVerified
-            verificationMethod = 'gps_only'
-            break
-          case 4:
-            // Employee verification — separate flow
-            verified = false
-            break
-        }
-
-        if (!verified) {
-          return json({ verified: false, reason: 'Location not confirmed' }, 200)
-        }
-
-        // PRIVACY: geohash (~1.2km at precision 6) — discard precise coordinate
-        geohash = encodeGeohash(latitude!, longitude!, 6)
+      // GPS verification via PostGIS — records the real within-radius result.
+      if (latitude != null && longitude != null && stop.target_location) {
+        const { data: gpsResult } = await supabase.rpc('check_gps_within_radius', {
+          user_lat: latitude,
+          user_lng: longitude,
+          stop_id: stopId,
+          radius_m: stop.verification_radius_meters ?? stop.radius_meters ?? 150,
+        })
+        gpsVerified = gpsResult === true
       }
+
+      // QR verification
+      if (qrCodeId && (stop.qr_code_token || stop.qr_code_id)) {
+        qrVerified = qrCodeId === (stop.qr_code_token ?? stop.qr_code_id)
+      }
+
+      switch (tier) {
+        case 1:
+        case 2:
+          verified = gpsVerified === true && qrVerified
+          verificationMethod = 'qr_gps'
+          break
+        case 3:
+          verified = gpsVerified === true
+          verificationMethod = 'gps_only'
+          break
+        case 4:
+          // Employee verification — separate flow
+          verified = false
+          break
+      }
+
+      // PRIVACY: geohash (~1.2km at precision 6) — discard precise coordinate.
+      // Recorded whenever a fix exists (incl. demo stamps placed off-site).
+      if (latitude != null && longitude != null) {
+        geohash = encodeGeohash(latitude, longitude, 6)
+      }
+    }
+
+    // Demo: allow regardless, but the real result is preserved in gpsVerified.
+    // Non-demo: enforce — an unverified attempt writes no stamp (unchanged).
+    if (isDemo) {
+      verificationMethod = 'demo'
+    } else if (!verified) {
+      return json({ verified: false, reason: 'Location not confirmed' }, 200)
     }
 
     // ── Write the stamp (service role — the only INSERT path) ────────────────
@@ -252,6 +272,10 @@ serve(async (req) => {
         tilt_intensity: placement?.tiltIntensity ?? null,
         verification_method: verificationMethod,
         is_demo: isDemo,
+        // The real proximity result, recorded even when a demo stamp is allowed
+        // off-site — so demo stamps never read as verified yet honest "were they
+        // actually there?" data survives (migration 031).
+        gps_verified: gpsVerified,
         stop_opened_at: stopOpenedAt ?? null,
         verified_at: new Date().toISOString(),
       })
