@@ -101,4 +101,10 @@ export interface PassportTemplate {
   /** Optional cover emblem (emoji). Defaults to '🧭' in the seeder
    *  when unset. */
   coverEmblem?: string
+  /** When true, seed the passport as DEMO-published (passports.is_demo):
+   *  any holder can stamp regardless of GPS (verify-stamp checks + records
+   *  the real result but does not enforce it). Admin/service-role only —
+   *  the seeder writes it under the service role, which migration 105's
+   *  guard permits. Used for scattered-tester demo passports. */
+  isDemo?: boolean
 }

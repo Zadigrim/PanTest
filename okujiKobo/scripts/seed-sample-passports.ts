@@ -33,6 +33,7 @@ import { bainbridge } from './templates/bainbridge'
 import { pugetSoundIslands } from './templates/puget-sound-islands'
 import { portland } from './templates/portland'
 import { portOrchard } from './templates/port-orchard'
+import { grandRapids } from './templates/grand-rapids'
 import { geocode, geocodeAvailable } from '@/lib/maps/server-geocode'
 import type { ResolvedPlace } from '@/lib/maps/types'
 
@@ -41,6 +42,7 @@ const TEMPLATES: Record<string, PassportTemplate> = {
   'puget-sound-islands': pugetSoundIslands,
   portland,
   'port-orchard': portOrchard,
+  'grand-rapids': grandRapids,
 }
 
 function fail(msg: string): never {
@@ -180,6 +182,10 @@ async function main() {
       is_free:               true,
       transit_accessible:    false,
       wheelchair_accessible: false,
+      // Demo-published tester passport (migration 105 admin/service guard).
+      // The seeder runs as the service role (auth.uid() IS NULL), which the
+      // guard permits, so is_demo=true is written directly at seed time.
+      is_demo:               template.isDemo === true,
     })
     .select('id')
     .single()
