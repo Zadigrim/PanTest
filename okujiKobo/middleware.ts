@@ -133,6 +133,7 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/auth/') ||      // OAuth callback — must be reachable before session exists
     pathname.startsWith('/share/') ||
     pathname.startsWith('/explore') ||
+    pathname.startsWith('/preview/') ||   // public, embeddable passport preview (okuji.app iframe)
     pathname.startsWith('/passport/') ||
     pathname.startsWith('/creator/') ||
     pathname.startsWith('/moichido/auth/') || // moichido login + denied page
