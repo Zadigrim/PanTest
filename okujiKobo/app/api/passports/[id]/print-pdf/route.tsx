@@ -11,7 +11,7 @@ import { locationCaptionText } from '@/lib/design/location-caption'
 import {
   PAGE_TRIM_W_PT, PAGE_TRIM_H_PT, PAGE_FULL_W_PT, PAGE_FULL_H_PT,
   COVER_TRIM_W_PT, COVER_TRIM_H_PT, COVER_FULL_W_PT, COVER_FULL_H_PT,
-  BLEED_PT, PAGE_UNIT_TO_PT, COVER_UNIT_TO_PT,
+  BLEED_PT, PAGE_UNIT_TO_PT, COVER_UNIT_TO_PT, mmToPt,
 } from '@/lib/print/passport-spec'
 
 // ── Marketing mark loader ────────────────────────────────────────────────────
@@ -57,25 +57,34 @@ const STRIP_H = 396, CUT_Y = STRIP_H
 const STRIP_HALF_W = SHEET_W / 2, VERT_FOLD_X = STRIP_HALF_W, CUT_X = STRIP_HALF_W
 const PAGE_SLOT_W = STRIP_HALF_W, PAGE_SLOT_H = STRIP_H, PAD = 14
 
-// Scaled artboard for stamp-page slot
-const CANVAS_AREA_H = PAGE_SLOT_H - 2 * PAD - 20
-const CANVAS_AREA_W = PAGE_SLOT_W - 2 * PAD
-const FIT_BY_HEIGHT_W = CANVAS_AREA_H / (ARTBOARD_H / ARTBOARD_W)
-const CANVAS_H = CANVAS_AREA_H, CANVAS_W = FIT_BY_HEIGHT_W
-const CANVAS_SCALE = CANVAS_H / ARTBOARD_H
-const CANVAS_OFFSET_X = (PAGE_SLOT_W - 2 * PAD - CANVAS_W) / 2
+// ── Booklet trim — shared so cover + interior coincide (fore-edge fix) ────────
+// The old layout sized the interior canvas (height-fit) and the cover panel
+// (independent height-fit) to DIFFERENT widths, so trimming the assembled
+// fore-edge to the cover sliced ~16.3 pt (5.77 mm) off each interior page.
+//
+// Fix: one shared trim. The interior content (artboard) renders at the
+// canonical passport trim WIDTH (88 mm); a 4 mm fold-side GUTTER is added; and
+// each cover panel spans GUTTER + trim (the full fold-to-fore-edge half-page),
+// so the cover's fore-edge lands at (or a hair outside) the interior content's
+// fore-edge — trimming flush now removes only shared waste, never content.
+// The content box is fold-aligned per slot and vertically centered.
+const BOOKLET_GUTTER = mmToPt(4)                        // 11.34 pt — fold-side margin
+const CANVAS_W = PAGE_TRIM_W_PT                         // 249.45 pt (88 mm)
+const CANVAS_SCALE = CANVAS_W / ARTBOARD_W              // 0.40760 pt/unit
+const CANVAS_H = ARTBOARD_H * CANVAS_SCALE              // 354.20 pt (~125 mm)
+const CANVAS_TOP = (PAGE_SLOT_H - CANVAS_H) / 2         // 20.90 pt — vertical center
+// Fold-to-fore-edge half-page = gutter + content. Each cover panel matches it.
+const HALF_PAGE_W = BOOKLET_GUTTER + CANVAS_W           // 260.79 pt
 
-// Cover composition area. The passport wrap (1252×869, ratio ≈1.44) is
-// taller than the strip allows at full sheet width, so we fit it by
-// HEIGHT within the strip and center it horizontally — which keeps the
-// spine on the sheet's vertical fold (SHEET_W/2) for the booklet fold.
-const COVER_RENDER_H = STRIP_H - 2 * PAD                                  // ≈ 368
-const COVER_RENDER_W = (COVER_RENDER_H * COVER_DESIGN_W) / COVER_DESIGN_H // ≈ 530
+// Cover composition. Each panel = HALF_PAGE_W so its fore-edge coincides with
+// the interior content fore-edge; spine stays centered on the sheet fold.
+const COVER_SCALE = HALF_PAGE_W / COVER_PANEL_W                           // 0.42613 pt/unit
+const COVER_RENDER_W = COVER_DESIGN_W * COVER_SCALE                       // ≈ 533.5
+const COVER_RENDER_H = COVER_DESIGN_H * COVER_SCALE                       // ≈ 370.3
 const COVER_X_OFFSET = (SHEET_W - COVER_RENDER_W) / 2                     // centers spine on the fold
-const COVER_Y_OFFSET = (STRIP_H - COVER_RENDER_H) / 2                     // = PAD
-const COVER_SCALE = COVER_RENDER_W / COVER_DESIGN_W
-const COVER_PANEL_W_PT = COVER_PANEL_W * COVER_SCALE
-const COVER_SPINE_W_PT = COVER_SPINE_W * COVER_SCALE
+const COVER_Y_OFFSET = (STRIP_H - COVER_RENDER_H) / 2                     // ≈ 12.85
+const COVER_PANEL_W_PT = COVER_PANEL_W * COVER_SCALE                      // 260.79
+const COVER_SPINE_W_PT = COVER_SPINE_W * COVER_SCALE                      // ≈ 11.93
 
 const S = StyleSheet.create({
   sheet: { width: SHEET_W, height: SHEET_H, backgroundColor: '#FFFFFF', position: 'relative' },
@@ -390,7 +399,7 @@ function PassportPageSlotContent({ page }: { page: PassportPageForPrint }) {
   const customBgOpacity = clampOpacityPct(page.custom_background_opacity)
   return (
     <>
-      <View style={[S.pageCanvas, { width: CANVAS_W, height: CANVAS_H, marginLeft: CANVAS_OFFSET_X, backgroundColor: paperColor }]}>
+      <View style={[S.pageCanvas, { width: CANVAS_W, height: CANVAS_H, backgroundColor: paperColor }]}>
         {page.background_type === 'guilloche' && <GuillocheOverlay color={bgColor} opacity={bgOpacity} />}
         {page.background_type === 'grid' && <GridOverlay color={bgColor} opacity={bgOpacity} />}
         {(page.background_type === 'custom' || page.background_type === 'okuji') && page.background_image_url && (
@@ -717,10 +726,17 @@ function StripLabel({ stripPosition, totalStrips, passportTitle, stripIndex }: {
 }
 
 // ── Reader-page slot wrapper ──────────────────────────────────────────────────
+// The content box is the shared booklet trim (CANVAS_W × CANVAS_H),
+// FOLD-ALIGNED (biased toward the vertical fold with a 4 mm gutter) and
+// vertically centered. Left column (left=0) folds on its right; right column
+// (left=306) folds on its left. Fold-alignment is what lets the cover panel's
+// fore-edge coincide with the content fore-edge so trimming cuts no content.
 function ReaderPageSlot({ page, left, top }: { page: ReaderPage; left: number; top: number }) {
+  const foldOnRight = left < STRIP_HALF_W
+  const boxLeft = foldOnRight ? PAGE_SLOT_W - BOOKLET_GUTTER - CANVAS_W : BOOKLET_GUTTER
   return (
     <View style={[S.slot, { left, top }]}>
-      <View style={S.slotContent}>
+      <View style={{ position: 'absolute', left: boxLeft, top: CANVAS_TOP, width: CANVAS_W, height: CANVAS_H, overflow: 'hidden', flexDirection: 'column' }}>
         {page.kind === 'name' && <NamePageContent passportTitle={page.passportTitle} institutionName={page.institutionName} passportType={page.passportType} />}
         {page.kind === 'stamp' && <PassportPageSlotContent page={page.page} />}
         {page.kind === 'cert' && <CertSlotContent title={page.passportTitle} institutionName={page.institutionName} />}

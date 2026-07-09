@@ -23,7 +23,17 @@ interface Props {
   onOpenChange: (open: boolean) => void
 }
 
+// The two production paths, labeled by PURPOSE (not internal mode name).
+// 'booklet' = the home-printer imposed cut/fold/staple PDF (route default).
+// 'trim'    = single-leaf pages at 88×125 trim + 3 mm bleed + crop marks, for
+//             a print shop to bind — NOT a fold-at-home booklet.
+const FORMATS: { value: 'booklet' | 'trim'; title: string; blurb: string }[] = [
+  { value: 'booklet', title: 'Classroom booklet', blurb: 'Print at home, fold & staple into a passport.' },
+  { value: 'trim', title: 'Keepsake / print-shop', blurb: 'Single pages at trim size + bleed, for professional binding.' },
+]
+
 export function PrintOptionsDialog({ passport, open, onOpenChange }: Props) {
+  const [format, setFormat] = useState<'booklet' | 'trim'>('booklet')
   const [showStamps, setShowStamps] = useState(false)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -32,7 +42,7 @@ export function PrintOptionsDialog({ passport, open, onOpenChange }: Props) {
     if (pending) return
     setPending(true)
     setError(null)
-    const result = await downloadPrintPdf(passport.id, passport.title, showStamps)
+    const result = await downloadPrintPdf(passport.id, passport.title, showStamps, format)
     setPending(false)
     if (result.ok) onOpenChange(false)
     else setError(result.error)
@@ -42,6 +52,7 @@ export function PrintOptionsDialog({ passport, open, onOpenChange }: Props) {
   // toggle doesn't carry over. Block close mid-generation.
   function handleOpenChange(next: boolean) {
     if (next) {
+      setFormat('booklet')
       setShowStamps(false)
       setError(null)
     }
@@ -63,7 +74,32 @@ export function PrintOptionsDialog({ passport, open, onOpenChange }: Props) {
             Generates a print-ready PDF with every stop included.
           </p>
 
-          <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-card border border-hairline p-3 hover:border-green transition-colors">
+          {/* Output format — the two production paths, chosen by purpose. */}
+          <div className="mt-4 flex flex-col gap-2" role="radiogroup" aria-label="Print format">
+            {FORMATS.map((f) => {
+              const active = format === f.value
+              return (
+                <button
+                  key={f.value}
+                  type="button"
+                  role="radio"
+                  aria-checked={active}
+                  onClick={() => setFormat(f.value)}
+                  className={`flex items-start gap-3 rounded-card border p-3 text-left transition-colors ${
+                    active ? 'border-green bg-green/5' : 'border-hairline hover:border-green'
+                  }`}
+                >
+                  <span className={`mt-0.5 h-4 w-4 flex-none rounded-full border-2 ${active ? 'border-green bg-green' : 'border-hairline'}`} />
+                  <span className="flex flex-col">
+                    <span className="text-sm font-medium text-navy">{f.title}</span>
+                    <span className="text-xs text-muted">{f.blurb}</span>
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+
+          <label className="mt-3 flex cursor-pointer items-start gap-3 rounded-card border border-hairline p-3 hover:border-green transition-colors">
             <input
               type="checkbox"
               checked={showStamps}

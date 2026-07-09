@@ -678,10 +678,15 @@ function ActionsMenu({ passport, isAdmin, soldCount, onDeleted, onUnpublished }:
           role="menu"
           className="absolute right-0 top-10 z-20 w-52 overflow-hidden rounded-[8px] border-[1.5px] border-ink bg-white py-1 shadow-md"
         >
-          <MenuItem label={busy === 'print' ? 'Generating…' : 'Print to PDF'} onClick={handlePrint} disabled={busy !== null} />
           <MenuItem
-            label={busy === 'print-trim' ? 'Generating…' : 'Print-ready PDF'}
-            hint="trim + bleed"
+            label={busy === 'print' ? 'Generating…' : 'Classroom booklet'}
+            hint="fold & staple"
+            onClick={handlePrint}
+            disabled={busy !== null}
+          />
+          <MenuItem
+            label={busy === 'print-trim' ? 'Generating…' : 'Keepsake / print-shop'}
+            hint="single pages"
             onClick={handlePrintTrim}
             disabled={busy !== null}
           />
