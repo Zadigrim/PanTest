@@ -25,6 +25,11 @@ interface ViewerStop {
   rotation: number | null
   stamp_icon: string | null
   stamp_color: string | null
+  // Resolved public URL of the stop's CUSTOM stamp artwork (design_assets.url),
+  // when the stop uses a composed/custom asset stamp rather than an emoji. When
+  // present it renders instead of the emoji glyph. Optional — callers that only
+  // have the emoji (e.g. Explore) leave it undefined and get the emoji.
+  stampImageUrl?: string | null
 }
 
 export function ReadOnlyStop({ stop }: { stop: ViewerStop }) {
@@ -48,7 +53,18 @@ export function ReadOnlyStop({ stop }: { stop: ViewerStop }) {
       }}
       aria-label={`Stop: ${stop.name}`}
     >
-      <span className="select-none text-3xl leading-none opacity-60">{stamp}</span>
+      {stop.stampImageUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={stop.stampImageUrl}
+          alt=""
+          className="select-none"
+          style={{ width: w * 0.7, height: h * 0.7, objectFit: 'contain', opacity: 0.85 }}
+          draggable={false}
+        />
+      ) : (
+        <span className="select-none text-3xl leading-none opacity-60">{stamp}</span>
+      )}
     </div>
   )
 }

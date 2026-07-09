@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { SimulationProvider } from '@/lib/admin/simulation-context'
 import { AdminPanel } from './AdminPanel'
@@ -15,8 +16,15 @@ interface AdminInfo {
 export function AdminOverlay({ children }: { children: React.ReactNode }) {
   const [admin, setAdmin] = useState<AdminInfo | null>(null)
   const [checked, setChecked] = useState(false)
+  // The /preview surface is a PUBLIC, chrome-free embed (okuji.app iframe). The
+  // admin panel + user-simulation controls must never render there — not even
+  // for a signed-in admin, whose cookies reach the same-origin iframe. Bail to
+  // children only, and skip the auth/DB probe entirely.
+  const pathname = usePathname()
+  const isEmbed = pathname?.startsWith('/preview') ?? false
 
   useEffect(() => {
+    if (isEmbed) { setChecked(true); return }
     const supabase = createClient()
     void (async () => {
       const { data: { user } } = await supabase.auth.getUser()
@@ -39,7 +47,9 @@ export function AdminOverlay({ children }: { children: React.ReactNode }) {
       }
       setChecked(true)
     })()
-  }, [])
+  }, [isEmbed])
+
+  if (isEmbed) return <>{children}</>
 
   if (!checked) return <>{children}</>
 

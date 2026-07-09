@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
+import { createClient as createServiceClient } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/server'
 import { PassportViewer } from '@/components/explore/PassportViewer'
 import { PreviewAutosize } from '@/components/explore/PreviewAutosize'
@@ -81,11 +82,40 @@ export default async function PassportPreviewPage({
           .from('stops')
           .select(
             'id, name, stop_order, page_id, stamp_icon, stamp_color, ' +
+              'stamp_type, stamp_asset_id, ' +
               'box_x, box_y, box_width, box_height, rotation',
           )
           .in('page_id', pageIds)
           .order('stop_order', { ascending: true })) as { data: Record<string, unknown>[] | null }
       : { data: [] as Record<string, unknown>[] }
+
+  // Resolve CUSTOM stamp artwork for display. The design-assets bucket is public
+  // (migration 008), so design_assets.url is a public URL — but the design_assets
+  // TABLE is owner-only RLS, so an anon visitor can't read it. Resolve it here
+  // with the service role (server-only): a narrow read of just the stamp assets
+  // referenced by THIS published passport's stops. Exposes only public design
+  // URLs — no private data. Emoji stops need nothing.
+  const assetIds = Array.from(new Set(
+    ((stopsRaw ?? []) as Record<string, unknown>[])
+      .filter((s) => s['stamp_type'] === 'custom_asset' && s['stamp_asset_id'])
+      .map((s) => s['stamp_asset_id'] as string),
+  ))
+  const assetUrlById = new Map<string, string>()
+  if (assetIds.length > 0) {
+    const svcUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const svcKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+    if (svcUrl && svcKey) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const svc = createServiceClient(svcUrl, svcKey, { auth: { persistSession: false } }) as any
+      const { data: assets } = await svc
+        .from('design_assets')
+        .select('id, url')
+        .in('id', assetIds)
+      for (const a of (assets ?? []) as { id: string; url: string | null }[]) {
+        if (a.url) assetUrlById.set(a.id, a.url)
+      }
+    }
+  }
 
   const viewerPages: ViewerPage[] = ((pagesRaw ?? []) as Record<string, unknown>[]).map((r) => {
     const pageId = r['id'] as string
@@ -102,6 +132,10 @@ export default async function PassportPreviewPage({
         rotation:    s['rotation']    as number | null,
         stamp_icon:  s['stamp_icon']  as string | null,
         stamp_color: s['stamp_color'] as string | null,
+        stampImageUrl:
+          s['stamp_type'] === 'custom_asset' && s['stamp_asset_id']
+            ? assetUrlById.get(s['stamp_asset_id'] as string) ?? null
+            : null,
       }))
     return {
       id:                        pageId,
@@ -150,7 +184,11 @@ export default async function PassportPreviewPage({
           emblem={passport.cover_emblem}
           title={passport.title}
           coverImageUrl={passport.cover_image_url}
-          pageImageUrls={passport.page_image_urls}
+          // Force page LIVE-render (null), not the pre-rendered PNGs: those bake
+          // the emoji stamp_icon, so custom stamp artwork would be hidden. Live
+          // render draws ReadOnlyStop with the resolved stampImageUrl. Cover has
+          // no stamps, so its pre-rendered image is kept.
+          pageImageUrls={null}
         />
       </PreviewAutosize>
     </main>
