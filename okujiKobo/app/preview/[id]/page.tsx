@@ -177,19 +177,25 @@ export default async function PassportPreviewPage({
   return (
     <main className="bg-paper">
       <PreviewAutosize>
-        <PassportViewer
-          cover={viewerCover}
-          pages={viewerPages}
-          fallbackBg={passport.cover_bg_color}
-          emblem={passport.cover_emblem}
-          title={passport.title}
-          coverImageUrl={passport.cover_image_url}
-          // Force page LIVE-render (null), not the pre-rendered PNGs: those bake
-          // the emoji stamp_icon, so custom stamp artwork would be hidden. Live
-          // render draws ReadOnlyStop with the resolved stampImageUrl. Cover has
-          // no stamps, so its pre-rendered image is kept.
-          pageImageUrls={null}
-        />
+        {/* Cap the width so the book spread renders a bit smaller and centered
+            with side margin inside the embed — avoids the stage running to the
+            frame edge (right-side clipping) on wider screens. The flipper still
+            scales to fit narrower widths. */}
+        <div className="mx-auto max-w-[860px] px-4">
+          <PassportViewer
+            cover={viewerCover}
+            pages={viewerPages}
+            fallbackBg={passport.cover_bg_color}
+            emblem={passport.cover_emblem}
+            title={passport.title}
+            coverImageUrl={passport.cover_image_url}
+            // Force page LIVE-render (null), not the pre-rendered PNGs: those bake
+            // the emoji stamp_icon, so custom stamp artwork would be hidden. Live
+            // render draws ReadOnlyStop with the resolved stampImageUrl. Cover has
+            // no stamps, so its pre-rendered image is kept.
+            pageImageUrls={null}
+          />
+        </div>
       </PreviewAutosize>
     </main>
   )
