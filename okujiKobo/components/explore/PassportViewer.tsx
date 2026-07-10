@@ -100,7 +100,13 @@ export function PassportViewer({
                 width: STAGE_W,
                 height: STAGE_H,
                 transform: `translateX(-50%) scale(${scale})`,
-                transformOrigin: 'top left',
+                // Scale around the horizontal CENTER, not the top-left corner.
+                // With 'top left' the spread stayed anchored at its left edge as
+                // it scaled down, drifting left of center (clipping the left
+                // page in narrow containers like the landing embed). 'top center'
+                // keeps the (left:50% + translateX(-50%)) centering true at every
+                // scale.
+                transformOrigin: 'top center',
                 position: 'absolute',
                 left: '50%',
                 top: 0,
