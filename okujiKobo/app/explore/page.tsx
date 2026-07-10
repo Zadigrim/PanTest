@@ -130,18 +130,22 @@ function ExploreCard({ passport }: { passport: PassportWithDetails }) {
   const outsideData = (passport as any).cover_outside_data as CoverSideData | null | undefined
 
   return (
-    <div className="group flex flex-col overflow-hidden rounded-card border border-hairline bg-white shadow-sm transition-shadow hover:shadow-md">
+    // Whole card is a single tap target — one <Link> wrapping cover + body, so
+    // the entire surface (not just the thumbnail) navigates. Mirrors
+    // PassportCard.tsx. Better for touch; on desktop it reads the same.
+    <Link
+      href={`/explore/${passport.id}`}
+      className="group flex flex-col overflow-hidden rounded-card border border-hairline bg-white shadow-sm transition-shadow hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green"
+    >
       {/* Cover thumbnail — full width, 2:3 proportions */}
-      <Link href={`/explore/${passport.id}`} className="block">
-        <PassportCoverThumbnail
-          title={passport.title}
-          typeIcon={typeIcon}
-          outsideData={outsideData}
-          coverImageUrl={(passport as unknown as { cover_image_url?: string | null }).cover_image_url ?? null}
-          coverThumbnail={(passport as unknown as { cover_thumbnail?: string | null }).cover_thumbnail ?? null}
-          fallbackBg={passport.cover_bg_color ?? '0D1B2A'}
-        />
-      </Link>
+      <PassportCoverThumbnail
+        title={passport.title}
+        typeIcon={typeIcon}
+        outsideData={outsideData}
+        coverImageUrl={(passport as unknown as { cover_image_url?: string | null }).cover_image_url ?? null}
+        coverThumbnail={(passport as unknown as { cover_thumbnail?: string | null }).cover_thumbnail ?? null}
+        fallbackBg={passport.cover_bg_color ?? '0D1B2A'}
+      />
 
       {/* Body */}
       <div className="flex flex-1 flex-col gap-2 p-3">
@@ -189,17 +193,17 @@ function ExploreCard({ passport }: { passport: PassportWithDetails }) {
             )}
           </div>
 
-          <Link
-            href={`/explore/${passport.id}`}
-            className="shrink-0 rounded-card border border-hairline bg-white px-2.5 py-1 text-xs font-medium text-navy hover:border-green hover:text-green transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green"
-            tabIndex={-1}
+          {/* Decorative CTA — the whole card is the real link now, so this is
+              a non-interactive label that still highlights on card hover. */}
+          <span
+            className="shrink-0 rounded-card border border-hairline bg-white px-2.5 py-1 text-xs font-medium text-navy transition-colors group-hover:border-green group-hover:text-green"
             aria-hidden="true"
           >
             View details
-          </Link>
+          </span>
         </div>
       </div>
-    </div>
+    </Link>
   )
 }
 

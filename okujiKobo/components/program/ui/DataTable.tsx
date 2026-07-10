@@ -41,7 +41,7 @@ interface Props<T> {
 
 export function DataTable<T>({ columns, rows, rowKey, rowHref, empty }: Props<T>) {
   return (
-    <div className="overflow-hidden rounded-program-card border-[1.5px] border-hairline bg-cream">
+    <div className="overflow-x-auto rounded-program-card border-[1.5px] border-hairline bg-cream">
       <table className="w-full text-[12.5px]">
         <thead className="bg-field">
           <tr>

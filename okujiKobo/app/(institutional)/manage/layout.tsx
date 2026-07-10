@@ -9,13 +9,17 @@ import AppNav from '@/components/layout/AppNav'
 // Sidebar nav item
 // ---------------------------------------------------------------------------
 
-function NavLink({ href, children }: { href: string; children: ReactNode }) {
+function NavLink({ href, icon, label }: { href: string; icon: ReactNode; label: string }) {
   return (
     <Link
       href={href}
-      className="flex items-center gap-2.5 px-3 py-2 rounded-panel text-sm font-medium text-cream/90 hover:bg-white/10 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green"
+      title={label}
+      className="flex items-center gap-2.5 px-3 py-2 rounded-panel text-sm font-medium text-cream/90 hover:bg-white/10 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green justify-center lg:justify-start"
     >
-      {children}
+      {icon}
+      {/* Labels hide when the sidebar collapses to an icon rail under lg
+          (tablet). The title attr keeps them discoverable on hover. */}
+      <span className="hidden lg:inline">{label}</span>
     </Link>
   )
 }
@@ -36,7 +40,8 @@ async function LogoutButton() {
     <form action={signOut}>
       <button
         type="submit"
-        className="w-full flex items-center gap-2.5 px-3 py-2 rounded-panel text-sm font-medium text-cream/70 hover:bg-white/10 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green text-left"
+        title="Sign out"
+        className="w-full flex items-center gap-2.5 px-3 py-2 rounded-panel text-sm font-medium text-cream/70 hover:bg-white/10 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green text-left justify-center lg:justify-start"
       >
         <svg
           width="16"
@@ -53,7 +58,7 @@ async function LogoutButton() {
           <polyline points="16 17 21 12 16 7" />
           <line x1="21" y1="12" x2="9" y2="12" />
         </svg>
-        Sign out
+        <span className="hidden lg:inline">Sign out</span>
       </button>
     </form>
   )
@@ -124,8 +129,8 @@ export default async function ManageLayout({ children }: { children: ReactNode }
   }
 
   const sidebarHeader = (
-    <div className="px-4 py-5 border-b border-white/10">
-      <div className="flex items-center gap-3">
+    <div className="px-2 lg:px-4 py-5 border-b border-white/10">
+      <div className="flex items-center justify-center lg:justify-start gap-3">
         {logoUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -140,7 +145,7 @@ export default async function ManageLayout({ children }: { children: ReactNode }
             </span>
           </div>
         )}
-        <div className="min-w-0">
+        <div className="min-w-0 hidden lg:block">
           <p className="text-white font-semibold text-sm truncate leading-tight">
             {authorization ? institutionName : 'Okuji'}
           </p>
@@ -155,7 +160,7 @@ export default async function ManageLayout({ children }: { children: ReactNode }
       <>
         <AppNav />
         <div className="flex min-h-[calc(100vh-3.5rem)] bg-paper">
-        <aside className="w-60 shrink-0 bg-navy flex flex-col">
+        <aside className="w-16 lg:w-60 shrink-0 bg-navy flex flex-col">
           {sidebarHeader}
           <div className="flex-1" />
           <div className="px-3 py-4 border-t border-white/10">
@@ -188,110 +193,125 @@ export default async function ManageLayout({ children }: { children: ReactNode }
       <AppNav />
       <div className="flex min-h-[calc(100vh-3.5rem)] bg-paper">
       {/* ── Sidebar ─────────────────────────────────────────── */}
-      <aside className="w-60 shrink-0 bg-navy flex flex-col">
+      <aside className="w-16 lg:w-60 shrink-0 bg-navy flex flex-col">
         {sidebarHeader}
 
         {/* Navigation */}
         <nav className="flex-1 px-3 py-4 space-y-0.5" aria-label="Management navigation">
-          <NavLink href="/manage">
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <rect x="3" y="3" width="7" height="7" />
-              <rect x="14" y="3" width="7" height="7" />
-              <rect x="14" y="14" width="7" height="7" />
-              <rect x="3" y="14" width="7" height="7" />
-            </svg>
-            Dashboard
-          </NavLink>
+          <NavLink
+            href="/manage"
+            label="Dashboard"
+            icon={
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <rect x="3" y="3" width="7" height="7" />
+                <rect x="14" y="3" width="7" height="7" />
+                <rect x="14" y="14" width="7" height="7" />
+                <rect x="3" y="14" width="7" height="7" />
+              </svg>
+            }
+          />
 
-          <NavLink href="/manage/analytics">
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <line x1="18" y1="20" x2="18" y2="10" />
-              <line x1="12" y1="20" x2="12" y2="4" />
-              <line x1="6" y1="20" x2="6" y2="14" />
-            </svg>
-            Analytics
-          </NavLink>
+          <NavLink
+            href="/manage/analytics"
+            label="Analytics"
+            icon={
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <line x1="18" y1="20" x2="18" y2="10" />
+                <line x1="12" y1="20" x2="12" y2="4" />
+                <line x1="6" y1="20" x2="6" y2="14" />
+              </svg>
+            }
+          />
 
-          <NavLink href="/manage/prizes">
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <circle cx="12" cy="8" r="6" />
-              <path d="M15.477 12.89L17 22l-5-3-5 3 1.523-9.11" />
-            </svg>
-            Prizes
-          </NavLink>
+          <NavLink
+            href="/manage/prizes"
+            label="Prizes"
+            icon={
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <circle cx="12" cy="8" r="6" />
+                <path d="M15.477 12.89L17 22l-5-3-5 3 1.523-9.11" />
+              </svg>
+            }
+          />
 
-          <NavLink href="/manage/employees">
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-              <circle cx="9" cy="7" r="4" />
-              <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-              <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-            </svg>
-            Employees
-          </NavLink>
+          <NavLink
+            href="/manage/employees"
+            label="Employees"
+            icon={
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                <circle cx="9" cy="7" r="4" />
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+              </svg>
+            }
+          />
 
-          <NavLink href="/terminal">
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
-            </svg>
-            Terminal
-          </NavLink>
+          <NavLink
+            href="/terminal"
+            label="Terminal"
+            icon={
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+              </svg>
+            }
+          />
         </nav>
 
         {/* Bottom: employee role + sign out */}
         <div className="px-3 py-4 border-t border-white/10 space-y-1">
           {authorization.role_label && (
-            <p className="px-3 text-xs text-cream/50 truncate">
+            <p className="px-3 text-xs text-cream/50 truncate hidden lg:block">
               {authorization.role_label}
             </p>
           )}

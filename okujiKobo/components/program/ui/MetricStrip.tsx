@@ -39,7 +39,7 @@ function renderValue(v: Metric['value']) {
 function Cell({ m }: { m: Metric }) {
   const { display, muted } = renderValue(m.value)
   return (
-    <div className="flex flex-1 flex-col gap-1 px-4 py-3 min-w-0">
+    <div className="flex grow basis-[150px] flex-col gap-1 px-4 py-3 min-w-0">
       <p
         className="font-mono text-[11px] uppercase text-muted"
         style={{ letterSpacing: '2px' }}
