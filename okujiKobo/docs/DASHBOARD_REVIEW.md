@@ -167,6 +167,9 @@ acquired, and (ii) the "vs acquired" delta is more useful than raw
 sold counts in early data. Flip the flag once you have ≥10 paid
 acquisitions to validate the framing.
 
+**Decision:** APPROVED — SOLD stays dormant. Acquired and sold remain
+distinct concepts; flip the flag at ~10 real paid acquisitions.
+
 ### 2. "Paused" program / Resume
 
 Concept: a paused state per passport, surfaceable in NeedsAttention.
@@ -185,6 +188,11 @@ constraint and no UI to set "paused."
    variant, do it as a `published + visible = false` toggle on the
    passport, not a new status — it sidesteps RLS rework.
 
+**Decision:** APPROVED — the paused status is dropped permanently.
+`draft | published | archived` is the complete vocabulary, and any
+future "hide but keep collectors active" need is a `visible = false`
+toggle, never a new status.
+
 ### 3. Access requests awaiting approval
 
 Concept: a NeedsAttention row for institutional managers reviewing
@@ -201,6 +209,11 @@ Adding requests would invent a problem. If you later launch
 self-service sign-up for institutions, add a `pending_employee_requests`
 table at that time and the dashboard slot is a 10-line add.
 
+**Decision:** APPROVED — no access-request queue in v1. Explicitly
+retained as a future option if self-service institutional sign-up ever
+launches (`pending_employee_requests` table + the 10-line dashboard
+slot).
+
 ### 4. Active collectors growth delta
 
 We compute `active collectors = distinct user_id from acquisitions in
@@ -212,6 +225,9 @@ Computing it requires a second `distinct user_id` pass over the prior
 is important, derive a materialized view later instead of doing two
 distincts per page-load.
 
+**Decision:** APPROVED — omit the active-collectors delta.
+Materialized view later if the metric proves important.
+
 ### 5. Activity feed — collector identity
 
 We render "Collector joined" and "Stamp · {stop} · {passport}"
@@ -221,6 +237,9 @@ yet), so this matches the privacy posture.
 
 **Recommendation:** keep as-is. If a future collector-leaderboard or
 public profile lands, the feed can show display_name + avatar then.
+
+**Decision:** APPROVED — the activity feed stays anonymous, consistent
+with the app-wide privacy posture.
 
 ---
 

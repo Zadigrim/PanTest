@@ -92,6 +92,11 @@ They are not preferences; they are the substrate.
    type; the discriminator lives on `passports.credential_type`,
    the acquisition shape does not.
 
+9. **Passport status vocabulary is `draft | published |
+   archived`** — complete and closed. No `paused` status, ever.
+   Acquired ≠ sold; the SOLD KPI stays dormant until ~10 paid
+   acquisitions. (See `okujiKobo/docs/DASHBOARD_REVIEW.md` §(e).)
+
 ## Brand rules
 
 - The okuji wordmark is **lowercase** in product chrome. The brand
