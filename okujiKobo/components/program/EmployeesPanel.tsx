@@ -65,7 +65,7 @@ function PermissionToggle({
 }) {
   return (
     <label
-      className={`flex items-center justify-center gap-1.5 ${
+      className={`flex min-h-[44px] min-w-[44px] items-center justify-center gap-1.5 ${
         disabled ? 'opacity-40 pointer-events-none' : 'cursor-pointer'
       }`}
       title={disabled ? 'You do not have permission to change this' : undefined}
@@ -205,7 +205,7 @@ function EmployeeTableRow({
           <button
             onClick={handleRemove}
             disabled={removing}
-            className="text-xs text-accent hover:underline disabled:opacity-50 disabled:pointer-events-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent rounded-sm"
+            className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center px-2 text-xs text-accent hover:underline disabled:opacity-50 disabled:pointer-events-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent rounded-sm"
           >
             {removing ? 'Removing…' : 'Remove'}
           </button>
@@ -389,7 +389,7 @@ function AddEmployeeForm({
             value={form.email}
             onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))}
             placeholder="employee@example.com"
-            className="h-9 rounded-program-control border-[1.5px] border-hairline bg-field px-3 text-sm text-ink placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-green focus:border-green transition-colors"
+            className="h-11 rounded-program-control border-[1.5px] border-hairline bg-field px-3 text-sm text-ink placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-green focus:border-green transition-colors"
           />
         </div>
 
@@ -408,7 +408,7 @@ function AddEmployeeForm({
             value={form.role_label}
             onChange={(e) => setForm((p) => ({ ...p, role_label: e.target.value }))}
             placeholder="e.g. Barista, Receptionist"
-            className="h-9 rounded-program-control border-[1.5px] border-hairline bg-field px-3 text-sm text-ink placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-green focus:border-green transition-colors"
+            className="h-11 rounded-program-control border-[1.5px] border-hairline bg-field px-3 text-sm text-ink placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-green focus:border-green transition-colors"
           />
         </div>
       </div>
@@ -419,7 +419,7 @@ function AddEmployeeForm({
           Permissions
         </legend>
         <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
-          <label className="flex items-center gap-2 cursor-pointer">
+          <label className="flex min-h-[44px] items-center gap-2 cursor-pointer">
             <input
               type="checkbox"
               checked={form.can_verify}
@@ -429,7 +429,7 @@ function AddEmployeeForm({
             <span className="text-sm text-ink">Can verify stamps</span>
           </label>
 
-          <label className="flex items-center gap-2 cursor-pointer">
+          <label className="flex min-h-[44px] items-center gap-2 cursor-pointer">
             <input
               type="checkbox"
               checked={form.can_distribute_prizes}
@@ -445,7 +445,7 @@ function AddEmployeeForm({
               (lib/roles/require-flag.ts + per-route gates). Toggle
               records the change immediately; the next request from
               the affected employee sees the new authorization. */}
-          <label className="flex items-center gap-2 cursor-pointer">
+          <label className="flex min-h-[44px] items-center gap-2 cursor-pointer">
             <input
               type="checkbox"
               checked={form.can_design}
@@ -455,7 +455,7 @@ function AddEmployeeForm({
             <span className="text-sm text-ink">Can design</span>
           </label>
 
-          <label className="flex items-center gap-2 cursor-pointer">
+          <label className="flex min-h-[44px] items-center gap-2 cursor-pointer">
             <input
               type="checkbox"
               checked={form.can_manage_employees}
@@ -465,7 +465,7 @@ function AddEmployeeForm({
             <span className="text-sm text-ink">Can manage employees</span>
           </label>
 
-          <label className="flex items-center gap-2 cursor-pointer">
+          <label className="flex min-h-[44px] items-center gap-2 cursor-pointer">
             <input
               type="checkbox"
               checked={form.can_view_analytics}
@@ -475,7 +475,7 @@ function AddEmployeeForm({
             <span className="text-sm text-ink">Can view analytics</span>
           </label>
 
-          <label className="flex items-center gap-2 cursor-pointer">
+          <label className="flex min-h-[44px] items-center gap-2 cursor-pointer">
             <input
               type="checkbox"
               checked={form.can_manage_billing}
@@ -502,7 +502,7 @@ function AddEmployeeForm({
         <button
           type="submit"
           disabled={isPending}
-          className="inline-flex items-center gap-2 h-9 px-4 rounded-program-control text-sm font-semibold bg-green text-white hover:bg-green/90 disabled:opacity-50 disabled:pointer-events-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green"
+          className="inline-flex items-center gap-2 h-11 px-4 rounded-program-control text-sm font-semibold bg-green text-white hover:bg-green/90 disabled:opacity-50 disabled:pointer-events-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green"
         >
           {isPending ? 'Adding…' : 'Add employee'}
         </button>

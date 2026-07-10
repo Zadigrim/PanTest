@@ -151,7 +151,7 @@ function PagePrizeForm({
               setSaved(false)
             }}
             placeholder="e.g. Free coffee coupon, 10% off voucher"
-            className="h-9 rounded-panel border border-hairline bg-paper px-3 text-sm text-navy placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-green focus:border-green transition-colors"
+            className="h-11 rounded-panel border border-hairline bg-paper px-3 text-sm text-navy placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-green focus:border-green transition-colors"
           />
         </div>
 
@@ -179,7 +179,7 @@ function PagePrizeForm({
                 setSaved(false)
               }}
               placeholder="0.00"
-              className="h-9 w-full rounded-panel border border-hairline bg-paper pl-7 pr-3 text-sm text-navy placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-green focus:border-green transition-colors"
+              className="h-11 w-full rounded-panel border border-hairline bg-paper pl-7 pr-3 text-sm text-navy placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-green focus:border-green transition-colors"
             />
           </div>
         </div>
@@ -256,7 +256,7 @@ function PagePrizeForm({
             type="button"
             onClick={handleSave}
             disabled={isPending}
-            className="inline-flex items-center gap-2 h-9 px-4 rounded-panel text-sm font-medium bg-green text-white hover:bg-[#0F6E56] disabled:opacity-50 disabled:pointer-events-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green"
+            className="inline-flex items-center gap-2 h-11 px-4 rounded-panel text-sm font-medium bg-green text-white hover:bg-[#0F6E56] disabled:opacity-50 disabled:pointer-events-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green"
           >
             {isPending ? 'Saving…' : 'Save prize config'}
           </button>

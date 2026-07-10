@@ -45,7 +45,7 @@ export function ProgramTabs({ active }: { active: ProgramTabKey }) {
               href={`/program?tab=${t.key}`}
               role="tab"
               aria-selected={isActive}
-              className={`relative whitespace-nowrap px-3 py-2 text-[13px] font-medium transition-colors ${
+              className={`relative inline-flex min-h-[44px] items-center whitespace-nowrap px-3 py-2 text-[13px] font-medium transition-colors ${
                 isActive
                   ? 'text-ink'
                   : 'text-muted hover:text-ink'

@@ -228,7 +228,7 @@ function PublishToggle({
           type="button"
           onClick={handleClick}
           disabled={isPending}
-          className={`inline-flex items-center px-3 py-1.5 rounded-panel text-xs font-medium transition-colors disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green ${
+          className={`inline-flex min-h-[44px] items-center px-3 py-1.5 rounded-panel text-xs font-medium transition-colors disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green ${
             isPublished
               ? 'border border-hairline text-navy hover:bg-paper'
               : 'bg-green text-white hover:bg-[#0F6E56]'
@@ -280,7 +280,7 @@ function MarkDistributedButton({
       <button
         onClick={handleClick}
         disabled={isPending}
-        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-panel text-xs font-medium bg-green text-white hover:bg-[#0F6E56] disabled:opacity-50 disabled:pointer-events-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green"
+        className="inline-flex min-h-[44px] items-center gap-1.5 px-3 py-1.5 rounded-panel text-xs font-medium bg-green text-white hover:bg-[#0F6E56] disabled:opacity-50 disabled:pointer-events-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green"
       >
         {isPending ? 'Saving…' : '✓ Mark distributed'}
       </button>

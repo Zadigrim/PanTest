@@ -73,7 +73,7 @@ const SORT_OPTIONS: { label: string; value: FilterState['sortBy'] }[] = [
 // ─── Shared select style ──────────────────────────────────────────────────────
 
 const SELECT_BASE =
-  'h-8 cursor-pointer appearance-none rounded-card border border-hairline bg-white ' +
+  'h-11 cursor-pointer appearance-none rounded-card border border-hairline bg-white ' +
   'pl-3 pr-7 text-xs text-navy transition-colors ' +
   'hover:border-green focus:outline-none focus:ring-2 focus:ring-green ' +
   'disabled:cursor-not-allowed disabled:opacity-50'
@@ -140,7 +140,7 @@ function MultiSelect({ label, options, selected, onChange }: MultiSelectProps) {
         type="button"
         onClick={() => setOpen((prev: boolean) => !prev)}
         className={cn(
-          'flex h-8 items-center gap-1 rounded-card border px-3 text-xs transition-colors',
+          'flex h-11 items-center gap-1 rounded-card border px-3 text-xs transition-colors',
           'focus:outline-none focus:ring-2 focus:ring-green',
           isActive
             ? 'border-green bg-cream text-green font-medium'
@@ -180,7 +180,7 @@ function MultiSelect({ label, options, selected, onChange }: MultiSelectProps) {
                 aria-selected={checked}
                 onClick={() => toggle(opt.value)}
                 className={cn(
-                  'flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs transition-colors',
+                  'flex min-h-[44px] w-full items-center gap-2 px-3 py-1.5 text-left text-xs transition-colors',
                   'hover:bg-paper',
                   checked ? 'text-green font-medium' : 'text-navy'
                 )}
@@ -210,7 +210,7 @@ function MultiSelect({ label, options, selected, onChange }: MultiSelectProps) {
               <button
                 type="button"
                 onClick={() => { onChange([]); setOpen(false) }}
-                className="w-full px-3 py-1.5 text-left text-xs text-muted hover:text-accent transition-colors"
+                className="flex min-h-[44px] w-full items-center px-3 py-1.5 text-left text-xs text-muted hover:text-accent transition-colors"
               >
                 Clear all
               </button>
@@ -299,7 +299,7 @@ export function FilterBar({ filters, onChange }: FilterBarProps) {
           type="button"
           onClick={() => set('accessibleOnly', !filters.accessibleOnly)}
           className={cn(
-            'flex h-8 items-center gap-1.5 rounded-card border px-3 text-xs transition-colors',
+            'flex h-11 items-center gap-1.5 rounded-card border px-3 text-xs transition-colors',
             'focus:outline-none focus:ring-2 focus:ring-green',
             filters.accessibleOnly
               ? 'border-green bg-cream text-green font-medium'

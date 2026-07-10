@@ -48,7 +48,7 @@ export function Segmented({
             role="tab"
             aria-selected={active}
             className={cn(
-              'rounded-program-pill px-3 py-1 text-[12px] font-medium transition-colors',
+              'inline-flex min-h-[44px] items-center rounded-program-pill px-3 py-1 text-[12px] font-medium transition-colors',
               active
                 ? 'border-[1.5px] border-ink bg-cream text-ink'
                 : 'text-muted hover:text-ink',
