@@ -142,8 +142,16 @@ function ScanScreen({
   const [showQr, setShowQr] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
+  // Autofocus the token field on mount and whenever the scanner closes — but
+  // only with a fine pointer (mouse/trackpad). On touch tablets (pointer:
+  // coarse) programmatic focus pops the OS keyboard over the scan option, so
+  // we skip it and let a deliberate tap focus the input instead. matchMedia is
+  // browser-only; useEffect never runs during SSR, but guard defensively.
   useEffect(() => {
-    if (!showQr) inputRef.current?.focus()
+    if (showQr) return
+    if (typeof window === 'undefined' || !window.matchMedia) return
+    if (window.matchMedia('(pointer: coarse)').matches) return
+    inputRef.current?.focus()
   }, [showQr])
 
   async function handleSubmit(e: FormEvent) {
