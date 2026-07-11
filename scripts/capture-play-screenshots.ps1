@@ -5,7 +5,7 @@
 .DESCRIPTION
     Interactive helper for grabbing up to 8 store screenshots. You navigate the okuji
     app in the emulator, press Enter, and the script captures the current frame with
-    `adb shell screencap` + `adb pull` (binary-safe — no exec-out/PowerShell redirection,
+    `adb shell screencap` + `adb pull` (binary-safe -- no exec-out/PowerShell redirection,
     which mangles the PNG stream on Windows). Each capture is validated against the Play
     tablet spec: 1080x1920 portrait (9:16) and under 8 MB. Non-conforming shots produce a
     warning but are kept, so you can decide whether to re-take.
@@ -191,7 +191,7 @@ for ($i = 1; $i -le $MaxShots; $i++) {
     }
 
     if ($problems.Count -gt 0) {
-        Write-Warning ("  {0}: {1} (kept — re-take if needed)" -f $fileName, ($problems -join '; '))
+        Write-Warning ("  {0}: {1} (kept -- re-take if needed)" -f $fileName, ($problems -join '; '))
     }
     else {
         $wxh = if ($dim) { "$($dim.Width)x$($dim.Height)" } else { "?" }
