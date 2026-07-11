@@ -143,7 +143,7 @@ export default function LoginScreen() {
   if (wide) {
     return (
       <ImageBackground
-        source={require('../../assets/brand/okuji-login-tablet.png')}
+        source={require('../../assets/brand/okuji-login-tablet-bg-2560x1600.png')}
         style={styles.container}
         resizeMode="cover"
       >
