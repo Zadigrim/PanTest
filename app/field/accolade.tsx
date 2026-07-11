@@ -8,6 +8,7 @@ import { useLocalSearchParams, router } from 'expo-router'
 import { supabase, getCurrentUser } from '../../lib/supabase'
 import { useEmployeeContext } from '../../contexts/EmployeeContext'
 import { palette } from '../../lib/colors'
+import { LandscapeContainer } from '../../components/layout/LandscapeContainer'
 
 const NOTE_MAX = 280
 
@@ -116,6 +117,7 @@ export default function AccoladeScreen() {
   }
 
   return (
+    <LandscapeContainer>
     <ScrollView
       style={styles.container}
       contentContainerStyle={styles.content}
@@ -207,6 +209,7 @@ export default function AccoladeScreen() {
           : <Text style={styles.submitBtnText}>Give this accolade.</Text>}
       </TouchableOpacity>
     </ScrollView>
+    </LandscapeContainer>
   )
 }
 

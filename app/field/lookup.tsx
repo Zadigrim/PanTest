@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import {
   View, Text, TouchableOpacity, StyleSheet, TextInput,
-  ActivityIndicator, KeyboardAvoidingView, Platform, Alert,
+  ActivityIndicator, KeyboardAvoidingView, Platform, Alert, useWindowDimensions,
 } from 'react-native'
 import { useLocalSearchParams, router } from 'expo-router'
 import { supabase, getCurrentUser } from '../../lib/supabase'
@@ -187,7 +187,14 @@ export default function LookupScreen() {
     })
   }
 
-  if (loading) {
+  const { width } = useWindowDimensions()
+  // Landscape counter tablets get a two-pane workspace; phones (and portrait
+  // tablets) keep the single-column flow below, unchanged.
+  const wide = width >= 700
+
+  // Narrow keeps its full-screen loading state. In wide mode the spinner lives
+  // in the result pane so the controls stay put.
+  if (loading && !wide) {
     return (
       <View style={styles.centered}>
         <ActivityIndicator color={palette.accent} size="large" />
@@ -195,6 +202,109 @@ export default function LookupScreen() {
     )
   }
 
+  // ── Wide: two-pane counter layout ─────────────────────────────────────────
+  // Left = scan / manual-lookup controls (always available); right = the
+  // verification result + collector context. Touch targets sized up for
+  // standing employees.
+  if (wide) {
+    return (
+      <KeyboardAvoidingView
+        style={wideStyles.row}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        {/* Controls */}
+        <View style={wideStyles.leftPane}>
+          <Text style={wideStyles.paneTitle}>Look up a visitor</Text>
+          <TouchableOpacity
+            style={wideStyles.scanBtn}
+            onPress={() => router.push('/field/scan')}
+            activeOpacity={0.85}
+          >
+            <Text style={wideStyles.scanBtnText}>Scan visitor QR</Text>
+          </TouchableOpacity>
+
+          <View style={wideStyles.orRow}>
+            <View style={wideStyles.orLine} />
+            <Text style={wideStyles.orText}>OR ENTER CODE</Text>
+            <View style={wideStyles.orLine} />
+          </View>
+
+          <TextInput
+            style={wideStyles.codeInput}
+            value={codeInput}
+            onChangeText={(t) => setCodeInput(t.toUpperCase())}
+            placeholder="e.g. A3F8C2"
+            placeholderTextColor="#555"
+            maxLength={8}
+            autoCapitalize="characters"
+            autoCorrect={false}
+            returnKeyType="search"
+            onSubmitEditing={handleCodeSubmit}
+          />
+          <TouchableOpacity
+            style={[wideStyles.findBtn, submitting && styles.btnDisabled]}
+            onPress={handleCodeSubmit}
+            disabled={submitting}
+          >
+            {submitting
+              ? <ActivityIndicator color="#fff" />
+              : <Text style={wideStyles.findBtnText}>Find visitor</Text>}
+          </TouchableOpacity>
+        </View>
+
+        {/* Result + collector context */}
+        <View style={wideStyles.rightPane}>
+          {loading ? (
+            <View style={styles.centered}>
+              <ActivityIndicator color={palette.accent} size="large" />
+            </View>
+          ) : collector ? (
+            <View style={wideStyles.resultWrap}>
+              <View style={styles.card}>
+                <Text style={styles.cardLabel}>Visitor</Text>
+                <Text style={styles.firstName}>{collector.firstName}</Text>
+                <View style={styles.divider} />
+                <Text style={styles.detailLabel}>Passport</Text>
+                <Text style={styles.detailValue}>{collector.passportTitle}</Text>
+                <Text style={styles.detailLabel}>Stop</Text>
+                <Text style={styles.detailValue}>{collector.stopName}</Text>
+
+                {alreadyAcknowledged ? (
+                  <View style={styles.alreadyBanner}>
+                    <Text style={styles.alreadyText}>Already acknowledged today</Text>
+                  </View>
+                ) : (
+                  <TouchableOpacity style={wideStyles.acknowledgeBtn} onPress={handleAcknowledge} activeOpacity={0.85}>
+                    <Text style={styles.acknowledgeBtnText}>Acknowledge →</Text>
+                  </TouchableOpacity>
+                )}
+
+                <TouchableOpacity
+                  style={styles.ghostBtn}
+                  onPress={() => { setCollector(null); setCodeInput(''); setNotFound(false) }}
+                >
+                  <Text style={styles.ghostBtnText}>Look up a different visitor</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : notFound ? (
+            <View style={styles.notFound}>
+              <Text style={styles.notFoundText}>No pending stamp found for this code at this stop.</Text>
+              <TouchableOpacity style={styles.ghostBtn} onPress={() => { setNotFound(false); setCodeInput('') }}>
+                <Text style={styles.ghostBtnText}>Try again</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View style={wideStyles.emptyState}>
+              <Text style={wideStyles.emptyText}>Scan a visitor&apos;s QR or enter their code to begin.</Text>
+            </View>
+          )}
+        </View>
+      </KeyboardAvoidingView>
+    )
+  }
+
+  // ── Narrow: single-column (unchanged) ─────────────────────────────────────
   return (
     <KeyboardAvoidingView
       style={styles.container}
@@ -326,4 +436,50 @@ const styles = StyleSheet.create({
   acknowledgeBtnText: { color: palette.navy, fontWeight: '700', fontSize: 17 },
   ghostBtn: { marginTop: 16, alignItems: 'center', paddingVertical: 8 },
   ghostBtnText: { color: '#555', fontSize: 13 },
+})
+
+// Landscape counter tablet — two-pane. Targets sized up for standing use.
+const wideStyles = StyleSheet.create({
+  row: { flex: 1, flexDirection: 'row', backgroundColor: palette.navy },
+  leftPane: {
+    width: 340,
+    padding: 28,
+    justifyContent: 'center',
+    borderRightWidth: 1,
+    borderRightColor: '#1a2d44',
+  },
+  paneTitle: {
+    fontSize: 24, color: palette.cream, fontFamily: 'serif', marginBottom: 24,
+  },
+  scanBtn: {
+    backgroundColor: palette.green, borderRadius: 12, paddingVertical: 20,
+    minHeight: 64, alignItems: 'center', justifyContent: 'center',
+  },
+  scanBtnText: { color: '#fff', fontWeight: '700', fontSize: 18 },
+  orRow: { flexDirection: 'row', alignItems: 'center', marginVertical: 22 },
+  orLine: { flex: 1, height: 1, backgroundColor: '#1a2d44' },
+  orText: {
+    color: '#888', fontSize: 11, letterSpacing: 1.5, marginHorizontal: 10, fontWeight: '700',
+  },
+  codeInput: {
+    backgroundColor: '#152232', borderRadius: 10, padding: 18,
+    color: palette.cream, fontSize: 24, fontFamily: 'monospace',
+    borderWidth: 1, borderColor: '#1a2d44', letterSpacing: 4,
+    textAlign: 'center', marginBottom: 16,
+  },
+  findBtn: {
+    backgroundColor: '#1a2d44', borderRadius: 12, paddingVertical: 18,
+    minHeight: 60, alignItems: 'center', justifyContent: 'center',
+  },
+  findBtnText: { color: palette.cream, fontWeight: '700', fontSize: 16 },
+  rightPane: { flex: 1, padding: 32, justifyContent: 'center' },
+  resultWrap: { maxWidth: 480, width: '100%', alignSelf: 'center' },
+  acknowledgeBtn: {
+    backgroundColor: palette.accent, borderRadius: 12, paddingVertical: 20,
+    minHeight: 64, alignItems: 'center', justifyContent: 'center', marginTop: 8,
+  },
+  emptyState: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 40 },
+  emptyText: {
+    color: '#5a6b82', fontSize: 16, textAlign: 'center', fontStyle: 'italic', lineHeight: 24,
+  },
 })

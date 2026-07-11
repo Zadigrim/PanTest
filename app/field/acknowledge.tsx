@@ -8,6 +8,7 @@ import { useLocalSearchParams, router } from 'expo-router'
 import { supabase, getCurrentUser } from '../../lib/supabase'
 import { useEmployeeContext } from '../../contexts/EmployeeContext'
 import { palette } from '../../lib/colors'
+import { LandscapeContainer } from '../../components/layout/LandscapeContainer'
 
 export default function AcknowledgeScreen() {
   const { stampId, userId, stopId } = useLocalSearchParams<{
@@ -141,6 +142,7 @@ export default function AcknowledgeScreen() {
   }
 
   return (
+    <LandscapeContainer>
     <View style={styles.container}>
       {!confirmed ? (
         <>
@@ -188,6 +190,7 @@ export default function AcknowledgeScreen() {
         </View>
       )}
     </View>
+    </LandscapeContainer>
   )
 }
 

@@ -15,14 +15,24 @@ const BORDER_COLOR = palette.ink
 const RULE_COLOR = 'rgba(0,0,0,0.055)'
 const RULE_SPACING = 22
 
+const PAGE_RATIO = 869 / 612 // canonical 612:869 artboard (US passport 88×125 mm)
+
 export function usePageDimensions() {
-  const { width: sw } = useWindowDimensions()
-  // Span the screen width; height follows the canonical 612:869 artboard
-  // ratio (US passport 88×125 mm) so the page is the exact shape kobo
-  // designs against. The frame centers this vertically, leaving bands
-  // above/below for nav controls.
-  const pageW = sw
-  const pageH = Math.round((sw * 869) / 612)
+  const { width: sw, height: sh } = useWindowDimensions()
+  // Portrait (phones + portrait tablets) — UNCHANGED: span the screen width;
+  // height follows the canonical ratio, centered vertically with bands above/
+  // below for nav controls.
+  if (sh >= sw) {
+    const pageW = sw
+    return { pageW, pageH: Math.round(sw * PAGE_RATIO) }
+  }
+  // Landscape (tablets): width is now the long edge, so sizing by width would
+  // make the page taller than the screen and clip. Fit the page by the
+  // available HEIGHT instead (minus a nav band) and center it — the frame's
+  // dark bezel fills the sides. No overflow, no stretch, no black bars.
+  const availH = sh - 120
+  const pageH = Math.round(availH)
+  const pageW = Math.round(availH / PAGE_RATIO)
   return { pageW, pageH }
 }
 

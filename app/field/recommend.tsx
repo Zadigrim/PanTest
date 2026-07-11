@@ -8,6 +8,7 @@ import { useLocalSearchParams, router } from 'expo-router'
 import { supabase, getCurrentUser } from '../../lib/supabase'
 import { useEmployeeContext } from '../../contexts/EmployeeContext'
 import { palette } from '../../lib/colors'
+import { LandscapeContainer } from '../../components/layout/LandscapeContainer'
 
 const NOTE_MAX = 200
 
@@ -60,6 +61,7 @@ export default function RecommendScreen() {
   }
 
   return (
+    <LandscapeContainer>
     <KeyboardAvoidingView
       style={styles.wrapper}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -132,6 +134,7 @@ export default function RecommendScreen() {
         </TouchableOpacity>
       </ScrollView>
     </KeyboardAvoidingView>
+    </LandscapeContainer>
   )
 }
 

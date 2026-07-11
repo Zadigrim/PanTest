@@ -11,6 +11,7 @@ import { recoveryFlag } from '../lib/recovery-flag'
 import { EmployeeProvider } from '../contexts/EmployeeContext'
 import { DemoProvider } from '../contexts/DemoContext'
 import { initJournalPhotoSync } from '../lib/journal-photo-queue'
+import { applyStartupOrientation } from '../lib/orientation'
 
 Sentry.init({
   dsn: process.env.EXPO_PUBLIC_SENTRY_DSN,
@@ -22,6 +23,10 @@ Sentry.init({
 
 // Hold the native splash until we've resolved auth state.
 SplashScreen.preventAutoHideAsync()
+
+// Phones lock to portrait (unchanged behavior); tablets rotate freely. Runs
+// once at module load, before first paint, so a phone never briefly rotates.
+void applyStartupOrientation()
 
 export default function RootLayout() {
   const [session, setSession] = useState<Session | null>(null)
