@@ -40,6 +40,24 @@ function Fail([string]$Message) {
     exit 1
 }
 
+# Run adb without letting its stderr abort the script. Under
+# $ErrorActionPreference='Stop', a native command that writes to stderr (adb's
+# first-run daemon banner, adb pull's "1 file pulled" summary) raises a
+# terminating NativeCommandError -- and in Windows PowerShell 5.1 a 2>$null
+# redirect does NOT suppress that. So flip the preference to Continue for the
+# duration of the call. Returns merged stdout+stderr as one string; callers
+# judge success by $LASTEXITCODE, which a native command sets and which
+# survives the trailing Out-String (a cmdlet doesn't touch it).
+function Invoke-Adb {
+    $prev = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        & adb @args 2>&1 | Out-String
+    } finally {
+        $ErrorActionPreference = $prev
+    }
+}
+
 # Read width/height from a PNG's IHDR chunk. PNG layout:
 #   bytes 0-7   : signature 89 50 4E 47 0D 0A 1A 0A
 #   bytes 8-11  : IHDR length
@@ -77,16 +95,12 @@ if (-not $adb) {
 
 # --- Preflight: exactly one device/emulator ------------------------------
 
-# Prime the adb daemon quietly. Its first-run "daemon not running; starting now"
-# banner is written to STDERR; with $ErrorActionPreference='Stop' a native
-# command's stderr becomes a terminating NativeCommandError. Redirect stderr to
-# $null here (and on every adb call below) so informational stderr never aborts
-# the script -- we gate on $LASTEXITCODE instead.
-& adb start-server 2>$null | Out-Null
+# Prime the adb daemon first so its first-run banner is out of the way; all adb
+# calls go through Invoke-Adb, which keeps that stderr from aborting the script.
+Invoke-Adb start-server | Out-Null
 
 # `adb devices` prints a header line then one row per device: "<serial>\t<state>".
-# Capture via Out-String (stderr swallowed) so any residual banner can't throw.
-$raw = (& adb devices 2>$null | Out-String)
+$raw = Invoke-Adb devices
 $lines = $raw -split "`r?`n"
 $devices = @()
 foreach ($line in $lines) {
@@ -146,7 +160,7 @@ for ($i = 1; $i -le $MaxShots; $i++) {
     # Capture on-device, then pull. Two discrete steps keep the PNG bytes intact
     # (exec-out piped through PowerShell's text redirection corrupts binaries).
     Write-Host "  capturing..." -NoNewline
-    & adb -s $serial shell screencap -p $DevicePath 2>$null | Out-Null
+    Invoke-Adb -s $serial shell screencap -p $DevicePath | Out-Null
     if ($LASTEXITCODE -ne 0) {
         Write-Host ""
         Write-Warning "screencap failed on device (exit $LASTEXITCODE). Skipping this slot; press Enter to retry."
@@ -155,7 +169,7 @@ for ($i = 1; $i -le $MaxShots; $i++) {
     }
 
     if (Test-Path -LiteralPath $destPath) { Remove-Item -LiteralPath $destPath -Force }
-    & adb -s $serial pull $DevicePath $destPath 2>$null | Out-Null
+    Invoke-Adb -s $serial pull $DevicePath $destPath | Out-Null
     if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $destPath)) {
         Write-Host ""
         Write-Warning "adb pull failed (exit $LASTEXITCODE). Skipping this slot; press Enter to retry."
@@ -164,7 +178,7 @@ for ($i = 1; $i -le $MaxShots; $i++) {
     }
 
     # Clean up the on-device temp file (best-effort).
-    & adb -s $serial shell rm -f $DevicePath 2>$null | Out-Null
+    Invoke-Adb -s $serial shell rm -f $DevicePath | Out-Null
 
     Write-Host " done -> $fileName"
 
