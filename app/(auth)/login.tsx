@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, KeyboardAvoidingView, Platform,
-  ImageBackground,
+  ImageBackground, useWindowDimensions,
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { router } from 'expo-router'
@@ -48,6 +48,13 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
+
+  // Wide screens (tablet, landscape) get the branded split layout — wordmark
+  // baked into the art on the left, form card on the right (design mock).
+  // Phones keep the existing centered layout below. 820 is the sm/tablet
+  // threshold; phones (even large, landscape) stay under it in portrait.
+  const { width } = useWindowDimensions()
+  const wide = width >= 820
 
   const handleLogin = async () => {
     if (!email || !password) { Alert.alert('Please enter email and password.'); return }
@@ -129,6 +136,103 @@ export default function LoginScreen() {
     }
   }
 
+  // ── Tablet / wide layout ──────────────────────────────────────────────────
+  // The background art carries the topographic field + okuji wordmark +
+  // tagline on the LEFT (form area left empty in the art); this recreates the
+  // form card that sits on the right. Same state + handlers as the phone form.
+  if (wide) {
+    return (
+      <ImageBackground
+        source={require('../../assets/brand/okuji-login-tablet.png')}
+        style={styles.container}
+        resizeMode="cover"
+      >
+        <KeyboardAvoidingView
+          style={styles.flex}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+          <View style={t.stage}>
+            <View style={t.card}>
+              <Text style={t.label}>Email</Text>
+              <TextInput
+                style={t.input}
+                placeholder="you@example.com"
+                placeholderTextColor="rgba(245,240,232,0.4)"
+                value={email}
+                onChangeText={setEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+                editable={!loading}
+              />
+
+              <Text style={[t.label, { marginTop: 18 }]}>Password</Text>
+              <View style={t.passwordRow}>
+                <TextInput
+                  style={[t.input, { flex: 1, marginBottom: 0, paddingRight: 60 }]}
+                  placeholder="••••••••"
+                  placeholderTextColor="rgba(245,240,232,0.4)"
+                  value={password}
+                  onChangeText={setPassword}
+                  secureTextEntry={!showPassword}
+                  editable={!loading}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+                <TouchableOpacity
+                  style={t.showBtn}
+                  onPress={() => setShowPassword((v) => !v)}
+                  accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  <Text style={t.showText}>{showPassword ? 'Hide' : 'Show'}</Text>
+                </TouchableOpacity>
+              </View>
+
+              <TouchableOpacity
+                onPress={handleForgotPassword}
+                disabled={loading}
+                style={t.forgot}
+              >
+                <Text style={t.forgotText}>Forgot password?</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[t.signInBtn, loading && styles.btnDisabled]}
+                onPress={handleLogin}
+                disabled={loading}
+              >
+                <Text style={t.signInText}>{loading ? 'Signing in…' : 'Sign in'}</Text>
+              </TouchableOpacity>
+
+              <View style={t.dividerRow}>
+                <View style={t.divider} />
+                <Text style={t.dividerText}>OR</Text>
+                <View style={t.divider} />
+              </View>
+
+              <TouchableOpacity
+                style={[t.googleBtn, loading && styles.btnDisabled]}
+                onPress={handleGoogleLogin}
+                disabled={loading}
+              >
+                <Ionicons name="logo-google" size={18} color={palette.ink} style={{ marginRight: 10 }} />
+                <Text style={t.googleText}>Continue with Google</Text>
+              </TouchableOpacity>
+
+              <View style={t.footerRow}>
+                <Text style={t.footerText}>New to okuji? </Text>
+                <TouchableOpacity onPress={() => router.push('/(auth)/register')} disabled={loading}>
+                  <Text style={t.footerLink}>Create an account</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </ImageBackground>
+    )
+  }
+
+  // ── Phone / default layout (unchanged) ────────────────────────────────────
   return (
     // Brand background (assets/brand/okuji-bg*.png density triplet — RN
     // picks per device). Crest, wordmark, and tagline are baked into the
@@ -261,4 +365,126 @@ const styles = StyleSheet.create({
   link: { marginTop: 20, alignItems: 'center' },
   linkTight: { marginTop: 10, alignItems: 'center' },
   linkText: { color: palette.accent, fontSize: 13 },
+})
+
+// Tablet / wide split-layout form card (design mock). The card floats on the
+// right over the branded art; sizing is capped so it stays a tidy panel on
+// very wide screens.
+const t = StyleSheet.create({
+  // Push the card to the right, vertically centered, with a comfortable
+  // right margin. On a landscape tablet this lands the card in the mock's
+  // right third while the wordmark art breathes on the left.
+  stage: {
+    flex: 1,
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+    paddingHorizontal: '6%',
+  },
+  card: {
+    width: '100%',
+    maxWidth: 400,
+    padding: 28,
+    borderRadius: 16,
+    backgroundColor: 'rgba(18,46,35,0.55)',
+    borderWidth: 1,
+    borderColor: 'rgba(245,240,232,0.18)',
+  },
+  label: {
+    color: 'rgba(245,240,232,0.7)',
+    fontSize: 11,
+    fontWeight: '600',
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
+    marginBottom: 7,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: 'rgba(245,240,232,0.22)',
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+    color: palette.cream,
+    backgroundColor: 'rgba(15,33,26,0.5)',
+    fontSize: 15,
+  },
+  passwordRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  showBtn: {
+    position: 'absolute',
+    right: 14,
+    paddingVertical: 6,
+    paddingLeft: 10,
+  },
+  showText: {
+    color: 'rgba(245,240,232,0.75)',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  forgot: {
+    alignSelf: 'flex-end',
+    marginTop: 10,
+  },
+  forgotText: {
+    color: 'rgba(245,240,232,0.85)',
+    fontSize: 13,
+  },
+  signInBtn: {
+    backgroundColor: palette.accent,
+    borderRadius: 10,
+    paddingVertical: 15,
+    alignItems: 'center',
+    marginTop: 18,
+  },
+  signInText: {
+    color: palette.ink,
+    fontWeight: '700',
+    fontSize: 16,
+  },
+  dividerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 18,
+  },
+  divider: {
+    flex: 1,
+    height: 1,
+    backgroundColor: 'rgba(245,240,232,0.2)',
+  },
+  dividerText: {
+    color: 'rgba(245,240,232,0.6)',
+    fontSize: 11,
+    fontWeight: '600',
+    letterSpacing: 1.5,
+    marginHorizontal: 12,
+  },
+  googleBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: palette.cream,
+    borderRadius: 10,
+    paddingVertical: 14,
+  },
+  googleText: {
+    color: palette.ink,
+    fontWeight: '700',
+    fontSize: 15,
+  },
+  footerRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 18,
+  },
+  footerText: {
+    color: 'rgba(245,240,232,0.75)',
+    fontSize: 14,
+  },
+  footerLink: {
+    color: palette.accent,
+    fontSize: 14,
+    fontWeight: '700',
+  },
 })
