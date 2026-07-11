@@ -77,8 +77,16 @@ if (-not $adb) {
 
 # --- Preflight: exactly one device/emulator ------------------------------
 
+# Prime the adb daemon quietly. Its first-run "daemon not running; starting now"
+# banner is written to STDERR; with $ErrorActionPreference='Stop' a native
+# command's stderr becomes a terminating NativeCommandError. Redirect stderr to
+# $null here (and on every adb call below) so informational stderr never aborts
+# the script -- we gate on $LASTEXITCODE instead.
+& adb start-server 2>$null | Out-Null
+
 # `adb devices` prints a header line then one row per device: "<serial>\t<state>".
-$raw = & adb devices 2>&1
+# Capture via Out-String (stderr swallowed) so any residual banner can't throw.
+$raw = (& adb devices 2>$null | Out-String)
 $lines = $raw -split "`r?`n"
 $devices = @()
 foreach ($line in $lines) {
@@ -138,7 +146,7 @@ for ($i = 1; $i -le $MaxShots; $i++) {
     # Capture on-device, then pull. Two discrete steps keep the PNG bytes intact
     # (exec-out piped through PowerShell's text redirection corrupts binaries).
     Write-Host "  capturing..." -NoNewline
-    & adb -s $serial shell screencap -p $DevicePath | Out-Null
+    & adb -s $serial shell screencap -p $DevicePath 2>$null | Out-Null
     if ($LASTEXITCODE -ne 0) {
         Write-Host ""
         Write-Warning "screencap failed on device (exit $LASTEXITCODE). Skipping this slot; press Enter to retry."
@@ -147,7 +155,7 @@ for ($i = 1; $i -le $MaxShots; $i++) {
     }
 
     if (Test-Path -LiteralPath $destPath) { Remove-Item -LiteralPath $destPath -Force }
-    & adb -s $serial pull $DevicePath $destPath | Out-Null
+    & adb -s $serial pull $DevicePath $destPath 2>$null | Out-Null
     if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $destPath)) {
         Write-Host ""
         Write-Warning "adb pull failed (exit $LASTEXITCODE). Skipping this slot; press Enter to retry."
