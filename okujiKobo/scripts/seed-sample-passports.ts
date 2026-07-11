@@ -186,6 +186,11 @@ async function main() {
       // The seeder runs as the service role (auth.uid() IS NULL), which the
       // guard permits, so is_demo=true is written directly at seed time.
       is_demo:               template.isDemo === true,
+      // Every seeded template is an okuji curated sample, so it carries the
+      // official mark (migration 107). Drives the back-cover QR in the print
+      // pipeline regardless of price. Written at seed time under the service
+      // role, which the migration-107 write guard permits.
+      is_okuji_official:     true,
     })
     .select('id')
     .single()

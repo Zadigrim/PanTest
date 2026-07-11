@@ -1,6 +1,7 @@
 import React from 'react'
 import { promises as fs } from 'fs'
 import path from 'path'
+import QRCode from 'qrcode'
 import {
   renderToBuffer, Document, Page, View, Text, StyleSheet,
   Svg, Ellipse, Path, Line, Polyline, Polygon, Rect, Image,
@@ -33,6 +34,31 @@ async function loadMarketingMark(): Promise<string | null> {
     cachedMarkDataUri = null
   }
   return cachedMarkDataUri
+}
+
+// ── okuji-official back-cover QR ──────────────────────────────────────────────
+// The QR encodes the constant landing URL https://okuji.app, so it's identical
+// for every okuji-official passport — generate it ONCE and module-cache the
+// PNG data URI (mirrors loadMarketingMark's cachedMarkDataUri memo). EC level H
+// (max redundancy — survives the ink over the printed back cover), margin 4
+// (the spec quiet zone — never 0), width 600 px (crisp at the 1-inch print
+// size). Returns null on failure so the back cover renders unbranded rather
+// than breaking PDF generation.
+let cachedQrDataUri: string | null | undefined = undefined
+async function loadOkujiBackCoverQr(): Promise<string | null> {
+  if (cachedQrDataUri !== undefined) return cachedQrDataUri
+  try {
+    cachedQrDataUri = await QRCode.toDataURL('https://okuji.app', {
+      errorCorrectionLevel: 'H',
+      margin: 4,
+      width: 600,
+      color: { dark: '#1F1D1A', light: '#FFFFFF' },
+    })
+  } catch (err) {
+    console.warn('[print-pdf] QR generation failed:', err instanceof Error ? err.message : String(err))
+    cachedQrDataUri = null
+  }
+  return cachedQrDataUri
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -85,6 +111,11 @@ const COVER_X_OFFSET = (SHEET_W - COVER_RENDER_W) / 2                     // cen
 const COVER_Y_OFFSET = (STRIP_H - COVER_RENDER_H) / 2                     // ≈ 12.85
 const COVER_PANEL_W_PT = COVER_PANEL_W * COVER_SCALE                      // 260.79
 const COVER_SPINE_W_PT = COVER_SPINE_W * COVER_SCALE                      // ≈ 11.93
+
+// Back-cover QR (okuji-official passports). Spec: ~169 cover design units
+// square = 1.0 inch printed. COVER_SCALE (0.42612 pt/unit) × 169 ≈ 72 pt = 1".
+const QR_BACKCOVER_UNITS = 169
+const QR_BACKCOVER_PT = QR_BACKCOVER_UNITS * COVER_SCALE                  // ≈ 72.0 pt (1")
 
 const S = StyleSheet.create({
   sheet: { width: SHEET_W, height: SHEET_H, backgroundColor: '#FFFFFF', position: 'relative' },
@@ -473,8 +504,24 @@ function CertSlotContent({ title, institutionName }: { title: string; institutio
   )
 }
 
+// ── Back-cover QR card (okuji-official) ───────────────────────────────────────
+// White rounded card holding the QR (1" printed) with the 'okuji.app' label
+// beneath, in the same print-label type style as the marketing-strip URL
+// (9 pt Helvetica). The white card is the guaranteed quiet-zone backing so the
+// code stays scannable over any creator back-cover art it sits on.
+function BackCoverQrCard({ qrDataUri }: { qrDataUri: string }) {
+  return (
+    <View style={{ backgroundColor: '#FFFFFF', borderRadius: 8, padding: 10, alignItems: 'center' }}>
+      <Image src={qrDataUri} style={{ width: QR_BACKCOVER_PT, height: QR_BACKCOVER_PT }} />
+      <Text style={{ marginTop: 4, fontSize: 9, fontFamily: 'Helvetica', color: '#1F1D1A' }}>
+        okuji.app
+      </Text>
+    </View>
+  )
+}
+
 // ── Cover composition ─────────────────────────────────────────────────────────
-function CoverCompositionContent({ side, fallbackTitle, paperColor }: { side: CoverSideData | null; fallbackTitle: string; paperColor: string }) {
+function CoverCompositionContent({ side, fallbackTitle, paperColor, qrDataUri = null }: { side: CoverSideData | null; fallbackTitle: string; paperColor: string; qrDataUri?: string | null }) {
   if (!side) {
     return (
       <View style={{ position: 'absolute', left: COVER_X_OFFSET, top: COVER_Y_OFFSET, width: COVER_RENDER_W, height: COVER_RENDER_H, backgroundColor: paperColor, alignItems: 'center', justifyContent: 'center' }}>
@@ -502,6 +549,24 @@ function CoverCompositionContent({ side, fallbackTitle, paperColor }: { side: Co
         </View>
       ) : null}
       <PageElementsLayer elements={side.elements ?? []} scale={COVER_SCALE} />
+      {/* okuji-official QR — centered on the BACK panel (left half in print
+          space), painted last so it sits ABOVE creator cover art (overlap is
+          intentional; back covers generally carry nothing). */}
+      {qrDataUri && (
+        <View
+          style={{
+            position: 'absolute',
+            left: 0,
+            top: 0,
+            width: COVER_PANEL_W_PT,
+            height: COVER_RENDER_H,
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <BackCoverQrCard qrDataUri={qrDataUri} />
+        </View>
+      )}
     </View>
   )
 }
@@ -616,7 +681,7 @@ function MarketingStrip({
           color: '#1F1D1A',
         }}
       >
-        https://okujikobo.okuji.app
+        https://okuji.app
       </Text>
       <Text
         style={{
@@ -815,6 +880,10 @@ interface RenderContext {
    *  sheet side A. Null on paid passports keeps the original
    *  full-width instructions. */
   marketingImageDataUri: string | null
+  /** Set when the passport is okuji-OFFICIAL (is_okuji_official,
+   *  migration 107) — drives the back-cover QR. Independent of price
+   *  and of the marketing strip's free-only gate. Null otherwise. */
+  okujiQrDataUri: string | null
 }
 
 function CoverSheetSideA({ ctx, sheetIndex }: { ctx: RenderContext; sheetIndex: number }) {
@@ -849,7 +918,7 @@ function CoverSheetSideA({ ctx, sheetIndex }: { ctx: RenderContext; sheetIndex: 
         <InstructionStrip top={0} />
       )}
       <View style={{ position: 'absolute', left: 0, top: CUT_Y, width: SHEET_W, height: STRIP_H }}>
-        <CoverCompositionContent side={ctx.outsideCover} fallbackTitle={ctx.passportTitle} paperColor={ctx.paperColorHex} />
+        <CoverCompositionContent side={ctx.outsideCover} fallbackTitle={ctx.passportTitle} paperColor={ctx.paperColorHex} qrDataUri={ctx.okujiQrDataUri} />
       </View>
       <StripLabel stripPosition={1} totalStrips={ctx.totalStrips} passportTitle={ctx.passportTitle} stripIndex={1} />
     </Page>
@@ -939,9 +1008,10 @@ interface PrintPassportDocProps {
   paperColorHex: string
   stampPages: PassportPageForPrint[]
   marketingImageDataUri: string | null
+  okujiQrDataUri: string | null
 }
 
-function PrintPassportDoc({ passportTitle, institutionName, passportType, includeCert, outsideCover, insideCover, paperColorHex, stampPages, marketingImageDataUri }: PrintPassportDocProps) {
+function PrintPassportDoc({ passportTitle, institutionName, passportType, includeCert, outsideCover, insideCover, paperColorHex, stampPages, marketingImageDataUri, okujiQrDataUri }: PrintPassportDocProps) {
   const readerPages: ReaderPage[] = []
   readerPages.push({ kind: 'name', passportTitle, institutionName, passportType })
   let pageNum = 1
@@ -964,6 +1034,7 @@ function PrintPassportDoc({ passportTitle, institutionName, passportType, includ
     readerPages, pPadded, numSignatures, totalSheets, totalStrips,
     outsideCover, insideCover, paperColorHex,
     marketingImageDataUri,
+    okujiQrDataUri,
   }
 
   return (
@@ -1124,7 +1195,7 @@ function TrimCoverPage({ side, fallbackTitle, paperColor }: { side: CoverSideDat
 function PrintPassportTrimDoc({
   passportTitle, institutionName, passportType, includeCert,
   outsideCover, insideCover, paperColorHex, stampPages,
-}: Omit<PrintPassportDocProps, 'marketingImageDataUri'>) {
+}: Omit<PrintPassportDocProps, 'marketingImageDataUri' | 'okujiQrDataUri'>) {
   return (
     <Document>
       <TrimCoverPage side={outsideCover} fallbackTitle={passportTitle} paperColor={paperColorHex} />
@@ -1185,7 +1256,7 @@ async function handlePrintRequest(request: Request, passportId: string) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: passport, error: passportError } = await (supabase as any)
     .from('passports')
-    .select('id, title, creator_id, proprietor_id, passport_type, print_certificate, cover_outside_data, cover_inside_data, cover_paper_color, is_published, price_cents')
+    .select('id, title, creator_id, proprietor_id, passport_type, print_certificate, cover_outside_data, cover_inside_data, cover_paper_color, is_published, price_cents, is_okuji_official')
     .eq('id', passportId)
     .single() as {
       data: {
@@ -1194,6 +1265,7 @@ async function handlePrintRequest(request: Request, passportId: string) {
         cover_outside_data: CoverSideData | null; cover_inside_data: CoverSideData | null
         cover_paper_color: string | null
         is_published: boolean | null; price_cents: number | null
+        is_okuji_official: boolean | null
       } | null
       error: unknown
     }
@@ -1537,6 +1609,12 @@ async function handlePrintRequest(request: Request, passportId: string) {
     ? await loadMarketingMark()
     : null
 
+  // Back-cover QR — okuji-official passports only (migration 107), REGARDLESS
+  // of price. Separate concern from the marketing strip's free-only gate above.
+  const okujiQrDataUri = passport.is_okuji_official === true
+    ? await loadOkujiBackCoverQr()
+    : null
+
   // Output mode: default home-printer booklet, or ?format=trim for a
   // partner-ready single-leaf PDF at true trim size + 3 mm bleed.
   const isTrim = new URL(request.url).searchParams.get('format') === 'trim'
@@ -1567,6 +1645,7 @@ async function handlePrintRequest(request: Request, passportId: string) {
           paperColorHex={paperColorHex}
           stampPages={remappedPages}
           marketingImageDataUri={marketingImageDataUri}
+          okujiQrDataUri={okujiQrDataUri}
         />
       )
     )
