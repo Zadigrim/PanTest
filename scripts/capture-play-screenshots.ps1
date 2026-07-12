@@ -20,6 +20,9 @@
 [CmdletBinding()]
 param(
     [int]$MaxShots = 8,
+    # Filename infix + device group, e.g. -Label phone -> okuji-phone-01.png.
+    # Keeps phone and tablet sets from overwriting each other.
+    [string]$Label = 'tablet',
     [string]$OutDir = (Join-Path (Get-Location) 'playstore-screenshots')
 )
 
@@ -27,9 +30,14 @@ Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 
 # --- Spec constants -------------------------------------------------------
-$ExpectedWidth  = 1080
-$ExpectedHeight = 1920
-$MaxBytes       = 8MB
+# Google Play screenshot rules (device-agnostic): each side 320-3840 px, the
+# long side no more than 2x the short side, under 8 MB. This passes a 2560x1600
+# tablet (1.6:1) and a 1080x1920 phone (2:1), and correctly flags e.g. a
+# 1080x2400 20:9 phone (2.22:1) as too tall for Play.
+$MinSide  = 320
+$MaxSide  = 3840
+$MaxRatio = 2.0
+$MaxBytes = 8MB
 $DevicePath     = '/sdcard/okuji-play-shot.png'
 
 # --- Helpers --------------------------------------------------------------
@@ -139,7 +147,7 @@ if (-not (Test-Path -LiteralPath $OutDir)) {
 }
 Write-Host "Saving screenshots to: $OutDir"
 Write-Host ""
-Write-Host "Spec: ${ExpectedWidth}x${ExpectedHeight} (9:16 portrait), under $([int]($MaxBytes/1MB)) MB." -ForegroundColor Cyan
+Write-Host "Play spec: each side ${MinSide}-${MaxSide} px, long side <= ${MaxRatio}x short side, under $([int]($MaxBytes/1MB)) MB." -ForegroundColor Cyan
 Write-Host "Navigate the app in the emulator, then press Enter to capture. Type 'q' then Enter to stop early."
 Write-Host ""
 
@@ -147,7 +155,7 @@ Write-Host ""
 
 for ($i = 1; $i -le $MaxShots; $i++) {
     $index = '{0:D2}' -f $i
-    $fileName = "okuji-tablet-$index.png"
+    $fileName = "okuji-$Label-$index.png"
     $destPath = Join-Path $OutDir $fileName
 
     $prompt = "[$i/$MaxShots] Navigate to the screen you want, then press Enter to capture $fileName (or 'q' to quit)"
@@ -196,16 +204,14 @@ for ($i = 1; $i -le $MaxShots; $i++) {
 
     $problems = @()
     if ($dim -ne $null) {
-        if ($dim.Width -ne $ExpectedWidth -or $dim.Height -ne $ExpectedHeight) {
-            $problems += "size $($dim.Width)x$($dim.Height) != ${ExpectedWidth}x${ExpectedHeight}"
+        $short = [Math]::Min($dim.Width, $dim.Height)
+        $long  = [Math]::Max($dim.Width, $dim.Height)
+        if ($short -lt $MinSide -or $long -gt $MaxSide) {
+            $problems += "size $($dim.Width)x$($dim.Height): each side must be $MinSide-$MaxSide px"
         }
-        # 9:16 ratio guard (in case emulator is a non-standard resolution).
-        if ($dim.Height -ne 0) {
-            $ratio = [math]::Round($dim.Width / $dim.Height, 4)
-            $target = [math]::Round($ExpectedWidth / $ExpectedHeight, 4)
-            if ($ratio -ne $target) {
-                $problems += "aspect ratio $ratio != $target (9:16)"
-            }
+        if ($short -gt 0 -and ($long / $short) -gt $MaxRatio) {
+            $r = [math]::Round($long / $short, 2)
+            $problems += "aspect $($r):1 exceeds Play's $($MaxRatio):1 -- too tall/wide; crop or use a 9:16 device"
         }
     }
     if ($sizeBytes -ge $MaxBytes) {
@@ -223,5 +229,5 @@ for ($i = 1; $i -le $MaxShots; $i++) {
 }
 
 Write-Host "Finished. Screenshots are in: $OutDir" -ForegroundColor Green
-$saved = @(Get-ChildItem -LiteralPath $OutDir -Filter 'okuji-tablet-*.png' -ErrorAction SilentlyContinue)
+$saved = @(Get-ChildItem -LiteralPath $OutDir -Filter "okuji-$Label-*.png" -ErrorAction SilentlyContinue)
 Write-Host ("Captured {0} file(s)." -f $saved.Count)
