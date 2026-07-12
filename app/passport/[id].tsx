@@ -3,7 +3,7 @@
 // (ToC and ExitVisa are reader-toggleable in Profile; section dividers removed.)
 import React, { useEffect, useCallback, useState, useMemo, useRef } from 'react'
 import {
-  View, Text, TouchableOpacity, ActivityIndicator, StyleSheet, Alert,
+  View, Text, TouchableOpacity, ActivityIndicator, StyleSheet, Alert, useWindowDimensions,
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { useLocalSearchParams, router } from 'expo-router'
@@ -15,6 +15,7 @@ import { checkPageComplete, generateTokenForPage } from '../../lib/token'
 
 import { PassportFrame, usePageDimensions } from '../../components/passport/PassportFrame'
 import { PageFlipper, type PageFlipperHandle } from '../../components/passport/PageFlipper'
+import { PageSpread } from '../../components/passport/PageSpread'
 import { BookCover } from '../../components/passport/BookCover'
 import { InsideCoverPage } from '../../components/passport/InsideCoverPage'
 import { TableOfContents } from '../../components/passport/TableOfContents'
@@ -48,6 +49,10 @@ function stopRequiresQr(stop: Stop): boolean {
 export default function PassportScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const { pageW, pageH } = usePageDimensions()
+  // Landscape (tablet) shows a two-page spread; portrait keeps the single-page
+  // flipper. Phones are portrait-locked, so they never take the spread path.
+  const { width: winW, height: winH } = useWindowDimensions()
+  const isLandscape = winW > winH
 
   const { passport, pages, stops, loading } = usePassport(id)
   const [stamps, setStamps] = useState<Record<string, Record<string, Stamp>>>({})
@@ -731,13 +736,22 @@ export default function PassportScreen() {
           </Text>
         </TouchableOpacity>
       )}
-      <PageFlipper
-        ref={flipperRef}
-        pages={pageNodes}
-        initialIndex={0}
-        onPageChange={setNavIdx}
-        scale={zoomScale}
-      />
+      {isLandscape ? (
+        <PageSpread
+          ref={flipperRef}
+          pages={pageNodes}
+          initialIndex={0}
+          onPageChange={setNavIdx}
+        />
+      ) : (
+        <PageFlipper
+          ref={flipperRef}
+          pages={pageNodes}
+          initialIndex={0}
+          onPageChange={setNavIdx}
+          scale={zoomScale}
+        />
+      )}
 
       {/* Page navigation — lives in the bands above/below the page,
           outside the swipe area; complements swipe (does not replace it). */}
