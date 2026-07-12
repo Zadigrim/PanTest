@@ -31,7 +31,7 @@
 // scaling. It just renders what the gesture component or the legacy stop
 // enum tells it to render.
 import React, { useEffect, useState } from 'react'
-import { View } from 'react-native'
+import { View, Platform } from 'react-native'
 import Svg, { Circle, Rect, Path, Text as SvgText, Defs, Filter, FeTurbulence, FeDisplacementMap, SvgXml, LinearGradient, Stop as GradientStop, Mask, G, Image as SvgImage } from 'react-native-svg'
 import type { Stop } from '../../types'
 import { substituteDateInSvg, formatStampDate } from '../../lib/stamp-date-token'
@@ -272,9 +272,15 @@ export function StampArtwork({
     return () => { cancelled = true }
   }, [customAssetUrl, customIsSvg, stop.stamp_color, earnedAt, ghost])
 
-  // Filter primitives are undefined on the web SVG renderer
+  // Filter primitives are undefined on the web SVG renderer, and although
+  // they're defined on native, react-native-svg does NOT implement
+  // FeTurbulence/FeDisplacementMap there — it logs a "filters not yet
+  // supported on native platforms" warning on every stamp render for zero
+  // visual effect. So the displacement filter renders on no platform; gate it
+  // off on native too (web is already skipped since the primitives are
+  // undefined) to keep the console clean. Revisit if native support lands.
   const filterSupported = !!Filter && !!FeTurbulence && !!FeDisplacementMap
-  const useFilter = filterSupported && displacementScale > 0
+  const useFilter = filterSupported && displacementScale > 0 && Platform.OS === 'web'
 
   // Shape body (default mode). Factored so the trail can reuse it.
   const shapeEl = () => {
