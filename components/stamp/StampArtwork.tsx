@@ -35,6 +35,7 @@ import { View } from 'react-native'
 import Svg, { Circle, Rect, Path, Text as SvgText, Defs, Filter, FeTurbulence, FeDisplacementMap, SvgXml, LinearGradient, Stop as GradientStop, Mask, G, Image as SvgImage } from 'react-native-svg'
 import type { Stop } from '../../types'
 import { substituteDateInSvg, formatStampDate } from '../../lib/stamp-date-token'
+import { hexColor } from '../../lib/colors'
 
 // Tilt lightening is paper-agnostic: it reduces the stamp's OWN ink alpha
 // along the lift axis (a directional mask), so the page beneath shows
@@ -243,7 +244,7 @@ export function StampArtwork({
     : `smudge-${stop.stamp_smudge}`
 
   const opacity = ghost ? 0.3 : effectiveSaturation
-  const color = ghost ? stop.stamp_color + '80' : stop.stamp_color
+  const color = ghost ? hexColor(stop.stamp_color) + '80' : hexColor(stop.stamp_color)
 
   // Custom-asset mode: render the designer's uploaded artwork.
   // Falls through to default mode when the URL is missing (corrupt link,
@@ -266,7 +267,7 @@ export function StampArtwork({
       // here — the cached SvgXml input reflects the final
       // per-instance render. Re-runs when earnedAt OR ghost OR
       // stamp_color changes (see dep array).
-      setSvgRecolored(prepareStampSvg(text, stop.stamp_color, { earnedAt, ghost }))
+      setSvgRecolored(prepareStampSvg(text, hexColor(stop.stamp_color), { earnedAt, ghost }))
     })
     return () => { cancelled = true }
   }, [customAssetUrl, customIsSvg, stop.stamp_color, earnedAt, ghost])
@@ -372,7 +373,7 @@ export function StampArtwork({
               y={size / 2 + size * 0.12}
               fontSize={size * 0.38}
               textAnchor="middle"
-              fill={ghost ? color : stop.stamp_color}
+              fill={ghost ? color : hexColor(stop.stamp_color)}
             >
               {stop.stamp_icon}
             </SvgText>

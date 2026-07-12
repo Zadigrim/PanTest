@@ -14,6 +14,7 @@ import { View, StyleSheet, Animated } from 'react-native'
 import type { Stop, StampSlotState } from '../../types'
 import { StampRing } from '../ui/Illustrations'
 import { ViewerPrefsContext } from '../../lib/viewer-prefs'
+import { hexColor } from '../../lib/colors'
 
 interface Props {
   stop: Stop
@@ -61,9 +62,9 @@ export function StampSlot({ stop, state, width, height }: Props) {
 
   const guide =
     stampGuide === 'box' ? (
-      <View style={[styles.boxGuide, { borderColor: stop.stamp_color + '66' }]} />
+      <View style={[styles.boxGuide, { borderColor: hexColor(stop.stamp_color) + '66' }]} />
     ) : (
-      <StampRing size={Math.min(width, height) * 0.78} color={stop.stamp_color} />
+      <StampRing size={Math.min(width, height) * 0.78} color={hexColor(stop.stamp_color)} />
     )
 
   return (
