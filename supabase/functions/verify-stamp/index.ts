@@ -305,6 +305,20 @@ serve(async (req) => {
       console.error('verify-stamp: passport completion token generation failed', completionErr)
     }
 
+    // Founding Collector badge (migration 108): awarded when this stamp
+    // completes every base stop of a passport that is STILL demo-published. The
+    // RPC re-checks passports.is_demo + full completion server-side and exits
+    // cheaply otherwise, so eligibility lives in ONE place (SQL) — do not gate
+    // on isDemo here. Non-blocking: a badge failure never fails the stamp.
+    try {
+      await supabase.rpc('award_demo_completion_badge', {
+        p_user_id: userId,
+        p_passport_id: page.passport_id,
+      })
+    } catch (badgeErr) {
+      console.error('verify-stamp: founding-collector badge award failed', badgeErr)
+    }
+
     return json({ verified: true, geohash, verificationMethod, stopOpenedAt, stamp }, 200)
   } catch (err) {
     console.error('verify-stamp: internal error', err)

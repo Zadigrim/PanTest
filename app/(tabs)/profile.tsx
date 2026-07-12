@@ -21,6 +21,9 @@ const STAMP_GUIDE_OPTIONS: { value: StampGuideMode; label: string }[] = [
 import { formatCoordinates } from '../../lib/location-caption'
 import type { Profile } from '../../types'
 import { palette } from '../../lib/colors'
+import { getBadgeMeta } from '../../lib/badges'
+
+interface CollectorBadge { id: string; badge_key: string; awarded_at: string }
 
 const INK    = palette.ink
 const MUTED  = palette.muted
@@ -32,6 +35,7 @@ const PAPER  = palette.paper
 
 export default function ProfileScreen() {
   const [profile, setProfile] = useState<Profile | null>(null)
+  const [badges, setBadges] = useState<CollectorBadge[]>([])
   const [loading, setLoading] = useState(true)
   const [backfilling, setBackfilling] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -47,6 +51,13 @@ export default function ProfileScreen() {
       if (!user) { router.replace('/(auth)/login'); return }
       const { data } = await supabase.from('profiles').select('*').eq('id', user.id).single()
       setProfile(data)
+      // Badges (migration 108). RLS returns only this user's rows; the section
+      // hides entirely when there are none.
+      const { data: badgeRows } = await supabase
+        .from('collector_badges')
+        .select('id, badge_key, awarded_at')
+        .order('awarded_at', { ascending: false })
+      setBadges((badgeRows as CollectorBadge[] | null) ?? [])
       // Owner-only surfaces gate on the canonical is_platform_admin() RPC —
       // the single admin check (never a parallel role test on profiles).
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -178,6 +189,31 @@ export default function ProfileScreen() {
         <Text style={s.name}>{profile?.display_name ?? 'Traveler'}</Text>
         <Text style={s.role}>{profile?.role ?? 'collector'}</Text>
       </View>
+
+      {/* Badges — hidden entirely when the collector has none. Display comes
+          from the client registry (lib/badges); earning is server-side. */}
+      {badges.length > 0 && (
+        <View style={s.section}>
+          <Text style={s.sectionLabel}>BADGES</Text>
+          {badges.map((b) => {
+            const meta = getBadgeMeta(b.badge_key)
+            if (!meta) return null
+            const Icon = meta.Icon
+            return (
+              <View key={b.id} style={s.badgeRow}>
+                <View style={s.badgeIcon}>
+                  <Icon size={22} color={INK} strokeWidth={1.75} />
+                </View>
+                <View style={s.badgeText}>
+                  <Text style={s.badgeName}>{meta.name}</Text>
+                  <Text style={s.badgeDesc}>{meta.description}</Text>
+                  <Text style={s.badgeDate}>Earned {new Date(b.awarded_at).toLocaleDateString()}</Text>
+                </View>
+              </View>
+            )
+          })}
+        </View>
+      )}
 
       {/* Workspace cards — employee terminal only (passport design lives on okuji.app) */}
       {isEmp && (
@@ -388,6 +424,18 @@ const s = StyleSheet.create({
   avatarInitial: { fontSize: 30, fontWeight: '700', color: ACCENT },
   name: { fontSize: 20, fontWeight: '700', color: INK },
   role: { fontSize: 12, color: MUTED, marginTop: 3, textTransform: 'capitalize' },
+
+  // Badges
+  badgeRow: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 10 },
+  badgeIcon: {
+    width: 44, height: 44, borderRadius: 22,
+    borderWidth: 1, borderColor: HAIRLINE,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  badgeText: { flex: 1 },
+  badgeName: { fontSize: 15, fontWeight: '700', color: INK },
+  badgeDesc: { fontSize: 12.5, color: MUTED, marginTop: 2, lineHeight: 17 },
+  badgeDate: { fontSize: 11, color: HAIRLINE, marginTop: 3 },
 
   workspaces: { paddingHorizontal: 20, paddingBottom: 12 },
   workspacesLabel: {
