@@ -113,7 +113,10 @@ export async function syncJournalPhotoQueue(): Promise<void> {
   syncing = true
   try {
     const net = await Network.getNetworkStateAsync()
-    if (!net.isConnected) return
+    if (!net.isConnected) {
+      console.warn('[journal] photo upload deferred — device reports offline')
+      return
+    }
 
     const q = await readQueue()
     if (q.length === 0) return
@@ -131,7 +134,16 @@ export async function syncJournalPhotoQueue(): Promise<void> {
           .eq('id', item.photoId)
         // Uploaded — drop from the queue. The resized local file is left for the
         // OS cache to reclaim.
-      } catch {
+      } catch (err) {
+        // Was a silent catch — the #1 reason a photo never reaches the back
+        // pages (which show status='uploaded' only) was invisible. Log the
+        // real storage/DB error with a [journal] tag.
+        console.error('[journal] photo upload failed', {
+          photoId: item.photoId,
+          storagePath: item.storagePath,
+          retryCount: item.retryCount,
+          error: err instanceof Error ? err.message : String(err),
+        })
         if (item.retryCount + 1 >= BACKOFF_MS.length) {
           await supabase
             .from('journal_photos')

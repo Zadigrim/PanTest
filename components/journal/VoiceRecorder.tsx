@@ -46,6 +46,28 @@ interface Props {
   onTranscriptUpdate: (text: string) => void
 }
 
+// Map a speech-recognition error CODE to a stage-specific, honest message —
+// replacing the old catch-all that surfaced the raw Android string (e.g. the
+// cryptic "Other client side errors" for SpeechRecognizer.ERROR_CLIENT). The
+// raw code is logged separately under [voice] so we can still diagnose.
+function voiceErrorMessage(code: string | undefined): string {
+  switch (code) {
+    case 'not-allowed':
+    case 'service-not-allowed':
+      return 'Microphone or speech-recognition permission is needed for voice entries.'
+    case 'audio-capture':
+      return 'The microphone isn’t available right now. You can type your entry instead.'
+    case 'network':
+      return 'Voice needs a connection right now. You can type your entry instead.'
+    case 'language-not-supported':
+      return 'The on-device voice language pack is still installing — try again in a moment.'
+    default:
+      // Includes Android ERROR_CLIENT / "busy": on-device recognition isn’t
+      // working here (common on emulators, or before the offline model is ready).
+      return 'On-device voice isn’t available here right now. You can type your entry instead.'
+  }
+}
+
 const LOCALE = 'en-US'
 const MAX_RECORDING_MS = 30_000
 const TICK_MS = 250 // remaining-seconds display refresh
@@ -135,7 +157,10 @@ export function VoiceRecorder({ onTranscriptUpdate }: Props) {
   useSpeechRecognitionEvent('error', (event) => {
     finalizeSession()
     if (event.error === 'no-speech') return // benign: user didn't speak
-    Alert.alert('Voice entry', event.message || 'Transcription failed. You can type your entry instead.')
+    // Log the raw code+message so the underlying cause is diagnosable (was
+    // never logged before — only the cryptic message reached the user).
+    console.error('[voice] recognition error', { code: event.error, message: event.message })
+    Alert.alert('Voice entry', voiceErrorMessage(event.error))
   })
 
   const start = useCallback(async () => {
