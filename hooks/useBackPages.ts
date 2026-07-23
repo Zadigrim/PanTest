@@ -11,7 +11,7 @@
 // Baseline contract: EVERY stamped stop yields a record (name + verified_at),
 // so the back-journal is a complete log; journal text, photos, and the
 // review layer on where they exist.
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { getJournalPhotoUrl } from '../lib/journal-photos'
 import type { Stop, Stamp } from '../types'
@@ -48,9 +48,15 @@ export function useBackPages({
   userId: string | null
   echoReviews: boolean
   enabled: boolean
-}): { records: BackPageRecord[]; loading: boolean } {
+}): { records: BackPageRecord[]; loading: boolean; reload: () => void } {
   const [records, setRecords] = useState<BackPageRecord[]>([])
   const [loading, setLoading] = useState(false)
+  // Manual re-read trigger. The effect below re-fetches on the set of stamped
+  // stops, but a journal/photo written for an ALREADY-stamped stop doesn't
+  // change that set — so callers bump this (on screen refocus, on flipping to
+  // the back pages) to pick up freshly-written entries without a full reopen.
+  const [reloadNonce, setReloadNonce] = useState(0)
+  const reload = useCallback(() => setReloadNonce((n) => n + 1), [])
 
   // Re-fetch key: the set of stamped stop ids + the echo toggle. Recomputed
   // from props so the effect re-runs when a new stamp lands.
@@ -145,7 +151,7 @@ export function useBackPages({
 
     return () => { cancelled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled, userId, echoReviews, stampIds])
+  }, [enabled, userId, echoReviews, stampIds, reloadNonce])
 
-  return { records, loading }
+  return { records, loading, reload }
 }

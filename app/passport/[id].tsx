@@ -6,7 +6,7 @@ import {
   View, Text, TouchableOpacity, ActivityIndicator, StyleSheet, Alert, useWindowDimensions,
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
-import { useLocalSearchParams, router } from 'expo-router'
+import { useLocalSearchParams, router, useFocusEffect } from 'expo-router'
 import { supabase, getCurrentUser } from '../../lib/supabase'
 import { usePassport, acquirePassport } from '../../hooks/usePassport'
 import { useGPS, useStampVerification } from '../../hooks/useGPS'
@@ -97,13 +97,24 @@ export default function PassportScreen() {
   // Private back-pages: per-stop travel record for the current user. All
   // queries are auth.uid()-scoped (RLS), so this is never another viewer's
   // content. Re-runs when a new stamp lands (the hook keys on stamp ids).
-  const { records: backPages } = useBackPages({
+  const { records: backPages, reload: reloadBackPages } = useBackPages({
     stopsByPage: stops,
     stampsByPage: stamps,
     userId,
     echoReviews: prefs.echoReviews,
     enabled: prefs.showBackPages,
   })
+
+  // Re-read the back-journal on RE-focus (returning from the journal editor) so
+  // a just-written entry/photo shows without fully reopening the passport. The
+  // first focus is skipped — the hook already fetched on mount.
+  const firstFocusRef = useRef(true)
+  useFocusEffect(
+    useCallback(() => {
+      if (firstFocusRef.current) { firstFocusRef.current = false; return }
+      reloadBackPages()
+    }, [reloadBackPages]),
+  )
 
   // Contained demo mode: demoActive = server-authorized (is_demo_authorized)
   // AND the profile toggle is on. Every bypass below is re-checked
@@ -565,6 +576,30 @@ export default function PassportScreen() {
     visiblePages.forEach((p, i) => { idx[p.id] = firstPage + i * blockSize })
     return idx
   }, [visiblePages, prefs.showToc, prefs.showExitVisa])
+
+  // Screen index where the back-journal section begins (the BackJournalCover) —
+  // same offset math as pageScreenIndex: cover + inside-cover + optional ToC,
+  // then the content block per visible page.
+  const backPagesStartIndex = useMemo(() => {
+    if (!(prefs.showBackPages && backPages.length > 0)) return null
+    const blockSize = prefs.showExitVisa ? 2 : 1
+    const firstPage = 2 + (prefs.showToc ? 1 : 0)
+    return firstPage + visiblePages.length * blockSize
+  }, [prefs.showToc, prefs.showExitVisa, prefs.showBackPages, backPages.length, visiblePages.length])
+
+  // Reader-flip trigger: when the collector flips INTO the back-journal section,
+  // re-read once (resets on leaving, so re-entering re-reads). This is what makes
+  // a journal written for an already-stamped stop appear on flip, without a full
+  // passport reopen.
+  const enteredBackRef = useRef(false)
+  useEffect(() => {
+    if (backPagesStartIndex == null) { enteredBackRef.current = false; return }
+    if (navIdx >= backPagesStartIndex) {
+      if (!enteredBackRef.current) { enteredBackRef.current = true; reloadBackPages() }
+    } else {
+      enteredBackRef.current = false
+    }
+  }, [navIdx, backPagesStartIndex, reloadBackPages])
 
   const pageNodes = useMemo(() => {
     if (!passport || !collectorPassport) return []
