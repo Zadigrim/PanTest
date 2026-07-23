@@ -159,3 +159,50 @@ permitted.
 
 **Source:** patent-investigation report, divergence #3
 ("Center-within is client-only").
+
+---
+
+## KI-09 — OPEN (deferred by choice) — R8 / ProGuard minification off for release builds
+
+**What it is:** the Android release AAB ships with minification
+disabled. There is no `expo-build-properties` plugin in
+`app.json` enabling ProGuard/R8, and no committed `android/`
+folder (prebuild-generated), so the build sits on the Expo/RN
+default of `minifyEnabled false` — no code shrinking, no
+resource shrinking, no R8 optimization. Google Play Console
+surfaces this as its "optimize your app with R8" advisory on
+upload.
+
+**User-facing risk that remains:** none functional — the app
+works. The cost is a larger binary and slightly slower startup
+than an optimized build would give. The advisory is not a Play
+rejection.
+
+**Why deferred:**
+- **Frozen surface.** Enabling it means adding an
+  `expo-build-properties` config block to `app.json`, which is
+  "app.json build configuration of any kind" on the hard-frozen
+  list (CLAUDE.md). Editing it is a flagged P0 until the freeze
+  is explicitly lifted.
+- **Binary-affecting + crash risk.** R8 rewrites and strips
+  code; React Native reaches native modules by reflection
+  (Reanimated, Sentry, expo-speech-recognition, etc.). A missing
+  `-keep` rule strips a runtime-only reference and crashes the
+  app — a failure that never appears at build time, only on
+  device / in front of a Play reviewer.
+- **Low payoff now.** Zero users, Play approval still pending.
+  Binary-size wins are a nice-to-have, not a launch blocker.
+
+**To resolve:** as a deliberate, standalone change once past
+initial Play approval —
+1. Add to `app.json` plugins:
+   `["expo-build-properties", { "android": {
+   "enableProguardInReleaseBuilds": true,
+   "enableShrinkResourcesInReleaseBuilds": true } }]`
+2. Proactive `-keep` rules audit for each native module (don't
+   trust that every lib ships correct consumer rules).
+3. Full on-device regression pass of every native-module
+   feature: voice journal, camera / photo upload, Sentry,
+   Reanimated animations, deep links.
+4. New AAB + version-code bump; verify no launch/feature crash
+   before promoting past internal testing.
