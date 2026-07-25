@@ -136,6 +136,7 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/preview/') ||   // public, embeddable passport preview (okuji.app iframe)
     pathname.startsWith('/passport/') ||
     pathname.startsWith('/creator/') ||
+    pathname.startsWith('/guide') ||      // unlinked, noindex instructional pages (adventurers / employees / institutions)
     pathname.startsWith('/moichido/auth/') || // moichido login + denied page
     pathname.startsWith('/_next') ||
     pathname.startsWith('/api/')
