@@ -62,9 +62,11 @@ function voiceErrorMessage(code: string | undefined): string {
     case 'language-not-supported':
       return 'The on-device voice language pack is still installing — try again in a moment.'
     default:
-      // Includes Android ERROR_CLIENT / "busy": on-device recognition isn’t
-      // working here (common on emulators, or before the offline model is ready).
-      return 'On-device voice isn’t available here right now. You can type your entry instead.'
+      // Includes Android ERROR_CLIENT / "busy". On a capable phone this is
+      // usually the on-device model still finishing its one-time setup, or a
+      // transient recognizer hiccup — retrying works. (It's also the expected
+      // path on emulators, which can't run on-device recognition.)
+      return 'On-device voice is still getting ready. If you just enabled it, finish the one-time setup, then tap the microphone again — or type your entry.'
   }
 }
 
@@ -109,6 +111,11 @@ export function VoiceRecorder({ onTranscriptUpdate }: Props) {
   // until the budget is exhausted. Resets when the recorder unmounts (a
   // fresh journal-entry editing session).
   const consumedMsRef = useRef<number>(0)
+  // Whether we've already kicked off the Android offline-model download this
+  // recorder session. Guards against re-opening the system download dialog on
+  // every tap, and lets the second tap attempt start() directly (the installed-
+  // locale check is unreliable on Android 13+ — see start()).
+  const modelTriggeredRef = useRef(false)
 
   useEffect(() => {
     recordingRef.current = recording
@@ -156,7 +163,9 @@ export function VoiceRecorder({ onTranscriptUpdate }: Props) {
 
   useSpeechRecognitionEvent('error', (event) => {
     finalizeSession()
-    if (event.error === 'no-speech') return // benign: user didn't speak
+    // benign: user didn't speak ('no-speech'), or we stopped/aborted the
+    // session ourselves ('aborted' fires on stop()/unmount) — no alert.
+    if (event.error === 'no-speech' || event.error === 'aborted') return
     // Log the raw code+message so the underlying cause is diagnosable (was
     // never logged before — only the cryptic message reached the user).
     console.error('[voice] recognition error', { code: event.error, message: event.message })
@@ -190,32 +199,59 @@ export function VoiceRecorder({ onTranscriptUpdate }: Props) {
         return
       }
 
-      // Android needs the offline language model present for on-device use.
-      // If it's ALREADY installed, do nothing — no prompt, no re-download (this
-      // is what stops the download dialog firing on every use). Only when the
-      // pack is genuinely missing do we explain (once) and trigger the fetch.
-      // Whole block is a no-op on iOS (built-in recognition, no download).
+      // Android: the on-device model must actually be PRESENT before we start,
+      // or recognition fails with a client error — this is the "On-device voice
+      // isn't available here right now" report on capable phones. The previous
+      // code triggered the download and then raced straight into start(); worse,
+      // it gated on getSupportedLocales, which on Android 13+ reports NO
+      // installed locales even when on-device voice works — so essentially every
+      // modern phone fell into that race on first use.
+      //
+      // New flow — only start once the model is genuinely ready:
+      //   • locale already installed        → start now
+      //   • download resolves download_success (Android 14+) → start now
+      //   • dialog opened (Android 13) / canceled → tell the user to tap again
+      //     once the one-time setup finishes, and do NOT start (starting here is
+      //     exactly the failure they saw)
+      //   • already triggered this session  → skip the (unreliable on 13+)
+      //     locale check and attempt start(); its error path explains if it
+      //     genuinely can't run.
+      // No-op on iOS (built-in recognition, no download).
       if (Platform.OS === 'android') {
-        let alreadyInstalled = false
+        let localeInstalled = false
         try {
           const { installedLocales } = await ExpoSpeechRecognitionModule.getSupportedLocales({
             androidRecognitionServicePackage: ON_DEVICE_PACKAGE,
           })
-          alreadyInstalled = (installedLocales ?? []).some(
+          localeInstalled = (installedLocales ?? []).some(
             (l) => l.toLowerCase().replace('_', '-').startsWith('en'),
           )
         } catch {
-          // Can't determine — fall through and let the trigger/start path handle it.
+          // Package not visible / query failed — fall through to the trigger.
         }
-        if (!alreadyInstalled) {
+
+        if (!localeInstalled && !modelTriggeredRef.current) {
           await explainOfflineDownloadOnce()
+          modelTriggeredRef.current = true
           setPreparing(true)
+          let status: string | undefined
           try {
-            await ExpoSpeechRecognitionModule.androidTriggerOfflineModelDownload({ locale: LOCALE })
+            const res = await ExpoSpeechRecognitionModule.androidTriggerOfflineModelDownload({ locale: LOCALE })
+            status = res?.status
           } catch {
-            // ignore — handled by the start() error path
+            // Couldn't trigger the download — fall through and let start() try.
           }
           setPreparing(false)
+          if (status !== 'download_success') {
+            // opened_dialog (Android 13) or canceled: the model is NOT confirmed
+            // installed yet. Starting now is precisely what failed before, so
+            // stop here and let the user resume after the system download.
+            Alert.alert(
+              'Finishing voice setup',
+              'Android is setting up on-device voice — a one-time download so your audio stays on your phone. When it finishes, tap the microphone again to start speaking.',
+            )
+            return
+          }
         }
       }
 
