@@ -7,9 +7,17 @@
 //   - No `recordingOptions` are passed to start(). expo-speech-recognition only
 //     writes an audio file when `recordingOptions.persist` is set, so NO audio
 //     buffer is ever created or stored — there is nothing to delete afterward.
-//   - If the device cannot do on-device recognition, we surface an error and
-//     let the user type instead. We never silently fall back to cloud
-//     recognition, because that would send audio off-device.
+//   - If the device cannot do on-device recognition, we surface the guided
+//     setup sheet (Android) or an honest message (iOS) and let the user type.
+//     We never silently fall back to cloud recognition — that would send audio
+//     off-device.
+//
+// READINESS (voice-setup follow-up): we start OPTIMISTICALLY rather than
+// pre-gating on getSupportedLocales — that check reports NO installed locales
+// on Android 13+ even when voice works, which nagged ready phones. Instead we
+// call start(); if the on-device model genuinely isn't provisioned, the engine
+// emits an error that routes into VoiceSetupSheet, a guided path to turn voice
+// on. Ready phones just start and never see a prompt.
 //
 // DURATION (BLD-33): hard cap at MAX_RECORDING_MS on a single recording
 // session. A JS timer started alongside ExpoSpeechRecognitionModule.start()
@@ -17,39 +25,41 @@
 // the normal cleanup. Cleared on user stop, on 'end', on 'error', and on
 // unmount alongside the existing .abort().
 //
-// CONTINUOUS MODE (BLD-33): switched from continuous:false to continuous:true.
-// continuous:false ends recognition at the first natural pause, which would
-// truncate a reflective ~30s entry the moment the user breathes. continuous:
-// true keeps the engine listening across pauses; multiple final-result
-// events may fire across the session, and the parent appends each via
-// onTranscriptUpdate. The hard timer caps the session regardless. Trade-off:
-// utterances are no longer auto-finalized on silence; the user (or the timer)
-// must explicitly stop.
-//
-// SCOPE: minimum-viable behavior — a single mic toggle plus a tiny remaining-
-// seconds indicator. Three-state UI, waveform, paused state, and language
-// detection remain deferred.
+// CONTINUOUS MODE (BLD-33): continuous:true keeps the engine listening across
+// pauses; multiple final-result events may fire and the parent appends each via
+// onTranscriptUpdate. The hard timer caps the session regardless.
 //
 // LIBRARY: expo-speech-recognition (jamsch), installed as the `sdk-54` dist-tag.
-// Chosen over @react-native-voice/voice, which is unmaintained (v3.2.4, ~4 years
-// old) with no Expo SDK 54 / RN 0.81 / New Architecture support.
 import React, { useState, useCallback, useEffect, useRef } from 'react'
-import { View, Text, TouchableOpacity, StyleSheet, Alert, Platform } from 'react-native'
-import AsyncStorage from '@react-native-async-storage/async-storage'
+import { View, Text, TouchableOpacity, StyleSheet, Alert, Platform, Linking, AppState } from 'react-native'
 import {
   ExpoSpeechRecognitionModule,
   useSpeechRecognitionEvent,
 } from 'expo-speech-recognition'
 import { palette } from '../../lib/colors'
+import { VoiceSetupSheet } from './VoiceSetupSheet'
 
 interface Props {
   onTranscriptUpdate: (text: string) => void
 }
 
-// Map a speech-recognition error CODE to a stage-specific, honest message —
-// replacing the old catch-all that surfaced the raw Android string (e.g. the
-// cryptic "Other client side errors" for SpeechRecognizer.ERROR_CLIENT). The
-// raw code is logged separately under [voice] so we can still diagnose.
+// THROWAWAY diagnostic — while we confirm the real on-device-voice state across
+// devices, the setup sheet shows a compact signal readout and we log it under
+// [voice-diag]. Flip to false (and delete collectVoiceDiag + the sheet's diag
+// footer) before widening the beta.
+const VOICE_DIAG = true
+
+const LOCALE = 'en-US'
+const MAX_RECORDING_MS = 30_000
+const TICK_MS = 250 // remaining-seconds display refresh
+// On-device recognition (com.google.android.as) is what keeps audio on the
+// phone; getSupportedLocales reports which language packs are installed there.
+const ON_DEVICE_PACKAGE = 'com.google.android.as'
+
+// Map a speech-recognition error CODE to a stage-specific, honest message. Used
+// for the non-setup failure classes (mic, network, permission) and on iOS,
+// where the Android setup sheet doesn't apply. Setup-class failures on Android
+// route to VoiceSetupSheet instead.
 function voiceErrorMessage(code: string | undefined): string {
   switch (code) {
     case 'not-allowed':
@@ -59,78 +69,90 @@ function voiceErrorMessage(code: string | undefined): string {
       return 'The microphone isn’t available right now. You can type your entry instead.'
     case 'network':
       return 'Voice needs a connection right now. You can type your entry instead.'
-    case 'language-not-supported':
-      return 'The on-device voice language pack is still installing — try again in a moment.'
     default:
-      // Includes Android ERROR_CLIENT / "busy". On a capable phone this is
-      // usually the on-device model still finishing its one-time setup, or a
-      // transient recognizer hiccup — retrying works. (It's also the expected
-      // path on emulators, which can't run on-device recognition.)
-      return 'On-device voice is still getting ready. If you just enabled it, finish the one-time setup, then tap the microphone again — or type your entry.'
+      return 'Voice isn’t available right now. You can type your entry instead.'
   }
 }
 
-const LOCALE = 'en-US'
-const MAX_RECORDING_MS = 30_000
-const TICK_MS = 250 // remaining-seconds display refresh
-// On-device recognition (com.google.android.as) is what keeps audio on the
-// phone; getSupportedLocales reports which language packs are installed there.
-const ON_DEVICE_PACKAGE = 'com.google.android.as'
-const EXPLAINED_KEY = 'stt-offline-explained-v1'
+// Numbered, collector-voiced setup steps tailored to the device. Samsung's
+// default recognizer is often Bixby (which can't return on-device results), so
+// its path differs from Pixel/AOSP. Below Android 13 there's no one-tap
+// offline-model download at all.
+function buildSetupSteps(recognizerPkg: string, apiLevel: number): string[] {
+  if (apiLevel > 0 && apiLevel < 33) {
+    return [
+      'Open settings → Voice input, and turn on Google’s on-device voice for English.',
+      'If your phone doesn’t offer on-device voice, you can type your entry instead.',
+    ]
+  }
+  if (/samsung|bixby/i.test(recognizerPkg)) {
+    return [
+      'Tap “Set up voice” below and confirm the English download if your phone offers it.',
+      'If it doesn’t: Open settings → Voice input → choose Google (Speech Services by Google), then turn on offline / on-device English.',
+      'Come back here and tap “try voice again”.',
+    ]
+  }
+  return [
+    'Tap “Set up voice” below, then confirm the English download when your phone asks.',
+    'If nothing appears: Open settings → turn on on-device (offline) voice recognition for English.',
+    'Come back here and tap “try voice again”.',
+  ]
+}
 
-// Explain the one-time offline-model download — ONCE — framed around why it
-// happens (privacy: audio stays on the device). Persisted so a normal user
-// sees it a single time. (A reinstall clears both this flag and the model, so
-// the explanation correctly reappears alongside the genuine re-download.)
-async function explainOfflineDownloadOnce(): Promise<void> {
+// THROWAWAY: gather the device's recognition signals into one compact string so
+// we can see, from a real device, whether the block is a missing offline model,
+// a Bixby-default recognizer, etc. Remove alongside VOICE_DIAG.
+async function collectVoiceDiag(errCode?: string): Promise<string> {
+  const M = ExpoSpeechRecognitionModule
+  const parts: string[] = []
+  const push = (k: string, fn: () => unknown) => {
+    try { parts.push(`${k}=${String(fn())}`) } catch { parts.push(`${k}=ERR`) }
+  }
+  push('plat', () => `${Platform.OS}:${Platform.Version}`)
+  push('onDevice', () => M.supportsOnDeviceRecognition())
+  push('available', () => M.isRecognitionAvailable())
+  push('recording', () => M.supportsRecording())
+  push('services', () => M.getSpeechRecognitionServices().join('|'))
+  push('default', () => M.getDefaultRecognitionService().packageName)
+  push('assistant', () => M.getAssistantService().packageName)
   try {
-    if (await AsyncStorage.getItem(EXPLAINED_KEY)) return
-  } catch { /* storage read failed — still explain once this session */ }
-  await new Promise<void>((resolve) => {
-    Alert.alert(
-      'One-time voice setup',
-      'okuji transcribes your voice entirely on your phone, so your audio is never sent to Google or Apple. The first time you use voice, Android downloads a small offline English language pack to make that possible — this happens once.',
-      [{ text: 'Got it', onPress: () => resolve() }],
-      { cancelable: false },
-    )
-  })
-  try { await AsyncStorage.setItem(EXPLAINED_KEY, '1') } catch { /* best effort */ }
+    const { locales, installedLocales } = await M.getSupportedLocales({
+      androidRecognitionServicePackage: ON_DEVICE_PACKAGE,
+    })
+    parts.push(`locales=${locales.length}`)
+    parts.push(`installed=${installedLocales.join(',') || '-'}`)
+  } catch { parts.push('locales=ERR') }
+  if (errCode) parts.push(`err=${errCode}`)
+  const text = parts.join('\n')
+  console.log('[voice-diag]\n' + text)
+  return text
 }
 
 export function VoiceRecorder({ onTranscriptUpdate }: Props) {
   const [recording, setRecording] = useState(false)
-  const [preparing, setPreparing] = useState(false)
   const [remainingMs, setRemainingMs] = useState(MAX_RECORDING_MS)
+  const [setupVisible, setSetupVisible] = useState(false)
+  const [setupSteps, setSetupSteps] = useState<string[]>([])
+  const [diagText, setDiagText] = useState<string | null>(null)
   const recordingRef = useRef(false)
   const autoStopRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const startedAtRef = useRef<number>(0)
   // Cumulative ms used across all start/stop sessions of THIS recorder
-  // instance. The 30s cap is a shared budget: speak 10s, stop, start again,
-  // and you get the remaining ~20s — each session appends to the journal —
-  // until the budget is exhausted. Resets when the recorder unmounts (a
-  // fresh journal-entry editing session).
+  // instance — the 30s cap is a shared budget. Resets on unmount.
   const consumedMsRef = useRef<number>(0)
-  // Whether we've already kicked off the Android offline-model download this
-  // recorder session. Guards against re-opening the system download dialog on
-  // every tap, and lets the second tap attempt start() directly (the installed-
-  // locale check is unreliable on Android 13+ — see start()).
-  const modelTriggeredRef = useRef(false)
 
   useEffect(() => {
     recordingRef.current = recording
   }, [recording])
 
-  // Centralized timer cleanup. Safe to call multiple times; double-fire on
-  // (timer-fired-then-end-fired) is the expected path.
   const clearTimers = useCallback(() => {
     if (autoStopRef.current) { clearTimeout(autoStopRef.current); autoStopRef.current = null }
     if (tickRef.current) { clearInterval(tickRef.current); tickRef.current = null }
   }, [])
 
   // End the current session: bank its elapsed time against the budget (once),
-  // stop the timers, and surface the remaining budget. startedAtRef is zeroed
-  // so a following 'end'/'error' for the same session can't double-count.
+  // stop the timers, and surface the remaining budget.
   const finalizeSession = useCallback(() => {
     if (startedAtRef.current > 0) {
       const elapsed = Date.now() - startedAtRef.current
@@ -142,14 +164,49 @@ export function VoiceRecorder({ onTranscriptUpdate }: Props) {
     setRemainingMs(Math.max(0, MAX_RECORDING_MS - consumedMsRef.current))
   }, [clearTimers])
 
-  // Stop any in-flight recognition + flush timers if the component unmounts
-  // mid-session.
+  // Open the guided setup sheet (Android only — iOS on-device recognition is
+  // built in). Tailors the steps to the default recognizer + Android version,
+  // and gathers the throwaway diagnostic.
+  const showSetup = useCallback(async (errCode?: string): Promise<boolean> => {
+    if (Platform.OS !== 'android') return false
+    let recognizer = ''
+    try { recognizer = ExpoSpeechRecognitionModule.getDefaultRecognitionService().packageName } catch { /* ignore */ }
+    const apiLevel = typeof Platform.Version === 'number'
+      ? Platform.Version
+      : parseInt(String(Platform.Version), 10) || 0
+    setSetupSteps(buildSetupSteps(recognizer, apiLevel))
+    if (VOICE_DIAG) {
+      try { setDiagText(await collectVoiceDiag(errCode)) } catch { setDiagText(null) }
+    }
+    setSetupVisible(true)
+    return true
+  }, [])
+
+  // Stop any in-flight recognition + flush timers on unmount.
   useEffect(() => {
     return () => {
       clearTimers()
       if (recordingRef.current) ExpoSpeechRecognitionModule.abort()
     }
   }, [clearTimers])
+
+  // While the setup sheet is up, re-check on foreground: if the offline English
+  // model now reports installed, setup succeeded — clear the sheet automatically
+  // so returning from the system download / Settings just works.
+  useEffect(() => {
+    if (!setupVisible) return
+    const sub = AppState.addEventListener('change', (s) => {
+      if (s !== 'active') return
+      ExpoSpeechRecognitionModule.getSupportedLocales({ androidRecognitionServicePackage: ON_DEVICE_PACKAGE })
+        .then(({ installedLocales }) => {
+          if ((installedLocales ?? []).some((l) => l.toLowerCase().replace('_', '-').startsWith('en'))) {
+            setSetupVisible(false)
+          }
+        })
+        .catch(() => { /* can't confirm — leave the sheet up; user can retry */ })
+    })
+    return () => sub.remove()
+  }, [setupVisible])
 
   useSpeechRecognitionEvent('result', (event) => {
     if (!event.isFinal) return // interim results are ignored in the MVP
@@ -166,9 +223,15 @@ export function VoiceRecorder({ onTranscriptUpdate }: Props) {
     // benign: user didn't speak ('no-speech'), or we stopped/aborted the
     // session ourselves ('aborted' fires on stop()/unmount) — no alert.
     if (event.error === 'no-speech' || event.error === 'aborted') return
-    // Log the raw code+message so the underlying cause is diagnosable (was
-    // never logged before — only the cryptic message reached the user).
     console.error('[voice] recognition error', { code: event.error, message: event.message })
+    // Setup-class failures on Android (model not provisioned, service can't do
+    // on-device, generic client error) → guided setup sheet, not a dead-end.
+    // Mic / network / permission keep their specific message.
+    const nonSetup = ['audio-capture', 'network', 'not-allowed']
+    if (Platform.OS === 'android' && !nonSetup.includes(event.error ?? '')) {
+      void showSetup(event.error)
+      return
+    }
     Alert.alert('Voice entry', voiceErrorMessage(event.error))
   })
 
@@ -181,15 +244,6 @@ export function VoiceRecorder({ onTranscriptUpdate }: Props) {
         return
       }
 
-      // On-device recognition is mandatory for the privacy commitment.
-      if (!ExpoSpeechRecognitionModule.supportsOnDeviceRecognition()) {
-        Alert.alert(
-          'Voice entry unavailable',
-          'On-device transcription is not available on this device, so voice entry is disabled here. Please type your entry instead.'
-        )
-        return
-      }
-
       const perms = await ExpoSpeechRecognitionModule.requestPermissionsAsync()
       if (!perms.granted) {
         Alert.alert(
@@ -199,60 +253,16 @@ export function VoiceRecorder({ onTranscriptUpdate }: Props) {
         return
       }
 
-      // Android: the on-device model must actually be PRESENT before we start,
-      // or recognition fails with a client error — this is the "On-device voice
-      // isn't available here right now" report on capable phones. The previous
-      // code triggered the download and then raced straight into start(); worse,
-      // it gated on getSupportedLocales, which on Android 13+ reports NO
-      // installed locales even when on-device voice works — so essentially every
-      // modern phone fell into that race on first use.
-      //
-      // New flow — only start once the model is genuinely ready:
-      //   • locale already installed        → start now
-      //   • download resolves download_success (Android 14+) → start now
-      //   • dialog opened (Android 13) / canceled → tell the user to tap again
-      //     once the one-time setup finishes, and do NOT start (starting here is
-      //     exactly the failure they saw)
-      //   • already triggered this session  → skip the (unreliable on 13+)
-      //     locale check and attempt start(); its error path explains if it
-      //     genuinely can't run.
-      // No-op on iOS (built-in recognition, no download).
-      if (Platform.OS === 'android') {
-        let localeInstalled = false
-        try {
-          const { installedLocales } = await ExpoSpeechRecognitionModule.getSupportedLocales({
-            androidRecognitionServicePackage: ON_DEVICE_PACKAGE,
-          })
-          localeInstalled = (installedLocales ?? []).some(
-            (l) => l.toLowerCase().replace('_', '-').startsWith('en'),
-          )
-        } catch {
-          // Package not visible / query failed — fall through to the trigger.
-        }
-
-        if (!localeInstalled && !modelTriggeredRef.current) {
-          await explainOfflineDownloadOnce()
-          modelTriggeredRef.current = true
-          setPreparing(true)
-          let status: string | undefined
-          try {
-            const res = await ExpoSpeechRecognitionModule.androidTriggerOfflineModelDownload({ locale: LOCALE })
-            status = res?.status
-          } catch {
-            // Couldn't trigger the download — fall through and let start() try.
-          }
-          setPreparing(false)
-          if (status !== 'download_success') {
-            // opened_dialog (Android 13) or canceled: the model is NOT confirmed
-            // installed yet. Starting now is precisely what failed before, so
-            // stop here and let the user resume after the system download.
-            Alert.alert(
-              'Finishing voice setup',
-              'Android is setting up on-device voice — a one-time download so your audio stays on your phone. When it finishes, tap the microphone again to start speaking.',
-            )
-            return
-          }
-        }
+      // iOS: on-device recognition is built in; if the device genuinely can't,
+      // say so honestly. Android: DON'T pre-gate — start optimistically so ready
+      // phones never see a prompt; a not-provisioned model surfaces as an error
+      // that routes into the setup sheet (see the 'error' handler).
+      if (Platform.OS !== 'android' && !ExpoSpeechRecognitionModule.supportsOnDeviceRecognition()) {
+        Alert.alert(
+          'Voice entry unavailable',
+          'On-device transcription isn’t available on this device. Please type your entry instead.'
+        )
+        return
       }
 
       ExpoSpeechRecognitionModule.start({
@@ -267,9 +277,7 @@ export function VoiceRecorder({ onTranscriptUpdate }: Props) {
       startedAtRef.current = Date.now()
       setRemainingMs(budget)
 
-      // Hard cap on the REMAINING budget (not a fresh 30s). The 'end' handler
-      // banks the elapsed time + clears timers on a normal user-stop; this is
-      // the safety net for "user keeps talking" past the budget.
+      // Hard cap on the REMAINING budget (not a fresh 30s).
       autoStopRef.current = setTimeout(() => {
         ExpoSpeechRecognitionModule.stop()
       }, budget)
@@ -280,11 +288,16 @@ export function VoiceRecorder({ onTranscriptUpdate }: Props) {
         setRemainingMs(Math.max(0, MAX_RECORDING_MS - used))
       }, TICK_MS)
     } catch (e) {
-      setPreparing(false)
       finalizeSession()
+      // A synchronous throw from start() (rather than an async error event):
+      // Android → guided setup sheet; iOS → honest message.
+      if (Platform.OS === 'android') {
+        void showSetup(e instanceof Error ? e.message : undefined)
+        return
+      }
       Alert.alert('Voice entry', e instanceof Error ? e.message : 'Could not start voice entry. You can type your entry instead.')
     }
-  }, [finalizeSession])
+  }, [finalizeSession, showSetup])
 
   const stop = useCallback(() => {
     // Don't clear timers here — let 'end' clean up so we don't race the
@@ -293,13 +306,32 @@ export function VoiceRecorder({ onTranscriptUpdate }: Props) {
   }, [])
 
   const toggle = useCallback(() => {
-    if (preparing) return
     if (recording) stop()
     else start()
-  }, [preparing, recording, start, stop])
+  }, [recording, start, stop])
+
+  // --- Setup-sheet actions ---
+  // Primary: trigger the one-time on-device model download (Android 13+). On 13
+  // this opens the system download dialog; on 14+ it downloads directly. Keep
+  // the sheet up — the foreground re-check clears it when the model lands.
+  const handleSetUp = useCallback(async () => {
+    try { await ExpoSpeechRecognitionModule.androidTriggerOfflineModelDownload({ locale: LOCALE }) }
+    catch { /* ignore — the user can still use Open settings */ }
+  }, [])
+
+  // Secondary: deep-link to voice-input settings, falling back to top-level
+  // Settings if the specific screen isn't present on this OEM/version.
+  const handleOpenSettings = useCallback(async () => {
+    try { await Linking.sendIntent('android.settings.VOICE_INPUT_SETTINGS') }
+    catch {
+      try { await Linking.sendIntent('android.settings.SETTINGS') } catch { /* no-op */ }
+    }
+  }, [])
+
+  const handleTryAgain = useCallback(() => { setSetupVisible(false); void start() }, [start])
+  const handleTypeInstead = useCallback(() => { setSetupVisible(false) }, [])
 
   const remainingSec = Math.ceil(remainingMs / 1000)
-  // < 1s left can't start a session (matches the budget gate in start()).
   const exhausted = remainingMs < 1000
   const partial = !exhausted && remainingMs < MAX_RECORDING_MS
 
@@ -307,7 +339,7 @@ export function VoiceRecorder({ onTranscriptUpdate }: Props) {
     <View style={styles.container}>
       <TouchableOpacity
         onPress={toggle}
-        disabled={preparing || (!recording && exhausted)}
+        disabled={!recording && exhausted}
         style={[styles.micBtn, !recording && exhausted && { opacity: 0.5 }]}
         activeOpacity={0.8}
       >
@@ -316,16 +348,26 @@ export function VoiceRecorder({ onTranscriptUpdate }: Props) {
         </View>
       </TouchableOpacity>
       <Text style={styles.hint}>
-        {preparing
-          ? 'Preparing offline voice…'
-          : recording
-            ? `Listening… ${remainingSec}s left · tap to stop`
-            : exhausted
-              ? 'Voice limit reached for this entry'
-              : partial
-                ? `Tap to continue · ${remainingSec}s left`
-                : 'Tap to speak · up to 30s · transcribed on-device'}
+        {recording
+          ? `Listening… ${remainingSec}s left · tap to stop`
+          : exhausted
+            ? 'Voice limit reached for this entry'
+            : partial
+              ? `Tap to continue · ${remainingSec}s left`
+              : 'Tap to speak · up to 30s · transcribed on-device'}
       </Text>
+
+      <VoiceSetupSheet
+        visible={setupVisible}
+        reason="okuji types out what you say right on your phone, so your words never leave it. Your phone just needs its on-device voice switched on first — a one-time setup."
+        steps={setupSteps}
+        onSetUp={handleSetUp}
+        onOpenSettings={handleOpenSettings}
+        onTryAgain={handleTryAgain}
+        onTypeInstead={handleTypeInstead}
+        canOpenSettings={Platform.OS === 'android'}
+        diag={VOICE_DIAG ? diagText : null}
+      />
     </View>
   )
 }
