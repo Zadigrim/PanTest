@@ -130,6 +130,7 @@ async function collectVoiceDiag(errCode?: string): Promise<string> {
 
 export function VoiceRecorder({ onTranscriptUpdate }: Props) {
   const [recording, setRecording] = useState(false)
+  const [preparing, setPreparing] = useState(false)
   const [remainingMs, setRemainingMs] = useState(MAX_RECORDING_MS)
   const [setupVisible, setSetupVisible] = useState(false)
   const [setupSteps, setSetupSteps] = useState<string[]>([])
@@ -254,15 +255,34 @@ export function VoiceRecorder({ onTranscriptUpdate }: Props) {
       }
 
       // iOS: on-device recognition is built in; if the device genuinely can't,
-      // say so honestly. Android: DON'T pre-gate — start optimistically so ready
-      // phones never see a prompt; a not-provisioned model surfaces as an error
-      // that routes into the setup sheet (see the 'error' handler).
+      // say so honestly. Android: DON'T pre-gate on the (unreliable on 13+)
+      // installed-locale check — start optimistically so ready phones never see
+      // a prompt; a not-provisioned model surfaces as an error routed into the
+      // setup sheet (see the 'error' handler).
       if (Platform.OS !== 'android' && !ExpoSpeechRecognitionModule.supportsOnDeviceRecognition()) {
         Alert.alert(
           'Voice entry unavailable',
           'On-device transcription isn’t available on this device. Please type your entry instead.'
         )
         return
+      }
+
+      // Android: auto-provision the on-device model BEFORE starting — exactly as
+      // the original (working May-27) implementation did. Fire-and-forget +
+      // awaited: on Android 14+ the model downloads before this resolves, so
+      // start() finds it; on 13 the system download dialog opens. Errors are
+      // non-fatal — a genuinely unusable model still surfaces via start()'s
+      // error path → guided setup sheet. This is what a later hard pre-gate
+      // regressed into the "needs to be set up" dead-end; restoring the
+      // optimistic auto-provision is the fix.
+      if (Platform.OS === 'android') {
+        setPreparing(true)
+        try {
+          await ExpoSpeechRecognitionModule.androidTriggerOfflineModelDownload({ locale: LOCALE })
+        } catch {
+          // non-fatal — start()'s error path / the setup sheet handle it
+        }
+        setPreparing(false)
       }
 
       ExpoSpeechRecognitionModule.start({
@@ -288,6 +308,7 @@ export function VoiceRecorder({ onTranscriptUpdate }: Props) {
         setRemainingMs(Math.max(0, MAX_RECORDING_MS - used))
       }, TICK_MS)
     } catch (e) {
+      setPreparing(false)
       finalizeSession()
       // A synchronous throw from start() (rather than an async error event):
       // Android → guided setup sheet; iOS → honest message.
@@ -306,9 +327,10 @@ export function VoiceRecorder({ onTranscriptUpdate }: Props) {
   }, [])
 
   const toggle = useCallback(() => {
+    if (preparing) return // provisioning the on-device model — ignore taps
     if (recording) stop()
     else start()
-  }, [recording, start, stop])
+  }, [preparing, recording, start, stop])
 
   // --- Setup-sheet actions ---
   // Primary: trigger the one-time on-device model download (Android 13+). On 13
@@ -339,8 +361,8 @@ export function VoiceRecorder({ onTranscriptUpdate }: Props) {
     <View style={styles.container}>
       <TouchableOpacity
         onPress={toggle}
-        disabled={!recording && exhausted}
-        style={[styles.micBtn, !recording && exhausted && { opacity: 0.5 }]}
+        disabled={preparing || (!recording && exhausted)}
+        style={[styles.micBtn, (preparing || (!recording && exhausted)) && { opacity: 0.5 }]}
         activeOpacity={0.8}
       >
         <View style={[styles.micCircle, { backgroundColor: recording ? palette.red : palette.green }]}>
@@ -348,13 +370,15 @@ export function VoiceRecorder({ onTranscriptUpdate }: Props) {
         </View>
       </TouchableOpacity>
       <Text style={styles.hint}>
-        {recording
-          ? `Listening… ${remainingSec}s left · tap to stop`
-          : exhausted
-            ? 'Voice limit reached for this entry'
-            : partial
-              ? `Tap to continue · ${remainingSec}s left`
-              : 'Tap to speak · up to 30s · transcribed on-device'}
+        {preparing
+          ? 'Preparing on-device voice…'
+          : recording
+            ? `Listening… ${remainingSec}s left · tap to stop`
+            : exhausted
+              ? 'Voice limit reached for this entry'
+              : partial
+                ? `Tap to continue · ${remainingSec}s left`
+                : 'Tap to speak · up to 30s · transcribed on-device'}
       </Text>
 
       <VoiceSetupSheet
