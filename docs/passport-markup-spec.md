@@ -505,6 +505,117 @@ city.** Described strictly in existing fields:
 
 ---
 
+## Worked example C — a generic theme-park passport (trigger keywords: "disney" / "universal" / "theme park")
+
+**Theme detection → archetype, with a hard brand rule.** The agent treats "disney", "universal", and
+"theme park" as triggers for the **generic theme-park archetype**. Per the brand-handling decision,
+output is **unbranded**: generic land names and attraction *types* only — **never** a real park, land,
+ride, or character trademark. The keyword sets the *theme*, not the brand, so the result is safe to
+publish or sell. (If branded content is ever wanted, that is a separate, gated decision — see the brand
+rule at the end of this example.)
+
+**Why a theme park is a distinct shape in okuji:**
+- **Verification: honor, not GPS.** Rides sit well inside each other's `radius_meters` (150) /
+  `verification_radius_meters` (100) defaults (§1.3), so GPS can't tell adjacent stops apart; and a
+  third-party passport can't place official QR codes at each ride. So the realistic default is
+  `kind:'honor'` → `experience_type:'experience'`, `experience_verification_method:'honor'`,
+  `verification_tier = 5` (self-report). Switch to `kind:'qr'` only when an operator will physically
+  place per-ride codes.
+- **`passport_type:'experience'`** (not `'location'`), `coverEmblem:'🎢'`.
+- **Pages = generic "lands"**, stops = generic attraction *types*.
+
+Template (abbreviated — the shape that seeds today):
+
+```ts
+const themePark: PassportTemplate = {
+  title: 'Thrills & Spills · A Theme Park Passport',
+  description: 'Every ride, every land, one wristband day.',
+  passportType: 'experience',
+  coverEmblem: '🎢',
+  pages: [
+    { title: 'The Midway',      stops: [
+      { kind: 'honor', name: 'The Grand Carousel' },
+      { kind: 'honor', name: 'Sky Wheel' },
+      { kind: 'honor', name: 'Bumper Cars' } ] },
+    { title: 'Frontier Falls',  stops: [
+      { kind: 'honor', name: 'Runaway Mine Coaster' },
+      { kind: 'honor', name: 'Log Flume' },
+      { kind: 'honor', name: 'Rapids Run' } ] },
+    { title: 'Fantasy Kingdom', stops: [
+      { kind: 'honor', name: 'The Enchanted Teacups' },
+      { kind: 'honor', name: 'Fairytale Dark Ride' },
+      { kind: 'honor', name: 'Castle Walkthrough' } ] },
+    { title: 'Tomorrow Zone',   stops: [
+      { kind: 'honor', name: 'Hyperspace Coaster' },
+      { kind: 'honor', name: 'Orbit Drop Tower' },
+      { kind: 'honor', name: 'Laser Racers' } ] },
+  ],
+}
+```
+
+- **Stamps (Tier A, §10):** carousel 🎠, wheel 🎡, coaster 🎢, flume/rapids 🌊, teacups ☕,
+  dark ride 👻, drop tower ⬇️, show 🎭 — bright thematic `stamp_color`. Box grid + ±45 rotation per §10.
+- **Honor caveat:** honor stops carry no address/coords and are self-reported — fine for a fun
+  generic passport, but there is no real proof of riding (§1.3).
+- **Brand rule (binding for this archetype):** the agent must not emit real park / land / ride /
+  character trademarks (e.g. no "Magic Kingdom", no named coasters, no characters). Generic names only.
+
+---
+
+## Worked example D — a gourmand / foodie passport (trigger keywords: "foodie" / "gourmand" / "food" / "restaurants")
+
+The mandate: the must-visit stops are **restaurants within the area**. This is almost the inverse of the
+theme-park archetype in okuji terms.
+
+- **Verification: GPS is the RIGHT default here** (the opposite of Example C). Restaurants are spread
+  across a city, each with a distinct address, so `kind:'gps'` → `experience_type:'location'`,
+  `experience_verification_method:'gps'`, `verification_tier = 3` works cleanly — standing in one
+  restaurant is not inside another's radius.
+- **`passport_type:'location'`**, `coverEmblem:'🍽️'`.
+- **`spend` is a first-class signal here.** `StopSpendTier` (`free | under_5 | 5_to_15 | 15_to_50 |
+  50_plus`, `okujiKobo/scripts/templates/types.ts:24-29`) is literally cost — a foodie passport
+  naturally spans a taco cart (`under_5`) to a tasting menu (`50_plus`), and `expectedSpendTier` at the
+  passport level summarizes it.
+- **Pages = neighborhoods, meals, or price bands.** Stops = real area restaurants, resolved via the
+  template `place` geocoder field (§2) since the agent won't have every restaurant's coordinates
+  memorized.
+
+Template (abbreviated):
+
+```ts
+const portlandFood: PassportTemplate = {
+  title: 'Second Helpings · A Portland Food Passport',
+  description: 'I ate my way across the city, one stop at a time.',
+  passportType: 'location',
+  expectedSpendTier: '15_50',
+  coverEmblem: '🍽️',
+  pages: [
+    { title: 'Morning · Coffee & Pastry', stops: [
+      { kind: 'gps', name: '<cafe>',        place: '<cafe>, Portland OR',        spend: 'under_5' },
+      { kind: 'gps', name: '<bakery>',      place: '<bakery>, Portland OR',      spend: 'under_5' } ] },
+    { title: 'Carts & Counters',           stops: [
+      { kind: 'gps', name: '<food cart>',   place: '<food cart>, Portland OR',   spend: '5_to_15' },
+      { kind: 'gps', name: '<noodle bar>',  place: '<noodle bar>, Portland OR',  spend: '5_to_15' } ] },
+    { title: 'The Big Night',               stops: [
+      { kind: 'gps', name: '<tasting menu>', place: '<tasting menu>, Portland OR', spend: '50_plus' } ] },
+  ],
+}
+```
+
+- **Stamps (Tier A, §10):** coffee ☕, bakery 🥐, pizza 🍕, ramen 🍜, taco 🌮, seafood 🦪,
+  fine dining 🍽️, cocktail 🍸, dessert 🍰, bbq 🍖. Box grid + ±45 rotation per §10.
+- **Biggest gap for this archetype:** there is **no per-stop description field web-side** (§6/§9), so
+  the "what to order here" one-liner a foodie passport most wants has nowhere to live per stop — the
+  agent can only place it in a page-level `richtext` block, not on the restaurant itself. This is the
+  strongest motivation among the archetypes for adding a stop `description`/`note` field.
+- **Brand note (lighter than Example C):** naming real restaurants as must-visit recommendations is
+  **consistent with the existing city templates** (Portland already names real venues like Powell's and
+  Multnomah Falls) — descriptive/nominative use, fine. The theme-park "generic only" rule does **not**
+  extend here. The limits: do not use a restaurant's logo as cover/stamp art without rights, and do not
+  imply endorsement or an official partnership.
+
+---
+
 ## 10. Agent output contract — what the agent synthesizes beyond the template
 
 The template + seeder store only `name / address / lat / lng / spend / kind` per stop. Three things a
