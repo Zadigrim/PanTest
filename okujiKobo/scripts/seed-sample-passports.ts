@@ -34,6 +34,7 @@ import { pugetSoundIslands } from './templates/puget-sound-islands'
 import { portland } from './templates/portland'
 import { portOrchard } from './templates/port-orchard'
 import { grandRapids } from './templates/grand-rapids'
+import { shanghai } from './templates/shanghai'
 import { geocode, geocodeAvailable } from '@/lib/maps/server-geocode'
 import type { ResolvedPlace } from '@/lib/maps/types'
 
@@ -43,11 +44,48 @@ const TEMPLATES: Record<string, PassportTemplate> = {
   portland,
   'port-orchard': portOrchard,
   'grand-rapids': grandRapids,
+  // First passport authored by the Passport Designer agent (city archetype),
+  // fully populated with the migration-109 fields.
+  shanghai,
 }
 
 function fail(msg: string): never {
   console.error(`\n✗ ${msg}\n`)
   process.exit(1)
+}
+
+// The design-director's HARD checks, encoded deterministically. The subjective
+// review (voice, theme coherence, brand rules) lives in the agent spec
+// (.claude/agents/passport-design-director.md); these are the gate the seeder
+// refuses to cross regardless. Keeps LLM-authored templates honest before they
+// reach the live DB.
+function validateTemplate(name: string, t: PassportTemplate): void {
+  const errs: string[] = []
+  if (!t.title?.trim() || t.title.trim() === 'Untitled Passport') {
+    errs.push('title is empty or the placeholder "Untitled Passport"')
+  }
+  if (!t.pages?.length) errs.push('no pages')
+  t.pages?.forEach((page, pi) => {
+    if (!page.stops?.length) errs.push(`page ${pi + 1} ("${page.title}") has no stops`)
+    // Soft overflow guard: the auto-layout runs off the 869-unit page after
+    // ~24 default boxes (docs/passport-markup-spec.md §3). Warn, don't fail.
+    if (page.stops?.length > 12) {
+      console.warn(`  ! page ${pi + 1} ("${page.title}") has ${page.stops.length} stops — crowds the 612×869 page; consider splitting.`)
+    }
+    page.stops?.forEach((stop) => {
+      // Honest-data rule: a fun_fact must carry a source URL, and that URL
+      // must be http(s) (matches the migration-109 CHECK).
+      if (stop.funFact && !stop.factSourceUrl) {
+        errs.push(`stop "${stop.name}" has a funFact with no factSourceUrl (honest-data rule)`)
+      }
+      if (stop.factSourceUrl && !/^https?:\/\//i.test(stop.factSourceUrl)) {
+        errs.push(`stop "${stop.name}" factSourceUrl is not an http(s) URL`)
+      }
+    })
+  })
+  if (errs.length) {
+    fail(`Template "${name}" failed design-director validation:\n    - ${errs.join('\n    - ')}`)
+  }
 }
 
 function mapKindToVerification(stop: StopTemplate): {
@@ -134,6 +172,8 @@ async function main() {
   if (!creatorId) fail('Missing SEED_CREATOR_ID in .env.local (your profiles.id UUID)')
 
   const template = TEMPLATES[which]
+  // Design-director hard checks before anything touches the DB.
+  validateTemplate(which, template)
   const sb = createClient(url!, key!, { auth: { persistSession: false } })
 
   console.log(`\nSeeding "${template.title}" for creator ${creatorId}\n`)
@@ -171,6 +211,8 @@ async function main() {
       passport_type:         template.passportType,
       expected_spend_tier:   template.expectedSpendTier ?? null,
       expected_spend_note:   template.expectedSpendNote ?? null,
+      // The designer agent's machine-readable mandate (migration 109).
+      selection_criterion:   template.selectionCriterion ?? null,
       cover_template:        'guilloche_blue',
       cover_paper_color:     'F5F2EC',
       cover_bg_color:        '0D1B2A',
@@ -269,6 +311,11 @@ async function main() {
         stop_order:                     stopIdx,
         name:                           stop.name,
         ...verification,
+        // Designer-agent prose fields (migration 109). description is a
+        // no-op-safe pre-existing column; fun_fact/fact_source_url are new.
+        description:                    stop.description ?? null,
+        fun_fact:                       stop.funFact ?? null,
+        fact_source_url:                stop.factSourceUrl ?? null,
         expected_spend_tier:            stop.spend ?? null,
         verification_radius_meters:
           stop.kind === 'gps' ? (stop.radius ?? 100) : 100,
@@ -285,12 +332,20 @@ async function main() {
         box_width:  120,
         box_height: 120,
         rotation:   0,
-        // Stamp visual — designer defaults.
-        stamp_icon:         '📍',
-        stamp_color:        '1D9E75',
+        // Stamp visual — Tier-A characteristic hint (docs/passport-markup-spec.md
+        // §10), falling back to the designer default 📍 / green.
+        stamp_icon:         stop.stamp?.icon ?? '📍',
+        stamp_color:        stop.stamp?.color ?? '1D9E75',
         stamp_type:         'emoji',
-        stamp_rotation_min: -15,
-        stamp_rotation_max: 15,
+        // Initial rotation: upright, randomized ±45° at COLLECTION time
+        // (per-collector RNG). We set the RANGE; placement resolves the angle.
+        // Both representations are written because mobile reads
+        // stamp_rotation_range and web reads stamp_rotation_min/max — both
+        // columns are confirmed present on the live backend.
+        stamp_rotation_fixed: null,
+        stamp_rotation_min:  -45,
+        stamp_rotation_max:   45,
+        stamp_rotation_range: 45,
         smudge_intensity:   'none',
         // verification_tier deliberately omitted — derived by the
         // BEFORE INSERT trigger from migration 046.

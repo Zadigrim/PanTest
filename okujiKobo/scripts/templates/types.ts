@@ -56,6 +56,22 @@ export interface AddressFields {
 interface StopBase {
   name: string
   spend?: StopSpendTier
+  /** One-line "why this stop" copy. Written to stops.description
+   *  (migration 109). Optional; the designer agent fills it. */
+  description?: string
+  /** A single true, interesting fact about the stop. Written to
+   *  stops.fun_fact (migration 109). If set, `factSourceUrl` SHOULD
+   *  accompany it — the design-director agent rejects an un-sourced
+   *  fun_fact (honest-data rule). */
+  funFact?: string
+  /** Citation URL backing `funFact`. Written to stops.fact_source_url
+   *  (migration 109). */
+  factSourceUrl?: string
+  /** Tier-A stamp hint (see docs/passport-markup-spec.md §10): a
+   *  characteristic emoji + hex color (no leading '#'). The seeder
+   *  writes these to stops.stamp_icon / stamp_color with stamp_type
+   *  'emoji'. Omit to take the seeder default (📍 / 1D9E75). */
+  stamp?: { icon?: string; color?: string }
 }
 
 interface PhysicalStopBase extends StopBase {
@@ -91,6 +107,11 @@ export interface PassportTemplate {
   passportType: PassportType
   expectedSpendTier?: PassportSpendTier
   expectedSpendNote?: string
+  /** The agent's mandate in one machine-readable line — why this set of
+   *  stops belongs together (e.g. 'Capital city of each European country',
+   *  'Standout restaurants across Portland'). Written to
+   *  passports.selection_criterion (migration 109). */
+  selectionCriterion?: string
   pages: PageTemplate[]
   /** Optional override of the seeder default. When set true, the
    *  seeder writes is_published=true + status='published' +
