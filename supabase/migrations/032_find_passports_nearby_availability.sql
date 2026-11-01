@@ -19,6 +19,13 @@
 --
 -- Everything else is byte-identical to 030 (visibility/review/distribution
 -- guards, distance ranking, location-stop filter, STABLE PARALLEL SAFE).
+--
+-- DROP first: adding effective_at changes the RETURNS TABLE row type, which
+-- CREATE OR REPLACE cannot do ("cannot change return type of existing
+-- function"). The function is only invoked via client RPC, so dropping +
+-- recreating has no DB-level dependents.
+
+DROP FUNCTION IF EXISTS public.find_passports_nearby(double precision, double precision, double precision, integer);
 
 CREATE OR REPLACE FUNCTION public.find_passports_nearby(
   p_lat        double precision,
