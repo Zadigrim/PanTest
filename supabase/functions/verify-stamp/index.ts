@@ -153,6 +153,40 @@ serve(async (req) => {
       return json({ error: 'Not authorized' }, 403)
     }
 
+    // ── Layer 2.5: availability window (migration 110) ───────────────────────
+    // now() < effective_at => not open yet; now() >= expires_at => ended. NULLs
+    // mean no bound. SERVER TIME ONLY (Date.now() on the edge host) — the device
+    // clock is never trusted. This returns a clean, collector-facing reason; the
+    // BEFORE INSERT trigger on stamps is the hard backstop if this is ever
+    // bypassed. The window applies to ALL stamps including demo/honor.
+    const { data: pwin } = await supabase
+      .from('passports')
+      .select('effective_at, expires_at, availability_timezone')
+      .eq('id', page.passport_id)
+      .maybeSingle()
+    if (pwin) {
+      const nowMs = Date.now()
+      const tz = (pwin as { availability_timezone?: string }).availability_timezone || 'UTC'
+      const fmtDay = (iso: string): string => {
+        const d = new Date(iso)
+        try {
+          return new Intl.DateTimeFormat('en-US', { timeZone: tz, month: 'short', day: 'numeric', year: 'numeric' }).format(d)
+        } catch {
+          return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(d)
+        }
+      }
+      const eff = (pwin as { effective_at?: string }).effective_at
+      const exp = (pwin as { expires_at?: string }).expires_at
+      if (eff && nowMs < new Date(eff).getTime()) {
+        return json({ verified: false, reason: `This passport opens ${fmtDay(eff)}` }, 200)
+      }
+      if (exp && nowMs >= new Date(exp).getTime()) {
+        // End is exclusive — show the last valid day ("ended Dec 31", not Jan 1).
+        const lastValid = new Date(new Date(exp).getTime() - 1000).toISOString()
+        return json({ verified: false, reason: `This passport ended ${fmtDay(lastValid)}` }, 200)
+      }
+    }
+
     // Is the passport DEMO-published? Read server-side — the client can neither
     // fake this nor trigger it on a non-demo passport. is_demo is admin-only
     // (migration 105 guard), so its presence is trustworthy.
