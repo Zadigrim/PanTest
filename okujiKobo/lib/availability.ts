@@ -26,7 +26,11 @@ export function tzOffsetMs(tz: string, at: Date): number {
     for (const part of dtf.formatToParts(at)) p[part.type] = part.value
     // Intl may render hour '24' at midnight; normalize to 0.
     const hour = p.hour === '24' ? 0 : Number(p.hour)
-    const asUtc = Date.UTC(Number(p.year), Number(p.month) - 1, Number(p.day), hour, Number(p.minute), Number(p.second))
+    // Carry `at`'s milliseconds through — the zone's wall components are only
+    // second-resolution, and a zone offset is always a whole number of minutes;
+    // without this the sub-second part of `at` leaks into the offset (a 999ms
+    // error on 23:59:59.999 end-of-day instants).
+    const asUtc = Date.UTC(Number(p.year), Number(p.month) - 1, Number(p.day), hour, Number(p.minute), Number(p.second), at.getUTCMilliseconds())
     return asUtc - at.getTime()
   } catch {
     return 0 // unknown zone → treat as UTC
