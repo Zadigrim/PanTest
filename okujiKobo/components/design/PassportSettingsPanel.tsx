@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { usePassportStore } from '@/lib/design/passport-store'
 import { safeUpdate } from '@/lib/design/persist'
@@ -144,6 +144,9 @@ export function PassportSettingsPanel({ onClose }: Props) {
               />
             </div>
           </section>
+
+          {/* Collections this passport belongs to (migration 111) — read-only. */}
+          <PassportCollectionsList passportId={passport.id} />
 
           {/* Passport-completion prize (migration 098). A passport-level reward
               redeemed through the SAME terminal flow as page prizes — the code
@@ -622,5 +625,44 @@ function VerifyResultCard({
         </Button>
       </div>
     </div>
+  )
+}
+
+// Read-only list of the collections this passport belongs to (migration 111).
+// The panel otherwise reads from the Zustand store; collection membership isn't
+// in the store, so this does its own fetch.
+function PassportCollectionsList({ passportId }: { passportId: string }) {
+  const [rows, setRows] = useState<{ id: string; title: string; status: string }[]>([])
+  useEffect(() => {
+    if (!passportId) return
+    let cancelled = false
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = createClient() as any
+    db.from('passport_collection_items')
+      .select('collection:passport_collections(id, title, status)')
+      .eq('passport_id', passportId)
+      .then(({ data }: { data: any[] | null }) => {
+        if (cancelled) return
+        const list = (data ?? [])
+          .map((r: any) => (Array.isArray(r.collection) ? r.collection[0] : r.collection))
+          .filter(Boolean) as { id: string; title: string; status: string }[]
+        setRows(list)
+      })
+    return () => { cancelled = true }
+  }, [passportId])
+
+  if (rows.length === 0) return null
+  return (
+    <section className="space-y-2">
+      <h3 className="text-xs font-semibold uppercase tracking-wider text-muted">Part of these collections</h3>
+      <ul className="space-y-1">
+        {rows.map((c) => (
+          <li key={c.id} className="text-sm text-ink">
+            {c.title}
+            <span className="ml-2 text-[10.5px] uppercase text-muted">{c.status}</span>
+          </li>
+        ))}
+      </ul>
+    </section>
   )
 }

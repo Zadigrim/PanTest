@@ -17,6 +17,7 @@ import { cn } from '@/lib/cn'
 // route launched from the Terminal tab.
 const BASE_NAV = [
   { label: 'My Passports', href: '/design' },
+  { label: 'Collections',  href: '/collections' },
   { label: 'Program',      href: '/program' },
   { label: 'Assets',       href: '/assets' },
   { label: 'Explore',      href: '/explore' },
