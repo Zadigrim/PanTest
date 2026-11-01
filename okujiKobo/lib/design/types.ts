@@ -215,6 +215,13 @@ export interface DesignerPassport {
   // expires_at is stored on collector_passports per copy).
   show_copy_number?: boolean
   expiry_duration_days?: number | null
+  // Availability window (migration 110). UTC instants; NULL = unbounded on that
+  // side. availability_timezone is the IANA zone for display + the designer's
+  // date->instant conversion. Distinct from per-copy expiry above: this is a
+  // whole-passport "open/ended" window that gates stamping server-side.
+  effective_at?: string | null
+  expires_at?: string | null
+  availability_timezone?: string | null
   // M2 (web-tree 069 + 071) — credential type + consumable target.
   // 'persistent' = traditional stamp collection (default).
   // 'consumable' = punch-card / loyalty card; cards consume + reissue

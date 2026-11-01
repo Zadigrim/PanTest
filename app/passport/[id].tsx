@@ -12,6 +12,7 @@ import { usePassport, acquirePassport } from '../../hooks/usePassport'
 import { useGPS, useStampVerification } from '../../hooks/useGPS'
 import { useDemoContext } from '../../contexts/DemoContext'
 import { checkPageComplete, generateTokenForPage } from '../../lib/token'
+import { passportWindowState } from '../../lib/passport-window'
 
 import { PassportFrame, usePageDimensions } from '../../components/passport/PassportFrame'
 import { PageFlipper, type PageFlipperHandle } from '../../components/passport/PageFlipper'
@@ -337,12 +338,28 @@ export default function PassportScreen() {
     setArmedStop(null) // abandoning the gesture disarms; re-arm via the sheet
   }, [])
 
+  // Availability window (migration 110). Derived from server dates; the server
+  // re-checks on stamp, so this only drives proactive UI (banner + disabling).
+  const win = useMemo(
+    () => (passport ? passportWindowState(passport) : { state: 'open' as const, message: null }),
+    [passport],
+  )
+
   // Tap a stop region (gated to ≈1× in the box) → open the action sheet.
+  // Outside the availability window, stamping is disabled: surface the state
+  // and don't open the sheet (the passport stays fully readable).
   const handleTapStop = useCallback((pageId: string, stopId: string) => {
     const stop = (stops[pageId] ?? []).find((s) => s.id === stopId)
     if (!stop) return
+    if (win.state !== 'open') {
+      Alert.alert(
+        win.state === 'upcoming' ? 'Not open yet' : 'Passport ended',
+        `${win.message ?? 'This passport isn’t available right now.'} — stamping is disabled, but you can still read it.`,
+      )
+      return
+    }
     setActionSheet({ pageId, stopId, stopName: stop.name, lat: stop.lat, lng: stop.lng })
-  }, [stops])
+  }, [stops, win])
 
   // "Stamp this stop" → arm the expressive press-hold gesture, close the sheet.
   // The gesture + verification are unchanged; only the entry point moved.
@@ -758,6 +775,19 @@ export default function PassportScreen() {
           <TouchableOpacity onPress={handleDismissNotice} accessibilityLabel="Dismiss correction notice">
             <Text style={correctionStyles.dismiss}>Got it</Text>
           </TouchableOpacity>
+        </View>
+      )}
+      {/* Availability window (migration 110): "Opens …" before the window,
+          "Ended …" after. Stamping is disabled in both states (gated in
+          handleTapStop + enforced server-side); the book stays readable. */}
+      {win.state !== 'open' && (
+        <View style={{
+          backgroundColor: win.state === 'ended' ? '#f3e6e8' : '#f6efd9',
+          paddingVertical: 8, paddingHorizontal: 14,
+        }}>
+          <Text style={{ fontSize: 13, fontWeight: '600', color: '#1f1d1a', textAlign: 'center' }}>
+            {win.message}
+          </Text>
         </View>
       )}
       {/* Expansion opt-in — appears only when a real published expansion this

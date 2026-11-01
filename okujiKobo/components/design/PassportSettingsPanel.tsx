@@ -10,6 +10,10 @@ import { Label } from './ui/Label'
 import { SPEND_TIERS, spendTierLabel } from '@/lib/design/spend-tiers'
 import { PrintOptionsDialog } from './PrintOptionsDialog'
 import type { SpendTier, CreatorDecision } from '@/lib/design/types'
+import {
+  startOfLocalDayUtc, endOfLocalDayUtc, utcToLocalDate,
+  supportedTimeZones, browserTimeZone,
+} from '@/lib/availability'
 
 interface Props {
   onClose: () => void
@@ -379,6 +383,95 @@ export function PassportSettingsPanel({ onClose }: Props) {
               </p>
             </div>
           </section>
+
+          {/* Availability window (migration 110) */}
+          {(() => {
+            const tz = passport.availability_timezone ?? browserTimeZone()
+            const startLocal = utcToLocalDate(passport.effective_at, tz)
+            const endLocal = utcToLocalDate(passport.expires_at, tz)
+            const invalid =
+              !!passport.effective_at && !!passport.expires_at &&
+              new Date(passport.expires_at).getTime() <= new Date(passport.effective_at).getTime()
+            const changeTz = (newTz: string) => {
+              // Preserve the wall-clock dates; recompute the UTC instants in the
+              // new zone so "Jan 1" stays "Jan 1".
+              persist({
+                availability_timezone: newTz,
+                effective_at: startLocal ? startOfLocalDayUtc(startLocal, newTz) : passport.effective_at,
+                expires_at: endLocal ? endOfLocalDayUtc(endLocal, newTz) : passport.expires_at,
+              })
+            }
+            return (
+              <section className="space-y-3">
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-muted">
+                  Availability
+                </h3>
+                <p className="text-xs italic text-muted">
+                  Collectors can only stamp this passport inside the window. Leave a
+                  side blank for no limit. Start is 00:00 and end is 23:59:59 local
+                  on the chosen dates.
+                </p>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-medium text-navy">Timezone</Label>
+                  <select
+                    value={tz}
+                    onChange={(e) => changeTz(e.target.value)}
+                    className="h-9 w-full rounded border border-hairline bg-white px-2 text-sm text-navy"
+                  >
+                    {supportedTimeZones().map((z) => (
+                      <option key={z} value={z}>{z}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-medium text-navy">Opens</Label>
+                    <Input
+                      type="date"
+                      value={startLocal}
+                      max={endLocal || undefined}
+                      onChange={(e) => {
+                        const v = e.target.value
+                        persist({
+                          effective_at: v ? startOfLocalDayUtc(v, tz) : null,
+                          availability_timezone: passport.availability_timezone ?? tz,
+                        })
+                      }}
+                      className="h-9 w-full"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-medium text-navy">Closes</Label>
+                    <Input
+                      type="date"
+                      value={endLocal}
+                      min={startLocal || undefined}
+                      onChange={(e) => {
+                        const v = e.target.value
+                        persist({
+                          expires_at: v ? endOfLocalDayUtc(v, tz) : null,
+                          availability_timezone: passport.availability_timezone ?? tz,
+                        })
+                      }}
+                      className="h-9 w-full"
+                    />
+                  </div>
+                </div>
+
+                {invalid && (
+                  <p className="text-xs text-red">The close date must be after the open date.</p>
+                )}
+                {(passport.effective_at || passport.expires_at) && (
+                  <p className="text-[10.5px] italic text-muted">
+                    Stored (UTC): {passport.effective_at ?? '— no start —'} →{' '}
+                    {passport.expires_at ?? '— no end —'}
+                  </p>
+                )}
+              </section>
+            )
+          })()}
 
           {/* Spend tier + AI verification */}
           <section className="space-y-3">

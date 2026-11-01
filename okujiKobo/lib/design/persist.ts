@@ -414,6 +414,10 @@ export async function saveAll(): Promise<BatchError[]> {
       completion_prize_value_cents: passport.completion_prize_value_cents,
       // Completion threshold (migration 106).
       completion_required_stops: passport.completion_required_stops,
+      // Availability window (migration 110). UTC instants + display zone.
+      effective_at:           passport.effective_at,
+      expires_at:             passport.expires_at,
+      availability_timezone:  passport.availability_timezone,
       updated_at:             new Date().toISOString(),
     }, 'id', passport.id)
     if (passportErr) {

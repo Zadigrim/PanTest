@@ -37,6 +37,9 @@ export interface NearbyPassport {
   price_cents: number
   creator_id: string
   proprietor_id: string | null
+  // Availability window start (migration 032) — ended passports are filtered
+  // out by the RPC; upcoming ones carry this so the card shows an "Opens" badge.
+  effective_at: string | null
   distance_m: number
   stops_in_radius: number
 }

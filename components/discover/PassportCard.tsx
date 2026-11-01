@@ -15,6 +15,7 @@ import { getCurrentUser } from '../../lib/supabase'
 import { acquirePassport } from '../../hooks/usePassport'
 import { useDemoContext } from '../../contexts/DemoContext'
 import { palette } from '../../lib/colors'
+import { passportWindowState } from '../../lib/passport-window'
 import type { Passport } from '../../types'
 
 const NAVY = palette.navy
@@ -51,6 +52,9 @@ interface Props {
 
 export function PassportCard({ passport, state, onAcquired, nearbyInfo }: Props) {
   const { demoActive } = useDemoContext()
+  // Availability window (migration 110): "Opens …" badge for upcoming passports.
+  // Ended passports are already filtered out of browse upstream.
+  const win = passportWindowState(passport)
   const handlePress = () => router.push(`/passport/${passport.id}`)
 
   const handleAcquire = async () => {
@@ -126,6 +130,13 @@ export function PassportCard({ passport, state, onAcquired, nearbyInfo }: Props)
         {state === 'paid' && (
           <View style={styles.pillPaid}>
             <Text style={styles.pillPaidText}>${(passport.price_cents / 100).toFixed(2)}</Text>
+          </View>
+        )}
+        {win.state === 'upcoming' && (
+          <View style={{ borderWidth: 1.5, borderColor: GOLD, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2, backgroundColor: '#fff' }}>
+            <Text style={{ color: GOLD, fontSize: 9, fontWeight: '700' }} numberOfLines={1}>
+              {win.message}
+            </Text>
           </View>
         )}
       </View>

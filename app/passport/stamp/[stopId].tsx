@@ -11,6 +11,7 @@ import { useDemoContext } from '../../../contexts/DemoContext'
 import { StampArtwork } from '../../../components/stamp/StampArtwork'
 import type { Stop } from '../../../types'
 import { palette } from '../../../lib/colors'
+import { passportWindowState, type WindowState } from '../../../lib/passport-window'
 
 export default function StampScreen() {
   const { stopId, qrCodeId } = useLocalSearchParams<{ stopId: string; qrCodeId?: string }>()
@@ -21,6 +22,9 @@ export default function StampScreen() {
   const [verifying, setVerifying] = useState(false)
   const [showCode, setShowCode] = useState(false)
   const [visitorCode, setVisitorCode] = useState('')
+  // Availability window (migration 110) — this screen doesn't load the full
+  // passport, so fetch the window fields for the stop's passport and gate on them.
+  const [win, setWin] = useState<{ state: WindowState; message: string | null }>({ state: 'open', message: null })
   const { checkLocation } = useGPS()
   const { verify } = useStampVerification()
   const { demoActive } = useDemoContext()
@@ -51,6 +55,13 @@ export default function StampScreen() {
           .eq('passport_id', passportId)
           .single()
         setCollectorPassportId(cp?.id ?? null)
+
+        const { data: pw } = await supabase
+          .from('passports')
+          .select('effective_at, expires_at, availability_timezone')
+          .eq('id', passportId)
+          .single()
+        if (pw) setWin(passportWindowState(pw))
       }
 
       // Check if already stamped
@@ -72,6 +83,13 @@ export default function StampScreen() {
   // sends demo: true; the function honors it only for server-authorized
   // demo users and marks the row is_demo.
   const handleStamp = async () => {
+    if (win.state !== 'open') {
+      Alert.alert(
+        win.state === 'upcoming' ? 'Not open yet' : 'Passport ended',
+        win.message ?? 'Stamping is disabled right now.',
+      )
+      return
+    }
     setVerifying(true)
     const user = await getCurrentUser()
     if (!user) { router.push('/(auth)/login'); return }
@@ -123,6 +141,10 @@ export default function StampScreen() {
           </View>
           {stamped ? (
             <Text style={styles.success}>✓ Stamped!</Text>
+          ) : win.state !== 'open' ? (
+            <Text style={{ fontSize: 15, fontWeight: '600', color: palette.navy, textAlign: 'center' }}>
+              {win.message}
+            </Text>
           ) : (
             <TouchableOpacity
               style={[styles.btn, verifying && styles.btnDisabled]}

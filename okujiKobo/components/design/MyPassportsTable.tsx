@@ -21,6 +21,7 @@ import { stopRequiresQr } from '@/lib/design/stop-qr'
 import { PassportCoverThumbnail } from './PassportCoverThumbnail'
 import { passportTypeIconFromClassifiers } from '@/lib/design/passport-type-icon'
 import { spendTierLabel } from '@/lib/design/spend-tiers'
+import { formatWindowRange } from '@/lib/availability'
 import type { DesignerPassport, CoverSideData } from '@/lib/design/types'
 
 // ── Row data shape ────────────────────────────────────────────────────────────
@@ -402,6 +403,8 @@ function PassportMeta({ passport }: { passport: DesignerPassport }) {
   }
   if (passport.transit_accessible) bits.push('transit')
   if (passport.wheelchair_accessible) bits.push('step-free')
+  const win = formatWindowRange(passport.effective_at, passport.expires_at, passport.availability_timezone)
+  if (win) bits.push(win)
   return <>{bits.join(' · ')}</>
 }
 

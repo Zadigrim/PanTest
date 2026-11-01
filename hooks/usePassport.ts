@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase, getCurrentUser } from '../lib/supabase'
+import { passportWindowState } from '../lib/passport-window'
 import type { Passport, PassportPage, Stop, CollectorPassport } from '../types'
 
 export function usePassport(passportId: string) {
@@ -132,7 +133,14 @@ export function usePublishedPassports() {
         : Promise.resolve({ data: [] }),
     ])
 
-    setPassports(publishedResult.data ?? [])
+    // Hide ENDED passports from browse (availability window, migration 110).
+    // Upcoming ones stay — the card shows an "Opens" badge. The owner's
+    // collection (useCollectorPassports) is a separate, unfiltered query, so
+    // ended passports still appear there as finished keepsakes.
+    const browseable = (publishedResult.data ?? []).filter(
+      (p: Passport) => passportWindowState(p).state !== 'ended',
+    )
+    setPassports(browseable)
     setOwnedIds(new Set((ownedResult.data ?? []).map((r: any) => r.passport_id)))
     setLoading(false)
   }, [])

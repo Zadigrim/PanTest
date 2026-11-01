@@ -311,6 +311,12 @@ function projectToPassport(r: NearbyPassport): Passport {
     is_demo:            false,
     cover_outside_data: null,
     cover_inside_data:  null,
+    // Availability window: the RPC already filtered out ENDED passports, so
+    // expires_at is effectively unbounded here; effective_at drives the card's
+    // "Opens" badge for upcoming ones. (No tz over the RPC — badge uses UTC.)
+    effective_at:       r.effective_at ?? null,
+    expires_at:         null,
+    availability_timezone: null,
     created_at:         '',
     updated_at:         '',
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

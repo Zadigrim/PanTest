@@ -74,6 +74,11 @@ export interface Passport {
   // components/passport/CoverPanel.tsx.
   cover_outside_data: CoverSideData | null
   cover_inside_data: CoverSideData | null
+  // Availability window (migration 110). UTC instants; null = unbounded.
+  // availability_timezone is the IANA zone for display only.
+  effective_at: string | null
+  expires_at: string | null
+  availability_timezone: string | null
   created_at: string
   updated_at: string
 }
