@@ -3,7 +3,7 @@
 // (ToC and ExitVisa are reader-toggleable in Profile; section dividers removed.)
 import React, { useEffect, useCallback, useState, useMemo, useRef } from 'react'
 import {
-  View, Text, TouchableOpacity, ActivityIndicator, StyleSheet, Alert, useWindowDimensions,
+  View, Text, TouchableOpacity, ActivityIndicator, StyleSheet, Alert, useWindowDimensions, ScrollView,
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { useLocalSearchParams, router, useFocusEffect } from 'expo-router'
@@ -13,6 +13,7 @@ import { useGPS, useStampVerification } from '../../hooks/useGPS'
 import { useDemoContext } from '../../contexts/DemoContext'
 import { checkPageComplete, generateTokenForPage } from '../../lib/token'
 import { passportWindowState } from '../../lib/passport-window'
+import { usePassportCollections } from '../../hooks/useCollection'
 
 import { PassportFrame, usePageDimensions } from '../../components/passport/PassportFrame'
 import { PageFlipper, type PageFlipperHandle } from '../../components/passport/PageFlipper'
@@ -344,6 +345,10 @@ export default function PassportScreen() {
     () => (passport ? passportWindowState(passport) : { state: 'open' as const, message: null }),
     [passport],
   )
+
+  // Collections this passport belongs to (published only) — tappable chips
+  // beneath the banner stack. Read-only; collections are curated in okujiKobo.
+  const partOfCollections = usePassportCollections(id)
 
   // Tap a stop region (gated to ≈1× in the box) → open the action sheet.
   // Outside the availability window, stamping is disabled: surface the state
@@ -790,6 +795,25 @@ export default function PassportScreen() {
           </Text>
         </View>
       )}
+      {/* "Part of:" — collections this passport belongs to (migration 111).
+          Tappable chips → the collection detail screen. Hidden when none. */}
+      {partOfCollections.length > 0 && (
+        <View style={partOfStyles.bar}>
+          <Text style={partOfStyles.label}>Part of</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={partOfStyles.row}>
+            {partOfCollections.map((c) => (
+              <TouchableOpacity
+                key={c.id}
+                style={partOfStyles.chip}
+                onPress={() => router.push(`/collection/${c.id}`)}
+                accessibilityRole="button"
+              >
+                <Text style={partOfStyles.chipText} numberOfLines={1}>{c.title}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      )}
       {/* Expansion opt-in — appears only when a real published expansion this
           holder hasn't accepted exists. Tapping appends the new pages to their
           copy (after content, before journal). Honest: hidden when none. */}
@@ -1017,6 +1041,38 @@ const expStyles = StyleSheet.create({
     color: palette.ink,
     fontSize: 13,
     fontWeight: '700',
+  },
+})
+
+const partOfStyles = StyleSheet.create({
+  bar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 6,
+    paddingLeft: 12,
+  },
+  label: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+    color: palette.muted,
+    textTransform: 'uppercase',
+  },
+  row: { gap: 8, paddingRight: 12 },
+  chip: {
+    borderWidth: 1,
+    borderColor: `${palette.accent}88`,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    backgroundColor: palette.cream,
+  },
+  chipText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: palette.ink,
+    maxWidth: 180,
   },
 })
 

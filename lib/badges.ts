@@ -1,4 +1,4 @@
-import { Award } from 'lucide-react-native'
+import { Award, Layers } from 'lucide-react-native'
 import type { ComponentType } from 'react'
 
 // One client-side registry keyed by badge_key. Future badges are additive
@@ -24,4 +24,23 @@ export const BADGE_REGISTRY: Record<string, BadgeMeta> = {
 
 export function getBadgeMeta(badgeKey: string): BadgeMeta | null {
   return BADGE_REGISTRY[badgeKey] ?? null
+}
+
+// Collection reward badges (migration 111) are not in the static registry —
+// their key is minted per-collection (`col_<slug>_…`) and their title /
+// description are stored on collector_badges.metadata at award time. Resolve a
+// badge for display from the registry first, then fall back to that metadata.
+export function resolveBadge(
+  badgeKey: string,
+  metadata: { title?: string | null; description?: string | null } | null | undefined,
+): BadgeMeta | null {
+  const known = getBadgeMeta(badgeKey)
+  if (known) return known
+  const title = metadata?.title?.trim()
+  if (!title) return null
+  return {
+    name: title,
+    description: metadata?.description?.trim() || 'Collection reward.',
+    Icon: Layers,
+  }
 }

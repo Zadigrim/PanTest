@@ -48,6 +48,31 @@ export interface StopReviewSummary {
   review_count: number
 }
 
+// Passport collections (migration 111) — a curated grouping of passports with
+// collection-level reward badges. Read-only on mobile.
+export interface PassportCollection {
+  id: string
+  owner_id: string
+  slug: string
+  title: string
+  subtitle: string | null
+  description: string | null
+  cover_asset_id: string | null
+  status: 'draft' | 'published' | 'archived'
+  is_okuji_official: boolean
+  edition_label: string | null
+}
+
+export interface CollectionReward {
+  id: string
+  collection_id: string
+  kind: 'count' | 'all'
+  required_count: number | null
+  badge_key: string
+  title: string
+  description: string | null
+}
+
 export interface Passport {
   id: string
   creator_id: string

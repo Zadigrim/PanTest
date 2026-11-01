@@ -21,9 +21,16 @@ const STAMP_GUIDE_OPTIONS: { value: StampGuideMode; label: string }[] = [
 import { formatCoordinates } from '../../lib/location-caption'
 import type { Profile } from '../../types'
 import { palette } from '../../lib/colors'
-import { getBadgeMeta } from '../../lib/badges'
+import { resolveBadge } from '../../lib/badges'
 
-interface CollectorBadge { id: string; badge_key: string; awarded_at: string }
+interface CollectorBadge {
+  id: string
+  badge_key: string
+  awarded_at: string
+  // Collection reward badges (migration 111) carry their display title /
+  // description here; registry badges leave it null.
+  metadata: { title?: string | null; description?: string | null } | null
+}
 
 const INK    = palette.ink
 const MUTED  = palette.muted
@@ -55,7 +62,7 @@ export default function ProfileScreen() {
       // hides entirely when there are none.
       const { data: badgeRows } = await supabase
         .from('collector_badges')
-        .select('id, badge_key, awarded_at')
+        .select('id, badge_key, awarded_at, metadata')
         .order('awarded_at', { ascending: false })
       setBadges((badgeRows as CollectorBadge[] | null) ?? [])
       // Owner-only surfaces gate on the canonical is_platform_admin() RPC —
@@ -196,7 +203,7 @@ export default function ProfileScreen() {
         <View style={s.section}>
           <Text style={s.sectionLabel}>BADGES</Text>
           {badges.map((b) => {
-            const meta = getBadgeMeta(b.badge_key)
+            const meta = resolveBadge(b.badge_key, b.metadata)
             if (!meta) return null
             const Icon = meta.Icon
             return (
