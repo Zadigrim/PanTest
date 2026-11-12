@@ -418,6 +418,9 @@ export async function saveAll(): Promise<BatchError[]> {
       effective_at:           passport.effective_at,
       expires_at:             passport.expires_at,
       availability_timezone:  passport.availability_timezone,
+      // Passport-level location (migration 112). ISO 3166-1 / 3166-2 codes.
+      country:                passport.country,
+      region:                 passport.region,
       updated_at:             new Date().toISOString(),
     }, 'id', passport.id)
     if (passportErr) {

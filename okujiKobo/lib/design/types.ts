@@ -244,6 +244,13 @@ export interface DesignerPassport {
   // Completion threshold (migration 106): stops required before a holder is
   // offered completion. NULL = all base stops (100%).
   completion_required_stops?: number | null
+  // Passport-level location (migration 112). country = ISO 3166-1 alpha-2
+  // ('US'); region = full ISO 3166-2 subdivision code ('US-WA'). Both nullable;
+  // NULL = unset ("No location set" in the /design filter). Set by the creator
+  // in PassportSettingsPanel — never derived. A region requires a matching
+  // country (DB CHECK); see lib/design/locations.ts for the code tables.
+  country?: string | null
+  region?: string | null
 }
 
 export type PageType = 'stamp' | 'information'

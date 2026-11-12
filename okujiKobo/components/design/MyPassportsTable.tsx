@@ -22,7 +22,13 @@ import { PassportCoverThumbnail } from './PassportCoverThumbnail'
 import { passportTypeIconFromClassifiers } from '@/lib/design/passport-type-icon'
 import { spendTierLabel } from '@/lib/design/spend-tiers'
 import { formatWindowRange } from '@/lib/availability'
+import { countryName, regionName, hasSubdivisions } from '@/lib/design/locations'
 import type { DesignerPassport, CoverSideData } from '@/lib/design/types'
+
+// Location filter sentinels (migration 112). A concrete value is an ISO code.
+const LOC_ALL = '__all'    // "All locations" — no constraint
+const LOC_NONE = '__none'  // "No location set" — country/region IS NULL
+const LOC_KEY = 'okuji.design.locationFilter' // sessionStorage (per-session persist)
 
 // ── Row data shape ────────────────────────────────────────────────────────────
 // Augments DesignerPassport with the per-row stats the server pre-computes.
@@ -91,15 +97,100 @@ export function MyPassportsTable({ rows: initialRows, isAdmin = false }: { rows:
   const [filter, setFilter] = useState<'all' | 'published' | 'draft'>('all')
   const [sortKey, setSortKey] = useState<SortKey>('updated')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
+  // Location filter (migration 112). Country = ISO 3166-1 / sentinels; region =
+  // full ISO 3166-2 / sentinels. Options come ONLY from values present in the
+  // library below, so empty countries/states are never listed.
+  const [countryLoc, setCountryLoc] = useState<string>(LOC_ALL)
+  const [regionLoc, setRegionLoc] = useState<string>(LOC_ALL)
 
-  // Derived view: search → filter → sort.
+  // Hydrate the location filter from sessionStorage (per-session persistence).
+  // Defaults render first to avoid an SSR/client hydration mismatch.
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(LOC_KEY)
+      if (!raw) return
+      const v = JSON.parse(raw) as { country?: string; region?: string }
+      if (v.country) setCountryLoc(v.country)
+      if (v.region) setRegionLoc(v.region)
+    } catch { /* storage blocked — defaults stand */ }
+  }, [])
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(LOC_KEY, JSON.stringify({ country: countryLoc, region: regionLoc }))
+    } catch { /* ignore */ }
+  }, [countryLoc, regionLoc])
+
+  // Country options: distinct non-null countries present in the library +
+  // whether any passport is unset (→ offer the "No location set" group).
+  const countryOpts = useMemo(() => {
+    const codes = new Set<string>()
+    let hasUnset = false
+    for (const r of rows) {
+      if (r.passport.country) codes.add(r.passport.country)
+      else hasUnset = true
+    }
+    const list = [...codes]
+      .map((code) => ({ code, name: countryName(code) }))
+      .sort((a, b) => a.name.localeCompare(b.name))
+    return { list, hasUnset }
+  }, [rows])
+
+  // Region selector shows only when a concrete country WITH modeled
+  // subdivisions is selected (US at minimum). Options = regions present among
+  // that country's passports; "No region set" when some are unset.
+  const showRegion =
+    countryLoc !== LOC_ALL && countryLoc !== LOC_NONE && hasSubdivisions(countryLoc)
+  const regionOpts = useMemo(() => {
+    const codes = new Set<string>()
+    let hasUnset = false
+    if (showRegion) {
+      for (const r of rows) {
+        if (r.passport.country !== countryLoc) continue
+        if (r.passport.region) codes.add(r.passport.region)
+        else hasUnset = true
+      }
+    }
+    const list = [...codes]
+      .map((code) => ({ code, name: regionName(code) }))
+      .sort((a, b) => a.name.localeCompare(b.name))
+    return { list, hasUnset }
+  }, [rows, countryLoc, showRegion])
+
+  // Self-heal a stale persisted country (e.g. the only passport in it was
+  // deleted this session): fall back to "All" so the select never shows a
+  // value with no matching option.
+  useEffect(() => {
+    if (countryLoc === LOC_ALL || countryLoc === LOC_NONE) return
+    if (countryLoc === LOC_NONE && !countryOpts.hasUnset) { setCountryLoc(LOC_ALL); return }
+    if (!countryOpts.list.some((o) => o.code === countryLoc)) {
+      setCountryLoc(LOC_ALL)
+      setRegionLoc(LOC_ALL)
+    }
+  }, [countryOpts, countryLoc])
+
+  const resetAll = () => {
+    setSearch(''); setFilter('all'); setCountryLoc(LOC_ALL); setRegionLoc(LOC_ALL)
+  }
+
+  // Derived view: status → search → location → sort.
   const view = useMemo(() => {
     const q = search.trim().toLowerCase()
     const filtered = rows
       .filter((r) => filter === 'all' || normalisedStatus(r.passport.status) === filter)
       .filter((r) => q === '' || r.passport.title.toLowerCase().includes(q))
+      .filter((r) => {
+        const c = r.passport.country ?? null
+        if (countryLoc === LOC_ALL) return true
+        if (countryLoc === LOC_NONE) return c === null
+        if (c !== countryLoc) return false
+        // Country matches; apply the region cascade when shown + chosen.
+        if (!showRegion || regionLoc === LOC_ALL) return true
+        const rg = r.passport.region ?? null
+        if (regionLoc === LOC_NONE) return rg === null
+        return rg === regionLoc
+      })
     return [...filtered].sort((a, b) => compareRows(a, b, sortKey, sortDir))
-  }, [rows, search, filter, sortKey, sortDir])
+  }, [rows, search, filter, countryLoc, regionLoc, showRegion, sortKey, sortDir])
 
   // Status breakdown for the subheading — counts only published + drafts
   // over the full set. Archived rows are not bucketed here.
@@ -184,6 +275,44 @@ export function MyPassportsTable({ rows: initialRows, isAdmin = false }: { rows:
               )
             })}
           </div>
+
+          {/* Location filter (migration 112). Country + cascading region, both
+              populated only from values present in the library. */}
+          <div className="flex items-center gap-1.5">
+            <label className="flex items-center gap-1.5 text-sm text-muted">
+              <span className="sr-only">Filter by country</span>
+              <select
+                value={countryLoc}
+                onChange={(e) => { setCountryLoc(e.target.value); setRegionLoc(LOC_ALL) }}
+                className="h-9 rounded-[8px] border-[1.5px] border-hairline bg-white px-2 text-sm text-ink focus:border-ink focus:outline-none"
+                aria-label="Filter by country"
+              >
+                <option value={LOC_ALL}>All locations</option>
+                {countryOpts.list.map((c) => (
+                  <option key={c.code} value={c.code}>{c.name}</option>
+                ))}
+                {countryOpts.hasUnset && <option value={LOC_NONE}>No location set</option>}
+              </select>
+            </label>
+
+            {showRegion && (
+              <label className="flex items-center gap-1.5 text-sm text-muted">
+                <span className="sr-only">Filter by region</span>
+                <select
+                  value={regionLoc}
+                  onChange={(e) => setRegionLoc(e.target.value)}
+                  className="h-9 rounded-[8px] border-[1.5px] border-hairline bg-white px-2 text-sm text-ink focus:border-ink focus:outline-none"
+                  aria-label="Filter by region or state"
+                >
+                  <option value={LOC_ALL}>All regions</option>
+                  {regionOpts.list.map((r) => (
+                    <option key={r.code} value={r.code}>{r.name}</option>
+                  ))}
+                  {regionOpts.hasUnset && <option value={LOC_NONE}>No region set</option>}
+                </select>
+              </label>
+            )}
+          </div>
         </div>
 
         {/* Sort */}
@@ -212,7 +341,7 @@ export function MyPassportsTable({ rows: initialRows, isAdmin = false }: { rows:
       {rows.length === 0 ? (
         <EmptyState />
       ) : view.length === 0 ? (
-        <NoMatchState onReset={() => { setSearch(''); setFilter('all') }} />
+        <NoMatchState onReset={resetAll} />
       ) : (
         <div className="space-y-2">
           {/* Column header row */}
@@ -405,6 +534,10 @@ function PassportMeta({ passport }: { passport: DesignerPassport }) {
   if (passport.wheelchair_accessible) bits.push('step-free')
   const win = formatWindowRange(passport.effective_at, passport.expires_at, passport.availability_timezone)
   if (win) bits.push(win)
+  // Location (migration 112): prefer the region label (it embeds the country),
+  // else the country name. Silent when unset.
+  const loc = passport.region ? regionName(passport.region) : countryName(passport.country)
+  if (loc) bits.push(loc)
   return <>{bits.join(' · ')}</>
 }
 

@@ -14,6 +14,7 @@ import {
   startOfLocalDayUtc, endOfLocalDayUtc, utcToLocalDate,
   supportedTimeZones, browserTimeZone,
 } from '@/lib/availability'
+import { COUNTRIES, subdivisionsFor, hasSubdivisions } from '@/lib/design/locations'
 
 interface Props {
   onClose: () => void
@@ -475,6 +476,55 @@ export function PassportSettingsPanel({ onClose }: Props) {
               </section>
             )
           })()}
+
+          {/* Location (migration 112) — powers the /design library filter.
+              country = ISO 3166-1 alpha-2, region = full ISO 3166-2 code. */}
+          <section className="space-y-3">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-muted">
+              Location
+            </h3>
+            <p className="text-xs italic text-muted">
+              Tags this passport&apos;s country and region so you can filter your
+              library by location. Optional — leave unset for &ldquo;No location set.&rdquo;
+            </p>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-navy">Country</Label>
+              <select
+                value={passport.country ?? ''}
+                onChange={(e) => {
+                  const next = e.target.value || null
+                  // A region requires a matching country (DB CHECK). Clearing or
+                  // changing the country drops a now-mismatched region.
+                  const keepRegion =
+                    !!next && !!passport.region && passport.region.startsWith(next + '-')
+                  persist({ country: next, region: keepRegion ? passport.region : null })
+                }}
+                className="h-9 w-full rounded border border-hairline bg-white px-2 text-sm text-navy"
+              >
+                <option value="">No country</option>
+                {COUNTRIES.map((c) => (
+                  <option key={c.code} value={c.code}>{c.name}</option>
+                ))}
+              </select>
+            </div>
+
+            {hasSubdivisions(passport.country) && (
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium text-navy">Region / state</Label>
+                <select
+                  value={passport.region ?? ''}
+                  onChange={(e) => persist({ region: e.target.value || null })}
+                  className="h-9 w-full rounded border border-hairline bg-white px-2 text-sm text-navy"
+                >
+                  <option value="">No region</option>
+                  {subdivisionsFor(passport.country).map((s) => (
+                    <option key={s.code} value={s.code}>{s.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </section>
 
           {/* Spend tier + AI verification */}
           <section className="space-y-3">
