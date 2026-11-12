@@ -13,6 +13,7 @@
 // scales fine for an individual creator's library.
 
 import { useMemo, useState, useRef, useEffect } from 'react'
+import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
@@ -29,6 +30,18 @@ import type { DesignerPassport, CoverSideData } from '@/lib/design/types'
 const LOC_ALL = '__all'    // "All locations" — no constraint
 const LOC_NONE = '__none'  // "No location set" — country/region IS NULL
 const LOC_KEY = 'okuji.design.locationFilter' // sessionStorage (per-session persist)
+const VIEW_KEY = 'okuji.design.myPassportsView'
+
+// Map is lazy + client-only (react-simple-maps touches window; keeps ~135KB of
+// map lib + topojson out of the list view's initial load).
+const PassportLocationMap = dynamic(() => import('./PassportLocationMap'), {
+  ssr: false,
+  loading: () => (
+    <div className="flex h-72 items-center justify-center rounded-panel border border-hairline bg-white text-sm text-muted">
+      Loading map…
+    </div>
+  ),
+})
 
 // ── Row data shape ────────────────────────────────────────────────────────────
 // Augments DesignerPassport with the per-row stats the server pre-computes.
@@ -102,6 +115,19 @@ export function MyPassportsTable({ rows: initialRows, isAdmin = false }: { rows:
   // library below, so empty countries/states are never listed.
   const [countryLoc, setCountryLoc] = useState<string>(LOC_ALL)
   const [regionLoc, setRegionLoc] = useState<string>(LOC_ALL)
+  // List vs Map view (persisted per-session). Map is a read-only choropleth of
+  // the library by location; clicking it writes the SAME location filter state.
+  const [viewMode, setViewMode] = useState<'list' | 'map'>('list')
+
+  useEffect(() => {
+    try {
+      const v = sessionStorage.getItem(VIEW_KEY)
+      if (v === 'map' || v === 'list') setViewMode(v)
+    } catch { /* ignore */ }
+  }, [])
+  useEffect(() => {
+    try { sessionStorage.setItem(VIEW_KEY, viewMode) } catch { /* ignore */ }
+  }, [viewMode])
 
   // Hydrate the location filter from sessionStorage (per-session persistence).
   // Defaults render first to avoid an SSR/client hydration mismatch.
@@ -195,13 +221,18 @@ export function MyPassportsTable({ rows: initialRows, isAdmin = false }: { rows:
   // Status breakdown for the subheading — counts only published + drafts
   // over the full set. Archived rows are not bucketed here.
   const breakdown = useMemo(() => {
-    let p = 0, d = 0
+    let p = 0, d = 0, ready = 0
     for (const r of rows) {
       const s = normalisedStatus(r.passport.status)
       if (s === 'published') p++
-      else if (s === 'draft') d++
+      else if (s === 'draft') {
+        d++
+        // "Ready to publish": every workshop step except publishing itself is
+        // done (a draft tops out at 5/6 — the 6th step is publishing).
+        if (r.draftStepsDone >= 5) ready++
+      }
     }
-    return { total: rows.length, published: p, drafts: d }
+    return { total: rows.length, published: p, drafts: d, ready }
   }, [rows])
 
   const toggleSort = (key: SortKey) => {
@@ -315,8 +346,25 @@ export function MyPassportsTable({ rows: initialRows, isAdmin = false }: { rows:
           </div>
         </div>
 
-        {/* Sort */}
-        <label className="flex items-center gap-2 text-sm text-muted">
+        {/* View toggle (List | Map) + Sort */}
+        <div className="flex items-center gap-3">
+          <div className="inline-flex overflow-hidden rounded-[8px] border-[1.5px] border-hairline" role="group" aria-label="View mode">
+            {(['list', 'map'] as const).map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => setViewMode(m)}
+                aria-pressed={viewMode === m}
+                className={`h-9 px-3 text-sm font-medium capitalize transition-colors ${
+                  viewMode === m ? 'bg-ink text-cream' : 'bg-white text-muted hover:text-ink'
+                }`}
+              >
+                {m}
+              </button>
+            ))}
+          </div>
+
+          <label className={`flex items-center gap-2 text-sm text-muted ${viewMode === 'map' ? 'pointer-events-none opacity-40' : ''}`}>
           <span>Sort</span>
           <select
             value={`${sortKey}:${sortDir}`}
@@ -334,9 +382,27 @@ export function MyPassportsTable({ rows: initialRows, isAdmin = false }: { rows:
             <option value="performance:desc">Most sold</option>
             <option value="status:asc">Status</option>
           </select>
-        </label>
+          </label>
+        </div>
       </div>
 
+      {/* ── Map view ─────────────────────────────────────────────────── */}
+      {viewMode === 'map' ? (
+        rows.length === 0 ? (
+          <EmptyState />
+        ) : (
+          <PassportLocationMap
+            rows={rows}
+            onFilterCountry={(code) => {
+              setCountryLoc(code); setRegionLoc(LOC_ALL); setViewMode('list')
+            }}
+            onFilterRegion={(country, region) => {
+              setCountryLoc(country); setRegionLoc(region); setViewMode('list')
+            }}
+          />
+        )
+      ) : (
+      <>
       {/* ── Table ────────────────────────────────────────────────────── */}
       {rows.length === 0 ? (
         <EmptyState />
@@ -381,13 +447,15 @@ export function MyPassportsTable({ rows: initialRows, isAdmin = false }: { rows:
           ))}
         </div>
       )}
+      </>
+      )}
     </>
   )
 }
 
 // ── Subhead breakdown ────────────────────────────────────────────────────────
 
-function Breakdown({ b }: { b: { total: number; published: number; drafts: number } }) {
+function Breakdown({ b }: { b: { total: number; published: number; drafts: number; ready: number } }) {
   return (
     <>
       <span>{b.total} total</span>
@@ -395,6 +463,12 @@ function Breakdown({ b }: { b: { total: number; published: number; drafts: numbe
       <span className="font-semibold text-green">{b.published} published</span>
       <span className="mx-1.5">·</span>
       <span>{b.drafts} drafts</span>
+      {b.ready > 0 && (
+        <>
+          <span className="mx-1.5">·</span>
+          <span className="font-semibold text-accent">{b.ready} ready to publish</span>
+        </>
+      )}
     </>
   )
 }
