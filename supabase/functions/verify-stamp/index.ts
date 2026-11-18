@@ -20,9 +20,25 @@
 // verification_method 'demo' and is_demo true — marked, excluded from
 // verified-presence analytics, purgeable. They never masquerade as
 // verified rows (enforced by the migration-026 trigger as well).
+//
+// ANTI-SPOOFING (migration 109): after presence is proven on a GPS/QR tier,
+// a non-demo stamp gets an impossible-travel check against the collector's
+// previous GPS-verified stamp (stop locations, never collector coordinates).
+// Faster than TRAVEL_BLOCK_KMH -> refused; faster than TRAVEL_FLAG_KMH ->
+// written with travel_flagged = true. The optional body fields `mocked` and
+// `accuracy` are accepted now so the next mobile build can send them without
+// a server change; today's client never sends them, so they are inert.
+// Refusals use SPOOF_REASON, deliberately vague so the rule is not taught.
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { extractAndVerifyJWT } from '../_shared/auth.ts'
+
+// Anti-spoofing thresholds (migration 109). Tune from real data.
+const TRAVEL_FLAG_KMH = 150          // faster than driving: allow, flag
+const TRAVEL_BLOCK_KMH = 1000        // faster than a jet: refuse
+const TRAVEL_BLOCK_MIN_DISTANCE_M = 1000
+const ACCURACY_MAX_M = 1000          // a fix this coarse cannot prove presence
+const SPOOF_REASON = "We couldn't confirm this visit. Try again in a little while."
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -97,7 +113,7 @@ serve(async (req) => {
 
     const {
       stopId, latitude, longitude, qrCodeId, stopOpenedAt,
-      demo, placement, userId: bodyUserId,
+      demo, placement, userId: bodyUserId, mocked, accuracy,
     } = await req.json() as {
       stopId: string
       latitude?: number
@@ -107,6 +123,10 @@ serve(async (req) => {
       demo?: boolean
       placement?: PlacementBody
       userId?: string
+      // Sent by future mobile builds only (expo-location coords.accuracy and
+      // the Android mocked flag). Absent from the current client.
+      mocked?: boolean
+      accuracy?: number
     }
 
     // Body userId, if present, must match the JWT — never act on a different id.
@@ -251,6 +271,59 @@ serve(async (req) => {
       return json({ verified: false, reason: 'Location not confirmed' }, 200)
     }
 
+    // ── Anti-spoofing (migration 109) ────────────────────────────────────────
+    // Non-demo, location-proven tiers only. Honor (tier 5) proves nothing about
+    // location, so there is nothing to check; demo stamps are already marked.
+    let travelSpeedKmh: number | null = null
+    let travelFlagged: boolean | null = null
+    // True only when stamp_travel_check succeeded, which also proves migration
+    // 109 is applied. The travel columns are written ONLY then, so deploying
+    // this function before the migration cannot break stamp inserts.
+    let travelCheckRan = false
+
+    if (!isDemo && tier !== 5) {
+      // Device-reported signals (future builds). Mock flag or a coarse fix
+      // means the GPS reading cannot prove presence.
+      if (mocked === true) {
+        console.error('verify-stamp: refused, mocked location', { userId, stopId })
+        return json({ verified: false, reason: SPOOF_REASON }, 200)
+      }
+      if (typeof accuracy === 'number' && accuracy > ACCURACY_MAX_M) {
+        console.error('verify-stamp: refused, accuracy too coarse', { userId, stopId, accuracy })
+        return json({ verified: false, reason: SPOOF_REASON }, 200)
+      }
+
+      // Impossible travel. Fails OPEN: if the check errors (e.g. migration 109
+      // not yet applied), the stamp proceeds with travel columns null.
+      const { data: travelRows, error: travelErr } = await supabase.rpc('stamp_travel_check', {
+        p_user_id: userId,
+        p_stop_id: stopId,
+      })
+      if (travelErr) {
+        console.error('verify-stamp: travel check failed (allowing)', travelErr)
+      } else {
+        travelCheckRan = true
+        const row = Array.isArray(travelRows) ? travelRows[0] : null
+        if (row) {
+          const distanceM = Number(row.effective_distance_m) || 0
+          const elapsedS = Math.max(Number(row.elapsed_seconds) || 0, 1)
+          const speed = distanceM === 0 ? 0 : (distanceM / 1000) / (elapsedS / 3600)
+          travelSpeedKmh = Math.round(speed * 10) / 10
+
+          if (speed > TRAVEL_BLOCK_KMH && distanceM > TRAVEL_BLOCK_MIN_DISTANCE_M) {
+            console.error('verify-stamp: refused, impossible travel', {
+              userId, stopId, prevStampId: row.prev_stamp_id, distanceM, elapsedS, speed,
+            })
+            return json({ verified: false, reason: SPOOF_REASON }, 200)
+          }
+          travelFlagged = speed > TRAVEL_FLAG_KMH
+        } else {
+          // No anchor stamp (first GPS stamp, or none with a location).
+          travelFlagged = false
+        }
+      }
+    }
+
     // ── Write the stamp (service role — the only INSERT path) ────────────────
     const { data: stamp, error: insertError } = await supabase
       .from('stamps')
@@ -276,6 +349,10 @@ serve(async (req) => {
         // off-site — so demo stamps never read as verified yet honest "were they
         // actually there?" data survives (migration 031).
         gps_verified: gpsVerified,
+        // Migration 109. Omitted (null) when no travel check ran.
+        ...(travelCheckRan
+          ? { travel_speed_kmh: travelSpeedKmh, travel_flagged: travelFlagged }
+          : {}),
         stop_opened_at: stopOpenedAt ?? null,
         verified_at: new Date().toISOString(),
       })
